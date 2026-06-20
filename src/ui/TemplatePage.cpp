@@ -39,7 +39,7 @@ TemplatePage::TemplatePage(QWidget* parent)
     root->setContentsMargins(28, 24, 28, 24);
     root->setSpacing(20);
 
-    auto* title = new QLabel("Vorlage", this);
+    auto* title = new QLabel("Dashboard", this);
     title->setObjectName("pageTitle");
     root->addWidget(title);
 

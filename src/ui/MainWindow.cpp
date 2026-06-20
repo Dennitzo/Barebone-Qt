@@ -76,7 +76,7 @@ void MainWindow::buildUi()
     navLayout->setContentsMargins(16, 10, 16, 0);
     navLayout->setSpacing(8);
 
-    m_dashboardButton = new QPushButton("Dashboard Vorlage", nav);
+    m_dashboardButton = new QPushButton("Dashboard", nav);
     m_dashboardButton->setObjectName("sidebarNavButton");
     m_dashboardButton->setCheckable(true);
 
@@ -89,10 +89,10 @@ void MainWindow::buildUi()
     auto* dropdownLayout = new QVBoxLayout(m_dropdownContent);
     dropdownLayout->setContentsMargins(0, 0, 0, 0);
     dropdownLayout->setSpacing(8);
-    m_templateButton = new QPushButton("Vorlage", m_dropdownContent);
-    m_templateButton->setObjectName("sidebarChildNavButton");
-    m_templateButton->setCheckable(true);
-    dropdownLayout->addWidget(m_templateButton);
+    m_bricsCadButton = new QPushButton("BricsCAD", m_dropdownContent);
+    m_bricsCadButton->setObjectName("sidebarChildNavButton");
+    m_bricsCadButton->setCheckable(true);
+    dropdownLayout->addWidget(m_bricsCadButton);
     m_dropdownContent->setVisible(false);
 
     navLayout->addWidget(m_dashboardButton);
@@ -110,8 +110,10 @@ void MainWindow::buildUi()
 
     m_pages = new QStackedWidget(central);
     m_template = new TemplatePage(m_pages);
+    m_bricsCad = new BricsCadPage(m_pages);
     m_settings = new SettingsPage(m_config, m_pages);
     m_pages->addWidget(m_template);
+    m_pages->addWidget(m_bricsCad);
     m_pages->addWidget(m_settings);
 
     root->addWidget(sidebarFrame);
@@ -121,19 +123,19 @@ void MainWindow::buildUi()
     const auto selectDashboard = [this]() {
         m_pages->setCurrentWidget(m_template);
         m_dashboardButton->setChecked(true);
-        m_templateButton->setChecked(false);
+        m_bricsCadButton->setChecked(false);
         m_settingsButton->setChecked(false);
     };
-    const auto selectTemplate = [this]() {
-        m_pages->setCurrentWidget(m_template);
+    const auto selectBricsCad = [this]() {
+        m_pages->setCurrentWidget(m_bricsCad);
         m_dashboardButton->setChecked(false);
-        m_templateButton->setChecked(true);
+        m_bricsCadButton->setChecked(true);
         m_settingsButton->setChecked(false);
     };
     const auto selectSettings = [this]() {
         m_pages->setCurrentWidget(m_settings);
         m_dashboardButton->setChecked(false);
-        m_templateButton->setChecked(false);
+        m_bricsCadButton->setChecked(false);
         m_settingsButton->setChecked(true);
     };
 
@@ -141,7 +143,7 @@ void MainWindow::buildUi()
     QObject::connect(m_dropdownButton, &QPushButton::clicked, this, [this]() {
         m_dropdownContent->setVisible(!m_dropdownContent->isVisible());
     });
-    QObject::connect(m_templateButton, &QPushButton::clicked, this, selectTemplate);
+    QObject::connect(m_bricsCadButton, &QPushButton::clicked, this, selectBricsCad);
     QObject::connect(m_settingsButton, &QPushButton::clicked, this, selectSettings);
     selectDashboard();
 }

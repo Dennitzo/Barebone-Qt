@@ -14,7 +14,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Network Widgets)
 
 qt_standard_project_setup()
 
@@ -23,6 +23,8 @@ qt_add_executable(BareboneQtApp
     src/main.cpp
     src/core/ConfigManager.cpp
     src/core/ConfigManager.h
+    src/ui/BricsCadPage.cpp
+    src/ui/BricsCadPage.h
     src/ui/MainWindow.cpp
     src/ui/MainWindow.h
     src/ui/SettingsPage.cpp
@@ -36,7 +38,7 @@ if(WIN32)
     target_sources(BareboneQtApp PRIVATE resources/windows.rc)
 endif()
 
-target_link_libraries(BareboneQtApp PRIVATE Qt6::Widgets)
+target_link_libraries(BareboneQtApp PRIVATE Qt6::Network Qt6::Widgets)
 
 target_compile_definitions(BareboneQtApp PRIVATE
     QT_NO_KEYWORDS
@@ -73,6 +75,55 @@ if(WIN32)
     endif()
 else()
     message(FATAL_ERROR "Barebone-Qt is configured as a Windows-only template.")
+endif()
+
+set(BAREBONE_BRX_SDK_PATH "C:/Program Files/Bricsys/BRXSDK/BRX26.1.05.0" CACHE PATH "Path to the BricsCAD BRX SDK")
+option(BAREBONE_BUILD_BRX_PLUGIN "Build the optional BricsCAD BRX plugin" OFF)
+
+if(BAREBONE_BUILD_BRX_PLUGIN)
+    if(NOT MSVC)
+        message(FATAL_ERROR "The BricsCAD BRX V26 plugin must be built with MSVC / Visual Studio 2022.")
+    endif()
+
+    if(NOT EXISTS "${BAREBONE_BRX_SDK_PATH}/inc64" OR NOT EXISTS "${BAREBONE_BRX_SDK_PATH}/inc" OR NOT EXISTS "${BAREBONE_BRX_SDK_PATH}/lib64")
+        message(FATAL_ERROR "BRX SDK not found at BAREBONE_BRX_SDK_PATH='${BAREBONE_BRX_SDK_PATH}'.")
+    endif()
+
+    add_library(BareboneBrx MODULE
+        src/bricscad/BareboneBrxPlugin.cpp
+    )
+
+    target_compile_features(BareboneBrx PRIVATE cxx_std_20)
+    target_compile_definitions(BareboneBrx PRIVATE
+        BRX_APP
+        UNICODE
+        _UNICODE
+        __BRXTARGET=26
+    )
+    target_compile_options(BareboneBrx PRIVATE /EHa)
+    target_include_directories(BareboneBrx PRIVATE
+        "${BAREBONE_BRX_SDK_PATH}/inc64"
+        "${BAREBONE_BRX_SDK_PATH}/inc"
+    )
+    target_link_directories(BareboneBrx PRIVATE
+        "${BAREBONE_BRX_SDK_PATH}/lib64"
+    )
+    target_link_libraries(BareboneBrx PRIVATE
+        "${BAREBONE_BRX_SDK_PATH}/lib64/brx26.lib"
+        "${BAREBONE_BRX_SDK_PATH}/lib64/drx_entrypoint.lib"
+        ws2_32
+    )
+    set_target_properties(BareboneBrx PROPERTIES
+        AUTOMOC OFF
+        AUTORCC OFF
+        AUTOUIC OFF
+        PREFIX ""
+        SUFFIX ".brx"
+        OUTPUT_NAME "BareboneBrx"
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bricscad"
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bricscad"
+        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bricscad"
+    )
 endif()
 
 install(TARGETS BareboneQtApp RUNTIME DESTINATION bin)
