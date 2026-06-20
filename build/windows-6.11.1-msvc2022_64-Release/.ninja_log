@@ -1,0 +1,24 @@
+# ninja log v7
+19	122	8036940737562960	BareboneQtApp_autogen/timestamp	833bd4c0a378356f
+19	122	8036940737562960	BareboneQtApp_autogen/mocs_compilation.cpp	833bd4c0a378356f
+19	122	8036940737562960	C:/Users/Melow/Documents/GitHub/Barebone-Qt/build/windows-6.11.1-msvc2022_64-Release/BareboneQtApp_autogen/timestamp	833bd4c0a378356f
+19	122	8036940737562960	C:/Users/Melow/Documents/GitHub/Barebone-Qt/build/windows-6.11.1-msvc2022_64-Release/BareboneQtApp_autogen/mocs_compilation.cpp	833bd4c0a378356f
+460	588	8036443343576920	BareboneQtApp_autogen/3YJK5W5UP7/qrc_resources.cpp	9f23a100fb1e742
+460	588	8036443343576920	C:/Users/Melow/Documents/GitHub/Barebone-Qt/build/windows-6.11.1-msvc2022_64-Release/BareboneQtApp_autogen/3YJK5W5UP7/qrc_resources.cpp	9f23a100fb1e742
+599	749	8036443343840371	CMakeFiles/BareboneQtApp.dir/resources/windows.rc.res	d9d6396030f22ccb
+601	1128	8036443343860348	CMakeFiles/BareboneQtApp.dir/BareboneQtApp_autogen/3YJK5W5UP7/qrc_resources.cpp.obj	f1860791234a2525
+592	5426	8036443343767613	CMakeFiles/BareboneQtApp.dir/src/core/ConfigManager.cpp.obj	cab4527d048380a8
+535	6129	8036937151722526	CMakeFiles/BareboneQtApp.dir/src/ui/TemplatePage.cpp.obj	67742a046aadb1b6
+596	6246	8036443343800439	CMakeFiles/BareboneQtApp.dir/src/ui/SettingsPage.cpp.obj	39cc4b9aa4fba72c
+469	6266	8036939122780266	CMakeFiles/BareboneQtApp.dir/src/main.cpp.obj	5d2fca0e01db0343
+123	5375	8036940738503767	CMakeFiles/BareboneQtApp.dir/src/ui/MainWindow.cpp.obj	90753cacb59fc83
+467	6466	8036939122780266	CMakeFiles/BareboneQtApp.dir/BareboneQtApp_autogen/mocs_compilation.cpp.obj	3062ea6711ae95ae
+5375	7857	8036940791128519	Barebone-Qt.exe	f95bf6e1fb2d729d
+18	407	8036943847995368	BareboneQtApp_autogen/timestamp	833bd4c0a378356f
+18	407	8036943847995368	BareboneQtApp_autogen/mocs_compilation.cpp	833bd4c0a378356f
+18	407	8036943847995368	C:/Users/Melow/Documents/GitHub/Barebone-Qt/build/windows-6.11.1-msvc2022_64-Release/BareboneQtApp_autogen/timestamp	833bd4c0a378356f
+18	407	8036943847995368	C:/Users/Melow/Documents/GitHub/Barebone-Qt/build/windows-6.11.1-msvc2022_64-Release/BareboneQtApp_autogen/mocs_compilation.cpp	833bd4c0a378356f
+411	5616	8036943848473232	CMakeFiles/BareboneQtApp.dir/src/main.cpp.obj	5d2fca0e01db0343
+409	5841	8036943848473232	CMakeFiles/BareboneQtApp.dir/BareboneQtApp_autogen/mocs_compilation.cpp.obj	3062ea6711ae95ae
+413	5882	8036943848473232	CMakeFiles/BareboneQtApp.dir/src/ui/MainWindow.cpp.obj	90753cacb59fc83
+5882	8335	8036943903165469	Barebone-Qt.exe	f95bf6e1fb2d729d

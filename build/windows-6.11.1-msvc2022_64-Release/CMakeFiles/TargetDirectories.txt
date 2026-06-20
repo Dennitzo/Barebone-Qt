@@ -1,0 +1,9 @@
+C:/Users/Melow/Documents/GitHub/Barebone-Qt/build/windows-6.11.1-msvc2022_64-Release/CMakeFiles/BareboneQtApp.dir
+C:/Users/Melow/Documents/GitHub/Barebone-Qt/build/windows-6.11.1-msvc2022_64-Release/CMakeFiles/edit_cache.dir
+C:/Users/Melow/Documents/GitHub/Barebone-Qt/build/windows-6.11.1-msvc2022_64-Release/CMakeFiles/rebuild_cache.dir
+C:/Users/Melow/Documents/GitHub/Barebone-Qt/build/windows-6.11.1-msvc2022_64-Release/CMakeFiles/list_install_components.dir
+C:/Users/Melow/Documents/GitHub/Barebone-Qt/build/windows-6.11.1-msvc2022_64-Release/CMakeFiles/install.dir
+C:/Users/Melow/Documents/GitHub/Barebone-Qt/build/windows-6.11.1-msvc2022_64-Release/CMakeFiles/install/local.dir
+C:/Users/Melow/Documents/GitHub/Barebone-Qt/build/windows-6.11.1-msvc2022_64-Release/CMakeFiles/install/strip.dir
+C:/Users/Melow/Documents/GitHub/Barebone-Qt/build/windows-6.11.1-msvc2022_64-Release/CMakeFiles/BareboneQtApp_autogen_timestamp_deps.dir
+C:/Users/Melow/Documents/GitHub/Barebone-Qt/build/windows-6.11.1-msvc2022_64-Release/CMakeFiles/BareboneQtApp_autogen.dir
