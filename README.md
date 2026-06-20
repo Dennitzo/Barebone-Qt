@@ -1,8 +1,6 @@
 # Barebone-Qt
 
-Windows-only Qt6 application shell based on the visual structure of Bitcoin-Qt.
-
-The template intentionally contains no Bitcoin Core, Electrs, Mempool, Public Pool, Node.js, npm, MariaDB, runtime staging, macOS, or Linux build scripts.
+Windows-only Qt6 application shell.
 
 ## Build on Windows
 
