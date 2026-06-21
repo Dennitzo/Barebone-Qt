@@ -13,15 +13,25 @@ $root = Get-ProjectRoot
 $cmake = Resolve-CMakeExecutable -CMakePath $CMakePath
 $qtKit = Resolve-QtKit -QtRoot $QtRoot -QtKitPath $QtKitPath
 Initialize-BuildEnvironment -QtKit $qtKit
+if ($qtKit.Name -like 'msvc*') {
+    Import-VisualStudioEnvironment
+}
 
 $ninja = Resolve-NinjaExecutable
 
-$buildDirName = "windows-$($qtKit.Version)-$($qtKit.Name)-$Configuration"
+$compilerName = $qtKit.Name
+if ($compilerName -like 'msvc*') {
+    $compilerName = 'msvc'
+}
+$buildDirName = "windows-$($qtKit.Version)-$compilerName"
 $buildDir = Join-Path $root "build\$buildDirName"
+$brxBuildDir = Join-Path $root 'build\brx-msvc'
 if ($Clean) {
     Remove-SafeDirectory $buildDir
+    Remove-SafeDirectory $brxBuildDir
 }
 New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
+New-Item -ItemType Directory -Force -Path $brxBuildDir | Out-Null
 
 Write-Step "Configuring Barebone-Qt with Qt $($qtKit.Version) $($qtKit.Name)"
 if ($ninja) {
@@ -52,4 +62,37 @@ if ($exe) {
     Write-Host "Windows executable: $($exe.FullName)"
 } else {
     Write-Warning "Build completed but Barebone-Qt.exe was not found below $buildDir"
+}
+
+Write-Step "Configuring Barebone BRX plugin"
+if ($ninja) {
+    Add-PathEntry (Split-Path -Parent $ninja)
+    Invoke-Tool $cmake `
+        '-S' $root `
+        '-B' $brxBuildDir `
+        '-G' 'Ninja' `
+        "-DCMAKE_BUILD_TYPE=$Configuration" `
+        "-DCMAKE_PREFIX_PATH=$($qtKit.Path)" `
+        "-DCMAKE_MAKE_PROGRAM=$ninja" `
+        '-DBAREBONE_BUILD_BRX_PLUGIN=ON'
+} else {
+    Invoke-Tool $cmake `
+        '-S' $root `
+        '-B' $brxBuildDir `
+        '-G' 'Visual Studio 17 2022' `
+        '-A' 'x64' `
+        "-DCMAKE_PREFIX_PATH=$($qtKit.Path)" `
+        '-DBAREBONE_BUILD_BRX_PLUGIN=ON'
+}
+
+Write-Step "Building Barebone BRX plugin ($Configuration)"
+Invoke-Tool $cmake '--build' $brxBuildDir '--target' 'BareboneBrx' '--config' $Configuration '--parallel'
+
+$brx = Get-ChildItem -LiteralPath $brxBuildDir -Recurse -Filter 'BareboneBrx.brx' -ErrorAction SilentlyContinue |
+    Sort-Object FullName |
+    Select-Object -First 1
+if ($brx) {
+    Write-Host "BRX plugin: $($brx.FullName)"
+} else {
+    Write-Warning "Build completed but BareboneBrx.brx was not found below $brxBuildDir"
 }

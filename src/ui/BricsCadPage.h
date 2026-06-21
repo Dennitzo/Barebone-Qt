@@ -1,34 +1,129 @@
 #pragma once
 
-#include <QComboBox>
-#include <QDoubleSpinBox>
+#include "../core/ConfigManager.h"
+#include "AiWebBridge.h"
+
+#include <QHash>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QLabel>
+#include <QNetworkAccessManager>
 #include <QPlainTextEdit>
-#include <QPushButton>
 #include <QTcpServer>
+#include <QTcpSocket>
+#include <QTimer>
+#include <QVariantList>
+#include <QVariantMap>
+#include <QWebChannel>
+#include <QWebEngineView>
 #include <QWidget>
+
+#include <functional>
 
 class BricsCadPage final : public QWidget {
     Q_OBJECT
 
 public:
-    explicit BricsCadPage(QWidget* parent = nullptr);
+    explicit BricsCadPage(ConfigManager& config, QWidget* parent = nullptr);
+    QWidget* agentWidget() const;
 
 private:
+    struct PendingBridgeRequest {
+        QString method;
+        QTimer* timeout = nullptr;
+        std::function<void(const QJsonObject&)> handler;
+    };
+
+    struct AgentSessionState {
+        QJsonArray conversation;
+        QJsonObject pendingProposal;
+        QJsonObject pendingDraft;
+        QJsonObject lastToolResult;
+    };
+
     void startBridgeServer();
     void appendBridgeLog(const QString& message);
-    QByteArray handleBridgeRequest(const QByteArray& request);
-    void refreshLayers();
-    void extrudeSelectedLayer();
-    QByteArray sendPluginRequest(const QByteArray& request, int timeoutMs = 15000);
+    void emitCapabilitiesStatusToWeb() const;
+    void sendAgentPrompt(const QString& prompt);
+    void sendAgentRequest(const QString& prompt);
+    void sendAgentRequestWithPrefetchedContext(const QString& prompt, const QString& method, const QJsonObject& params);
+    void sendAgentEnvelope(const QJsonObject& envelope, const QString& userHistoryContent, bool storeUserMessage, const QString& logLabel);
+    void handleAgentReply(const QString& content);
+    bool retryAgentAfterValidationFailure(const QString& rejectedContent, const QJsonObject& rejectedObject, const QString& errorMessage);
+    void discardLastAssistantConversation(const QString& content);
+    QJsonObject normalizedAgentProposal(const QJsonObject& proposal) const;
+    void handleAgentContextRequest(const QJsonObject& request);
+    void continueAgentWithContextResult(const QJsonObject& contextRequest, const QJsonObject& contextResponse);
+    void continueAgentAfterToolResult(const QJsonObject& proposal, const QJsonObject& response);
+    void continueAgentAfterToolFailure(const QJsonObject& proposal, const QJsonObject& response, const QString& errorMessage);
+    void executeAgentProposal();
+    void appendAgentChat(const QString& speaker, const QString& message);
+    void clearAgentProposal();
+    void setAgentWaitingForUser(const QJsonObject& reply);
+    void setAgentProposal(const QJsonObject& proposal);
+    void setAgentBusy(bool busy);
+    bool isAgentConfirmation(const QString& prompt) const;
+    bool validateAgentProposal(const QJsonObject& proposal, QString& errorMessage) const;
+    bool validateToolParams(const QJsonObject& params, const QJsonObject& inputSchema, QString& errorMessage) const;
+    bool validateSchemaValue(const QJsonValue& value, const QJsonObject& schema, const QString& path, QString& errorMessage) const;
+    QString aiChatCompletionContent(const QJsonObject& response, QString* reasoningText = nullptr) const;
+    QJsonArray availableAgentTools() const;
+    QJsonObject toolDefinition(const QString& name) const;
+    QString bridgeMethodForTool(const QString& name) const;
+    bool isAllowedContextMethod(const QString& method) const;
+    QJsonObject currentAgentContext() const;
+    QJsonObject agentRequestEnvelope(const QString& prompt) const;
+    bool ensureBridgeCapabilitiesForPrompt(const QString& prompt);
+    void continueQueuedAgentPrompt();
+    void requestBridgeCapabilities();
+    void handleBridgeSocket(QTcpSocket* socket);
+    bool handleBridgeLine(const QByteArray& line, bool* incomplete = nullptr);
+    void handleBridgeMessage(const QJsonObject& message);
+    bool sendBridgeMessage(const QJsonObject& message);
+    bool sendBridgeRequest(
+        const QString& method,
+        const QJsonObject& params,
+        int timeoutMs,
+        std::function<void(const QJsonObject&)> handler);
+    void completeBridgeRequest(int id, const QJsonObject& message);
+    void failPendingBridgeRequests(const QString& message);
+    void forceBridgeReconnect(const QString& reason, bool preserveQueuedPrompt);
     void setPluginStatus(const QString& message, bool connected);
+    void writeBridgeToken() const;
+    void resetAgentConversation();
+    void openAgentSession(const QString& sessionId, const QVariantList& history);
+    void saveCurrentAgentSession();
+    QJsonArray conversationFromWebHistory(const QVariantList& history) const;
 
+    ConfigManager& m_config;
     QTcpServer* m_bridgeServer = nullptr;
+    QTcpSocket* m_brxSocket = nullptr;
+    QNetworkAccessManager* m_aiNetwork = nullptr;
+    QByteArray m_brxReadBuffer;
+    QByteArray m_brxJsonAccumulator;
+    QString m_bridgeToken;
+    bool m_brxAuthenticated = false;
+    bool m_agentBusy = false;
+    bool m_capabilitiesRequested = false;
+    bool m_preserveQueuedAgentPromptOnDisconnect = false;
+    int m_agentValidationRetries = 0;
+    int m_nextRequestId = 1;
+    QHash<int, PendingBridgeRequest> m_pendingRequests;
+    QString m_queuedAgentPrompt;
+    QString m_agentSessionId = QStringLiteral("session-default");
+    QString m_lastAgentUserPrompt;
+    QHash<QString, AgentSessionState> m_agentSessions;
+    QJsonArray m_agentConversation;
+    QJsonObject m_pendingAgentProposal;
+    QJsonObject m_pendingAgentDraft;
+    QJsonObject m_lastAgentToolResult;
+    QJsonObject m_brxCapabilities;
+    QJsonArray m_currentSelection;
+    QWidget* m_agentWidget = nullptr;
+    QWebEngineView* m_agentWebView = nullptr;
+    QWebChannel* m_agentChannel = nullptr;
+    AiWebBridge* m_agentBridge = nullptr;
     QLabel* m_pluginStatus = nullptr;
-    QComboBox* m_layerCombo = nullptr;
-    QDoubleSpinBox* m_heightInput = nullptr;
-    QPushButton* m_refreshLayersButton = nullptr;
-    QPushButton* m_extrudeButton = nullptr;
     QLabel* m_bridgeStatus = nullptr;
     QPlainTextEdit* m_bridgeLog = nullptr;
 };

@@ -119,3 +119,44 @@ function Initialize-BuildEnvironment {
     param($QtKit)
     Add-PathEntry (Join-Path $QtKit.Path 'bin')
 }
+
+function Import-VisualStudioEnvironment {
+    if ($env:VCINSTALLDIR -and $env:WindowsSdkDir) {
+        return
+    }
+
+    $vsDevCmdCandidates = @(
+        'C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat',
+        'C:\Program Files\Microsoft Visual Studio\18\Professional\Common7\Tools\VsDevCmd.bat',
+        'C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\Tools\VsDevCmd.bat',
+        'C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat',
+        'C:\Program Files\Microsoft Visual Studio\2022\Professional\Common7\Tools\VsDevCmd.bat',
+        'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat'
+    )
+
+    $vsDevCmd = $vsDevCmdCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    if (!$vsDevCmd) {
+        throw "Visual Studio Developer Command Prompt was not found. Install Visual Studio C++ tools or run from an x64 Developer PowerShell."
+    }
+
+    $tempScript = Join-Path ([System.IO.Path]::GetTempPath()) "barebone-vsdevcmd-$PID.cmd"
+    @(
+        '@echo off',
+        "call `"$vsDevCmd`" -arch=x64 -host_arch=x64 >nul",
+        'set'
+    ) | Set-Content -LiteralPath $tempScript -Encoding ASCII
+    try {
+        $environment = & cmd.exe /d /c "`"$tempScript`""
+    } finally {
+        Remove-Item -LiteralPath $tempScript -Force -ErrorAction SilentlyContinue
+    }
+    foreach ($line in $environment) {
+        $separator = $line.IndexOf('=')
+        if ($separator -le 0) {
+            continue
+        }
+        $name = $line.Substring(0, $separator)
+        $value = $line.Substring($separator + 1)
+        [System.Environment]::SetEnvironmentVariable($name, $value, 'Process')
+    }
+}

@@ -13,10 +13,14 @@ public:
 
     QString theme() const;
     QString language() const;
+    QString aiBaseUrl() const;
+    QString aiModel() const;
     QByteArray windowGeometry() const;
 
     void setTheme(const QString& theme);
     void setLanguage(const QString& language);
+    void setAiBaseUrl(const QString& baseUrl);
+    void setAiModel(const QString& model);
     void setWindowGeometry(const QByteArray& geometry);
 
 Q_SIGNALS:

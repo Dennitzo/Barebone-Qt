@@ -3,6 +3,7 @@
 #include <QColor>
 #include <QGraphicsDropShadowEffect>
 #include <QScrollArea>
+#include <QSizePolicy>
 #include <QVBoxLayout>
 
 namespace {
@@ -32,14 +33,23 @@ QWidget* wrapCard(QWidget* content, QWidget* parent, int height = 138)
 
 }
 
-TemplatePage::TemplatePage(QWidget* parent)
+TemplatePage::TemplatePage(Mode mode, QWidget* agentWidget, QWidget* parent)
     : QWidget(parent)
 {
     auto* root = new QVBoxLayout(this);
+    if (mode == Mode::Dashboard && agentWidget) {
+        root->setContentsMargins(0, 0, 0, 0);
+        root->setSpacing(0);
+        agentWidget->setParent(this);
+        agentWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+        root->addWidget(agentWidget, 1);
+        return;
+    }
+
     root->setContentsMargins(28, 24, 28, 24);
     root->setSpacing(20);
 
-    auto* title = new QLabel("Dashboard", this);
+    auto* title = new QLabel("Vorlage", this);
     title->setObjectName("pageTitle");
     root->addWidget(title);
 
@@ -51,19 +61,21 @@ TemplatePage::TemplatePage(QWidget* parent)
     contentLayout->setContentsMargins(0, 0, 0, 0);
     contentLayout->setSpacing(20);
 
-    QGridLayout* metricsGrid = nullptr;
-    auto* metricsGroup = createGroup("Kachelgruppe", &metricsGrid);
-    metricsGrid->addWidget(createMetricCard("Status", "Online", 9100), 0, 0);
-    metricsGrid->addWidget(createMetricCard("Fortschritt", "84.20 %", 8420), 0, 1);
-    metricsGrid->addWidget(createMetricCard("Auslastung", "61.75 %", 6175), 0, 2);
-    metricsGrid->addWidget(createMetricCard("Speicher", "248 GB", 5100), 0, 3);
-    metricsGrid->addWidget(createMetricCard("Eintraege", "9", -1), 0, 4);
-    metricsGrid->setColumnStretch(0, 1);
-    metricsGrid->setColumnStretch(1, 1);
-    metricsGrid->setColumnStretch(2, 1);
-    metricsGrid->setColumnStretch(3, 2);
-    metricsGrid->setColumnStretch(4, 1);
-    contentLayout->addWidget(metricsGroup);
+    if (mode == Mode::Vorlage) {
+        QGridLayout* metricsGrid = nullptr;
+        auto* metricsGroup = createGroup("Kachelgruppe", &metricsGrid);
+        metricsGrid->addWidget(createMetricCard("Status", "Online", 9100), 0, 0);
+        metricsGrid->addWidget(createMetricCard("Fortschritt", "84.20 %", 8420), 0, 1);
+        metricsGrid->addWidget(createMetricCard("Auslastung", "61.75 %", 6175), 0, 2);
+        metricsGrid->addWidget(createMetricCard("Speicher", "248 GB", 5100), 0, 3);
+        metricsGrid->addWidget(createMetricCard("Eintraege", "9", -1), 0, 4);
+        metricsGrid->setColumnStretch(0, 1);
+        metricsGrid->setColumnStretch(1, 1);
+        metricsGrid->setColumnStretch(2, 1);
+        metricsGrid->setColumnStretch(3, 2);
+        metricsGrid->setColumnStretch(4, 1);
+        contentLayout->addWidget(metricsGroup);
+    }
 
     contentLayout->addStretch();
     scroll->setWidget(content);

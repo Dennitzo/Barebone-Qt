@@ -44,7 +44,8 @@ $levelCount = Replace-Bytes -Data $bytes -Needle 'ms_asmv2:level' -Replacement '
 $uiAccessCount = Replace-Bytes -Data $bytes -Needle 'ms_asmv2:uiAccess' -Replacement 'uiAccess         '
 
 if ($levelCount -eq 0 -or $uiAccessCount -eq 0) {
-    throw "Embedded manifest attributes were not found in $($resolved.Path)."
+    Write-Host "Embedded manifest attributes were not found in $($resolved.Path); no manifest fix needed."
+    exit 0
 }
 
 [System.IO.File]::WriteAllBytes($resolved.Path, $bytes)

@@ -1,0 +1,1660 @@
+﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Barebone AI Assistent</title>
+
+  <style>
+    :root {
+      --sidebar-width: 270px;
+      --bg: #ffffff;
+      --surface: #f9f9f9;
+      --surface-hover: #ececec;
+      --composer-bg: #f4f4f4;
+      --composer-border: #dedede;
+      --text: #171717;
+      --text-muted: #707070;
+      --border: #e5e5e5;
+      --user-bubble: #f4f4f4;
+      --button-bg: #111111;
+      --button-text: #ffffff;
+      --warning-bg: #fff7ed;
+      --warning-border: #f7931a;
+      --radius-sm: 10px;
+      --radius-md: 16px;
+      --radius-lg: 26px;
+      --shadow-soft: 0 8px 30px rgba(0, 0, 0, 0.08);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #212121;
+        --surface: #171717;
+        --surface-hover: #2f2f2f;
+        --composer-bg: #303030;
+        --composer-border: #474747;
+        --text: #ececec;
+        --text-muted: #a6a6a6;
+        --border: #343434;
+        --user-bubble: #303030;
+        --button-bg: #ffffff;
+        --button-text: #111111;
+        --warning-bg: #2a2117;
+        --warning-border: #f7931a;
+        --shadow-soft: 0 8px 30px rgba(0, 0, 0, 0.28);
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+    }
+
+    button,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      stroke-width: 2;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      flex-shrink: 0;
+    }
+
+    .app {
+      width: 100%;
+      height: 100vh;
+      display: grid;
+      grid-template-columns: var(--sidebar-width) 1fr;
+      background: var(--bg);
+    }
+
+    .app.sidebar-collapsed {
+      --sidebar-width: 56px;
+    }
+
+    .sidebar {
+      min-width: 0;
+      height: 100vh;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .app.sidebar-collapsed .sidebar {
+      padding: 10px;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    .app.sidebar-collapsed .sidebar-header {
+      justify-content: center;
+    }
+
+    .app.sidebar-collapsed .sidebar-actions,
+    .app.sidebar-collapsed .new-chat-btn,
+    .app.sidebar-collapsed .sidebar-search,
+    .app.sidebar-collapsed .sidebar-title,
+    .app.sidebar-collapsed .chat-list {
+      display: none;
+    }
+
+    .sidebar-header,
+    .sidebar-actions,
+    .topbar-left,
+    .topbar-right,
+    .composer-footer,
+    .composer-tools,
+    .composer-right,
+    .proposal-actions {
+      display: flex;
+      align-items: center;
+    }
+
+    .sidebar-header {
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .sidebar-actions,
+    .topbar-left,
+    .topbar-right,
+    .composer-tools,
+    .composer-right,
+    .proposal-actions {
+      gap: 8px;
+    }
+
+    .icon-btn {
+      width: 36px;
+      height: 36px;
+      border: 0;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--text);
+      display: inline-grid;
+      place-items: center;
+      transition: background 0.15s ease;
+    }
+
+    .icon-btn:hover {
+      background: var(--surface-hover);
+    }
+
+    .new-chat-btn {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      color: var(--text);
+      border-radius: 12px;
+      padding: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-align: left;
+      text-decoration: none;
+      font-size: 14px;
+      transition: background 0.15s ease;
+    }
+
+    .new-chat-btn:hover {
+      background: var(--surface-hover);
+    }
+
+    .sidebar-search {
+      height: 40px;
+      padding: 0 10px;
+      border-radius: 12px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+    }
+
+    .sidebar-search input {
+      min-width: 0;
+      width: 100%;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+    }
+
+    .sidebar-search input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .sidebar-title {
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 10px 2px;
+    }
+
+    .chat-list {
+      min-height: 0;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding-right: 2px;
+    }
+
+    .chat-link {
+      color: var(--text);
+      text-decoration: none;
+      font-size: 14px;
+      border-radius: 10px;
+      padding: 9px 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .chat-link:hover,
+    .chat-link.active {
+      background: var(--surface-hover);
+    }
+
+    .chat-link.hidden {
+      display: none;
+    }
+
+    .main {
+      min-width: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+    }
+
+    .topbar {
+      height: 56px;
+      flex-shrink: 0;
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg);
+    }
+
+    .model-title {
+      color: var(--text);
+      padding: 8px 10px;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .status-pill {
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text-muted);
+      border-radius: 999px;
+      padding: 7px 12px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .status-pill.thinking {
+      color: var(--text);
+      background: var(--warning-bg);
+      border-color: var(--warning-border);
+    }
+
+    .profile {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #10a37f, #7c3aed);
+      color: #ffffff;
+      display: grid;
+      place-items: center;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .chat {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .messages {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 18px 20px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .message {
+      width: min(820px, 100%);
+      margin: 0 auto;
+      display: flex;
+      gap: 14px;
+      line-height: 1.55;
+      font-size: 15px;
+    }
+
+    .message.user {
+      justify-content: flex-end;
+    }
+
+    .message.assistant,
+    .message.system {
+      justify-content: flex-start;
+      align-items: flex-start;
+    }
+
+    .assistant-avatar {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      display: grid;
+      place-items: center;
+      font-size: 12px;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .bubble {
+      max-width: 72%;
+      color: var(--text);
+      word-wrap: break-word;
+      white-space: pre-wrap;
+    }
+
+    .user .bubble {
+      background: var(--user-bubble);
+      padding: 12px 16px;
+      border-radius: 22px;
+      border-top-right-radius: 6px;
+    }
+
+    .assistant .bubble,
+    .system .bubble {
+      background: transparent;
+      padding: 2px 0 0;
+      max-width: calc(100% - 46px);
+    }
+
+    .message.thinking-indicator {
+      opacity: 0.92;
+    }
+
+    .thinking-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text-muted);
+      font-size: 15px;
+      line-height: 1.55;
+      padding-top: 2px;
+    }
+
+    .thinking-toggle {
+      border: 0;
+      padding: 0;
+      background: transparent;
+      color: var(--text-muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 15px;
+      line-height: 1.55;
+    }
+
+    .thinking-toggle:hover {
+      color: var(--text);
+    }
+
+    .thinking-chevron {
+      width: 14px;
+      height: 14px;
+      transition: transform 0.15s ease;
+    }
+
+    .thinking-toggle[aria-expanded="true"] .thinking-chevron {
+      transform: rotate(90deg);
+    }
+
+    .thinking-details {
+      display: none;
+      margin: 8px 0 0 28px;
+      padding-left: 12px;
+      border-left: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 13px;
+      line-height: 1.45;
+      white-space: normal;
+    }
+
+    .thinking-details.open {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .thinking-detail-item {
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+    }
+
+    .thinking-detail-item.hidden {
+      display: none;
+    }
+
+    .loading-spinner {
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      border: 2px solid var(--border);
+      border-top-color: var(--text-muted);
+      animation: spin 0.85s linear infinite;
+      flex-shrink: 0;
+    }
+
+    .status-mark {
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      display: inline-grid;
+      place-items: center;
+      flex-shrink: 0;
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .status-mark.done {
+      color: #0f7b55;
+      background: rgba(16, 163, 127, 0.12);
+    }
+
+    .status-mark.failed {
+      color: #b42318;
+      background: rgba(180, 35, 24, 0.12);
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .meta {
+      color: var(--text-muted);
+      font-size: 12px;
+      margin-bottom: 3px;
+    }
+
+    .proposal-panel {
+      width: min(820px, calc(100% - 40px));
+      margin: 0 auto 12px;
+      padding: 12px 14px;
+      border: 1px solid var(--warning-border);
+      border-radius: 16px;
+      background: var(--warning-bg);
+      display: none;
+      gap: 10px;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .proposal-panel.visible {
+      display: flex;
+    }
+
+    .proposal-title {
+      font-weight: 800;
+      font-size: 15px;
+    }
+
+    .proposal-details {
+      color: var(--text);
+      font-size: 15px;
+      white-space: pre-wrap;
+      line-height: 1.55;
+      max-height: 170px;
+      overflow: auto;
+    }
+
+    .message.inline-proposal .bubble {
+      max-width: calc(100% - 46px);
+    }
+
+    .inline-proposal-card {
+      color: var(--text);
+      background: var(--warning-bg);
+      border: 1px solid var(--warning-border);
+      border-radius: 16px;
+      padding: 12px 14px;
+      font-size: 15px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+    }
+
+    .inline-proposal-title {
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
+
+    .inline-proposal-summary {
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.55;
+      margin-bottom: 10px;
+      white-space: pre-wrap;
+    }
+
+    .inline-proposal-toggle {
+      border: 0;
+      padding: 0;
+      background: transparent;
+      color: var(--text-muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .inline-proposal-toggle:hover {
+      color: var(--text);
+    }
+
+    .inline-proposal-toggle[aria-expanded="true"] .thinking-chevron {
+      transform: rotate(90deg);
+    }
+
+    .inline-proposal-details {
+      display: none;
+      margin-top: 8px;
+      padding-left: 12px;
+      border-left: 1px solid rgba(247, 147, 26, 0.5);
+      color: var(--text-muted);
+      font-size: 13px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      max-height: 160px;
+      overflow: auto;
+    }
+
+    .inline-proposal-details.open {
+      display: block;
+    }
+
+    .proposal-actions {
+      justify-content: flex-end;
+    }
+
+    .inline-proposal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .confirm-btn,
+    .cancel-btn,
+    .tool-btn {
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 8px 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 14px;
+    }
+
+    .confirm-btn {
+      background: var(--button-bg);
+      color: var(--button-text);
+      border-color: var(--button-bg);
+    }
+
+    .confirm-btn:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    .composer-wrap {
+      flex-shrink: 0;
+      padding: 0 20px 16px;
+      background: var(--bg);
+    }
+
+    .composer {
+      width: min(820px, 100%);
+      margin: 0 auto;
+      background: var(--composer-bg);
+      border: 1px solid var(--composer-border);
+      border-radius: var(--radius-lg);
+      padding: 14px;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .composer textarea {
+      width: 100%;
+      min-height: 58px;
+      max-height: 180px;
+      resize: none;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--text);
+      padding: 2px 4px 10px;
+      font-size: 16px;
+      line-height: 1.45;
+    }
+
+    .composer textarea::placeholder {
+      color: var(--text-muted);
+    }
+
+    .composer-footer {
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .send-btn {
+      width: 36px;
+      height: 36px;
+      border: 0;
+      border-radius: 50%;
+      background: var(--button-bg);
+      color: var(--button-text);
+      display: grid;
+      place-items: center;
+    }
+
+    .send-btn:disabled,
+    textarea:disabled {
+      opacity: 0.55;
+      cursor: default;
+    }
+
+    .disclaimer {
+      width: min(820px, 100%);
+      margin: 8px auto 0;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+
+    .messages::-webkit-scrollbar,
+    .chat-list::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .messages::-webkit-scrollbar-thumb,
+    .chat-list::-webkit-scrollbar-thumb {
+      background: transparent;
+      border-radius: 999px;
+    }
+
+    .messages:hover::-webkit-scrollbar-thumb,
+    .chat-list:hover::-webkit-scrollbar-thumb {
+      background: var(--surface-hover);
+    }
+
+    @media (max-width: 860px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        display: none;
+      }
+
+      .topbar {
+        padding: 10px 12px;
+      }
+
+      .messages {
+        padding: 12px 12px 22px;
+      }
+
+      .bubble {
+        max-width: 86%;
+      }
+
+      .assistant .bubble,
+      .system .bubble {
+        max-width: calc(100% - 44px);
+      }
+
+      .composer-wrap {
+        padding: 0 10px 12px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app" id="app">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <button class="icon-btn" id="sidebar-toggle" aria-label="Sidebar einklappen" aria-expanded="true">
+          <svg viewBox="0 0 24 24">
+            <path d="M4 7h16" />
+            <path d="M4 12h16" />
+            <path d="M4 17h16" />
+          </svg>
+        </button>
+        <div class="sidebar-actions">
+          <button class="icon-btn" id="sidebar-search-button" aria-label="Suchen">
+            <svg viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" />
+            </svg>
+          </button>
+          <button class="icon-btn" id="new-chat-icon" aria-label="Neue Sitzung">
+            <svg viewBox="0 0 24 24">
+              <path d="M12 5v14" />
+              <path d="M5 12h14" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <button class="new-chat-btn" id="new-chat-button">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 20h9" />
+          <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+        </svg>
+        Neue Sitzung
+      </button>
+
+      <label class="sidebar-search" for="chat-search">
+        <svg viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="7" />
+          <path d="m20 20-3.5-3.5" />
+        </svg>
+        <input id="chat-search" type="search" placeholder="Chats suchen" autocomplete="off" />
+      </label>
+
+      <div class="sidebar-title">Sitzungen</div>
+      <nav class="chat-list" id="chat-list">
+        <a href="#" class="chat-link active">BricsCAD AI Assistent</a>
+      </nav>
+
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="topbar-left">
+          <div class="model-title">AI Assistent</div>
+          <span class="status-pill" id="agent-status">idle</span>
+        </div>
+
+        <div class="topbar-right">
+          <span class="status-pill" id="brx-status">BRX nicht verbunden</span>
+          <div class="profile">AI</div>
+        </div>
+      </header>
+
+      <section class="chat">
+        <div class="messages" id="messages"></div>
+
+        <div class="proposal-panel" id="proposal-panel">
+          <div class="proposal-title" id="proposal-title">AI Vorschlag bereit</div>
+          <div class="proposal-details" id="proposal-details"></div>
+          <div class="proposal-actions">
+            <button class="cancel-btn" id="proposal-cancel" type="button">Verwerfen</button>
+            <button class="confirm-btn" id="proposal-confirm" type="button">Ausführen</button>
+          </div>
+        </div>
+
+        <div class="composer-wrap">
+          <form class="composer" id="composer">
+            <textarea id="prompt-input" placeholder="Nachricht eingeben ..." aria-label="Prompt eingeben"></textarea>
+
+            <div class="composer-footer">
+              <div class="composer-tools">
+                <button class="tool-btn" id="tools-button" type="button">
+                  <svg viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M12 7v5l3 3" />
+                  </svg>
+                  <span>Tools</span>
+                </button>
+              </div>
+
+              <div class="composer-right">
+                <button class="send-btn" id="send-button" type="submit" aria-label="Nachricht senden">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M12 19V5" />
+                    <path d="m5 12 7-7 7 7" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </form>
+
+          <div class="disclaimer">AI kann Fehler machen. BricsCAD-Aktionen werden erst nach Bestätigung ausgeführt.</div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+  <script>
+    const app = document.getElementById("app");
+    const messages = document.getElementById("messages");
+    const form = document.getElementById("composer");
+    const input = document.getElementById("prompt-input");
+    const sendButton = document.getElementById("send-button");
+    const agentStatus = document.getElementById("agent-status");
+    const brxStatus = document.getElementById("brx-status");
+    const proposalPanel = document.getElementById("proposal-panel");
+    const proposalTitle = document.getElementById("proposal-title");
+    const proposalDetails = document.getElementById("proposal-details");
+    const proposalConfirm = document.getElementById("proposal-confirm");
+    const proposalCancel = document.getElementById("proposal-cancel");
+    const newChatButton = document.getElementById("new-chat-button");
+    const newChatIcon = document.getElementById("new-chat-icon");
+    const chatSearch = document.getElementById("chat-search");
+    const chatList = document.getElementById("chat-list");
+    const sidebarToggle = document.getElementById("sidebar-toggle");
+    const sidebarSearchButton = document.getElementById("sidebar-search-button");
+    const toolsButton = document.getElementById("tools-button");
+
+    const storageKey = "bareboneQt.aiAssistant.sessions.v1";
+    let bridge = null;
+    let sessions = [];
+    let activeSessionId = "";
+    let chatCounter = 1;
+    let isBusy = false;
+    let thinkingIndicator = null;
+    let thinkingDetailsList = null;
+    let thinkingDetailCount = 0;
+    let capabilitiesIndicator = null;
+    let proposalInline = null;
+
+    function nowTime() {
+      return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+
+    function defaultGreeting() {
+      return {
+        speaker: "AI",
+        message: "Was möchtest du mit BricsCAD tun?",
+        time: nowTime()
+      };
+    }
+
+    function germanizeText(text) {
+      let value = String(text || "");
+      const replacements = [
+        [/Bestaetigung/g, "Bestätigung"],
+        [/bestaetigen/g, "bestätigen"],
+        [/Bestaetigt/g, "Bestätigt"],
+        [/bestaetigt/g, "bestätigt"],
+        [/Ausfuehren/g, "Ausführen"],
+        [/ausfuehren/g, "ausführen"],
+        [/Ausfuehrung/g, "Ausführung"],
+        [/ausfuehrung/g, "ausführung"],
+        [/ausfuehrbaren/g, "ausführbaren"],
+        [/ausfuehrbare/g, "ausführbare"],
+        [/ausgefuehrt/g, "ausgeführt"],
+        [/Fuehre/g, "Führe"],
+        [/fuehre/g, "führe"],
+        [/fuer/g, "für"],
+        [/Fuer/g, "Für"],
+        [/ueber/g, "über"],
+        [/Ueber/g, "Über"],
+        [/gueltig/g, "gültig"],
+        [/ungueltig/g, "ungültig"],
+        [/moechtest/g, "möchtest"],
+        [/Moechtest/g, "Möchtest"],
+        [/pruefe/g, "prüfe"],
+        [/Pruefe/g, "Prüfe"],
+        [/beruecksichtige/g, "berücksichtige"],
+        [/Beruecksichtige/g, "Berücksichtige"],
+        [/Rueckfrage/g, "Rückfrage"],
+        [/rueckfrage/g, "rückfrage"],
+        [/Hoehe/g, "Höhe"],
+        [/hoehe/g, "höhe"],
+        [/Laenge/g, "Länge"],
+        [/laenge/g, "länge"],
+        [/Flaeche/g, "Fläche"],
+        [/flaeche/g, "fläche"],
+        [/enthaelt/g, "enthält"],
+        [/verfuegbar/g, "verfügbar"],
+        [/uebersprungen/g, "übersprungen"],
+        [/gewaehlt/g, "gewählt"],
+        [/waehrend/g, "während"],
+        [/laeuft/g, "läuft"]
+      ];
+      for (const [pattern, replacement] of replacements) {
+        value = value.replace(pattern, replacement);
+      }
+      return value;
+    }
+
+    function createSession(title) {
+      return {
+        id: `session-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+        title,
+        userNamed: false,
+        messages: [defaultGreeting()],
+        proposal: null
+      };
+    }
+
+    function readableStoredMessageText(speaker, text) {
+      if (speaker !== "AI") {
+        return germanizeText(text);
+      }
+      const cleaned = String(text || "")
+        .replaceAll("<|channel|>final", "")
+        .replaceAll("<|constrain|>json", "")
+        .replaceAll("<|message|>", "")
+        .trim();
+      const firstBrace = cleaned.indexOf("{");
+      const lastBrace = cleaned.lastIndexOf("}");
+      if (firstBrace < 0 || lastBrace <= firstBrace) {
+        return germanizeText(text);
+      }
+      try {
+        const parsed = JSON.parse(cleaned.slice(firstBrace, lastBrace + 1));
+        if (parsed && typeof parsed.message === "string" && parsed.message.trim()) {
+          return germanizeText(parsed.message.trim());
+        }
+      } catch {
+        return germanizeText(text);
+      }
+      return germanizeText(text);
+    }
+
+    function normalizeMessage(message) {
+      const speaker = message.speaker || "AI";
+      return {
+        speaker,
+        message: readableStoredMessageText(speaker, message.message || ""),
+        time: message.time || nowTime()
+      };
+    }
+
+    function normalizeSession(session, index) {
+      const fallback = createSession(index === 0 ? "BricsCAD AI Assistent" : `Neue Sitzung ${index + 1}`);
+      return {
+        id: typeof session.id === "string" && session.id ? session.id : fallback.id,
+        title: typeof session.title === "string" && session.title ? session.title : fallback.title,
+        userNamed: !!session.userNamed,
+        messages: Array.isArray(session.messages) && session.messages.length
+          ? session.messages.map(normalizeMessage)
+          : fallback.messages,
+        proposal: session.proposal || null
+      };
+    }
+
+    function loadSessions() {
+      try {
+        const raw = localStorage.getItem(storageKey);
+        if (!raw) {
+          throw new Error("empty");
+        }
+        const stored = JSON.parse(raw);
+        sessions = Array.isArray(stored.sessions)
+          ? stored.sessions.map(normalizeSession)
+          : [];
+        activeSessionId = typeof stored.activeSessionId === "string" ? stored.activeSessionId : "";
+        chatCounter = Number.isFinite(stored.chatCounter) ? stored.chatCounter : sessions.length;
+      } catch {
+        sessions = [];
+        activeSessionId = "";
+        chatCounter = 1;
+      }
+
+      if (!sessions.length) {
+        sessions = [createSession("BricsCAD AI Assistent")];
+      }
+      if (!sessions.some((session) => session.id === activeSessionId)) {
+        activeSessionId = sessions[0].id;
+      }
+    }
+
+    function persistSessions() {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify({
+          sessions,
+          activeSessionId,
+          chatCounter
+        }));
+      } catch {
+        // WebEngine may deny storage for some local origins. The current runtime state still works.
+      }
+    }
+
+    function activeSession() {
+      let session = sessions.find((item) => item.id === activeSessionId);
+      if (!session) {
+        session = sessions[0];
+        activeSessionId = session.id;
+      }
+      return session;
+    }
+
+    function backendHistory(session) {
+      return session.messages
+        .filter((message) => message.speaker === "Du" || message.speaker === "AI")
+        .map((message) => ({
+          speaker: message.speaker,
+          message: message.message
+        }));
+    }
+
+    function syncActiveSessionToQt() {
+      if (bridge && typeof bridge.openSession === "function") {
+        bridge.openSession(activeSessionId, backendHistory(activeSession()));
+      }
+    }
+
+    function roleForSpeaker(speaker) {
+      if (speaker === "Du") {
+        return "user";
+      }
+      if (speaker === "Barebone-Qt" || speaker === "BRX") {
+        return "system";
+      }
+      return "assistant";
+    }
+
+    function avatarForSpeaker(speaker) {
+      if (speaker === "BRX") {
+        return "BRX";
+      }
+      if (speaker === "Barebone-Qt") {
+        return "Qt";
+      }
+      return "AI";
+    }
+
+    function renderMessage(message) {
+      const speaker = message.speaker;
+      const text = message.message;
+      const time = message.time;
+      const role = roleForSpeaker(speaker);
+
+      const article = document.createElement("article");
+      article.className = "message " + role;
+
+      if (role !== "user") {
+        const avatar = document.createElement("div");
+        avatar.className = "assistant-avatar";
+        avatar.textContent = avatarForSpeaker(speaker);
+        article.appendChild(avatar);
+      }
+
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      meta.textContent = time ? `${speaker} - ${time}` : speaker;
+
+      const body = document.createElement("div");
+      body.textContent = text;
+
+      if (role === "user") {
+        bubble.appendChild(body);
+      } else {
+        bubble.appendChild(meta);
+        bubble.appendChild(body);
+      }
+
+      article.appendChild(bubble);
+      messages.appendChild(article);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function removeTransientIndicator(indicator) {
+      if (indicator && indicator.parentNode) {
+        indicator.remove();
+      }
+    }
+
+    function createStatusMessage({ speaker = "AI", text, state = "loading", details = false }) {
+      const role = roleForSpeaker(speaker);
+      const article = document.createElement("article");
+      article.className = `message ${role} thinking-indicator`;
+      article.setAttribute("aria-live", "polite");
+
+      if (role !== "user") {
+        const avatar = document.createElement("div");
+        avatar.className = "assistant-avatar";
+        avatar.textContent = avatarForSpeaker(speaker);
+        article.appendChild(avatar);
+      }
+
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+
+      const row = document.createElement("div");
+      row.className = "thinking-row";
+
+      const icon = document.createElement("span");
+      if (state === "loading") {
+        icon.className = "loading-spinner";
+        icon.setAttribute("aria-hidden", "true");
+      } else {
+        icon.className = `status-mark ${state}`;
+        icon.textContent = state === "done" ? "✓" : "!";
+      }
+
+      row.appendChild(icon);
+
+      if (details && state === "loading") {
+        const toggle = document.createElement("button");
+        toggle.className = "thinking-toggle";
+        toggle.type = "button";
+        toggle.setAttribute("aria-expanded", "true");
+        toggle.setAttribute("aria-label", "Denkschritte anzeigen");
+
+        const label = document.createElement("span");
+        label.textContent = text;
+
+        const chevron = document.createElement("svg");
+        chevron.className = "thinking-chevron";
+        chevron.setAttribute("viewBox", "0 0 24 24");
+        chevron.setAttribute("aria-hidden", "true");
+        chevron.innerHTML = '<path d="m9 18 6-6-6-6" />';
+
+        toggle.appendChild(label);
+        toggle.appendChild(chevron);
+        row.appendChild(toggle);
+
+        const detailList = document.createElement("div");
+        detailList.className = "thinking-details open";
+        toggle.addEventListener("click", () => {
+          const expanded = toggle.getAttribute("aria-expanded") === "true";
+          toggle.setAttribute("aria-expanded", String(!expanded));
+          detailList.classList.toggle("open", !expanded);
+        });
+
+        bubble.appendChild(row);
+        bubble.appendChild(detailList);
+        thinkingDetailsList = detailList;
+        thinkingDetailCount = 0;
+      } else {
+        const label = document.createElement("span");
+        label.textContent = text;
+        row.appendChild(label);
+        bubble.appendChild(row);
+      }
+      article.appendChild(bubble);
+      messages.appendChild(article);
+      messages.scrollTop = messages.scrollHeight;
+      return article;
+    }
+
+    function showThinkingIndicator() {
+      if (!thinkingIndicator) {
+        thinkingIndicator = createStatusMessage({ speaker: "AI", text: "Denkt nach", state: "loading", details: true });
+      }
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function addThinkingDetail(text) {
+      if (!isBusy && !thinkingIndicator) {
+        return;
+      }
+      const detail = germanizeText(text).trim();
+      if (!detail) {
+        return;
+      }
+      showThinkingIndicator();
+      if (!thinkingDetailsList) {
+        return;
+      }
+      const item = document.createElement("div");
+      item.className = "thinking-detail-item";
+      item.textContent = detail;
+      thinkingDetailsList.appendChild(item);
+      while (thinkingDetailsList.children.length > 5) {
+        thinkingDetailsList.removeChild(thinkingDetailsList.firstElementChild);
+      }
+      thinkingDetailCount = thinkingDetailsList.children.length;
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function clearThinkingIndicator() {
+      removeTransientIndicator(thinkingIndicator);
+      thinkingIndicator = null;
+      thinkingDetailsList = null;
+      thinkingDetailCount = 0;
+    }
+
+    function completeThinkingIndicator() {
+      if (!thinkingIndicator) {
+        return;
+      }
+      if (thinkingDetailCount === 0) {
+        clearThinkingIndicator();
+        return;
+      }
+
+      const spinner = thinkingIndicator.querySelector(".loading-spinner");
+      if (spinner) {
+        spinner.className = "status-mark done";
+        spinner.textContent = "✓";
+        spinner.removeAttribute("aria-hidden");
+      }
+
+      const toggle = thinkingIndicator.querySelector(".thinking-toggle");
+      if (toggle) {
+        const label = toggle.querySelector("span");
+        if (label) {
+          label.textContent = "Gedacht";
+        }
+        toggle.setAttribute("aria-label", "Denkschritte anzeigen");
+      }
+
+      thinkingIndicator.classList.remove("thinking-indicator");
+      thinkingIndicator = null;
+      thinkingDetailsList = null;
+      thinkingDetailCount = 0;
+    }
+
+    function setCapabilitiesIndicator(state, text) {
+      if (!capabilitiesIndicator || !capabilitiesIndicator.isConnected) {
+        capabilitiesIndicator = createStatusMessage({ speaker: "Barebone-Qt", text, state });
+        return;
+      }
+
+      const row = capabilitiesIndicator.querySelector(".thinking-row");
+      if (!row) {
+        return;
+      }
+      row.replaceChildren();
+
+      const icon = document.createElement("span");
+      if (state === "loading") {
+        icon.className = "loading-spinner";
+        icon.setAttribute("aria-hidden", "true");
+      } else {
+        icon.className = `status-mark ${state}`;
+        icon.textContent = state === "done" ? "✓" : "!";
+      }
+
+      const label = document.createElement("span");
+      label.textContent = text;
+      row.appendChild(icon);
+      row.appendChild(label);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function updateSessionTitle(session, message) {
+      if (message.speaker !== "Du" || session.userNamed) {
+        return;
+      }
+      const text = message.message.trim();
+      if (!text) {
+        return;
+      }
+      session.title = text.length > 42 ? `${text.slice(0, 42)}...` : text;
+      session.userNamed = true;
+    }
+
+    function addMessage(message, options = {}) {
+      completeThinkingIndicator();
+      const normalized = normalizeMessage(message);
+      const record = options.record !== false;
+      const currentProposal = activeSession().proposal;
+      if (record) {
+        const session = activeSession();
+        session.messages.push(normalized);
+        updateSessionTitle(session, normalized);
+        persistSessions();
+        renderSessionList();
+      }
+      if (!currentProposal) {
+        removeInlineProposal();
+      }
+      renderMessage(normalized);
+      if (currentProposal && (!proposalInline || !proposalInline.isConnected)) {
+        renderProposal(currentProposal);
+      }
+    }
+
+    function setBusy(status) {
+      isBusy = status === "thinking";
+      agentStatus.textContent = isBusy ? "AI arbeitet" : "idle";
+      agentStatus.classList.toggle("thinking", isBusy);
+      input.disabled = isBusy;
+      sendButton.disabled = isBusy;
+      if (isBusy) {
+        showThinkingIndicator();
+      } else {
+        requestAnimationFrame(() => input.focus());
+      }
+    }
+
+    function renderProposal(proposal) {
+      proposalPanel.classList.remove("visible");
+      proposalDetails.textContent = "";
+      removeInlineProposal();
+
+      if (!proposal) {
+        return;
+      }
+
+      completeThinkingIndicator();
+
+      const article = document.createElement("article");
+      article.className = "message system inline-proposal";
+
+      const avatar = document.createElement("div");
+      avatar.className = "assistant-avatar";
+      avatar.textContent = "Qt";
+      article.appendChild(avatar);
+
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+
+      const card = document.createElement("div");
+      card.className = "inline-proposal-card";
+
+      const title = document.createElement("div");
+      title.className = "inline-proposal-title";
+      title.textContent = germanizeText(proposal.title || "AI Vorschlag bereit");
+      card.appendChild(title);
+
+      const summaryText = germanizeText(proposal.summary || proposal.message || "");
+      if (summaryText) {
+        const summary = document.createElement("div");
+        summary.className = "inline-proposal-summary";
+        summary.textContent = summaryText;
+        card.appendChild(summary);
+      }
+
+      const detailsText = germanizeText(proposal.details || "");
+      if (detailsText) {
+        const toggle = document.createElement("button");
+        toggle.className = "inline-proposal-toggle";
+        toggle.type = "button";
+        toggle.setAttribute("aria-expanded", "false");
+        toggle.setAttribute("aria-label", "Details anzeigen");
+
+        const toggleLabel = document.createElement("span");
+        toggleLabel.textContent = "Details anzeigen";
+
+        const chevron = document.createElement("svg");
+        chevron.className = "thinking-chevron";
+        chevron.setAttribute("viewBox", "0 0 24 24");
+        chevron.setAttribute("aria-hidden", "true");
+        chevron.innerHTML = '<path d="m9 18 6-6-6-6" />';
+
+        const details = document.createElement("div");
+        details.className = "inline-proposal-details";
+        details.textContent = detailsText;
+
+        toggle.appendChild(toggleLabel);
+        toggle.appendChild(chevron);
+        toggle.addEventListener("click", () => {
+          const expanded = toggle.getAttribute("aria-expanded") === "true";
+          toggle.setAttribute("aria-expanded", String(!expanded));
+          toggleLabel.textContent = expanded ? "Details anzeigen" : "Details ausblenden";
+          details.classList.toggle("open", !expanded);
+        });
+
+        card.appendChild(toggle);
+        card.appendChild(details);
+      }
+
+      const actions = document.createElement("div");
+      actions.className = "inline-proposal-actions";
+
+      const cancel = document.createElement("button");
+      cancel.className = "cancel-btn";
+      cancel.type = "button";
+      cancel.textContent = "Verwerfen";
+      cancel.addEventListener("click", () => {
+        clearProposal();
+        if (bridge) {
+          bridge.clearProposal();
+        }
+      });
+
+      actions.appendChild(cancel);
+      if (proposal.canRun !== false) {
+        const confirm = document.createElement("button");
+        confirm.className = "confirm-btn";
+        confirm.type = "button";
+        confirm.textContent = "Ausführen";
+        confirm.addEventListener("click", () => {
+          if (bridge) {
+            bridge.confirmProposal();
+          }
+        });
+        actions.appendChild(confirm);
+      }
+      card.appendChild(actions);
+      bubble.appendChild(card);
+      article.appendChild(bubble);
+      proposalInline = article;
+      messages.appendChild(article);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function removeInlineProposal() {
+      if (proposalInline && proposalInline.parentNode) {
+        proposalInline.remove();
+      }
+      proposalInline = null;
+    }
+
+    function setProposal(proposal, options = {}) {
+      if (options.record !== false) {
+        activeSession().proposal = proposal;
+        persistSessions();
+      }
+      renderProposal(proposal);
+    }
+
+    function clearProposal(options = {}) {
+      if (options.record !== false) {
+        activeSession().proposal = null;
+        persistSessions();
+      }
+      renderProposal(null);
+    }
+
+    function renderActiveSession() {
+      clearThinkingIndicator();
+      messages.replaceChildren();
+      const session = activeSession();
+      session.messages.forEach((message) => renderMessage(normalizeMessage(message)));
+      renderProposal(session.proposal);
+      if (isBusy) {
+        showThinkingIndicator();
+      }
+    }
+
+    function renderSessionList() {
+      const query = chatSearch.value.trim().toLowerCase();
+      chatList.replaceChildren();
+      sessions.forEach((session) => {
+        const link = document.createElement("a");
+        link.href = "#";
+        link.className = "chat-link";
+        link.textContent = session.title;
+        link.dataset.sessionId = session.id;
+        link.classList.toggle("active", session.id === activeSessionId);
+        link.classList.toggle("hidden", query.length > 0 && !session.title.toLowerCase().includes(query));
+        link.addEventListener("click", (event) => {
+          event.preventDefault();
+          switchSession(session.id);
+        });
+        chatList.appendChild(link);
+      });
+    }
+
+    function switchSession(sessionId) {
+      if (isBusy || sessionId === activeSessionId) {
+        return;
+      }
+      if (!sessions.some((session) => session.id === sessionId)) {
+        return;
+      }
+      activeSessionId = sessionId;
+      persistSessions();
+      renderSessionList();
+      renderActiveSession();
+      syncActiveSessionToQt();
+      input.focus();
+    }
+
+    function submitPrompt() {
+      const text = input.value.trim();
+      if (!text) {
+        input.focus();
+        return;
+      }
+      if (!bridge) {
+        addMessage({ speaker: "Barebone-Qt", message: "Qt WebChannel ist noch nicht verbunden.", time: nowTime() });
+        return;
+      }
+      input.value = "";
+      bridge.sendPrompt(text);
+      requestAnimationFrame(() => input.focus());
+    }
+
+    function requestNewChat() {
+      if (isBusy) {
+        return;
+      }
+      const session = createSession(`Neue Sitzung ${++chatCounter}`);
+      sessions.unshift(session);
+      activeSessionId = session.id;
+      persistSessions();
+      renderSessionList();
+      renderActiveSession();
+      syncActiveSessionToQt();
+      input.focus();
+    }
+
+    function filterChats() {
+      renderSessionList();
+    }
+
+    function showToolsInfo() {
+      addMessage({
+        speaker: "Barebone-Qt",
+        message: "Tools werden der AI über BRX-Capabilities bereitgestellt. Frage z.B. nach aktueller Auswahl, Layern oder einer geplanten BricsCAD-Aktion.",
+        time: nowTime()
+      });
+    }
+
+    function handleBridgeLogLine(line) {
+      const text = String(line || "");
+      if (text.includes("Qt -> BRX: capabilities.list")) {
+        setCapabilitiesIndicator("loading", "Lade BRX-Capabilities");
+        return;
+      }
+      if (text.includes("BRX -> Qt: ERROR capabilities.list")) {
+        setCapabilitiesIndicator("failed", "BRX-Capabilities fehlgeschlagen");
+        return;
+      }
+      const match = text.match(/BRX -> Qt: (\d+) Capabilities, (\d+) Commands, (\d+) Action-Tools/);
+      if (match) {
+        setCapabilitiesIndicator("done", `BRX-Capabilities geladen: ${match[1]} Methoden, ${match[2]} Commands, ${match[3]} Action-Tools`);
+        return;
+      }
+      const loopMatch = text.match(/AI Agent Loop[^:]*: .*/);
+      if (loopMatch) {
+        addThinkingDetail(`Ich prüfe die Antwort erneut: ${loopMatch[0].replace(/^AI Agent Loop[^:]*:\s*/, "")}`);
+        return;
+      }
+      if (text.includes("Qt -> AI Agent:")) {
+        addThinkingDetail("Ich sende die Anfrage an das lokale Modell.");
+        return;
+      }
+      if (text.includes("AI JSON:")) {
+        addThinkingDetail("Ich habe eine finale Antwort erhalten und prüfe das Format.");
+        return;
+      }
+      if (text.includes("AI Vorschlag:")) {
+        addThinkingDetail(`Ich habe einen ausführbaren Vorschlag vorbereitet: ${text.replace(/^\[[^\]]+\]\s*AI Vorschlag:\s*/, "")}`);
+        return;
+      }
+      if (text.includes("AI -> Qt Kontextabfrage")) {
+        addThinkingDetail(`Ich hole Zeichnungskontext: ${text.replace(/^\[[^\]]+\]\s*AI -> Qt Kontextabfrage:\s*/, "")}`);
+        return;
+      }
+      if ((isBusy || thinkingIndicator) && text.includes("BRX -> Qt Kontext")) {
+        addThinkingDetail(`Ich berücksichtige den BRX-Kontext: ${text.replace(/^\[[^\]]+\]\s*/, "")}`);
+      }
+    }
+
+    function toggleSidebar() {
+      const collapsed = app.classList.toggle("sidebar-collapsed");
+      sidebarToggle.setAttribute("aria-expanded", String(!collapsed));
+      sidebarToggle.setAttribute("aria-label", collapsed ? "Sidebar ausklappen" : "Sidebar einklappen");
+    }
+
+    function focusSearch() {
+      if (app.classList.contains("sidebar-collapsed")) {
+        toggleSidebar();
+      }
+      chatSearch.focus();
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      submitPrompt();
+    });
+
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        submitPrompt();
+      }
+    });
+
+    proposalConfirm.addEventListener("click", () => {
+      if (bridge) {
+        bridge.confirmProposal();
+      }
+    });
+
+    proposalCancel.addEventListener("click", () => {
+      clearProposal();
+      if (bridge) {
+        bridge.clearProposal();
+      }
+    });
+
+    newChatButton.addEventListener("click", requestNewChat);
+    newChatIcon.addEventListener("click", requestNewChat);
+    sidebarToggle.addEventListener("click", toggleSidebar);
+    sidebarSearchButton.addEventListener("click", focusSearch);
+    chatSearch.addEventListener("input", filterChats);
+    toolsButton.addEventListener("click", showToolsInfo);
+
+    loadSessions();
+    renderSessionList();
+    renderActiveSession();
+
+    if (window.qt && window.qt.webChannelTransport && window.QWebChannel) {
+      new QWebChannel(window.qt.webChannelTransport, (channel) => {
+        bridge = channel.objects.bareboneBridge;
+        brxStatus.textContent = "Qt Bridge verbunden";
+        syncActiveSessionToQt();
+        bridge.messageAdded.connect(addMessage);
+        bridge.statusChanged.connect(setBusy);
+        bridge.proposalChanged.connect(setProposal);
+        bridge.proposalCleared.connect(clearProposal);
+        bridge.bridgeStatusChanged.connect((message, connected) => {
+          brxStatus.textContent = message || (connected ? "BRX verbunden" : "BRX nicht verbunden");
+          brxStatus.classList.toggle("thinking", !!connected);
+        });
+        bridge.bridgeLogAdded.connect(handleBridgeLogLine);
+        bridge.ready();
+      });
+    } else {
+      brxStatus.textContent = "Qt Bridge nicht bereit";
+    }
+
+    input.focus();
+  </script>
+</body>
+</html>

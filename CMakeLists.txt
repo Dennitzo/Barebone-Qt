@@ -14,7 +14,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Network Widgets)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Network WebChannel WebEngineWidgets Widgets)
 
 qt_standard_project_setup()
 
@@ -23,6 +23,8 @@ qt_add_executable(BareboneQtApp
     src/main.cpp
     src/core/ConfigManager.cpp
     src/core/ConfigManager.h
+    src/ui/AiWebBridge.cpp
+    src/ui/AiWebBridge.h
     src/ui/BricsCadPage.cpp
     src/ui/BricsCadPage.h
     src/ui/MainWindow.cpp
@@ -38,7 +40,7 @@ if(WIN32)
     target_sources(BareboneQtApp PRIVATE resources/windows.rc)
 endif()
 
-target_link_libraries(BareboneQtApp PRIVATE Qt6::Network Qt6::Widgets)
+target_link_libraries(BareboneQtApp PRIVATE Qt6::Network Qt6::WebChannel Qt6::WebEngineWidgets Qt6::Widgets)
 
 target_compile_definitions(BareboneQtApp PRIVATE
     QT_NO_KEYWORDS

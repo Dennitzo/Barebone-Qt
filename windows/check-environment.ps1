@@ -9,6 +9,9 @@ param(
 $cmake = Resolve-CMakeExecutable -CMakePath $CMakePath
 $qtKit = Resolve-QtKit -QtRoot $QtRoot -QtKitPath $QtKitPath
 Initialize-BuildEnvironment -QtKit $qtKit
+if ($qtKit.Name -like 'msvc*') {
+    Import-VisualStudioEnvironment
+}
 $ninja = Resolve-NinjaExecutable
 
 Write-Step "Barebone-Qt Windows build environment"

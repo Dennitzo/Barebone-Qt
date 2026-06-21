@@ -3,4 +3,7 @@
         <file alias="Bitcoin.png">../Bitcoin.png</file>
         <file alias="AppLogo.png">../AppLogo.png</file>
     </qresource>
+    <qresource prefix="/web">
+        <file alias="ai-assistant.html">../index.html</file>
+    </qresource>
 </RCC>

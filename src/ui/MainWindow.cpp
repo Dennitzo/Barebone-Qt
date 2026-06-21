@@ -89,9 +89,13 @@ void MainWindow::buildUi()
     auto* dropdownLayout = new QVBoxLayout(m_dropdownContent);
     dropdownLayout->setContentsMargins(0, 0, 0, 0);
     dropdownLayout->setSpacing(8);
+    m_templateButton = new QPushButton("Vorlage", m_dropdownContent);
+    m_templateButton->setObjectName("sidebarChildNavButton");
+    m_templateButton->setCheckable(true);
     m_bricsCadButton = new QPushButton("BricsCAD", m_dropdownContent);
     m_bricsCadButton->setObjectName("sidebarChildNavButton");
     m_bricsCadButton->setCheckable(true);
+    dropdownLayout->addWidget(m_templateButton);
     dropdownLayout->addWidget(m_bricsCadButton);
     m_dropdownContent->setVisible(false);
 
@@ -109,9 +113,11 @@ void MainWindow::buildUi()
     sidebarLayout->addWidget(m_settingsButton);
 
     m_pages = new QStackedWidget(central);
-    m_template = new TemplatePage(m_pages);
-    m_bricsCad = new BricsCadPage(m_pages);
+    m_bricsCad = new BricsCadPage(m_config, m_pages);
+    m_dashboard = new TemplatePage(TemplatePage::Mode::Dashboard, m_bricsCad->agentWidget(), m_pages);
+    m_template = new TemplatePage(TemplatePage::Mode::Vorlage, nullptr, m_pages);
     m_settings = new SettingsPage(m_config, m_pages);
+    m_pages->addWidget(m_dashboard);
     m_pages->addWidget(m_template);
     m_pages->addWidget(m_bricsCad);
     m_pages->addWidget(m_settings);
@@ -121,20 +127,30 @@ void MainWindow::buildUi()
     setCentralWidget(central);
 
     const auto selectDashboard = [this]() {
-        m_pages->setCurrentWidget(m_template);
+        m_pages->setCurrentWidget(m_dashboard);
         m_dashboardButton->setChecked(true);
+        m_templateButton->setChecked(false);
+        m_bricsCadButton->setChecked(false);
+        m_settingsButton->setChecked(false);
+    };
+    const auto selectTemplate = [this]() {
+        m_pages->setCurrentWidget(m_template);
+        m_dashboardButton->setChecked(false);
+        m_templateButton->setChecked(true);
         m_bricsCadButton->setChecked(false);
         m_settingsButton->setChecked(false);
     };
     const auto selectBricsCad = [this]() {
         m_pages->setCurrentWidget(m_bricsCad);
         m_dashboardButton->setChecked(false);
+        m_templateButton->setChecked(false);
         m_bricsCadButton->setChecked(true);
         m_settingsButton->setChecked(false);
     };
     const auto selectSettings = [this]() {
         m_pages->setCurrentWidget(m_settings);
         m_dashboardButton->setChecked(false);
+        m_templateButton->setChecked(false);
         m_bricsCadButton->setChecked(false);
         m_settingsButton->setChecked(true);
     };
@@ -143,6 +159,7 @@ void MainWindow::buildUi()
     QObject::connect(m_dropdownButton, &QPushButton::clicked, this, [this]() {
         m_dropdownContent->setVisible(!m_dropdownContent->isVisible());
     });
+    QObject::connect(m_templateButton, &QPushButton::clicked, this, selectTemplate);
     QObject::connect(m_bricsCadButton, &QPushButton::clicked, this, selectBricsCad);
     QObject::connect(m_settingsButton, &QPushButton::clicked, this, selectSettings);
     selectDashboard();
@@ -259,6 +276,67 @@ QString MainWindow::lightStyle() const
             border: 1px solid #dde4ef;
             border-radius: 18px;
         }
+        QWidget#dashboardAgentSection {
+            background: transparent;
+        }
+        QWidget#agentPanel {
+            background: #f9fafb;
+            border: 1px solid #dde4ef;
+            border-radius: 18px;
+        }
+        QWidget#agentPanel QLabel, QWidget#agentPanel QWidget {
+            background: transparent;
+        }
+        QLabel#agentTitle {
+            color: #1d1d1f;
+            font-size: 18px;
+            font-weight: 800;
+        }
+        QLabel#agentStatusPill {
+            color: #687386;
+            background: #eef1f6;
+            border: 1px solid #d8e0eb;
+            border-radius: 10px;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-weight: 800;
+        }
+        QLabel#agentStatusPill[state="thinking"] {
+            color: #111827;
+            background: #fff7ed;
+            border: 1px solid #f7931a;
+        }
+        QTextBrowser#agentChatView {
+            background: #ffffff;
+            border: 1px solid #e2e7ef;
+            border-radius: 8px;
+            padding: 14px;
+        }
+        QWidget#agentComposer {
+            background: #ffffff;
+            border: 1px solid #d8e0eb;
+            border-radius: 14px;
+        }
+        QLineEdit#agentInput {
+            border: none;
+            background: transparent;
+            min-height: 42px;
+            padding: 0 4px;
+        }
+        QWidget#agentProposalPanel {
+            background: #ffffff;
+            border: 1px solid #e2e7ef;
+            border-radius: 14px;
+        }
+        QLabel#agentProposalTitle {
+            color: #1d1d1f;
+            font-size: 14px;
+            font-weight: 800;
+        }
+        QLabel#agentProposalDetails {
+            color: #687386;
+            line-height: 130%;
+        }
         QWidget#settingsSection {
             background: #ffffff;
             border: none;
@@ -288,12 +366,31 @@ QString MainWindow::lightStyle() const
             background: #111827;
             color: #ffffff;
         }
+        QPushButton#secondaryButton {
+            background: #eef1f6;
+            border: 1px solid #cfd7e3;
+            color: #1d1d1f;
+        }
         QPushButton#secondaryButton:disabled {
             background: #f4f6fa;
             border: 1px solid #e1e6ef;
             color: #a4adbb;
         }
-        QLineEdit, QComboBox {
+        QPushButton#serviceActionButton {
+            background: #fff7ed;
+            border: 1px solid #f7931a;
+            color: #1d1d1f;
+        }
+        QPushButton#serviceActionButton:hover {
+            background: #ffedd5;
+            border: 1px solid #f7931a;
+        }
+        QPushButton#serviceActionButton:disabled {
+            background: #f4f6fa;
+            border: 1px solid #f5c078;
+            color: #a4adbb;
+        }
+        QLineEdit, QComboBox, QDoubleSpinBox {
             min-height: 36px;
             border: 1px solid #e2e7ef;
             border-radius: 11px;
@@ -459,6 +556,69 @@ QString MainWindow::darkStyle() const
             border: 1px solid #303746;
             border-radius: 18px;
         }
+        QWidget#dashboardAgentSection {
+            background: transparent;
+        }
+        QWidget#agentPanel {
+            background: #11151e;
+            border: 1px solid #303746;
+            border-radius: 18px;
+        }
+        QWidget#agentPanel QLabel, QWidget#agentPanel QWidget {
+            background: transparent;
+        }
+        QLabel#agentTitle {
+            color: #f5f7fb;
+            font-size: 18px;
+            font-weight: 800;
+        }
+        QLabel#agentStatusPill {
+            color: #aab2c0;
+            background: #191e29;
+            border: 1px solid #303746;
+            border-radius: 10px;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-weight: 800;
+        }
+        QLabel#agentStatusPill[state="thinking"] {
+            color: #f5f7fb;
+            background: #2a2117;
+            border: 1px solid #f7931a;
+        }
+        QTextBrowser#agentChatView {
+            background: #0f1117;
+            border: 1px solid #303746;
+            border-radius: 8px;
+            color: #f5f7fb;
+            padding: 14px;
+        }
+        QWidget#agentComposer {
+            background: #191e29;
+            border: 1px solid #303746;
+            border-radius: 14px;
+        }
+        QLineEdit#agentInput {
+            border: none;
+            background: transparent;
+            min-height: 42px;
+            color: #f5f7fb;
+            padding: 0 4px;
+        }
+        QWidget#agentProposalPanel {
+            background: #191e29;
+            border: 1px solid #303746;
+            border-radius: 14px;
+        }
+        QLabel#agentProposalTitle {
+            color: #f5f7fb;
+            font-size: 14px;
+            font-weight: 800;
+        }
+        QLabel#agentProposalDetails {
+            color: #aab2c0;
+            line-height: 130%;
+        }
         QWidget#settingsSection {
             background: #191e29;
             border: none;
@@ -487,12 +647,31 @@ QString MainWindow::darkStyle() const
             background: #f5f7fb;
             color: #111827;
         }
+        QPushButton#secondaryButton {
+            background: #262d3a;
+            border: 1px solid #3b4557;
+            color: #f5f7fb;
+        }
         QPushButton#secondaryButton:disabled {
             background: #1d2330;
             border: 1px solid #2a3241;
             color: #687386;
         }
-        QLineEdit, QComboBox {
+        QPushButton#serviceActionButton {
+            background: #2a2117;
+            border: 1px solid #f7931a;
+            color: #f5f7fb;
+        }
+        QPushButton#serviceActionButton:hover {
+            background: #3a2a18;
+            border: 1px solid #f7931a;
+        }
+        QPushButton#serviceActionButton:disabled {
+            background: #1d2330;
+            border: 1px solid #8a5a1c;
+            color: #687386;
+        }
+        QLineEdit, QComboBox, QDoubleSpinBox {
             min-height: 36px;
             border: 1px solid #303746;
             border-radius: 11px;
