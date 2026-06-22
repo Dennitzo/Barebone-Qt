@@ -29,7 +29,9 @@
 #include <QVBoxLayout>
 #include <QWebEngineSettings>
 
+#include <algorithm>
 #include <cctype>
+#include <initializer_list>
 
 namespace {
 
@@ -40,10 +42,86 @@ constexpr quint16 kBridgePort = 47626;
 constexpr const char* kBridgeTokenFileName = "BareboneQtBridge.token";
 constexpr bool kAgentActionToolsEnabled = true;
 constexpr int kMaxAgentValidationRetries = 4;
+constexpr qsizetype kMaxDocumentContextChars = 90000;
 
 bool useResponsesApiForModel(const QString& model)
 {
     return model.compare(QStringLiteral("openai/gpt-oss-20b"), Qt::CaseInsensitive) == 0;
+}
+
+bool useResponsesApiForProvider(const QString& provider, const QString& model)
+{
+    return provider.compare(QStringLiteral("official"), Qt::CaseInsensitive) == 0
+        || useResponsesApiForModel(model);
+}
+
+QString normalizedReasoningEffort(QString effort)
+{
+    effort = effort.trimmed().toLower();
+    if (effort == "none" || effort == "low" || effort == "medium" || effort == "high") {
+        return effort;
+    }
+    return QStringLiteral("high");
+}
+
+QJsonObject sanitizedDocumentContext(QJsonObject context)
+{
+    QString selectedText = context.value("selectedText").toString();
+    if (selectedText.trimmed().isEmpty()) {
+        return {};
+    }
+
+    bool truncated = context.value("truncated").toBool(false);
+    if (selectedText.size() > kMaxDocumentContextChars) {
+        selectedText = selectedText.left(kMaxDocumentContextChars);
+        truncated = true;
+    }
+
+    context.insert("selectedText", selectedText);
+    context.insert("hasDocuments", true);
+    context.insert("truncated", truncated);
+    context.insert("contextPolicy", QJsonObject{
+        {"scope", "Only the extracted document excerpts in selectedText are available to the model."},
+        {"largeDocumentStrategy", "The WebView selects requested PDF pages first; otherwise it sends a capped excerpt. Ask for a narrower page range if required information is missing."},
+        {"citationPolicy", "When answering document questions, refer to page numbers or document names when available."},
+    });
+    return context;
+}
+
+QString promptWithDocumentContext(const QString& prompt, const QJsonObject& context)
+{
+    if (context.isEmpty()) {
+        return prompt;
+    }
+
+    const QJsonArray documents = context.value("documents").toArray();
+    const QString selectedText = context.value("selectedText").toString().trimmed();
+    if (selectedText.isEmpty()) {
+        return prompt;
+    }
+
+    QStringList metadataLines;
+    for (const QJsonValue& value : documents) {
+        const QJsonObject document = value.toObject();
+        const QString name = document.value("name").toString();
+        const QString type = document.value("type").toString();
+        const QString included = document.value("included").toString();
+        metadataLines << QString("- %1 (%2)%3")
+            .arg(name.isEmpty() ? QStringLiteral("Dokument") : name,
+                type.isEmpty() ? QStringLiteral("Datei") : type,
+                included.isEmpty() ? QString() : QStringLiteral(", Kontext: %1").arg(included));
+    }
+
+    return QString(
+        "%1\n\n"
+        "[Dokumentkontext]\n"
+        "Nutze ausschliesslich die folgenden extrahierten Auszuege fuer dokumentbezogene Fragen. "
+        "Wenn der gewuenschte Seitenbereich oder Inhalt nicht enthalten ist, sage das klar und fordere einen engeren/anderen Bereich an.\n"
+        "Dokumente:\n%2\n\n"
+        "%3")
+        .arg(prompt,
+            metadataLines.isEmpty() ? QStringLiteral("- Angehängtes Dokument") : metadataLines.join('\n'),
+            selectedText);
 }
 
 QString bridgeTokenFilePath()
@@ -257,20 +335,62 @@ QString bridgeErrorMessage(const QJsonObject& response, const QString& fallback)
     return error.isEmpty() ? fallback : error;
 }
 
-QString normalizedAiBaseUrl(QString value)
+QString normalizedAiBaseUrl(QString value, const QString& provider)
 {
     value = value.trimmed();
     if (value.isEmpty()) {
-        value = "http://192.168.0.67:1234/v1";
+        value = provider.compare(QStringLiteral("local"), Qt::CaseInsensitive) == 0
+            ? QStringLiteral("http://192.168.0.67:1234/v1")
+            : QStringLiteral("https://api.openai.com/v1");
     }
     if (!value.startsWith("http://", Qt::CaseInsensitive)
         && !value.startsWith("https://", Qt::CaseInsensitive)) {
-        value.prepend("http://");
+        value.prepend(provider.compare(QStringLiteral("local"), Qt::CaseInsensitive) == 0
+            ? QStringLiteral("http://")
+            : QStringLiteral("https://"));
     }
     while (value.endsWith('/')) {
         value.chop(1);
     }
     return value;
+}
+
+QUrl lmStudioModelsUrlFromOpenAiBaseUrl(const QString& baseUrl)
+{
+    QString root = baseUrl.trimmed();
+    while (root.endsWith('/')) {
+        root.chop(1);
+    }
+    if (root.endsWith(QStringLiteral("/v1"), Qt::CaseInsensitive)) {
+        root.chop(3);
+    } else if (root.endsWith(QStringLiteral("/api/v1"), Qt::CaseInsensitive)) {
+        root.chop(7);
+    }
+    while (root.endsWith('/')) {
+        root.chop(1);
+    }
+    return QUrl(root + QStringLiteral("/api/v1/models"));
+}
+
+int positiveIntValue(const QJsonObject& object, std::initializer_list<const char*> keys)
+{
+    for (const char* key : keys) {
+        const QJsonValue value = object.value(QLatin1String(key));
+        if (value.isDouble()) {
+            const int parsed = value.toInt();
+            if (parsed > 0) {
+                return parsed;
+            }
+        }
+        if (value.isString()) {
+            bool ok = false;
+            const int parsed = value.toString().toInt(&ok);
+            if (ok && parsed > 0) {
+                return parsed;
+            }
+        }
+    }
+    return 0;
 }
 
 QString withoutAiControlTokens(QString content)
@@ -295,6 +415,120 @@ QString finalAiMessageSegment(QString content)
     }
 
     return content;
+}
+
+QString repairMojibakeText(QString text)
+{
+    if (!text.contains(QStringLiteral("Ã"))
+        && !text.contains(QStringLiteral("Â"))
+        && !text.contains(QStringLiteral("â"))) {
+        return text;
+    }
+
+    const QList<QPair<QString, QString>> replacements = {
+        {QStringLiteral("â€ž"), QStringLiteral("„")},
+        {QStringLiteral("â€œ"), QStringLiteral("“")},
+        {QStringLiteral("â€"), QStringLiteral("”")},
+        {QStringLiteral("â€™"), QStringLiteral("’")},
+        {QStringLiteral("â€˜"), QStringLiteral("‘")},
+        {QStringLiteral("â€“"), QStringLiteral("–")},
+        {QStringLiteral("â€”"), QStringLiteral("—")},
+        {QStringLiteral("â€¦"), QStringLiteral("…")},
+        {QStringLiteral("â€¯"), QStringLiteral(" ")},
+        {QStringLiteral("â€‘"), QStringLiteral("-")},
+        {QStringLiteral("Ã¤"), QStringLiteral("ä")},
+        {QStringLiteral("Ã¶"), QStringLiteral("ö")},
+        {QStringLiteral("Ã¼"), QStringLiteral("ü")},
+        {QStringLiteral("Ã„"), QStringLiteral("Ä")},
+        {QStringLiteral("Ã–"), QStringLiteral("Ö")},
+        {QStringLiteral("Ãœ"), QStringLiteral("Ü")},
+        {QStringLiteral("ÃŸ"), QStringLiteral("ß")},
+        {QStringLiteral("Ã©"), QStringLiteral("é")},
+        {QStringLiteral("Ã¨"), QStringLiteral("è")},
+        {QStringLiteral("Ã¡"), QStringLiteral("á")},
+        {QStringLiteral("Ã³"), QStringLiteral("ó")},
+        {QStringLiteral("Ã±"), QStringLiteral("ñ")},
+        {QStringLiteral("Ã§"), QStringLiteral("ç")},
+        {QStringLiteral("Â«"), QStringLiteral("«")},
+        {QStringLiteral("Â»"), QStringLiteral("»")},
+        {QStringLiteral("Â°"), QStringLiteral("°")},
+        {QStringLiteral("Â"), QStringLiteral("")},
+    };
+
+    for (const auto& replacement : replacements) {
+        text.replace(replacement.first, replacement.second);
+    }
+    return text;
+}
+
+bool looksLikeReasoningLeak(const QString& content)
+{
+    const QString lower = content.left(6000).toLower();
+    if (lower.startsWith(QStringLiteral("the user asked"))
+        || lower.startsWith(QStringLiteral("we need to"))
+        || lower.contains(QStringLiteral("developer message"))
+        || lower.contains(QStringLiteral("system message says"))
+        || lower.contains(QStringLiteral("we need to ensure"))) {
+        return true;
+    }
+
+    int hits = 0;
+    for (const QString& marker : {
+             QStringLiteral("the user asked"),
+             QStringLiteral("the user wants"),
+             QStringLiteral("we need to"),
+             QStringLiteral("we should"),
+             QStringLiteral("we can"),
+             QStringLiteral("we must"),
+             QStringLiteral("let's produce"),
+             QStringLiteral("final answer"),
+             QStringLiteral("developer message"),
+             QStringLiteral("instructions")}) {
+        if (lower.contains(marker)) {
+            ++hits;
+        }
+    }
+    return hits >= 3;
+}
+
+QString removeReasoningLeak(QString content)
+{
+    content = repairMojibakeText(content).trimmed();
+    if (!looksLikeReasoningLeak(content)) {
+        return content;
+    }
+
+    QString candidate = content;
+    const QString lower = candidate.toLower();
+    const QStringList finalMarkers = {
+        QStringLiteral("ok let's produce final answer:"),
+        QStringLiteral("let's produce final answer:"),
+        QStringLiteral("final answer:"),
+        QStringLiteral("final response:")
+    };
+    int markerIndex = -1;
+    int markerLength = 0;
+    for (const QString& marker : finalMarkers) {
+        const int index = lower.lastIndexOf(marker);
+        if (index >= 0 && index >= markerIndex) {
+            markerIndex = index;
+            markerLength = marker.size();
+        }
+    }
+    if (markerIndex >= 0) {
+        candidate = candidate.mid(markerIndex + markerLength).trimmed();
+    }
+
+    const int markdownHeading = candidate.indexOf(QStringLiteral("**"));
+    if (markdownHeading > 0 && markdownHeading < 160) {
+        candidate = candidate.mid(markdownHeading).trimmed();
+    }
+
+    const QString candidateLower = candidate.left(1200).toLower();
+    if (candidate.isEmpty() || looksLikeReasoningLeak(candidate) || candidateLower.contains(QStringLiteral("developer message"))) {
+        return QStringLiteral("Die AI-Antwort enthielt interne Analyse und wurde ausgeblendet. Bitte sende die Anfrage erneut.");
+    }
+    return candidate;
 }
 
 QString firstBalancedJsonObject(const QString& content)
@@ -506,6 +740,8 @@ BricsCadPage::BricsCadPage(ConfigManager& config, QWidget* parent)
     , m_aiNetwork(new QNetworkAccessManager(this))
     , m_bridgeToken(generateBridgeToken())
 {
+    m_reasoningEffort = normalizedReasoningEffort(m_config.aiReasoningEffort());
+
     auto* root = new QVBoxLayout(this);
     root->setContentsMargins(28, 24, 28, 24);
     root->setSpacing(20);
@@ -571,7 +807,7 @@ BricsCadPage::BricsCadPage(ConfigManager& config, QWidget* parent)
     m_agentWebView->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     m_agentWebView->setMinimumSize(720, 520);
     m_agentWebView->settings()->setAttribute(QWebEngineSettings::LocalContentCanAccessFileUrls, false);
-    m_agentWebView->settings()->setAttribute(QWebEngineSettings::LocalContentCanAccessRemoteUrls, false);
+    m_agentWebView->settings()->setAttribute(QWebEngineSettings::LocalContentCanAccessRemoteUrls, true);
 
     m_agentBridge = new AiWebBridge(this);
     m_agentChannel = new QWebChannel(m_agentWebView);
@@ -612,6 +848,9 @@ BricsCadPage::BricsCadPage(ConfigManager& config, QWidget* parent)
     QObject::connect(m_agentBridge, &AiWebBridge::promptSubmitted, this, [this](const QString& prompt) {
         sendAgentPrompt(prompt);
     });
+    QObject::connect(m_agentBridge, &AiWebBridge::promptSubmittedWithContext, this, [this](const QString& prompt, const QVariantMap& context) {
+        sendAgentPrompt(prompt, QJsonObject::fromVariantMap(context));
+    });
     QObject::connect(m_agentBridge, &AiWebBridge::proposalConfirmed, this, [this]() {
         executeAgentProposal();
     });
@@ -625,7 +864,24 @@ BricsCadPage::BricsCadPage(ConfigManager& config, QWidget* parent)
     QObject::connect(m_agentBridge, &AiWebBridge::sessionOpened, this, [this](const QString& sessionId, const QVariantList& history) {
         openAgentSession(sessionId, history);
     });
+    QObject::connect(m_agentBridge, &AiWebBridge::reasoningEffortChanged, this, [this](const QString& effort) {
+        setReasoningEffort(effort);
+    });
+    QObject::connect(m_agentBridge, &AiWebBridge::chatModeChanged, this, [this](const QString& mode) {
+        setChatMode(mode);
+    });
+    QObject::connect(m_agentBridge, &AiWebBridge::clientStateSaved, this, [this](const QString& stateJson) {
+        QJsonParseError parseError;
+        const QJsonDocument document = QJsonDocument::fromJson(stateJson.toUtf8(), &parseError);
+        if (parseError.error == QJsonParseError::NoError && document.isObject()) {
+            m_config.setAiAssistantState(QString::fromUtf8(document.toJson(QJsonDocument::Compact)));
+        }
+    });
     QObject::connect(m_agentBridge, &AiWebBridge::uiReady, this, [this]() {
+        Q_EMIT m_agentBridge->clientStateLoaded(m_config.aiAssistantState());
+        Q_EMIT m_agentBridge->localAiStatusChanged(m_localAiStatusMessage, m_localAiReachable);
+        refreshLocalContextWindow(false);
+        emitContextBudget();
         setAgentBusy(m_agentBusy);
         if (!m_pendingAgentProposal.isEmpty()) {
             setAgentProposal(m_pendingAgentProposal);
@@ -635,6 +891,10 @@ BricsCadPage::BricsCadPage(ConfigManager& config, QWidget* parent)
         setPluginStatus(m_brxAuthenticated ? QStringLiteral("BRX Plugin verbunden") : QStringLiteral("BRX Plugin nicht verbunden"), m_brxAuthenticated);
         emitCapabilitiesStatusToWeb();
     });
+    QObject::connect(&m_config, &ConfigManager::changed, this, [this]() {
+        refreshLocalContextWindow(true);
+    });
+    refreshLocalContextWindow(true);
 }
 
 QWidget* BricsCadPage::agentWidget() const
@@ -642,8 +902,340 @@ QWidget* BricsCadPage::agentWidget() const
     return m_agentWidget;
 }
 
+void BricsCadPage::refreshLocalContextWindow(bool force)
+{
+    if (m_config.aiProvider() != QStringLiteral("local")) {
+        m_contextWindowAvailable = false;
+        m_contextWindowTokens = 0;
+        m_contextWindowMaxTokens = 0;
+        m_contextWindowModel.clear();
+        setLocalAiStatus(QStringLiteral("Lokale AI nicht aktiv"), false);
+        emitContextBudget();
+        return;
+    }
+    if (m_contextWindowRequestInFlight) {
+        return;
+    }
+    if (!force && m_contextWindowAvailable && m_contextWindowTokens > 0) {
+        emitContextBudget();
+        return;
+    }
 
-void BricsCadPage::sendAgentPrompt(const QString& promptText)
+    const QString baseUrl = normalizedAiBaseUrl(m_config.aiBaseUrl(), QStringLiteral("local"));
+    const QUrl url = lmStudioModelsUrlFromOpenAiBaseUrl(baseUrl);
+    if (!url.isValid()) {
+        setLocalAiStatus(QStringLiteral("Lokale AI URL ungültig"), false);
+        emitContextBudget(-1, false, QStringLiteral("LM Studio Kontext: ungueltige URL"));
+        return;
+    }
+
+    m_contextWindowRequestInFlight = true;
+    setLocalAiStatus(QStringLiteral("Lokale AI wird geprüft"), false);
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    request.setTransferTimeout(5000);
+    appendBridgeLog(QString("Qt -> LM Studio: models %1").arg(url.toString()));
+
+    QNetworkReply* reply = m_aiNetwork->get(request);
+    QObject::connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        m_contextWindowRequestInFlight = false;
+        const QByteArray body = reply->readAll();
+        if (reply->error() != QNetworkReply::NoError) {
+            appendBridgeLog(QString("LM Studio Kontext: Modelle konnten nicht gelesen werden: %1").arg(reply->errorString()));
+            setLocalAiStatus(QStringLiteral("Lokale AI nicht erreichbar"), false);
+            emitContextBudget(-1, false, QStringLiteral("Kontextlaenge nicht abrufbar"));
+            reply->deleteLater();
+            return;
+        }
+
+        QJsonParseError parseError;
+        const QJsonDocument document = QJsonDocument::fromJson(body, &parseError);
+        if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+            appendBridgeLog(QString("LM Studio Kontext: ungueltige JSON Antwort: %1").arg(parseError.errorString()));
+            setLocalAiStatus(QStringLiteral("Lokale AI Antwort ungültig"), false);
+            emitContextBudget(-1, false, QStringLiteral("Kontextlaenge nicht abrufbar"));
+            reply->deleteLater();
+            return;
+        }
+
+        handleLocalContextWindowResponse(document.object());
+        reply->deleteLater();
+    });
+}
+
+void BricsCadPage::handleLocalContextWindowResponse(const QJsonObject& response)
+{
+    setLocalAiStatus(QStringLiteral("Lokale AI erreichbar"), true);
+
+    QJsonArray models = response.value("models").toArray();
+    if (models.isEmpty()) {
+        models = response.value("data").toArray();
+    }
+
+    const QString requestedModel = m_config.aiModel().trimmed();
+    QJsonObject selectedModel;
+    QJsonObject selectedLoadedInstance;
+    bool selectedHasLoadedInstance = false;
+
+    for (const QJsonValue& value : models) {
+        const QJsonObject model = value.toObject();
+        const QString type = model.value("type").toString();
+        if (!type.isEmpty() && type != QStringLiteral("llm")) {
+            continue;
+        }
+        const QString key = model.value("key").toString(model.value("id").toString());
+        const bool keyMatches = !requestedModel.isEmpty()
+            && key.compare(requestedModel, Qt::CaseInsensitive) == 0;
+        const QJsonArray loadedInstances = model.value("loaded_instances").toArray();
+
+        QJsonObject matchingInstance;
+        for (const QJsonValue& instanceValue : loadedInstances) {
+            const QJsonObject instance = instanceValue.toObject();
+            const QString instanceId = instance.value("id").toString();
+            if (keyMatches || instanceId.compare(requestedModel, Qt::CaseInsensitive) == 0) {
+                matchingInstance = instance;
+                break;
+            }
+        }
+
+        if (keyMatches || !matchingInstance.isEmpty()) {
+            selectedModel = model;
+            selectedLoadedInstance = matchingInstance.isEmpty() && !loadedInstances.isEmpty()
+                ? loadedInstances.first().toObject()
+                : matchingInstance;
+            selectedHasLoadedInstance = !selectedLoadedInstance.isEmpty();
+            break;
+        }
+
+        if (selectedModel.isEmpty() && !loadedInstances.isEmpty()) {
+            selectedModel = model;
+            selectedLoadedInstance = loadedInstances.first().toObject();
+            selectedHasLoadedInstance = true;
+        }
+        if (selectedModel.isEmpty()) {
+            selectedModel = model;
+        }
+    }
+
+    const QJsonObject instanceConfig = selectedLoadedInstance.value("config").toObject();
+    const int loadedContext = positiveIntValue(instanceConfig, {"context_length", "loaded_context_length", "n_ctx"});
+    const int legacyLoadedContext = positiveIntValue(selectedLoadedInstance, {"context_length", "loaded_context_length", "n_ctx"});
+    const int modelContext = positiveIntValue(selectedModel, {"context_length", "loaded_context_length", "max_context_length", "n_ctx"});
+    const int maxContext = positiveIntValue(selectedModel, {"max_context_length", "context_length", "n_ctx"});
+    const int contextLength = loadedContext > 0 ? loadedContext : (legacyLoadedContext > 0 ? legacyLoadedContext : modelContext);
+
+    if (contextLength <= 0) {
+        m_contextWindowAvailable = false;
+        appendBridgeLog("LM Studio Kontext: keine Kontextlaenge in /api/v1/models gefunden");
+        emitContextBudget(-1, false, QStringLiteral("Kontextlaenge nicht gemeldet"));
+        return;
+    }
+
+    m_contextWindowAvailable = true;
+    m_contextWindowTokens = contextLength;
+    m_contextWindowMaxTokens = maxContext > 0 ? maxContext : contextLength;
+    m_contextWindowModel = selectedModel.value("key").toString(selectedModel.value("id").toString(requestedModel));
+    appendBridgeLog(QString("LM Studio Kontext: model=%1 loaded=%2 max=%3 loadedInstance=%4")
+        .arg(m_contextWindowModel.isEmpty() ? QStringLiteral("<unbekannt>") : m_contextWindowModel)
+        .arg(m_contextWindowTokens)
+        .arg(m_contextWindowMaxTokens)
+        .arg(selectedHasLoadedInstance ? QStringLiteral("yes") : QStringLiteral("no")));
+    emitContextBudget();
+}
+
+int BricsCadPage::effectiveContextWindowTokens() const
+{
+    if (m_contextWindowAvailable && m_contextWindowTokens > 0) {
+        return m_contextWindowTokens;
+    }
+    if (m_config.aiProvider() == QStringLiteral("local")) {
+        return 8192;
+    }
+    return 128000;
+}
+
+int BricsCadPage::adjustedOutputTokenLimit(int requestedOutputTokens) const
+{
+    if (requestedOutputTokens <= 0) {
+        return 512;
+    }
+    if (m_config.aiProvider() != QStringLiteral("local")) {
+        return requestedOutputTokens;
+    }
+
+    const int contextTokens = effectiveContextWindowTokens();
+    const int dynamicLimit = std::max(384, contextTokens / 4);
+    return std::clamp(requestedOutputTokens, 256, dynamicLimit);
+}
+
+int BricsCadPage::inputBudgetTokens(int requestedOutputTokens) const
+{
+    const int contextTokens = effectiveContextWindowTokens();
+    const int outputTokens = adjustedOutputTokenLimit(requestedOutputTokens);
+    const int safetyTokens = std::clamp(contextTokens / 10, 256, 2048);
+    return std::max(512, contextTokens - outputTokens - safetyTokens);
+}
+
+int BricsCadPage::estimateTokensForText(const QString& text) const
+{
+    if (text.isEmpty()) {
+        return 0;
+    }
+    return std::max<qsizetype>(1, (text.size() + 3) / 4);
+}
+
+int BricsCadPage::estimateTokensForMessages(const QJsonArray& messages) const
+{
+    return estimateTokensForText(QString::fromUtf8(QJsonDocument(messages).toJson(QJsonDocument::Compact)));
+}
+
+QJsonObject BricsCadPage::documentContextWithTokenBudget(const QJsonObject& context, int tokenBudget, bool* minimized) const
+{
+    if (minimized) {
+        *minimized = false;
+    }
+
+    QJsonObject sanitized = sanitizedDocumentContext(context);
+    if (sanitized.isEmpty()) {
+        return {};
+    }
+
+    const QString selectedText = sanitized.value("selectedText").toString();
+    const int charBudget = std::max(1200, tokenBudget * 4);
+    if (selectedText.size() <= charBudget) {
+        return sanitized;
+    }
+
+    if (minimized) {
+        *minimized = true;
+    }
+    sanitized.insert("selectedText", selectedText.left(charBudget)
+        + QStringLiteral("\n[Dokumentkontext automatisch gekuerzt, damit die Anfrage in das Kontextfenster passt.]"));
+    sanitized.insert("truncated", true);
+    sanitized.insert("autoMinimized", true);
+    return sanitized;
+}
+
+BricsCadPage::ContextBuildResult BricsCadPage::buildGeneralMessagesForBudget(
+    const QString& prompt,
+    const QJsonObject& documentContext,
+    int requestedOutputTokens) const
+{
+    const QString systemPrompt =
+        "Du bist ein allgemeiner AI Chat-Assistent in Barebone-Qt. "
+        "Antworte direkt, hilfreich und auf Deutsch, sofern der Nutzer keine andere Sprache wuenscht. "
+        "Du hast in diesem Modus keine BricsCAD-Tools und sollst keine Aktionen in BricsCAD behaupten. "
+        "Wenn die Nutzeranfrage einen Dokumentkontext enthaelt, nutze diesen als primaere Quelle und verweise bei PDFs nach Moeglichkeit auf Seiten. "
+        "Wenn der Nutzer nach Rechtschreibfehlern, Tippfehlern oder Korrektur fragt, liste gefundene Stellen mit Original und Korrektur; wenn du keine offensichtlichen Fehler findest, sage das ausdruecklich.";
+
+    const int maxHistoryMessages = std::min<qsizetype>(20, m_agentConversation.size());
+    const int budget = inputBudgetTokens(requestedOutputTokens);
+    auto build = [&](int historyMessages, const QJsonObject& context) {
+        QJsonArray messages;
+        messages.append(QJsonObject{{"role", "system"}, {"content", systemPrompt}});
+        const qsizetype start = std::max<qsizetype>(0, m_agentConversation.size() - historyMessages);
+        for (qsizetype i = start; i < m_agentConversation.size(); ++i) {
+            messages.append(m_agentConversation.at(i).toObject());
+        }
+        messages.append(QJsonObject{{"role", "user"}, {"content", promptWithDocumentContext(prompt, context)}});
+        return messages;
+    };
+
+    bool docMinimized = false;
+    QJsonObject context = sanitizedDocumentContext(documentContext);
+    for (int historyMessages = maxHistoryMessages; historyMessages >= 0; --historyMessages) {
+        QJsonArray messages = build(historyMessages, context);
+        const int estimated = estimateTokensForMessages(messages);
+        if (estimated <= budget) {
+            return {messages, {}, estimated, historyMessages, historyMessages < maxHistoryMessages || docMinimized};
+        }
+    }
+
+    const int docBudget = std::max(300, budget / 2);
+    context = documentContextWithTokenBudget(context, docBudget, &docMinimized);
+    QJsonArray messages = build(0, context);
+    int estimated = estimateTokensForMessages(messages);
+    if (estimated > budget && !context.isEmpty()) {
+        context = documentContextWithTokenBudget(context, std::max(180, budget / 4), &docMinimized);
+        messages = build(0, context);
+        estimated = estimateTokensForMessages(messages);
+    }
+
+    return {messages, {}, estimated, 0, true};
+}
+
+void BricsCadPage::emitContextBudget(int estimatedTokens, bool minimized, const QString& detail) const
+{
+    if (!m_agentBridge) {
+        return;
+    }
+
+    const int maxTokens = effectiveContextWindowTokens();
+    const int usedTokens = estimatedTokens >= 0
+        ? estimatedTokens
+        : estimateTokensForMessages(m_agentConversation);
+    const int percent = maxTokens > 0
+        ? std::clamp(static_cast<int>((static_cast<double>(usedTokens) / static_cast<double>(maxTokens)) * 100.0), 0, 100)
+        : 0;
+
+    QString state = QStringLiteral("ok");
+    if (!m_contextWindowAvailable && m_config.aiProvider() == QStringLiteral("local")) {
+        state = QStringLiteral("unknown");
+    } else if (percent >= 92) {
+        state = QStringLiteral("full");
+    } else if (percent >= 75) {
+        state = QStringLiteral("warn");
+    }
+
+    Q_EMIT m_agentBridge->contextBudgetChanged(QVariantMap{
+        {"available", m_contextWindowAvailable},
+        {"provider", m_config.aiProvider()},
+        {"model", m_contextWindowModel.isEmpty() ? m_config.aiModel() : m_contextWindowModel},
+        {"maxTokens", maxTokens},
+        {"maxSupportedTokens", m_contextWindowMaxTokens},
+        {"usedTokens", usedTokens},
+        {"percent", percent},
+        {"state", state},
+        {"minimized", minimized},
+        {"detail", detail},
+    });
+}
+
+void BricsCadPage::setReasoningEffort(const QString& effort)
+{
+    const QString normalized = normalizedReasoningEffort(effort);
+    if (m_reasoningEffort == normalized) {
+        m_config.setAiReasoningEffort(normalized);
+        Q_EMIT m_agentBridge->reasoningEffortApplied(m_reasoningEffort);
+        return;
+    }
+    m_reasoningEffort = normalized;
+    m_config.setAiReasoningEffort(m_reasoningEffort);
+    Q_EMIT m_agentBridge->reasoningEffortApplied(m_reasoningEffort);
+    appendBridgeLog(QString("AI Agent: Reasoning %1").arg(normalized));
+}
+
+void BricsCadPage::setChatMode(const QString& mode)
+{
+    const QString normalized = mode.trimmed().compare(QStringLiteral("general"), Qt::CaseInsensitive) == 0
+        ? QStringLiteral("general")
+        : QStringLiteral("bricscad");
+    if (m_chatMode == normalized) {
+        return;
+    }
+
+    m_chatMode = normalized;
+    resetAgentConversation();
+    appendBridgeLog(QString("AI Agent: Modus %1").arg(m_chatMode));
+}
+
+bool BricsCadPage::isBricsCadMode() const
+{
+    return m_chatMode == QStringLiteral("bricscad");
+}
+
+
+void BricsCadPage::sendAgentPrompt(const QString& promptText, const QJsonObject& documentContext)
 {
     if (m_agentBusy) {
         return;
@@ -654,7 +1246,18 @@ void BricsCadPage::sendAgentPrompt(const QString& promptText)
         return;
     }
 
+    const QJsonObject sanitizedContext = sanitizedDocumentContext(documentContext);
     appendAgentChat("Du", prompt);
+
+    if (!isBricsCadMode()) {
+        m_agentValidationRetries = 0;
+        m_lastAgentUserPrompt = prompt;
+        m_lastDocumentContext = sanitizedContext;
+        clearAgentProposal();
+        m_pendingAgentDraft = {};
+        sendGeneralChatRequest(prompt, sanitizedContext);
+        return;
+    }
 
     if (isAgentConfirmation(prompt) && !m_pendingAgentProposal.isEmpty()) {
         executeAgentProposal();
@@ -663,6 +1266,7 @@ void BricsCadPage::sendAgentPrompt(const QString& promptText)
 
     m_agentValidationRetries = 0;
     m_lastAgentUserPrompt = prompt;
+    m_lastDocumentContext = sanitizedContext;
 
     if (!m_pendingAgentProposal.isEmpty()) {
         clearAgentProposal();
@@ -684,22 +1288,148 @@ void BricsCadPage::sendAgentPrompt(const QString& promptText)
             QJsonObject{
                 {"include", QJsonArray{"geometry"}},
                 {"limit", 100},
-            });
+            },
+            sanitizedContext);
         return;
     }
 
-    sendAgentRequest(prompt);
+    sendAgentRequest(prompt, sanitizedContext);
 }
 
-void BricsCadPage::sendAgentRequest(const QString& prompt)
+void BricsCadPage::sendAgentRequest(const QString& prompt, const QJsonObject& documentContext)
 {
-    sendAgentEnvelope(agentRequestEnvelope(prompt), prompt, true, "prompt");
+    sendAgentEnvelope(agentRequestEnvelope(prompt, documentContext), prompt, true, "prompt");
 }
 
-void BricsCadPage::sendAgentRequestWithPrefetchedContext(const QString& prompt, const QString& method, const QJsonObject& params)
+void BricsCadPage::sendGeneralChatRequest(const QString& prompt, const QJsonObject& documentContext, bool forceNoReasoning)
+{
+    const QString provider = m_config.aiProvider();
+    const bool officialProvider = provider == "official";
+    const QString baseUrl = normalizedAiBaseUrl(m_config.aiBaseUrl(), provider);
+    const QString model = m_config.aiModel().trimmed().isEmpty()
+        ? (officialProvider ? QStringLiteral("gpt-5.5") : QStringLiteral("openai/gpt-oss-20b"))
+        : m_config.aiModel().trimmed();
+    const bool useResponsesApi = useResponsesApiForProvider(provider, model);
+    const QUrl url(baseUrl + (useResponsesApi ? QStringLiteral("/responses") : QStringLiteral("/chat/completions")));
+    if (!url.isValid()) {
+        appendAgentChat("Barebone-Qt", QString("Ungueltige AI Server URL: %1").arg(baseUrl));
+        return;
+    }
+    if (officialProvider && m_config.aiApiKey().trimmed().isEmpty()) {
+        appendAgentChat("Barebone-Qt", "Offizielle ChatGPT API ist aktiv, aber es ist kein Secret Key in den Einstellungen gespeichert.");
+        return;
+    }
+
+    const int requestedOutputTokens = useResponsesApi ? 2048 : 1200;
+    const int outputTokens = adjustedOutputTokenLimit(requestedOutputTokens);
+    const ContextBuildResult contextBuild = buildGeneralMessagesForBudget(prompt, documentContext, outputTokens);
+    const QJsonArray messages = contextBuild.messages;
+    emitContextBudget(
+        contextBuild.estimatedTokens,
+        contextBuild.minimized,
+        contextBuild.minimized ? QStringLiteral("Kontext automatisch minimiert") : QString());
+
+    QJsonObject payload;
+    payload.insert("model", model);
+    if (useResponsesApi) {
+        payload.insert("input", messages);
+        payload.insert("max_output_tokens", outputTokens);
+        const QString reasoningEffort = normalizedReasoningEffort(m_reasoningEffort);
+        if (!forceNoReasoning && reasoningEffort != "none") {
+            payload.insert("reasoning", QJsonObject{{"effort", reasoningEffort}});
+        }
+        if (!officialProvider) {
+            payload.insert("temperature", 0.3);
+        }
+    } else {
+        payload.insert("messages", messages);
+        payload.insert("temperature", 0.3);
+        payload.insert("max_tokens", outputTokens);
+    }
+
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    if (officialProvider) {
+        request.setRawHeader("Authorization", QString("Bearer %1").arg(m_config.aiApiKey().trimmed()).toUtf8());
+    }
+    request.setTransferTimeout(45000);
+
+    setAgentBusy(true);
+    const QString reasoningLog = useResponsesApi
+        ? QString(" reasoning=%1").arg(forceNoReasoning ? QStringLiteral("none") : normalizedReasoningEffort(m_reasoningEffort))
+        : QString();
+    appendBridgeLog(QString("Qt -> AI Chat: provider=%1 endpoint=%2 model=%3%4")
+        .arg(provider, url.toString(), model, reasoningLog));
+    if (contextBuild.minimized) {
+        appendBridgeLog(QString("AI Kontext: automatisch minimiert used=%1/%2 tokens history=%3")
+            .arg(contextBuild.estimatedTokens)
+            .arg(effectiveContextWindowTokens())
+            .arg(contextBuild.historyMessages));
+    }
+
+    QNetworkReply* reply = m_aiNetwork->post(request, QJsonDocument(payload).toJson(QJsonDocument::Compact));
+    QObject::connect(reply, &QNetworkReply::finished, this, [this, reply, prompt, documentContext, useResponsesApi, forceNoReasoning]() {
+        setAgentBusy(false);
+
+        const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        const QByteArray body = reply->readAll();
+        if (reply->error() != QNetworkReply::NoError) {
+            appendAgentChat("AI", QString("Fehler bei der AI Anfrage: provider=%1 http=%2 %3")
+                .arg(m_config.aiProvider())
+                .arg(httpStatus)
+                .arg(reply->errorString()));
+            if (!body.isEmpty()) {
+                appendBridgeLog(QString("AI Body: %1").arg(QString::fromUtf8(body).left(800)));
+            }
+            reply->deleteLater();
+            return;
+        }
+
+        QJsonParseError parseError;
+        const QJsonDocument responseDocument = QJsonDocument::fromJson(body, &parseError);
+        if (parseError.error != QJsonParseError::NoError || !responseDocument.isObject()) {
+            appendAgentChat("AI", QString("Antwort ist kein gueltiges OpenAI JSON: %1").arg(parseError.errorString()));
+            appendBridgeLog(QString("AI Body: %1").arg(QString::fromUtf8(body).left(800)));
+            reply->deleteLater();
+            return;
+        }
+
+        QString reasoningText;
+        const QString content = removeReasoningLeak(aiChatCompletionContent(responseDocument.object(), &reasoningText)).trimmed();
+        if (content.isEmpty()) {
+            if (useResponsesApi && !forceNoReasoning) {
+                appendBridgeLog("AI Chat: leere finale Antwort erhalten, wiederhole ohne Reasoning");
+                reply->deleteLater();
+                sendGeneralChatRequest(prompt, documentContext, true);
+                return;
+            }
+            if (!reasoningText.trimmed().isEmpty()) {
+                appendBridgeLog(QString("AI Reasoning ohne finale Antwort: %1").arg(reasoningText.left(800)));
+            } else {
+                appendBridgeLog(QString("AI Body ohne auswertbaren Inhalt: %1").arg(QString::fromUtf8(body).left(800)));
+            }
+            appendAgentChat("AI", "Leere Antwort erhalten.");
+            reply->deleteLater();
+            return;
+        }
+
+        m_agentConversation.append(QJsonObject{{"role", "user"}, {"content", prompt}});
+        m_agentConversation.append(QJsonObject{{"role", "assistant"}, {"content", content}});
+        emitContextBudget();
+        appendBridgeLog(QString("AI Chat: %1").arg(content.left(1600)));
+        appendAgentChat("AI", content);
+        reply->deleteLater();
+    });
+}
+
+void BricsCadPage::sendAgentRequestWithPrefetchedContext(
+    const QString& prompt,
+    const QString& method,
+    const QJsonObject& params,
+    const QJsonObject& documentContext)
 {
     if (!m_brxAuthenticated) {
-        sendAgentRequest(prompt);
+        sendAgentRequest(prompt, documentContext);
         return;
     }
 
@@ -711,10 +1441,10 @@ void BricsCadPage::sendAgentRequestWithPrefetchedContext(const QString& prompt, 
         method,
         params,
         15000,
-        [this, prompt, method, params](const QJsonObject& response) {
+        [this, prompt, method, params, documentContext](const QJsonObject& response) {
             setAgentBusy(false);
             appendJsonDebugLines(m_bridgeLog, response.value("debug").toArray());
-            QJsonObject envelope = agentRequestEnvelope(prompt);
+            QJsonObject envelope = agentRequestEnvelope(prompt, documentContext);
             envelope.insert("prefetchedContext", QJsonObject{
                 {"request", QJsonObject{{"method", method}, {"params", params}}},
                 {"response", response},
@@ -724,20 +1454,26 @@ void BricsCadPage::sendAgentRequestWithPrefetchedContext(const QString& prompt, 
 
     if (!queued) {
         setAgentBusy(false);
-        sendAgentRequest(prompt);
+        sendAgentRequest(prompt, documentContext);
     }
 }
 
 void BricsCadPage::sendAgentEnvelope(const QJsonObject& envelope, const QString& userHistoryContent, bool storeUserMessage, const QString& logLabel)
 {
-    const QString baseUrl = normalizedAiBaseUrl(m_config.aiBaseUrl());
+    const QString provider = m_config.aiProvider();
+    const bool officialProvider = provider == "official";
+    const QString baseUrl = normalizedAiBaseUrl(m_config.aiBaseUrl(), provider);
     const QString model = m_config.aiModel().trimmed().isEmpty()
-        ? QStringLiteral("openai/gpt-oss-20b")
+        ? (officialProvider ? QStringLiteral("gpt-5.5") : QStringLiteral("openai/gpt-oss-20b"))
         : m_config.aiModel().trimmed();
-    const bool useResponsesApi = useResponsesApiForModel(model);
+    const bool useResponsesApi = useResponsesApiForProvider(provider, model);
     const QUrl url(baseUrl + (useResponsesApi ? QStringLiteral("/responses") : QStringLiteral("/chat/completions")));
     if (!url.isValid()) {
         appendAgentChat("Barebone-Qt", QString("Ungueltige AI Server URL: %1").arg(baseUrl));
+        return;
+    }
+    if (officialProvider && m_config.aiApiKey().trimmed().isEmpty()) {
+        appendAgentChat("Barebone-Qt", "Offizielle ChatGPT API ist aktiv, aber es ist kein Secret Key in den Einstellungen gespeichert.");
         return;
     }
 
@@ -745,13 +1481,14 @@ void BricsCadPage::sendAgentEnvelope(const QJsonObject& envelope, const QString&
     messages.append(QJsonObject{
         {"role", "system"},
         {"content",
-            "Du bist die lokale AI fuer Barebone-Qt und BricsCAD. "
+            "Du bist der AI Assistent fuer Barebone-Qt und BricsCAD. "
             "Du sprichst immer auf Deutsch mit dem Nutzer; nur JSON-Felder, Toolnamen und technische Parameter bleiben wie in der API vorgegeben. "
             "Du entscheidest selbst, ob du antwortest, Kontext brauchst, nachfragst oder eine ausfuehrbare BricsCAD-Aktion vorschlaegst. "
             "Barebone-Qt bleibt die Kontrollinstanz: riskante Aktionen werden validiert und erst nach Nutzerbestaetigung an BRX gesendet. "
             "Antworte ausschliesslich als gueltiges JSON-Objekt ohne Markdown. "
             "Diese Anwendung ist BricsCAD-fokussiert: nutze den gelieferten BricsCAD-Kontext, pendingDrafts und Capabilities auch bei kurzen Folgeantworten wie '100mm' oder 'x=100 y=200'. "
-            "Nutze den Envelope mit userPrompt, conversation, context, capabilities, readOnlyMethods, tools, pendingProposal, pendingDraft und lastToolResult. "
+            "Nutze den Envelope mit userPrompt, conversation, context, documentContext, capabilities, readOnlyMethods, tools, pendingProposal, pendingDraft und lastToolResult. "
+            "Wenn documentContext vorhanden ist und der Nutzer nach PDF-, Word- oder Textdatei-Inhalten fragt, antworte als type=message aus diesem Kontext; verweise bei PDFs auf Seiten und frage nach einem engeren Seitenbereich, wenn der noetige Text nicht enthalten ist. "
             "Wenn Zeichnungskontext fehlt, nutze context_request mit exakt einer Methode aus readOnlyMethods. "
             "Wenn du ausfuehren willst, nutze action_proposal mit tool exakt aus tools[].name und params passend zu inputSchema/apiDoc.post. "
             "Bei action_proposal muessen alle required-Felder aus inputSchema/apiDoc.post.required in params enthalten sein; nutze Beispiele nur als Formathilfe und lasse keine Pflichtfelder weg. "
@@ -779,48 +1516,114 @@ void BricsCadPage::sendAgentEnvelope(const QJsonObject& envelope, const QString&
             "Behaupte niemals, dass eine Aktion bereits ausgefuehrt wurde, bevor Barebone-Qt ein BRX-Resultat geliefert hat."},
     });
 
+    const QJsonObject systemMessage = messages.first().toObject();
     const bool includeConversationHistory = envelope.value("includeConversationHistory").toBool(true);
-    const qsizetype historyStart = includeConversationHistory
-        ? std::max<qsizetype>(0, m_agentConversation.size() - 10)
-        : m_agentConversation.size();
-    for (qsizetype i = historyStart; i < m_agentConversation.size(); ++i) {
-        messages.append(m_agentConversation.at(i).toObject());
+    const int requestedOutputTokens = useResponsesApi ? 2048 : 700;
+    const int outputTokens = adjustedOutputTokenLimit(requestedOutputTokens);
+    const int budget = inputBudgetTokens(outputTokens);
+    const int maxHistoryMessages = includeConversationHistory
+        ? std::min<qsizetype>(10, m_agentConversation.size())
+        : 0;
+
+    auto buildAgentMessages = [&](int historyMessages, const QJsonObject& sourceEnvelope) {
+        ContextBuildResult result;
+        result.envelope = sourceEnvelope;
+        result.historyMessages = historyMessages;
+
+        QJsonArray builtMessages;
+        builtMessages.append(systemMessage);
+
+        QJsonArray recentConversation;
+        const qsizetype historyStart = std::max<qsizetype>(0, m_agentConversation.size() - historyMessages);
+        for (qsizetype i = historyStart; i < m_agentConversation.size(); ++i) {
+            const QJsonObject item = m_agentConversation.at(i).toObject();
+            builtMessages.append(item);
+            recentConversation.append(item);
+        }
+
+        QJsonObject outboundEnvelope = sourceEnvelope;
+        outboundEnvelope.insert("conversation", recentConversation);
+        result.envelope = outboundEnvelope;
+        builtMessages.append(QJsonObject{
+            {"role", "user"},
+            {"content", QString::fromUtf8(QJsonDocument(outboundEnvelope).toJson(QJsonDocument::Compact))},
+        });
+        result.messages = builtMessages;
+        result.estimatedTokens = estimateTokensForMessages(builtMessages);
+        return result;
+    };
+
+    ContextBuildResult contextBuild;
+    for (int historyMessages = maxHistoryMessages; historyMessages >= 0; --historyMessages) {
+        contextBuild = buildAgentMessages(historyMessages, envelope);
+        if (contextBuild.estimatedTokens <= budget) {
+            contextBuild.minimized = historyMessages < maxHistoryMessages;
+            break;
+        }
     }
 
-    QJsonObject outboundEnvelope = envelope;
-    QJsonArray recentConversation;
-    for (qsizetype i = historyStart; i < m_agentConversation.size(); ++i) {
-        recentConversation.append(m_agentConversation.at(i));
+    if (contextBuild.estimatedTokens > budget) {
+        QJsonObject minimizedEnvelope = envelope;
+        bool docMinimized = false;
+        if (minimizedEnvelope.contains("documentContext")) {
+            minimizedEnvelope.insert(
+                "documentContext",
+                documentContextWithTokenBudget(
+                    minimizedEnvelope.value("documentContext").toObject(),
+                    std::max(300, budget / 3),
+                    &docMinimized));
+        }
+        contextBuild = buildAgentMessages(0, minimizedEnvelope);
+        contextBuild.minimized = true;
     }
-    outboundEnvelope.insert("conversation", recentConversation);
 
-    messages.append(QJsonObject{
-        {"role", "user"},
-        {"content", QString::fromUtf8(QJsonDocument(outboundEnvelope).toJson(QJsonDocument::Compact))},
-    });
+    const QJsonArray outboundMessages = contextBuild.messages;
+    emitContextBudget(
+        contextBuild.estimatedTokens,
+        contextBuild.minimized,
+        contextBuild.minimized ? QStringLiteral("Kontext automatisch minimiert") : QString());
 
     QJsonObject payload;
     payload.insert("model", model);
-    payload.insert("temperature", 0.1);
     if (useResponsesApi) {
-        payload.insert("input", messages);
-        payload.insert("max_output_tokens", 2048);
-        payload.insert("reasoning", QJsonObject{{"effort", "high"}});
+        payload.insert("input", outboundMessages);
+        payload.insert("max_output_tokens", outputTokens);
+        const QString reasoningEffort = normalizedReasoningEffort(m_reasoningEffort);
+        if (reasoningEffort != "none") {
+            payload.insert("reasoning", QJsonObject{{"effort", reasoningEffort}});
+        }
+        if (!officialProvider) {
+            payload.insert("temperature", 0.1);
+        }
     } else {
-        payload.insert("messages", messages);
-        payload.insert("max_tokens", 700);
+        payload.insert("temperature", 0.1);
+        payload.insert("messages", outboundMessages);
+        payload.insert("max_tokens", outputTokens);
     }
 
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    if (officialProvider) {
+        request.setRawHeader("Authorization", QString("Bearer %1").arg(m_config.aiApiKey().trimmed()).toUtf8());
+    }
     request.setTransferTimeout(45000);
 
     setAgentBusy(true);
-    appendBridgeLog(QString("Qt -> AI Agent: %1 endpoint=%2 model=%3%4")
+    const QString reasoningLog = useResponsesApi
+        ? QString(" reasoning=%1").arg(normalizedReasoningEffort(m_reasoningEffort))
+        : QString();
+    appendBridgeLog(QString("Qt -> AI Agent: %1 provider=%2 endpoint=%3 model=%4%5")
         .arg(logLabel,
+            provider,
             url.toString(),
             model,
-            useResponsesApi ? QStringLiteral(" reasoning=high") : QString()));
+            reasoningLog));
+    if (contextBuild.minimized) {
+        appendBridgeLog(QString("AI Kontext: automatisch minimiert used=%1/%2 tokens history=%3")
+            .arg(contextBuild.estimatedTokens)
+            .arg(effectiveContextWindowTokens())
+            .arg(contextBuild.historyMessages));
+    }
 
     QNetworkReply* reply = m_aiNetwork->post(request, QJsonDocument(payload).toJson(QJsonDocument::Compact));
     QObject::connect(reply, &QNetworkReply::finished, this, [this, reply, userHistoryContent, storeUserMessage]() {
@@ -829,7 +1632,8 @@ void BricsCadPage::sendAgentEnvelope(const QJsonObject& envelope, const QString&
         const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         const QByteArray body = reply->readAll();
         if (reply->error() != QNetworkReply::NoError) {
-            appendAgentChat("AI", QString("Fehler bei der lokalen AI Anfrage: http=%1 %2")
+            appendAgentChat("AI", QString("Fehler bei der AI Anfrage: provider=%1 http=%2 %3")
+                .arg(m_config.aiProvider())
                 .arg(httpStatus)
                 .arg(reply->errorString()));
             if (!body.isEmpty()) {
@@ -849,12 +1653,12 @@ void BricsCadPage::sendAgentEnvelope(const QJsonObject& envelope, const QString&
         }
 
         QString reasoningText;
-        const QString content = aiChatCompletionContent(responseDocument.object(), &reasoningText);
+        const QString content = removeReasoningLeak(aiChatCompletionContent(responseDocument.object(), &reasoningText));
         if (content.trimmed().isEmpty()) {
             if (retryAgentAfterValidationFailure(
                     reasoningText,
                     {},
-                    "Die lokale AI hat Reasoning geliefert, aber keine finale Barebone-JSON-Antwort. Antworte jetzt ausschliesslich mit genau einem gueltigen JSON-Objekt.")) {
+                    "Die AI hat Reasoning geliefert, aber keine finale Barebone-JSON-Antwort. Antworte jetzt ausschliesslich mit genau einem gueltigen JSON-Objekt.")) {
                 reply->deleteLater();
                 return;
             }
@@ -868,6 +1672,7 @@ void BricsCadPage::sendAgentEnvelope(const QJsonObject& envelope, const QString&
             m_agentConversation.append(QJsonObject{{"role", "user"}, {"content", userHistoryContent}});
         }
         m_agentConversation.append(QJsonObject{{"role", "assistant"}, {"content", content}});
+        emitContextBudget();
         handleAgentReply(content);
         reply->deleteLater();
     });
@@ -1052,7 +1857,8 @@ bool BricsCadPage::retryAgentAfterValidationFailure(
 
     QJsonObject envelope = agentRequestEnvelope(m_lastAgentUserPrompt.isEmpty()
         ? QStringLiteral("Korrigiere deine letzte Antwort.")
-        : m_lastAgentUserPrompt);
+        : m_lastAgentUserPrompt,
+        m_lastDocumentContext);
     envelope.insert("type", "validation_error");
     envelope.insert("validationError", errorMessage);
     envelope.insert("rejectedContent", rejectedContent.left(4000));
@@ -1355,7 +2161,8 @@ void BricsCadPage::continueAgentAfterToolFailure(
 
     QJsonObject envelope = agentRequestEnvelope(m_lastAgentUserPrompt.isEmpty()
         ? QStringLiteral("Korrigiere die fehlgeschlagene BricsCAD-Aktion.")
-        : m_lastAgentUserPrompt);
+        : m_lastAgentUserPrompt,
+        m_lastDocumentContext);
     envelope.insert("type", "tool_error");
     envelope.insert("executionError", errorMessage);
     envelope.insert("failedProposal", proposal);
@@ -1387,10 +2194,14 @@ void BricsCadPage::appendAgentChat(const QString& speaker, const QString& messag
         return;
     }
 
+    const QString visibleMessage = speaker == QStringLiteral("AI")
+        ? removeReasoningLeak(message)
+        : repairMojibakeText(message);
+
     Q_EMIT m_agentBridge->messageAdded(QVariantMap{
         {"speaker", speaker},
-        {"message", message.trimmed()},
-        {"time", QDateTime::currentDateTime().toString("HH:mm:ss")},
+        {"message", visibleMessage.trimmed()},
+        {"time", QDateTime::currentDateTime().toString("HH:mm 'Uhr'")},
     });
 }
 
@@ -1785,7 +2596,7 @@ QString BricsCadPage::aiChatCompletionContent(const QJsonObject& response, QStri
     }
 
     const QString outputText = response.value("output_text").toString();
-    if (output.isEmpty() && !outputText.trimmed().isEmpty()) {
+    if (!outputText.trimmed().isEmpty()) {
         return finalAiMessageSegment(outputText);
     }
 
@@ -1954,7 +2765,7 @@ QJsonObject BricsCadPage::currentAgentContext() const
     };
 }
 
-QJsonObject BricsCadPage::agentRequestEnvelope(const QString& prompt) const
+QJsonObject BricsCadPage::agentRequestEnvelope(const QString& prompt, const QJsonObject& documentContext) const
 {
     QJsonArray readOnlyMethods;
     const QJsonArray methods = m_brxCapabilities.value("methods").toArray();
@@ -1971,10 +2782,19 @@ QJsonObject BricsCadPage::agentRequestEnvelope(const QString& prompt) const
     }
 
     QJsonObject envelope;
+    const QJsonObject sanitizedContext = sanitizedDocumentContext(documentContext);
     envelope.insert("userPrompt", prompt);
     envelope.insert("cadIntent", true);
     envelope.insert("includeConversationHistory", true);
     envelope.insert("context", currentAgentContext());
+    if (!sanitizedContext.isEmpty()) {
+        envelope.insert("documentContext", sanitizedContext);
+        envelope.insert("documentPolicy", QJsonObject{
+            {"mode", "attached-document-context"},
+            {"response", "If the user asks about attached PDFs, Word documents, or text files, answer from documentContext as type=message unless a BricsCAD action is explicitly requested."},
+            {"limits", "documentContext may contain only requested pages or capped excerpts. Ask for a narrower page range if the answer cannot be derived from the excerpts."},
+        });
+    }
     envelope.insert("capabilities", m_brxCapabilities);
     envelope.insert("readOnlyMethods", readOnlyMethods);
     envelope.insert("geometryDataModel",
@@ -1997,6 +2817,7 @@ QJsonObject BricsCadPage::agentRequestEnvelope(const QString& prompt) const
         }},
     });
     envelope.insert("actionToolsEnabled", kAgentActionToolsEnabled);
+    envelope.insert("reasoning", QJsonObject{{"effort", normalizedReasoningEffort(m_reasoningEffort)}});
     envelope.insert("executionPolicy", QJsonObject{
         {"mode", kAgentActionToolsEnabled ? QStringLiteral("confirmed-actions") : QStringLiteral("message-only")},
         {"toolProposalAllowed", kAgentActionToolsEnabled && !availableAgentTools().isEmpty()},
@@ -2056,10 +2877,11 @@ void BricsCadPage::continueQueuedAgentPrompt()
             QJsonObject{
                 {"include", QJsonArray{"geometry"}},
                 {"limit", 100},
-            });
+            },
+            m_lastDocumentContext);
         return;
     }
-    sendAgentRequest(prompt);
+    sendAgentRequest(prompt, m_lastDocumentContext);
 }
 
 void BricsCadPage::handleBridgeSocket(QTcpSocket* socket)
@@ -2383,6 +3205,16 @@ void BricsCadPage::setPluginStatus(const QString& message, bool connected)
     }
 }
 
+void BricsCadPage::setLocalAiStatus(const QString& message, bool connected)
+{
+    m_localAiStatusMessage = message;
+    m_localAiReachable = connected;
+
+    if (m_agentBridge) {
+        Q_EMIT m_agentBridge->localAiStatusChanged(message, connected);
+    }
+}
+
 void BricsCadPage::writeBridgeToken() const
 {
     QFile tokenFile(bridgeTokenFilePath());
@@ -2460,10 +3292,12 @@ void BricsCadPage::resetAgentConversation()
     m_pendingAgentProposal = {};
     m_pendingAgentDraft = {};
     m_lastAgentToolResult = {};
+    m_lastDocumentContext = {};
     m_agentValidationRetries = 0;
     clearAgentProposal();
     setAgentBusy(false);
     saveCurrentAgentSession();
+    emitContextBudget();
 }
 
 void BricsCadPage::saveCurrentAgentSession()
@@ -2519,11 +3353,13 @@ void BricsCadPage::openAgentSession(const QString& sessionId, const QVariantList
         m_pendingAgentProposal = state.pendingProposal;
         m_pendingAgentDraft = state.pendingDraft;
         m_lastAgentToolResult = state.lastToolResult;
+        m_lastDocumentContext = {};
     } else {
         m_agentConversation = conversationFromWebHistory(history);
         m_pendingAgentProposal = {};
         m_pendingAgentDraft = {};
         m_lastAgentToolResult = {};
+        m_lastDocumentContext = {};
         saveCurrentAgentSession();
     }
 
@@ -2535,5 +3371,6 @@ void BricsCadPage::openAgentSession(const QString& sessionId, const QVariantList
         clearAgentProposal();
     }
     appendBridgeLog(QString("AI Agent: Sitzung aktiv %1").arg(m_agentSessionId));
+    emitContextBudget();
     emitCapabilitiesStatusToWeb();
 }

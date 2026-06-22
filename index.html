@@ -5,6 +5,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Barebone AI Assistent</title>
 
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [["\\(", "\\)"], ["$", "$"]],
+        displayMath: [["\\[", "\\]"], ["$$", "$$"]],
+        processEscapes: true
+      },
+      options: {
+        skipHtmlTags: ["script", "noscript", "style", "textarea", "pre", "code"]
+      },
+      startup: {
+        pageReady: () => MathJax.startup.defaultPageReady().then(() => {
+          if (typeof window.__bareboneTypesetQueuedMath === "function") {
+            return window.__bareboneTypesetQueuedMath();
+          }
+          return undefined;
+        })
+      }
+    };
+  </script>
+  <script async src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
+
   <style>
     :root {
       --sidebar-width: 270px;
@@ -21,6 +45,13 @@
       --button-text: #ffffff;
       --warning-bg: #fff7ed;
       --warning-border: #f7931a;
+      --success-bg: #ecfdf5;
+      --success-border: #10a37f;
+      --danger-bg: #fef2f2;
+      --danger-border: #ef4444;
+      --table-bg: #ffffff;
+      --table-head: #eef4f1;
+      --table-stripe: #f7faf9;
       --radius-sm: 10px;
       --radius-md: 16px;
       --radius-lg: 26px;
@@ -43,6 +74,13 @@
         --button-text: #111111;
         --warning-bg: #2a2117;
         --warning-border: #f7931a;
+        --success-bg: rgba(16, 163, 127, 0.14);
+        --success-border: #10a37f;
+        --danger-bg: rgba(239, 68, 68, 0.14);
+        --danger-border: #ef4444;
+        --table-bg: #1f1f1f;
+        --table-head: #26322e;
+        --table-stripe: #262626;
         --shadow-soft: 0 8px 30px rgba(0, 0, 0, 0.28);
       }
     }
@@ -90,7 +128,7 @@
     }
 
     .app.sidebar-collapsed {
-      --sidebar-width: 56px;
+      --sidebar-width: 66px;
     }
 
     .sidebar {
@@ -105,25 +143,22 @@
     }
 
     .app.sidebar-collapsed .sidebar {
-      padding: 10px;
-      align-items: center;
+      padding: 10px 8px;
+      align-items: stretch;
       overflow: hidden;
     }
 
     .app.sidebar-collapsed .sidebar-header {
-      justify-content: center;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: center;
     }
 
-    .app.sidebar-collapsed .sidebar-actions,
-    .app.sidebar-collapsed .new-chat-btn,
-    .app.sidebar-collapsed .sidebar-search,
-    .app.sidebar-collapsed .sidebar-title,
-    .app.sidebar-collapsed .chat-list {
+    .app.sidebar-collapsed .sidebar-title {
       display: none;
     }
 
     .sidebar-header,
-    .sidebar-actions,
     .topbar-left,
     .topbar-right,
     .composer-footer,
@@ -139,7 +174,6 @@
       gap: 8px;
     }
 
-    .sidebar-actions,
     .topbar-left,
     .topbar-right,
     .composer-tools,
@@ -184,6 +218,16 @@
       background: var(--surface-hover);
     }
 
+    .app.sidebar-collapsed .new-chat-btn {
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      justify-content: center;
+      align-self: center;
+      font-size: 0;
+      gap: 0;
+    }
+
     .sidebar-search {
       height: 40px;
       padding: 0 10px;
@@ -209,6 +253,10 @@
       color: var(--text-muted);
     }
 
+    .app.sidebar-collapsed .sidebar-search {
+      display: none;
+    }
+
     .sidebar-title {
       color: var(--text-muted);
       font-size: 12px;
@@ -225,24 +273,115 @@
       padding-right: 2px;
     }
 
+    .chat-item {
+      position: relative;
+      display: flex;
+      align-items: center;
+      min-width: 0;
+      border-radius: 10px;
+    }
+
     .chat-link {
+      width: 100%;
+      min-width: 0;
+      border: 0;
+      background: transparent;
       color: var(--text);
-      text-decoration: none;
       font-size: 14px;
       border-radius: 10px;
       padding: 9px 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-align: left;
+    }
+
+    .chat-title {
+      min-width: 0;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
-    .chat-link:hover,
+    .chat-short {
+      display: none;
+      width: 100%;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .chat-delete {
+      width: 28px;
+      height: 28px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text-muted);
+      display: grid;
+      place-items: center;
+      opacity: 0;
+      pointer-events: none;
+      margin-right: 3px;
+      flex-shrink: 0;
+    }
+
+    .chat-item:hover,
+    .chat-item:focus-within,
     .chat-link.active {
       background: var(--surface-hover);
     }
 
-    .chat-link.hidden {
+    .chat-item:hover .chat-delete,
+    .chat-item:focus-within .chat-delete {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .chat-delete:hover {
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    .chat-item.hidden {
       display: none;
+    }
+
+    .app.sidebar-collapsed .chat-list {
+      align-items: center;
+      padding-right: 0;
+    }
+
+    .app.sidebar-collapsed .chat-item {
+      width: 40px;
+      height: 40px;
+      justify-content: center;
+    }
+
+    .app.sidebar-collapsed .chat-link {
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      justify-content: center;
+    }
+
+    .app.sidebar-collapsed .chat-title {
+      display: none;
+    }
+
+    .app.sidebar-collapsed .chat-short {
+      display: block;
+    }
+
+    .app.sidebar-collapsed .chat-delete {
+      position: absolute;
+      right: -2px;
+      top: -2px;
+      width: 18px;
+      height: 18px;
+      margin: 0;
+      border-radius: 50%;
+      background: var(--surface);
     }
 
     .main {
@@ -286,16 +425,22 @@
       border-color: var(--warning-border);
     }
 
-    .profile {
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, #10a37f, #7c3aed);
-      color: #ffffff;
-      display: grid;
-      place-items: center;
-      font-size: 13px;
-      font-weight: 700;
+    .status-pill.connected {
+      color: var(--text);
+      background: var(--success-bg);
+      border-color: var(--success-border);
+    }
+
+    .status-pill.disconnected {
+      color: var(--text);
+      background: var(--danger-bg);
+      border-color: var(--danger-border);
+    }
+
+    .status-pill.checking {
+      color: var(--text);
+      background: var(--warning-bg);
+      border-color: var(--warning-border);
     }
 
     .chat {
@@ -309,7 +454,10 @@
     .messages {
       flex: 1;
       min-height: 0;
-      overflow-y: auto;
+      overflow-y: scroll;
+      scrollbar-gutter: stable;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
       padding: 18px 20px 28px;
       display: flex;
       flex-direction: column;
@@ -335,6 +483,23 @@
       align-items: flex-start;
     }
 
+    .message-content {
+      max-width: 72%;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .user .message-content {
+      align-items: flex-end;
+    }
+
+    .assistant .message-content,
+    .system .message-content {
+      max-width: calc(100% - 46px);
+    }
+
     .assistant-avatar {
       width: 30px;
       height: 30px;
@@ -351,10 +516,120 @@
     }
 
     .bubble {
-      max-width: 72%;
+      position: relative;
+      max-width: 100%;
       color: var(--text);
       word-wrap: break-word;
-      white-space: pre-wrap;
+      white-space: normal;
+    }
+
+    .message-markdown {
+      white-space: normal;
+    }
+
+    .message-markdown p,
+    .message-markdown .message-heading,
+    .message-markdown .message-table-wrap {
+      margin: 0 0 12px;
+    }
+
+    .message-markdown > :last-child {
+      margin-bottom: 0;
+    }
+
+    .message-heading {
+      font-weight: 700;
+      font-size: 15px;
+      line-height: 1.45;
+    }
+
+    .message-table-wrap {
+      max-width: 100%;
+      overflow-x: auto;
+      border: 1px solid var(--composer-border);
+      border-radius: 8px;
+      background: var(--table-bg);
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.03);
+    }
+
+    .message-table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 560px;
+      background: var(--table-bg);
+      font-size: 14px;
+      line-height: 1.45;
+      white-space: normal;
+    }
+
+    .message-table th,
+    .message-table td {
+      padding: 9px 11px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+      text-align: left;
+    }
+
+    .message-table th {
+      background: var(--table-head);
+      font-weight: 700;
+    }
+
+    .message-table tbody tr:nth-child(even) td {
+      background: var(--table-stripe);
+    }
+
+    .message-table tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .message-table strong {
+      font-weight: 700;
+    }
+
+    .message-footer {
+      min-height: 26px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 2px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s ease;
+    }
+
+    .message:hover .message-footer,
+    .message:focus-within .message-footer {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .message-action {
+      width: 28px;
+      height: 28px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text-muted);
+      display: grid;
+      place-items: center;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+
+    .message-action:hover {
+      color: var(--text);
+      background: var(--surface-hover);
+    }
+
+    .message-action.copied {
+      color: var(--success-border);
+      background: var(--success-bg);
+    }
+
+    .bubble mjx-container[display="true"] {
+      max-width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
     }
 
     .user .bubble {
@@ -368,7 +643,7 @@
     .system .bubble {
       background: transparent;
       padding: 2px 0 0;
-      max-width: calc(100% - 46px);
+      max-width: 100%;
     }
 
     .message.thinking-indicator {
@@ -648,9 +923,137 @@
       color: var(--text-muted);
     }
 
+    .document-context {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 0 2px 10px;
+    }
+
+    .document-context[hidden] {
+      display: none;
+    }
+
+    .document-chip {
+      max-width: 100%;
+      min-height: 32px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--text);
+      padding: 4px 7px 4px 10px;
+      font-size: 13px;
+    }
+
+    .document-chip.loading {
+      color: var(--text-muted);
+    }
+
+    .document-chip.error {
+      color: #b42318;
+      background: #fff1f0;
+      border-color: #ffd6d2;
+    }
+
+    .document-chip-name {
+      min-width: 0;
+      max-width: 280px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .document-chip-meta {
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .document-chip-remove {
+      width: 22px;
+      height: 22px;
+      border: 0;
+      border-radius: 50%;
+      background: transparent;
+      color: var(--text-muted);
+      display: grid;
+      place-items: center;
+      padding: 0;
+    }
+
+    .document-chip-remove:hover {
+      color: var(--text);
+      background: var(--surface-hover);
+    }
+
     .composer-footer {
       justify-content: space-between;
       gap: 12px;
+    }
+
+    .composer-tools {
+      position: relative;
+    }
+
+    .mode-status-btn {
+      pointer-events: none;
+      cursor: default;
+      color: var(--text-muted);
+      background: var(--surface);
+      opacity: 1;
+    }
+
+    .context-meter {
+      --context-fill: 0deg;
+      min-height: 34px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--text-muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 10px 5px 7px;
+      font-size: 13px;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    .context-ring {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: conic-gradient(var(--text) var(--context-fill), var(--border) 0deg);
+      display: grid;
+      place-items: center;
+    }
+
+    .context-ring::after {
+      content: "";
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--surface);
+    }
+
+    .context-meter.warn .context-ring {
+      background: conic-gradient(var(--warning-border) var(--context-fill), var(--border) 0deg);
+    }
+
+    .context-meter.full .context-ring {
+      background: conic-gradient(#d92d20 var(--context-fill), var(--border) 0deg);
+    }
+
+    .context-meter.unknown .context-ring {
+      background: conic-gradient(var(--text-muted) 70deg, var(--border) 0deg);
+      opacity: 0.7;
+    }
+
+    .context-meter.minimized .context-label::after {
+      content: " komprimiert";
+      color: var(--warning-border);
     }
 
     .send-btn {
@@ -662,6 +1065,62 @@
       color: var(--button-text);
       display: grid;
       place-items: center;
+    }
+
+    .tools-menu {
+      position: absolute;
+      left: 0;
+      bottom: calc(100% + 8px);
+      width: 220px;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--composer-bg);
+      box-shadow: var(--shadow-soft);
+      display: none;
+      z-index: 20;
+    }
+
+    .tools-menu.open {
+      display: block;
+    }
+
+    .tools-menu-title {
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 8px 8px;
+      text-transform: uppercase;
+    }
+
+    .reasoning-option {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      color: var(--text);
+      border-radius: 6px;
+      padding: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 14px;
+      text-align: left;
+    }
+
+    .reasoning-option:hover,
+    .reasoning-option.active {
+      background: var(--surface-hover);
+    }
+
+    .reasoning-check {
+      width: 16px;
+      color: var(--warning-border);
+      visibility: hidden;
+    }
+
+    .reasoning-option.active .reasoning-check {
+      visibility: visible;
     }
 
     .send-btn:disabled,
@@ -683,13 +1142,20 @@
       width: 8px;
     }
 
-    .messages::-webkit-scrollbar-thumb,
+    .messages::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 999px;
+    }
+
     .chat-list::-webkit-scrollbar-thumb {
       background: transparent;
       border-radius: 999px;
     }
 
-    .messages:hover::-webkit-scrollbar-thumb,
+    .messages:hover::-webkit-scrollbar-thumb {
+      background: var(--text-muted);
+    }
+
     .chat-list:hover::-webkit-scrollbar-thumb {
       background: var(--surface-hover);
     }
@@ -712,12 +1178,12 @@
       }
 
       .bubble {
-        max-width: 86%;
+        max-width: 100%;
       }
 
       .assistant .bubble,
       .system .bubble {
-        max-width: calc(100% - 44px);
+        max-width: 100%;
       }
 
       .composer-wrap {
@@ -738,20 +1204,6 @@
             <path d="M4 17h16" />
           </svg>
         </button>
-        <div class="sidebar-actions">
-          <button class="icon-btn" id="sidebar-search-button" aria-label="Suchen">
-            <svg viewBox="0 0 24 24">
-              <circle cx="11" cy="11" r="7" />
-              <path d="m20 20-3.5-3.5" />
-            </svg>
-          </button>
-          <button class="icon-btn" id="new-chat-icon" aria-label="Neue Sitzung">
-            <svg viewBox="0 0 24 24">
-              <path d="M12 5v14" />
-              <path d="M5 12h14" />
-            </svg>
-          </button>
-        </div>
       </div>
 
       <button class="new-chat-btn" id="new-chat-button">
@@ -772,7 +1224,12 @@
 
       <div class="sidebar-title">Sitzungen</div>
       <nav class="chat-list" id="chat-list">
-        <a href="#" class="chat-link active">BricsCAD AI Assistent</a>
+        <div class="chat-item">
+          <button class="chat-link active" type="button">
+            <span class="chat-short">BA</span>
+            <span class="chat-title">BricsCAD AI Assistent</span>
+          </button>
+        </div>
       </nav>
 
     </aside>
@@ -781,12 +1238,12 @@
       <header class="topbar">
         <div class="topbar-left">
           <div class="model-title">AI Assistent</div>
-          <span class="status-pill" id="agent-status">idle</span>
+          <span class="status-pill" id="agent-status">Leerlauf</span>
         </div>
 
         <div class="topbar-right">
-          <span class="status-pill" id="brx-status">BRX nicht verbunden</span>
-          <div class="profile">AI</div>
+          <span class="status-pill checking" id="local-ai-status">Lokale AI wird geprüft</span>
+          <span class="status-pill disconnected" id="brx-status">BRX Plugin nicht verbunden</span>
         </div>
       </header>
 
@@ -805,9 +1262,18 @@
         <div class="composer-wrap">
           <form class="composer" id="composer">
             <textarea id="prompt-input" placeholder="Nachricht eingeben ..." aria-label="Prompt eingeben"></textarea>
+            <input id="document-file-input" type="file" hidden multiple
+              accept=".pdf,.docx,.txt,.md,.markdown,.csv,.json,.xml,.html,.htm,.rtf,.log,.ini,.yaml,.yml,.css,.js,.ts,.py,.cpp,.c,.h,.hpp,.cs,.java,.sql" />
+            <div class="document-context" id="document-context" hidden></div>
 
             <div class="composer-footer">
               <div class="composer-tools">
+                <button class="tool-btn" id="attach-button" type="button" aria-label="Datei als Kontext hinzufügen" title="Datei hinzufügen">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M12 5v14" />
+                    <path d="M5 12h14" />
+                  </svg>
+                </button>
                 <button class="tool-btn" id="tools-button" type="button">
                   <svg viewBox="0 0 24 24">
                     <circle cx="12" cy="12" r="9" />
@@ -815,6 +1281,39 @@
                   </svg>
                   <span>Tools</span>
                 </button>
+                <button class="tool-btn mode-status-btn" id="mode-indicator" type="button" disabled>BricsCAD Modus</button>
+                <div class="context-meter unknown" id="context-meter" title="Kontext wird geladen">
+                  <span class="context-ring" aria-hidden="true"></span>
+                  <span class="context-label" id="context-label">Kontext</span>
+                </div>
+                <div class="tools-menu" id="tools-menu">
+                  <div class="tools-menu-title">Schlussfolgern</div>
+                  <button class="reasoning-option" type="button" data-reasoning="none">
+                    <span>Aus</span>
+                    <span class="reasoning-check">✓</span>
+                  </button>
+                  <button class="reasoning-option" type="button" data-reasoning="low">
+                    <span>Niedrig</span>
+                    <span class="reasoning-check">✓</span>
+                  </button>
+                  <button class="reasoning-option" type="button" data-reasoning="medium">
+                    <span>Mittel</span>
+                    <span class="reasoning-check">✓</span>
+                  </button>
+                  <button class="reasoning-option" type="button" data-reasoning="high">
+                    <span>Hoch</span>
+                    <span class="reasoning-check">✓</span>
+                  </button>
+                  <div class="tools-menu-title">Modus</div>
+                  <button class="reasoning-option mode-option" type="button" data-mode="bricscad">
+                    <span>BricsCAD Modus</span>
+                    <span class="reasoning-check">✓</span>
+                  </button>
+                  <button class="reasoning-option mode-option" type="button" data-mode="general">
+                    <span>Allgemeiner Modus</span>
+                    <span class="reasoning-check">✓</span>
+                  </button>
+                </div>
               </div>
 
               <div class="composer-right">
@@ -842,6 +1341,7 @@
     const input = document.getElementById("prompt-input");
     const sendButton = document.getElementById("send-button");
     const agentStatus = document.getElementById("agent-status");
+    const localAiStatus = document.getElementById("local-ai-status");
     const brxStatus = document.getElementById("brx-status");
     const proposalPanel = document.getElementById("proposal-panel");
     const proposalTitle = document.getElementById("proposal-title");
@@ -849,30 +1349,683 @@
     const proposalConfirm = document.getElementById("proposal-confirm");
     const proposalCancel = document.getElementById("proposal-cancel");
     const newChatButton = document.getElementById("new-chat-button");
-    const newChatIcon = document.getElementById("new-chat-icon");
+    const attachButton = document.getElementById("attach-button");
+    const documentFileInput = document.getElementById("document-file-input");
+    const documentContext = document.getElementById("document-context");
     const chatSearch = document.getElementById("chat-search");
     const chatList = document.getElementById("chat-list");
     const sidebarToggle = document.getElementById("sidebar-toggle");
-    const sidebarSearchButton = document.getElementById("sidebar-search-button");
     const toolsButton = document.getElementById("tools-button");
+    const modeIndicator = document.getElementById("mode-indicator");
+    const contextMeter = document.getElementById("context-meter");
+    const contextLabel = document.getElementById("context-label");
+    const toolsMenu = document.getElementById("tools-menu");
+    const reasoningOptions = Array.from(document.querySelectorAll(".reasoning-option[data-reasoning]"));
+    const modeOptions = Array.from(document.querySelectorAll(".mode-option"));
 
     const storageKey = "bareboneQt.aiAssistant.sessions.v1";
+    const reasoningStorageKey = "bareboneQt.aiAssistant.reasoning.v1";
+    const chatModeStorageKey = "bareboneQt.aiAssistant.mode.v1";
+    const sidebarCollapsedStorageKey = "bareboneQt.aiAssistant.sidebarCollapsed.v1";
     let bridge = null;
     let sessions = [];
     let activeSessionId = "";
     let chatCounter = 1;
+    let sidebarCollapsed = false;
     let isBusy = false;
     let thinkingIndicator = null;
     let thinkingDetailsList = null;
     let thinkingDetailCount = 0;
     let capabilitiesIndicator = null;
     let proposalInline = null;
+    let reasoningEffort = "high";
+    let chatMode = "bricscad";
+    let applyingClientState = false;
+    let documentCounter = 0;
+    let documentsLoading = 0;
+    const sessionDocuments = new Map();
+    const maxDocumentContextChars = 65000;
+    const maxDocumentPageChars = 7000;
 
     function nowTime() {
-      return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      return `${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} Uhr`;
     }
 
-    function defaultGreeting() {
+    function formatMessageTime(value) {
+      const text = String(value || "").trim();
+      const match = text.match(/^(\d{1,2}):(\d{2})(?::\d{2})?(?:\s*Uhr)?$/);
+      if (match) {
+        return `${match[1].padStart(2, "0")}:${match[2]} Uhr`;
+      }
+      return text || nowTime();
+    }
+
+    function activeDocuments() {
+      if (!sessionDocuments.has(activeSessionId)) {
+        sessionDocuments.set(activeSessionId, []);
+      }
+      return sessionDocuments.get(activeSessionId);
+    }
+
+    function repairMojibakeText(text) {
+      let value = String(text || "");
+      if (!/[ÃÂâ]/.test(value)) {
+        return value;
+      }
+      const replacements = [
+        [/â€ž/g, "„"],
+        [/â€œ/g, "“"],
+        [/â€/g, "”"],
+        [/â€™/g, "’"],
+        [/â€˜/g, "‘"],
+        [/â€“/g, "–"],
+        [/â€”/g, "—"],
+        [/â€¦/g, "…"],
+        [/â€¯/g, " "],
+        [/â€‘/g, "-"],
+        [/Ã¤/g, "ä"],
+        [/Ã¶/g, "ö"],
+        [/Ã¼/g, "ü"],
+        [/Ã„/g, "Ä"],
+        [/Ã–/g, "Ö"],
+        [/Ãœ/g, "Ü"],
+        [/ÃŸ/g, "ß"],
+        [/Ã©/g, "é"],
+        [/Ã¨/g, "è"],
+        [/Ã¡/g, "á"],
+        [/Ã³/g, "ó"],
+        [/Ã±/g, "ñ"],
+        [/Ã§/g, "ç"],
+        [/Â«/g, "«"],
+        [/Â»/g, "»"],
+        [/Â°/g, "°"],
+        [/Â/g, ""]
+      ];
+      replacements.forEach(([pattern, replacement]) => {
+        value = value.replace(pattern, replacement);
+      });
+      return value;
+    }
+
+    function normalizeDocumentText(text) {
+      return repairMojibakeText(text)
+        .replace(/\r\n/g, "\n")
+        .replace(/\u0000/g, "")
+        .replace(/[ \t]+\n/g, "\n")
+        .replace(/\n{4,}/g, "\n\n\n")
+        .trim();
+    }
+
+    function fileExtension(fileName) {
+      const match = String(fileName || "").toLowerCase().match(/\.([a-z0-9]+)$/);
+      return match ? match[1] : "";
+    }
+
+    function documentKindLabel(document) {
+      if (document.kind === "pdf") {
+        return `${document.pageCount || 0} Seiten`;
+      }
+      const chars = document.text ? document.text.length : 0;
+      return `${chars.toLocaleString("de-DE")} Zeichen`;
+    }
+
+    function renderDocumentContext() {
+      const docs = activeDocuments();
+      documentContext.hidden = docs.length === 0;
+      documentContext.replaceChildren();
+
+      docs.forEach((doc) => {
+        const chip = document.createElement("div");
+        chip.className = "document-chip";
+        chip.classList.toggle("loading", doc.status === "loading");
+        chip.classList.toggle("error", doc.status === "error");
+
+        const name = document.createElement("span");
+        name.className = "document-chip-name";
+        name.textContent = doc.name;
+        name.title = doc.name;
+
+        const meta = document.createElement("span");
+        meta.className = "document-chip-meta";
+        if (doc.status === "loading") {
+          meta.textContent = "wird gelesen";
+        } else if (doc.status === "error") {
+          meta.textContent = doc.error || "nicht lesbar";
+        } else {
+          meta.textContent = documentKindLabel(doc);
+        }
+
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "document-chip-remove";
+        remove.setAttribute("aria-label", `${doc.name} entfernen`);
+        remove.textContent = "X";
+        remove.addEventListener("click", () => removeDocument(doc.id));
+
+        chip.appendChild(name);
+        chip.appendChild(meta);
+        chip.appendChild(remove);
+        documentContext.appendChild(chip);
+      });
+
+      sendButton.disabled = isBusy || documentsLoading > 0;
+    }
+
+    function removeDocument(documentId) {
+      const docs = activeDocuments();
+      const index = docs.findIndex((document) => document.id === documentId);
+      if (index >= 0) {
+        docs.splice(index, 1);
+        renderDocumentContext();
+      }
+    }
+
+    function ensurePdfParserReady() {
+      if (!window.pdfjsLib) {
+        throw new Error("PDF-Parser konnte nicht geladen werden.");
+      }
+      if (!window.pdfjsLib.GlobalWorkerOptions.workerSrc) {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      }
+    }
+
+    async function extractPdf(file) {
+      ensurePdfParserReady();
+      const data = new Uint8Array(await file.arrayBuffer());
+      const pdf = await window.pdfjsLib.getDocument({ data }).promise;
+      const pages = [];
+      for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+        const page = await pdf.getPage(pageNumber);
+        const content = await page.getTextContent();
+        let text = "";
+        content.items.forEach((item) => {
+          text += item.str || "";
+          text += item.hasEOL ? "\n" : " ";
+        });
+        pages.push({ page: pageNumber, text: normalizeDocumentText(text) });
+      }
+      return {
+        kind: "pdf",
+        type: "PDF",
+        pageCount: pdf.numPages,
+        pages,
+        text: pages.map((page) => page.text).join("\n\n")
+      };
+    }
+
+    async function extractDocx(file) {
+      if (!window.mammoth || typeof window.mammoth.extractRawText !== "function") {
+        throw new Error("Word-Parser konnte nicht geladen werden.");
+      }
+      const result = await window.mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+      return {
+        kind: "text",
+        type: "Word DOCX",
+        text: normalizeDocumentText(result.value)
+      };
+    }
+
+    function stripRtf(text) {
+      return normalizeDocumentText(String(text || "")
+        .replace(/\\par[d]?/gi, "\n")
+        .replace(/\\'[0-9a-f]{2}/gi, " ")
+        .replace(/\\[a-z]+\d* ?/gi, "")
+        .replace(/[{}]/g, " "));
+    }
+
+    function htmlToText(text) {
+      const parsed = new DOMParser().parseFromString(text, "text/html");
+      return normalizeDocumentText(parsed.body ? parsed.body.textContent : text);
+    }
+
+    async function extractTextFile(file, extension) {
+      let text = await file.text();
+      if (extension === "rtf") {
+        text = stripRtf(text);
+      } else if (extension === "html" || extension === "htm") {
+        text = htmlToText(text);
+      } else {
+        text = normalizeDocumentText(text);
+      }
+      return {
+        kind: "text",
+        type: extension ? extension.toUpperCase() : "Text",
+        text
+      };
+    }
+
+    async function extractDocumentFile(file) {
+      const extension = fileExtension(file.name);
+      if (extension === "pdf") {
+        return extractPdf(file);
+      }
+      if (extension === "docx") {
+        return extractDocx(file);
+      }
+      if (extension === "doc") {
+        throw new Error("Alte .doc-Dateien werden nicht direkt gelesen. Bitte als .docx, PDF oder Text exportieren.");
+      }
+      return extractTextFile(file, extension);
+    }
+
+    async function addDocumentFile(file) {
+      const docs = activeDocuments();
+      const document = {
+        id: `document-${Date.now()}-${++documentCounter}`,
+        name: file.name,
+        status: "loading"
+      };
+      docs.push(document);
+      documentsLoading += 1;
+      renderDocumentContext();
+
+      try {
+        const extracted = await extractDocumentFile(file);
+        Object.assign(document, extracted, { status: "ready", size: file.size });
+      } catch (error) {
+        document.status = "error";
+        document.error = error && error.message ? error.message : "Datei konnte nicht gelesen werden.";
+      } finally {
+        documentsLoading = Math.max(0, documentsLoading - 1);
+        renderDocumentContext();
+      }
+    }
+
+    function requestedPageRanges(prompt, pageCount) {
+      const ranges = [];
+      const text = String(prompt || "");
+      const pattern = /(?:seite|seiten|page|pages)\s*(\d{1,4})(?:\s*(?:-|–|—|bis|to)\s*(\d{1,4}))?/gi;
+      let match = pattern.exec(text);
+      while (match) {
+        const start = Number.parseInt(match[1], 10);
+        const end = match[2] ? Number.parseInt(match[2], 10) : start;
+        if (Number.isFinite(start) && Number.isFinite(end)) {
+          ranges.push({
+            start: Math.max(1, Math.min(start, end, pageCount)),
+            end: Math.min(pageCount, Math.max(start, end))
+          });
+        }
+        match = pattern.exec(text);
+      }
+      return ranges.length ? ranges : null;
+    }
+
+    function selectedPdfPages(document, prompt, remainingChars) {
+      const explicitRanges = requestedPageRanges(prompt, document.pageCount || document.pages.length);
+      const pages = [];
+      let remaining = remainingChars;
+      let truncated = false;
+      const ranges = explicitRanges || [{ start: 1, end: document.pages.length }];
+
+      for (const range of ranges) {
+        for (let pageNumber = range.start; pageNumber <= range.end; pageNumber += 1) {
+          if (remaining <= 0) {
+            truncated = true;
+            break;
+          }
+          const page = document.pages.find((entry) => entry.page === pageNumber);
+          if (!page || !page.text) {
+            continue;
+          }
+          let text = page.text;
+          if (text.length > maxDocumentPageChars) {
+            text = text.slice(0, maxDocumentPageChars) + "\n[Seite gekürzt]";
+            truncated = true;
+          }
+          if (text.length > remaining) {
+            text = text.slice(0, remaining) + "\n[Kontextgrenze erreicht]";
+            truncated = true;
+          }
+          remaining -= text.length;
+          pages.push({ page: page.page, text });
+        }
+        if (remaining <= 0) {
+          break;
+        }
+      }
+
+      if (!explicitRanges && pages.length < document.pages.length) {
+        truncated = true;
+      }
+      return { pages, truncated, explicit: !!explicitRanges };
+    }
+
+    function includedPagesLabel(pages, pageCount) {
+      if (!pages.length) {
+        return "keine Seiten";
+      }
+      const numbers = pages.map((page) => page.page);
+      return `Seiten ${numbers[0]}-${numbers[numbers.length - 1]} von ${pageCount}`;
+    }
+
+    function buildDocumentContextForPrompt(prompt) {
+      const readyDocuments = activeDocuments().filter((document) => document.status === "ready");
+      if (!readyDocuments.length) {
+        return {};
+      }
+
+      let remaining = maxDocumentContextChars;
+      let truncated = false;
+      const blocks = [];
+      const documents = [];
+
+      for (const document of readyDocuments) {
+        if (remaining <= 0) {
+          truncated = true;
+          break;
+        }
+
+        if (document.kind === "pdf") {
+          const selection = selectedPdfPages(document, prompt, remaining);
+          const pageBlocks = selection.pages.map((page) => `--- Seite ${page.page} ---\n${page.text}`);
+          const block = `[Dokument: ${document.name} | PDF | ${includedPagesLabel(selection.pages, document.pageCount)}]\n${pageBlocks.join("\n\n")}`;
+          if (pageBlocks.length) {
+            blocks.push(block);
+            remaining -= block.length;
+          }
+          truncated = truncated || selection.truncated;
+          documents.push({
+            name: document.name,
+            type: "PDF",
+            pages: document.pageCount,
+            included: includedPagesLabel(selection.pages, document.pageCount),
+            selection: selection.explicit ? "requested-pages" : "leading-excerpt"
+          });
+          continue;
+        }
+
+        let text = document.text || "";
+        let included = "vollständig";
+        if (text.length > remaining) {
+          text = text.slice(0, remaining) + "\n[Kontextgrenze erreicht]";
+          included = "gekürzter Auszug";
+          truncated = true;
+        }
+        blocks.push(`[Dokument: ${document.name} | ${document.type || "Text"} | ${included}]\n${text}`);
+        remaining -= text.length;
+        documents.push({
+          name: document.name,
+          type: document.type || "Text",
+          chars: document.text ? document.text.length : 0,
+          included
+        });
+      }
+
+      const selectedText = blocks.join("\n\n").trim();
+      if (!selectedText) {
+        return {};
+      }
+
+      return {
+        hasDocuments: true,
+        selectedText,
+        documents,
+        truncated,
+        maxChars: maxDocumentContextChars
+      };
+    }
+
+    function normalizeReasoningEffort(value) {
+      return ["none", "low", "medium", "high"].includes(value) ? value : "high";
+    }
+
+    function normalizeChatMode(value) {
+      return value === "general" ? "general" : "bricscad";
+    }
+
+    function syncReasoningToQt() {
+      if (bridge && typeof bridge.setReasoningEffort === "function") {
+        bridge.setReasoningEffort(reasoningEffort);
+      }
+    }
+
+    function syncChatModeToQt() {
+      if (bridge && typeof bridge.setChatMode === "function") {
+        bridge.setChatMode(chatMode);
+      }
+    }
+
+    function storedSidebarCollapsed() {
+      try {
+        return localStorage.getItem(sidebarCollapsedStorageKey) === "true";
+      } catch (_error) {
+        return false;
+      }
+    }
+
+    function persistSidebarState({ saveToQt = true } = {}) {
+      try {
+        localStorage.setItem(sidebarCollapsedStorageKey, sidebarCollapsed ? "true" : "false");
+      } catch (_error) {
+        // WebEngine may deny storage for some local origins. The current runtime state still works.
+      }
+      if (saveToQt) {
+        saveClientStateToQt();
+      }
+    }
+
+    function applySidebarCollapsed(collapsed, { persist = true } = {}) {
+      sidebarCollapsed = !!collapsed;
+      app.classList.toggle("sidebar-collapsed", sidebarCollapsed);
+      sidebarToggle.setAttribute("aria-expanded", String(!sidebarCollapsed));
+      sidebarToggle.setAttribute("aria-label", sidebarCollapsed ? "Sidebar ausklappen" : "Sidebar einklappen");
+      if (persist) {
+        persistSidebarState();
+      }
+    }
+
+    function renderReasoningSelection() {
+      reasoningOptions.forEach((option) => {
+        option.classList.toggle("active", option.dataset.reasoning === reasoningEffort);
+      });
+    }
+
+    function clientState() {
+      return {
+        version: 1,
+        sessions,
+        activeSessionId,
+        chatCounter,
+        chatMode,
+        reasoningEffort,
+        sidebarCollapsed
+      };
+    }
+
+    function saveClientStateToQt() {
+      if (applyingClientState || !bridge || typeof bridge.saveClientState !== "function") {
+        return;
+      }
+      bridge.saveClientState(JSON.stringify(clientState()));
+    }
+
+    function renderModeSelection() {
+      modeOptions.forEach((option) => {
+        option.classList.toggle("active", option.dataset.mode === chatMode);
+      });
+      modeIndicator.textContent = modeLabel(chatMode);
+    }
+
+    function formatTokenCount(value) {
+      const number = Number(value || 0);
+      if (!Number.isFinite(number) || number <= 0) {
+        return "?";
+      }
+      if (number >= 1000) {
+        return `${Math.round(number / 100) / 10}k`;
+      }
+      return String(Math.round(number));
+    }
+
+    function applyContextBudget(info) {
+      const percent = Math.max(0, Math.min(100, Number(info && info.percent) || 0));
+      const maxTokens = Number(info && info.maxTokens) || 0;
+      const usedTokens = Number(info && info.usedTokens) || 0;
+      const available = !!(info && info.available);
+      const state = info && typeof info.state === "string" ? info.state : (available ? "ok" : "unknown");
+      const minimized = !!(info && info.minimized);
+      const fill = Math.round((percent / 100) * 360);
+
+      contextMeter.style.setProperty("--context-fill", `${fill}deg`);
+      contextMeter.classList.toggle("unknown", state === "unknown" || !available);
+      contextMeter.classList.toggle("warn", state === "warn");
+      contextMeter.classList.toggle("full", state === "full");
+      contextMeter.classList.toggle("minimized", minimized);
+      contextLabel.textContent = available ? `${percent}%` : "Kontext";
+
+      const model = info && info.model ? `\nModell: ${info.model}` : "";
+      const detail = info && info.detail ? `\n${info.detail}` : "";
+      contextMeter.title = available
+        ? `Kontext: ${formatTokenCount(usedTokens)} / ${formatTokenCount(maxTokens)} Tokens${model}${detail}`
+        : `Kontextlaenge wird von LM Studio noch nicht gemeldet${model}${detail}`;
+    }
+
+    function setStatusPillState(element, state) {
+      element.classList.toggle("connected", state === "connected");
+      element.classList.toggle("disconnected", state === "disconnected");
+      element.classList.toggle("checking", state === "checking");
+    }
+
+    function setBrxStatus(message, connected) {
+      brxStatus.textContent = message || (connected ? "BRX Plugin verbunden" : "BRX Plugin nicht verbunden");
+      setStatusPillState(brxStatus, connected ? "connected" : "disconnected");
+    }
+
+    function setLocalAiStatus(message, connected) {
+      const label = message || (connected ? "Lokale AI erreichbar" : "Lokale AI nicht erreichbar");
+      const checking = /prüf|pruef|wird|lade/i.test(label);
+      localAiStatus.textContent = label;
+      setStatusPillState(localAiStatus, checking ? "checking" : (connected ? "connected" : "disconnected"));
+    }
+
+    function loadReasoningSelection() {
+      try {
+        reasoningEffort = normalizeReasoningEffort(localStorage.getItem(reasoningStorageKey) || "high");
+      } catch (_error) {
+        reasoningEffort = "high";
+      }
+      renderReasoningSelection();
+    }
+
+    function setReasoningSelection(value) {
+      reasoningEffort = normalizeReasoningEffort(value);
+      try {
+        localStorage.setItem(reasoningStorageKey, reasoningEffort);
+      } catch (_error) {
+        // WebEngine may deny storage for some local origins. The current runtime state still works.
+      }
+      renderReasoningSelection();
+      syncReasoningToQt();
+      saveClientStateToQt();
+    }
+
+    function applyReasoningSelectionFromQt(value) {
+      reasoningEffort = normalizeReasoningEffort(value);
+      try {
+        localStorage.setItem(reasoningStorageKey, reasoningEffort);
+      } catch (_error) {
+        // WebEngine may deny storage for some local origins. The current runtime state still works.
+      }
+      renderReasoningSelection();
+    }
+
+    function storedChatMode() {
+      try {
+        return normalizeChatMode(localStorage.getItem(chatModeStorageKey) || "bricscad");
+      } catch (_error) {
+        return "bricscad";
+      }
+    }
+
+    function setChatModeSelection(value, { createFreshSession = false } = {}) {
+      const nextMode = normalizeChatMode(value);
+      const changed = nextMode !== chatMode;
+
+      if (changed && createFreshSession) {
+        chatMode = nextMode;
+        const nextSession = createSession(modeTitle(chatMode), chatMode);
+        sessions.unshift(nextSession);
+        activeSessionId = nextSession.id;
+        renderSessionList();
+        renderActiveSession();
+      } else {
+        chatMode = nextMode;
+        activeSession().mode = chatMode;
+      }
+
+      renderModeSelection();
+      persistSessions();
+      syncActiveSessionToQt();
+    }
+
+    function applyClientStateFromQt(stateJson) {
+      const raw = String(stateJson || "").trim();
+      if (!raw) {
+        saveClientStateToQt();
+        syncReasoningToQt();
+        syncActiveSessionToQt();
+        return;
+      }
+
+      let stored = null;
+      try {
+        stored = JSON.parse(raw);
+      } catch (_error) {
+        return;
+      }
+
+      applyingClientState = true;
+      try {
+        sessions = Array.isArray(stored.sessions)
+          ? stored.sessions.map(normalizeSession)
+          : [];
+        activeSessionId = typeof stored.activeSessionId === "string" ? stored.activeSessionId : "";
+        chatCounter = Number.isFinite(stored.chatCounter) ? stored.chatCounter : sessions.length;
+        reasoningEffort = normalizeReasoningEffort(stored.reasoningEffort || reasoningEffort);
+        applySidebarCollapsed(
+          typeof stored.sidebarCollapsed === "boolean" ? stored.sidebarCollapsed : storedSidebarCollapsed(),
+          { persist: false }
+        );
+
+        if (!sessions.length) {
+          sessions = [createSession("BricsCAD AI Assistent", "bricscad")];
+        }
+        if (!sessions.some((session) => session.id === activeSessionId)) {
+          activeSessionId = sessions[0].id;
+        }
+        chatMode = normalizeChatMode(activeSession().mode || stored.chatMode || "bricscad");
+        activeSession().mode = chatMode;
+
+        renderReasoningSelection();
+        renderModeSelection();
+        persistSessions();
+        persistSidebarState({ saveToQt: false });
+        renderSessionList();
+        renderActiveSession();
+      } finally {
+        applyingClientState = false;
+      }
+
+      syncReasoningToQt();
+      syncActiveSessionToQt();
+    }
+
+    function modeTitle(mode) {
+      return mode === "general" ? "Allgemeiner Chat" : "BricsCAD AI Assistent";
+    }
+
+    function modeLabel(mode) {
+      return mode === "general" ? "Allgemeiner Modus" : "BricsCAD Modus";
+    }
+
+    function defaultGreeting(mode = chatMode) {
+      if (mode === "general") {
+        return {
+          speaker: "AI",
+          message: "Worüber möchtest du sprechen?",
+          time: nowTime()
+        };
+      }
       return {
         speaker: "AI",
         message: "Was möchtest du mit BricsCAD tun?",
@@ -881,7 +2034,7 @@
     }
 
     function germanizeText(text) {
-      let value = String(text || "");
+      let value = repairMojibakeText(text);
       const replacements = [
         [/Bestaetigung/g, "Bestätigung"],
         [/bestaetigen/g, "bestätigen"],
@@ -929,12 +2082,75 @@
       return value;
     }
 
-    function createSession(title) {
+    function looksLikeReasoningLeak(text) {
+      const lower = String(text || "").slice(0, 6000).toLowerCase();
+      if (lower.startsWith("the user asked")
+        || lower.startsWith("we need to")
+        || lower.includes("developer message")
+        || lower.includes("system message says")
+        || lower.includes("we need to ensure")) {
+        return true;
+      }
+      const markers = [
+        "the user asked",
+        "the user wants",
+        "we need to",
+        "we should",
+        "we can",
+        "we must",
+        "let's produce",
+        "final answer",
+        "developer message",
+        "instructions"
+      ];
+      return markers.reduce((count, marker) => count + (lower.includes(marker) ? 1 : 0), 0) >= 3;
+    }
+
+    function removeReasoningLeakText(text) {
+      let value = germanizeText(text).trim();
+      if (!looksLikeReasoningLeak(value)) {
+        return value;
+      }
+
+      const lower = value.toLowerCase();
+      const markers = [
+        "ok let's produce final answer:",
+        "let's produce final answer:",
+        "final answer:",
+        "final response:"
+      ];
+      let markerIndex = -1;
+      let markerLength = 0;
+      markers.forEach((marker) => {
+        const index = lower.lastIndexOf(marker);
+        if (index >= markerIndex) {
+          markerIndex = index;
+          markerLength = marker.length;
+        }
+      });
+      if (markerIndex >= 0) {
+        value = value.slice(markerIndex + markerLength).trim();
+      }
+
+      const headingIndex = value.indexOf("**");
+      if (headingIndex > 0 && headingIndex < 160) {
+        value = value.slice(headingIndex).trim();
+      }
+
+      if (!value || looksLikeReasoningLeak(value) || value.toLowerCase().includes("developer message")) {
+        return "Die AI-Antwort enthielt interne Analyse und wurde ausgeblendet. Bitte sende die Anfrage erneut.";
+      }
+      return value;
+    }
+
+    function createSession(title, mode = chatMode) {
+      const normalizedMode = normalizeChatMode(mode);
       return {
         id: `session-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
         title,
+        mode: normalizedMode,
         userNamed: false,
-        messages: [defaultGreeting()],
+        messages: [defaultGreeting(normalizedMode)],
         proposal: null
       };
     }
@@ -943,7 +2159,7 @@
       if (speaker !== "AI") {
         return germanizeText(text);
       }
-      const cleaned = String(text || "")
+      const cleaned = removeReasoningLeakText(text)
         .replaceAll("<|channel|>final", "")
         .replaceAll("<|constrain|>json", "")
         .replaceAll("<|message|>", "")
@@ -951,7 +2167,7 @@
       const firstBrace = cleaned.indexOf("{");
       const lastBrace = cleaned.lastIndexOf("}");
       if (firstBrace < 0 || lastBrace <= firstBrace) {
-        return germanizeText(text);
+        return removeReasoningLeakText(text);
       }
       try {
         const parsed = JSON.parse(cleaned.slice(firstBrace, lastBrace + 1));
@@ -959,9 +2175,9 @@
           return germanizeText(parsed.message.trim());
         }
       } catch {
-        return germanizeText(text);
+        return removeReasoningLeakText(text);
       }
-      return germanizeText(text);
+      return removeReasoningLeakText(text);
     }
 
     function normalizeMessage(message) {
@@ -969,7 +2185,7 @@
       return {
         speaker,
         message: readableStoredMessageText(speaker, message.message || ""),
-        time: message.time || nowTime()
+        time: formatMessageTime(message.time)
       };
     }
 
@@ -978,6 +2194,7 @@
       return {
         id: typeof session.id === "string" && session.id ? session.id : fallback.id,
         title: typeof session.title === "string" && session.title ? session.title : fallback.title,
+        mode: normalizeChatMode(session.mode || "bricscad"),
         userNamed: !!session.userNamed,
         messages: Array.isArray(session.messages) && session.messages.length
           ? session.messages.map(normalizeMessage)
@@ -1010,10 +2227,16 @@
       if (!sessions.some((session) => session.id === activeSessionId)) {
         activeSessionId = sessions[0].id;
       }
+      chatMode = normalizeChatMode(activeSession().mode || storedChatMode());
+      activeSession().mode = chatMode;
+      renderModeSelection();
     }
 
     function persistSessions() {
       try {
+        localStorage.setItem(chatModeStorageKey, chatMode);
+        localStorage.setItem(reasoningStorageKey, reasoningEffort);
+        localStorage.setItem(sidebarCollapsedStorageKey, sidebarCollapsed ? "true" : "false");
         localStorage.setItem(storageKey, JSON.stringify({
           sessions,
           activeSessionId,
@@ -1022,6 +2245,7 @@
       } catch {
         // WebEngine may deny storage for some local origins. The current runtime state still works.
       }
+      saveClientStateToQt();
     }
 
     function activeSession() {
@@ -1043,6 +2267,7 @@
     }
 
     function syncActiveSessionToQt() {
+      syncChatModeToQt();
       if (bridge && typeof bridge.openSession === "function") {
         bridge.openSession(activeSessionId, backendHistory(activeSession()));
       }
@@ -1068,6 +2293,272 @@
       return "AI";
     }
 
+    function fallbackCopyToClipboard(text) {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      const copied = document.execCommand("copy");
+      textarea.remove();
+      return copied ? Promise.resolve() : Promise.reject(new Error("Clipboard fallback failed"));
+    }
+
+    function browserCopyToClipboard(text) {
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+        return navigator.clipboard.writeText(text).catch(() => fallbackCopyToClipboard(text));
+      }
+      return fallbackCopyToClipboard(text);
+    }
+
+    function copyViaQtBridge(text) {
+      if (!bridge || typeof bridge.copyText !== "function") {
+        return Promise.reject(new Error("Qt clipboard bridge unavailable"));
+      }
+
+      return new Promise((resolve, reject) => {
+        let settled = false;
+        const finish = (ok = true) => {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          if (ok === false) {
+            reject(new Error("Qt clipboard bridge rejected copy"));
+          } else {
+            resolve();
+          }
+        };
+
+        try {
+          bridge.copyText(text, finish);
+          setTimeout(() => finish(true), 250);
+        } catch (error) {
+          reject(error);
+        }
+      });
+    }
+
+    function copyToClipboard(text) {
+      return copyViaQtBridge(text).catch(() => browserCopyToClipboard(text));
+    }
+
+    function createMessageCopyButton(text) {
+      const copyIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>';
+      const copiedIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>';
+      const button = document.createElement("button");
+      button.className = "message-action message-copy";
+      button.type = "button";
+      button.title = "Kopieren";
+      button.setAttribute("aria-label", "Nachricht kopieren");
+      button.innerHTML = copyIcon;
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        copyToClipboard(text).then(() => {
+          button.classList.add("copied");
+          button.innerHTML = copiedIcon;
+          button.title = "Kopiert";
+          button.setAttribute("aria-label", "Nachricht kopiert");
+          setTimeout(() => {
+            button.classList.remove("copied");
+            button.innerHTML = copyIcon;
+            button.title = "Kopieren";
+            button.setAttribute("aria-label", "Nachricht kopieren");
+          }, 1200);
+        }).catch(() => {
+          button.title = "Kopieren fehlgeschlagen";
+          setTimeout(() => {
+            button.classList.remove("copied");
+            button.innerHTML = copyIcon;
+            button.title = "Kopieren";
+          }, 1200);
+        });
+      });
+      return button;
+    }
+
+    function createMessageFooter(text) {
+      const footer = document.createElement("div");
+      footer.className = "message-footer";
+      footer.appendChild(createMessageCopyButton(text));
+      return footer;
+    }
+
+    function splitMarkdownTableRow(line) {
+      let value = String(line || "").trim();
+      if (!value.includes("|")) {
+        return null;
+      }
+      if (value.startsWith("|")) {
+        value = value.slice(1);
+      }
+      if (value.endsWith("|")) {
+        value = value.slice(0, -1);
+      }
+      return value.split("|").map((cell) => cell.trim());
+    }
+
+    function isMarkdownTableSeparator(line) {
+      const cells = splitMarkdownTableRow(line);
+      return !!cells && cells.length > 1 && cells.every((cell) => /^:?-{3,}:?$/.test(cell));
+    }
+
+    function normalizeMarkdownHeading(line) {
+      let value = String(line || "").trim();
+      value = value.replace(/^\*\*(.+?)\*\*$/, "$1").trim();
+      value = value.replace(/\s+/g, " ");
+      return value;
+    }
+
+    function appendInlineMarkdown(parent, text) {
+      const source = String(text || "");
+      const pattern = /\*\*(.+?)\*\*/g;
+      let index = 0;
+      let match = pattern.exec(source);
+      while (match) {
+        if (match.index > index) {
+          parent.appendChild(document.createTextNode(source.slice(index, match.index)));
+        }
+        const strong = document.createElement("strong");
+        strong.textContent = normalizeMarkdownHeading(match[1]);
+        parent.appendChild(strong);
+        index = match.index + match[0].length;
+        match = pattern.exec(source);
+      }
+      if (index < source.length) {
+        parent.appendChild(document.createTextNode(source.slice(index)));
+      }
+    }
+
+    function createMarkdownParagraph(lines) {
+      const paragraph = document.createElement("p");
+      appendInlineMarkdown(paragraph, lines.join("\n").trim());
+      return paragraph;
+    }
+
+    function createMarkdownHeading(line) {
+      const heading = document.createElement("div");
+      heading.className = "message-heading";
+      heading.textContent = normalizeMarkdownHeading(line);
+      return heading;
+    }
+
+    function createMarkdownTable(lines) {
+      const headerCells = splitMarkdownTableRow(lines[0]) || [];
+      const bodyLines = lines.slice(2);
+      const wrapper = document.createElement("div");
+      wrapper.className = "message-table-wrap";
+
+      const table = document.createElement("table");
+      table.className = "message-table";
+
+      const thead = document.createElement("thead");
+      const headerRow = document.createElement("tr");
+      headerCells.forEach((cell) => {
+        const th = document.createElement("th");
+        appendInlineMarkdown(th, cell);
+        headerRow.appendChild(th);
+      });
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+
+      const tbody = document.createElement("tbody");
+      bodyLines.forEach((line) => {
+        const cells = splitMarkdownTableRow(line);
+        if (!cells || !cells.length) {
+          return;
+        }
+        const row = document.createElement("tr");
+        for (let index = 0; index < headerCells.length; index += 1) {
+          const td = document.createElement("td");
+          appendInlineMarkdown(td, cells[index] || "");
+          row.appendChild(td);
+        }
+        tbody.appendChild(row);
+      });
+      table.appendChild(tbody);
+      wrapper.appendChild(table);
+      return wrapper;
+    }
+
+    function renderMarkdownMessageText(text) {
+      const root = document.createElement("div");
+      root.className = "message-markdown";
+      const lines = String(text || "").replace(/\r\n/g, "\n").split("\n");
+      let index = 0;
+      let paragraph = [];
+
+      const flushParagraph = () => {
+        if (!paragraph.length) {
+          return;
+        }
+        const nonEmpty = paragraph.filter((line) => line.trim());
+        if (nonEmpty.length === 1 && /^\*\*.+\*\*$/.test(nonEmpty[0].trim())) {
+          root.appendChild(createMarkdownHeading(nonEmpty[0]));
+        } else {
+          root.appendChild(createMarkdownParagraph(paragraph));
+        }
+        paragraph = [];
+      };
+
+      while (index < lines.length) {
+        const line = lines[index];
+        const next = lines[index + 1];
+        if (splitMarkdownTableRow(line) && isMarkdownTableSeparator(next || "")) {
+          flushParagraph();
+          const tableLines = [line, next];
+          index += 2;
+          while (index < lines.length && splitMarkdownTableRow(lines[index])) {
+            tableLines.push(lines[index]);
+            index += 1;
+          }
+          root.appendChild(createMarkdownTable(tableLines));
+          continue;
+        }
+
+        if (!line.trim()) {
+          flushParagraph();
+          index += 1;
+          continue;
+        }
+
+        paragraph.push(line);
+        index += 1;
+      }
+
+      flushParagraph();
+      if (!root.childNodes.length) {
+        root.textContent = text;
+      }
+      return root;
+    }
+
+    function typesetMath(element) {
+      if (!element) {
+        return;
+      }
+      if (window.MathJax && typeof window.MathJax.typesetPromise === "function") {
+        window.MathJax.typesetPromise([element]).catch(() => {});
+        return;
+      }
+      window.__bareboneQueuedMath = window.__bareboneQueuedMath || [];
+      window.__bareboneQueuedMath.push(element);
+    }
+
+    window.__bareboneTypesetQueuedMath = function typesetQueuedMath() {
+      const queued = window.__bareboneQueuedMath || [];
+      window.__bareboneQueuedMath = [];
+      if (!queued.length || !window.MathJax || typeof window.MathJax.typesetPromise !== "function") {
+        return undefined;
+      }
+      return window.MathJax.typesetPromise(queued).catch(() => {});
+    };
+
     function renderMessage(message) {
       const speaker = message.speaker;
       const text = message.message;
@@ -1084,6 +2575,9 @@
         article.appendChild(avatar);
       }
 
+      const content = document.createElement("div");
+      content.className = "message-content";
+
       const bubble = document.createElement("div");
       bubble.className = "bubble";
 
@@ -1091,8 +2585,7 @@
       meta.className = "meta";
       meta.textContent = time ? `${speaker} - ${time}` : speaker;
 
-      const body = document.createElement("div");
-      body.textContent = text;
+      const body = renderMarkdownMessageText(text);
 
       if (role === "user") {
         bubble.appendChild(body);
@@ -1101,8 +2594,11 @@
         bubble.appendChild(body);
       }
 
-      article.appendChild(bubble);
+      content.appendChild(bubble);
+      content.appendChild(createMessageFooter(text));
+      article.appendChild(content);
       messages.appendChild(article);
+      typesetMath(article);
       messages.scrollTop = messages.scrollHeight;
     }
 
@@ -1317,10 +2813,11 @@
 
     function setBusy(status) {
       isBusy = status === "thinking";
-      agentStatus.textContent = isBusy ? "AI arbeitet" : "idle";
+      agentStatus.textContent = isBusy ? "AI arbeitet" : "Leerlauf";
       agentStatus.classList.toggle("thinking", isBusy);
       input.disabled = isBusy;
-      sendButton.disabled = isBusy;
+      sendButton.disabled = isBusy || documentsLoading > 0;
+      attachButton.disabled = isBusy;
       if (isBusy) {
         showThinkingIndicator();
       } else {
@@ -1432,6 +2929,7 @@
       article.appendChild(bubble);
       proposalInline = article;
       messages.appendChild(article);
+      typesetMath(article);
       messages.scrollTop = messages.scrollHeight;
     }
 
@@ -1462,6 +2960,7 @@
       clearThinkingIndicator();
       messages.replaceChildren();
       const session = activeSession();
+      renderDocumentContext();
       session.messages.forEach((message) => renderMessage(normalizeMessage(message)));
       renderProposal(session.proposal);
       if (isBusy) {
@@ -1469,22 +2968,94 @@
       }
     }
 
+    function sessionShortLabel(title) {
+      const words = String(title || "")
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+      if (!words.length) {
+        return "AI";
+      }
+      const initials = words
+        .slice(0, 2)
+        .map((word) => word[0])
+        .join("")
+        .toUpperCase();
+      return initials || "AI";
+    }
+
+    function deleteSession(sessionId) {
+      if (isBusy) {
+        return;
+      }
+      const index = sessions.findIndex((session) => session.id === sessionId);
+      if (index < 0) {
+        return;
+      }
+
+      const deletedActive = sessionId === activeSessionId;
+      sessions.splice(index, 1);
+      sessionDocuments.delete(sessionId);
+      if (!sessions.length) {
+        sessions = [createSession(modeTitle(chatMode), chatMode)];
+      }
+      if (deletedActive || !sessions.some((session) => session.id === activeSessionId)) {
+        activeSessionId = sessions[Math.min(index, sessions.length - 1)].id;
+        chatMode = normalizeChatMode(activeSession().mode || "bricscad");
+        renderModeSelection();
+        renderActiveSession();
+        syncActiveSessionToQt();
+      }
+
+      persistSessions();
+      renderSessionList();
+      input.focus();
+    }
+
     function renderSessionList() {
       const query = chatSearch.value.trim().toLowerCase();
       chatList.replaceChildren();
       sessions.forEach((session) => {
-        const link = document.createElement("a");
-        link.href = "#";
+        const item = document.createElement("div");
+        item.className = "chat-item";
+        item.classList.toggle("hidden", query.length > 0 && !session.title.toLowerCase().includes(query));
+
+        const link = document.createElement("button");
+        link.type = "button";
         link.className = "chat-link";
-        link.textContent = session.title;
-        link.dataset.sessionId = session.id;
         link.classList.toggle("active", session.id === activeSessionId);
-        link.classList.toggle("hidden", query.length > 0 && !session.title.toLowerCase().includes(query));
+        link.dataset.sessionId = session.id;
+        link.title = session.title;
+
+        const shortLabel = document.createElement("span");
+        shortLabel.className = "chat-short";
+        shortLabel.textContent = sessionShortLabel(session.title);
+
+        const title = document.createElement("span");
+        title.className = "chat-title";
+        title.textContent = session.title;
+
+        link.appendChild(shortLabel);
+        link.appendChild(title);
         link.addEventListener("click", (event) => {
           event.preventDefault();
           switchSession(session.id);
         });
-        chatList.appendChild(link);
+
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button";
+        deleteButton.className = "chat-delete";
+        deleteButton.textContent = "X";
+        deleteButton.setAttribute("aria-label", `Sitzung ${session.title} löschen`);
+        deleteButton.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          deleteSession(session.id);
+        });
+
+        item.appendChild(link);
+        item.appendChild(deleteButton);
+        chatList.appendChild(item);
       });
     }
 
@@ -1496,6 +3067,8 @@
         return;
       }
       activeSessionId = sessionId;
+      chatMode = normalizeChatMode(sessions.find((session) => session.id === sessionId)?.mode || "bricscad");
+      renderModeSelection();
       persistSessions();
       renderSessionList();
       renderActiveSession();
@@ -1513,8 +3086,17 @@
         addMessage({ speaker: "Barebone-Qt", message: "Qt WebChannel ist noch nicht verbunden.", time: nowTime() });
         return;
       }
+      if (documentsLoading > 0) {
+        addMessage({ speaker: "Barebone-Qt", message: "Dateien werden noch gelesen. Bitte sende die Anfrage gleich erneut.", time: nowTime() }, { record: false });
+        return;
+      }
+      const documentPromptContext = buildDocumentContextForPrompt(text);
       input.value = "";
-      bridge.sendPrompt(text);
+      if (documentPromptContext.hasDocuments && typeof bridge.sendPromptWithContext === "function") {
+        bridge.sendPromptWithContext(text, documentPromptContext);
+      } else {
+        bridge.sendPrompt(text);
+      }
       requestAnimationFrame(() => input.focus());
     }
 
@@ -1522,7 +3104,7 @@
       if (isBusy) {
         return;
       }
-      const session = createSession(`Neue Sitzung ${++chatCounter}`);
+      const session = createSession(`Neue Sitzung ${++chatCounter}`, chatMode);
       sessions.unshift(session);
       activeSessionId = session.id;
       persistSessions();
@@ -1536,12 +3118,12 @@
       renderSessionList();
     }
 
-    function showToolsInfo() {
-      addMessage({
-        speaker: "Barebone-Qt",
-        message: "Tools werden der AI über BRX-Capabilities bereitgestellt. Frage z.B. nach aktueller Auswahl, Layern oder einer geplanten BricsCAD-Aktion.",
-        time: nowTime()
-      });
+    function toggleToolsMenu() {
+      toolsMenu.classList.toggle("open");
+    }
+
+    function closeToolsMenu() {
+      toolsMenu.classList.remove("open");
     }
 
     function handleBridgeLogLine(line) {
@@ -1564,10 +3146,6 @@
         addThinkingDetail(`Ich prüfe die Antwort erneut: ${loopMatch[0].replace(/^AI Agent Loop[^:]*:\s*/, "")}`);
         return;
       }
-      if (text.includes("Qt -> AI Agent:")) {
-        addThinkingDetail("Ich sende die Anfrage an das lokale Modell.");
-        return;
-      }
       if (text.includes("AI JSON:")) {
         addThinkingDetail("Ich habe eine finale Antwort erhalten und prüfe das Format.");
         return;
@@ -1586,16 +3164,7 @@
     }
 
     function toggleSidebar() {
-      const collapsed = app.classList.toggle("sidebar-collapsed");
-      sidebarToggle.setAttribute("aria-expanded", String(!collapsed));
-      sidebarToggle.setAttribute("aria-label", collapsed ? "Sidebar ausklappen" : "Sidebar einklappen");
-    }
-
-    function focusSearch() {
-      if (app.classList.contains("sidebar-collapsed")) {
-        toggleSidebar();
-      }
-      chatSearch.focus();
+      applySidebarCollapsed(!sidebarCollapsed);
     }
 
     form.addEventListener("submit", (event) => {
@@ -1624,12 +3193,45 @@
     });
 
     newChatButton.addEventListener("click", requestNewChat);
-    newChatIcon.addEventListener("click", requestNewChat);
+    attachButton.addEventListener("click", () => {
+      if (!isBusy) {
+        documentFileInput.click();
+      }
+    });
+    documentFileInput.addEventListener("change", () => {
+      const files = Array.from(documentFileInput.files || []);
+      documentFileInput.value = "";
+      files.forEach((file) => {
+        addDocumentFile(file);
+      });
+    });
     sidebarToggle.addEventListener("click", toggleSidebar);
-    sidebarSearchButton.addEventListener("click", focusSearch);
     chatSearch.addEventListener("input", filterChats);
-    toolsButton.addEventListener("click", showToolsInfo);
+    toolsButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      toggleToolsMenu();
+    });
+    toolsMenu.addEventListener("click", (event) => {
+      event.stopPropagation();
+    });
+    reasoningOptions.forEach((option) => {
+      option.addEventListener("click", () => {
+        setReasoningSelection(option.dataset.reasoning);
+        closeToolsMenu();
+        input.focus();
+      });
+    });
+    modeOptions.forEach((option) => {
+      option.addEventListener("click", () => {
+        setChatModeSelection(option.dataset.mode, { createFreshSession: true });
+        closeToolsMenu();
+        input.focus();
+      });
+    });
+    document.addEventListener("click", closeToolsMenu);
 
+    applySidebarCollapsed(storedSidebarCollapsed(), { persist: false });
+    loadReasoningSelection();
     loadSessions();
     renderSessionList();
     renderActiveSession();
@@ -1637,21 +3239,24 @@
     if (window.qt && window.qt.webChannelTransport && window.QWebChannel) {
       new QWebChannel(window.qt.webChannelTransport, (channel) => {
         bridge = channel.objects.bareboneBridge;
-        brxStatus.textContent = "Qt Bridge verbunden";
-        syncActiveSessionToQt();
+        setBrxStatus("BRX Plugin nicht verbunden", false);
+        bridge.reasoningEffortApplied.connect(applyReasoningSelectionFromQt);
+        bridge.clientStateLoaded.connect(applyClientStateFromQt);
+        bridge.contextBudgetChanged.connect(applyContextBudget);
+        if (bridge.localAiStatusChanged) {
+          bridge.localAiStatusChanged.connect(setLocalAiStatus);
+        }
         bridge.messageAdded.connect(addMessage);
         bridge.statusChanged.connect(setBusy);
         bridge.proposalChanged.connect(setProposal);
         bridge.proposalCleared.connect(clearProposal);
-        bridge.bridgeStatusChanged.connect((message, connected) => {
-          brxStatus.textContent = message || (connected ? "BRX verbunden" : "BRX nicht verbunden");
-          brxStatus.classList.toggle("thinking", !!connected);
-        });
+        bridge.bridgeStatusChanged.connect(setBrxStatus);
         bridge.bridgeLogAdded.connect(handleBridgeLogLine);
         bridge.ready();
       });
     } else {
-      brxStatus.textContent = "Qt Bridge nicht bereit";
+      setLocalAiStatus("Lokale AI nicht prüfbar", false);
+      setBrxStatus("Qt Bridge nicht bereit", false);
     }
 
     input.focus();

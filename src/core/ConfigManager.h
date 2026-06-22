@@ -13,14 +13,22 @@ public:
 
     QString theme() const;
     QString language() const;
+    QString aiProvider() const;
     QString aiBaseUrl() const;
     QString aiModel() const;
+    QString aiApiKey() const;
+    QString aiReasoningEffort() const;
+    QString aiAssistantState() const;
     QByteArray windowGeometry() const;
 
     void setTheme(const QString& theme);
     void setLanguage(const QString& language);
+    void setAiProvider(const QString& provider);
     void setAiBaseUrl(const QString& baseUrl);
     void setAiModel(const QString& model);
+    void setAiApiKey(const QString& apiKey);
+    void setAiReasoningEffort(const QString& effort);
+    void setAiAssistantState(const QString& stateJson);
     void setWindowGeometry(const QByteArray& geometry);
 
 Q_SIGNALS:

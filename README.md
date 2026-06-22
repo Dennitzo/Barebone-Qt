@@ -7,7 +7,8 @@ Windows-only Qt6 application shell.
 ```powershell
 .\windows\check-environment.ps1
 ```
-```powershell -NoProfile -ExecutionPolicy Bypass -File .\windows\build-app.ps1 -Configuration Release
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\windows\build-app.ps1 -Configuration Release
 ```
 
 This builds both the Windows app and the BricsCAD BRX plugin.

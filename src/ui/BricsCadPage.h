@@ -41,13 +41,32 @@ private:
         QJsonObject lastToolResult;
     };
 
+    struct ContextBuildResult {
+        QJsonArray messages;
+        QJsonObject envelope;
+        int estimatedTokens = 0;
+        int historyMessages = 0;
+        bool minimized = false;
+    };
+
     void startBridgeServer();
     void appendBridgeLog(const QString& message);
     void emitCapabilitiesStatusToWeb() const;
-    void sendAgentPrompt(const QString& prompt);
-    void sendAgentRequest(const QString& prompt);
-    void sendAgentRequestWithPrefetchedContext(const QString& prompt, const QString& method, const QJsonObject& params);
+    void sendAgentPrompt(const QString& prompt, const QJsonObject& documentContext = {});
+    void sendAgentRequest(const QString& prompt, const QJsonObject& documentContext = {});
+    void sendAgentRequestWithPrefetchedContext(const QString& prompt, const QString& method, const QJsonObject& params, const QJsonObject& documentContext = {});
     void sendAgentEnvelope(const QJsonObject& envelope, const QString& userHistoryContent, bool storeUserMessage, const QString& logLabel);
+    void sendGeneralChatRequest(const QString& prompt, const QJsonObject& documentContext = {}, bool forceNoReasoning = false);
+    void refreshLocalContextWindow(bool force = false);
+    void handleLocalContextWindowResponse(const QJsonObject& response);
+    void emitContextBudget(int estimatedTokens = -1, bool minimized = false, const QString& detail = QString()) const;
+    int effectiveContextWindowTokens() const;
+    int inputBudgetTokens(int requestedOutputTokens) const;
+    int adjustedOutputTokenLimit(int requestedOutputTokens) const;
+    int estimateTokensForText(const QString& text) const;
+    int estimateTokensForMessages(const QJsonArray& messages) const;
+    QJsonObject documentContextWithTokenBudget(const QJsonObject& context, int tokenBudget, bool* minimized = nullptr) const;
+    ContextBuildResult buildGeneralMessagesForBudget(const QString& prompt, const QJsonObject& documentContext, int requestedOutputTokens) const;
     void handleAgentReply(const QString& content);
     bool retryAgentAfterValidationFailure(const QString& rejectedContent, const QJsonObject& rejectedObject, const QString& errorMessage);
     void discardLastAssistantConversation(const QString& content);
@@ -72,7 +91,7 @@ private:
     QString bridgeMethodForTool(const QString& name) const;
     bool isAllowedContextMethod(const QString& method) const;
     QJsonObject currentAgentContext() const;
-    QJsonObject agentRequestEnvelope(const QString& prompt) const;
+    QJsonObject agentRequestEnvelope(const QString& prompt, const QJsonObject& documentContext = {}) const;
     bool ensureBridgeCapabilitiesForPrompt(const QString& prompt);
     void continueQueuedAgentPrompt();
     void requestBridgeCapabilities();
@@ -89,11 +108,15 @@ private:
     void failPendingBridgeRequests(const QString& message);
     void forceBridgeReconnect(const QString& reason, bool preserveQueuedPrompt);
     void setPluginStatus(const QString& message, bool connected);
+    void setLocalAiStatus(const QString& message, bool connected);
     void writeBridgeToken() const;
     void resetAgentConversation();
     void openAgentSession(const QString& sessionId, const QVariantList& history);
     void saveCurrentAgentSession();
     QJsonArray conversationFromWebHistory(const QVariantList& history) const;
+    void setReasoningEffort(const QString& effort);
+    void setChatMode(const QString& mode);
+    bool isBricsCadMode() const;
 
     ConfigManager& m_config;
     QTcpServer* m_bridgeServer = nullptr;
@@ -106,6 +129,15 @@ private:
     bool m_agentBusy = false;
     bool m_capabilitiesRequested = false;
     bool m_preserveQueuedAgentPromptOnDisconnect = false;
+    bool m_contextWindowRequestInFlight = false;
+    bool m_contextWindowAvailable = false;
+    bool m_localAiReachable = false;
+    QString m_chatMode = QStringLiteral("bricscad");
+    QString m_reasoningEffort = QStringLiteral("high");
+    QString m_localAiStatusMessage = QStringLiteral("Lokale AI wird geprüft");
+    QString m_contextWindowModel;
+    int m_contextWindowTokens = 0;
+    int m_contextWindowMaxTokens = 0;
     int m_agentValidationRetries = 0;
     int m_nextRequestId = 1;
     QHash<int, PendingBridgeRequest> m_pendingRequests;
@@ -117,6 +149,7 @@ private:
     QJsonObject m_pendingAgentProposal;
     QJsonObject m_pendingAgentDraft;
     QJsonObject m_lastAgentToolResult;
+    QJsonObject m_lastDocumentContext;
     QJsonObject m_brxCapabilities;
     QJsonArray m_currentSelection;
     QWidget* m_agentWidget = nullptr;
