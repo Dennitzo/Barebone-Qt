@@ -1370,12 +1370,15 @@
     let bridge = null;
     let sessions = [];
     let activeSessionId = "";
+    let startupFreshSessionId = "";
     let chatCounter = 1;
     let sidebarCollapsed = false;
     let isBusy = false;
     let thinkingIndicator = null;
     let thinkingDetailsList = null;
     let thinkingDetailCount = 0;
+    let pendingExecutionSummary = false;
+    let batchThinkingState = { active: false, current: 0, total: 0 };
     let capabilitiesIndicator = null;
     let proposalInline = null;
     let reasoningEffort = "high";
@@ -1979,7 +1982,6 @@
         sessions = Array.isArray(stored.sessions)
           ? stored.sessions.map(normalizeSession)
           : [];
-        activeSessionId = typeof stored.activeSessionId === "string" ? stored.activeSessionId : "";
         chatCounter = Number.isFinite(stored.chatCounter) ? stored.chatCounter : sessions.length;
         reasoningEffort = normalizeReasoningEffort(stored.reasoningEffort || reasoningEffort);
         applySidebarCollapsed(
@@ -1990,11 +1992,8 @@
         if (!sessions.length) {
           sessions = [createSession("BricsCAD AI Assistent", "bricscad")];
         }
-        if (!sessions.some((session) => session.id === activeSessionId)) {
-          activeSessionId = sessions[0].id;
-        }
-        chatMode = normalizeChatMode(activeSession().mode || stored.chatMode || "bricscad");
-        activeSession().mode = chatMode;
+        chatMode = normalizeChatMode(stored.chatMode || storedChatMode() || "bricscad");
+        ensureStartupFreshSession();
 
         renderReasoningSelection();
         renderModeSelection();
@@ -2008,6 +2007,7 @@
 
       syncReasoningToQt();
       syncActiveSessionToQt();
+      saveClientStateToQt();
     }
 
     function modeTitle(mode) {
@@ -2155,6 +2155,27 @@
       };
     }
 
+    function ensureStartupFreshSession() {
+      if (startupFreshSessionId) {
+        const existing = sessions.find((session) => session.id === startupFreshSessionId);
+        if (existing) {
+          activeSessionId = existing.id;
+          chatMode = normalizeChatMode(existing.mode || chatMode || "bricscad");
+          existing.mode = chatMode;
+          return existing;
+        }
+      }
+
+      const mode = normalizeChatMode(chatMode || storedChatMode());
+      const session = createSession(modeTitle(mode), mode);
+      sessions.unshift(session);
+      activeSessionId = session.id;
+      startupFreshSessionId = session.id;
+      chatMode = mode;
+      session.mode = chatMode;
+      return session;
+    }
+
     function readableStoredMessageText(speaker, text) {
       if (speaker !== "AI") {
         return germanizeText(text);
@@ -2213,22 +2234,18 @@
         sessions = Array.isArray(stored.sessions)
           ? stored.sessions.map(normalizeSession)
           : [];
-        activeSessionId = typeof stored.activeSessionId === "string" ? stored.activeSessionId : "";
         chatCounter = Number.isFinite(stored.chatCounter) ? stored.chatCounter : sessions.length;
       } catch {
         sessions = [];
         activeSessionId = "";
-        chatCounter = 1;
+        chatCounter = 0;
       }
 
       if (!sessions.length) {
         sessions = [createSession("BricsCAD AI Assistent")];
       }
-      if (!sessions.some((session) => session.id === activeSessionId)) {
-        activeSessionId = sessions[0].id;
-      }
-      chatMode = normalizeChatMode(activeSession().mode || storedChatMode());
-      activeSession().mode = chatMode;
+      chatMode = storedChatMode();
+      ensureStartupFreshSession();
       renderModeSelection();
     }
 
@@ -2689,7 +2706,7 @@
       messages.scrollTop = messages.scrollHeight;
     }
 
-    function addThinkingDetail(text) {
+    function addThinkingDetail(text, options = {}) {
       if (!isBusy && !thinkingIndicator) {
         return;
       }
@@ -2701,11 +2718,23 @@
       if (!thinkingDetailsList) {
         return;
       }
+      if (options.key) {
+        const existing = Array.from(thinkingDetailsList.children)
+          .find((child) => child.dataset && child.dataset.thinkingKey === options.key);
+        if (existing) {
+          existing.textContent = detail;
+          messages.scrollTop = messages.scrollHeight;
+          return;
+        }
+      }
       const item = document.createElement("div");
       item.className = "thinking-detail-item";
+      if (options.key) {
+        item.dataset.thinkingKey = options.key;
+      }
       item.textContent = detail;
       thinkingDetailsList.appendChild(item);
-      while (thinkingDetailsList.children.length > 5) {
+      while (thinkingDetailsList.children.length > 10) {
         thinkingDetailsList.removeChild(thinkingDetailsList.firstElementChild);
       }
       thinkingDetailCount = thinkingDetailsList.children.length;
@@ -2717,9 +2746,10 @@
       thinkingIndicator = null;
       thinkingDetailsList = null;
       thinkingDetailCount = 0;
+      batchThinkingState = { active: false, current: 0, total: 0 };
     }
 
-    function completeThinkingIndicator() {
+    function completeThinkingIndicator({ collapseDetails = false } = {}) {
       if (!thinkingIndicator) {
         return;
       }
@@ -2742,12 +2772,19 @@
           label.textContent = "Gedacht";
         }
         toggle.setAttribute("aria-label", "Denkschritte anzeigen");
+        toggle.setAttribute("aria-expanded", collapseDetails ? "false" : "true");
+      }
+
+      const details = thinkingIndicator.querySelector(".thinking-details");
+      if (details && collapseDetails) {
+        details.classList.remove("open");
       }
 
       thinkingIndicator.classList.remove("thinking-indicator");
       thinkingIndicator = null;
       thinkingDetailsList = null;
       thinkingDetailCount = 0;
+      batchThinkingState = { active: false, current: 0, total: 0 };
     }
 
     function setCapabilitiesIndicator(state, text) {
@@ -2791,8 +2828,12 @@
     }
 
     function addMessage(message, options = {}) {
-      completeThinkingIndicator();
       const normalized = normalizeMessage(message);
+      const collapseThinking = pendingExecutionSummary && normalized.speaker === "AI";
+      completeThinkingIndicator({ collapseDetails: collapseThinking });
+      if (collapseThinking) {
+        pendingExecutionSummary = false;
+      }
       const record = options.record !== false;
       const currentProposal = activeSession().proposal;
       if (record) {
@@ -3126,6 +3167,182 @@
       toolsMenu.classList.remove("open");
     }
 
+    function stripLogTimestamp(line) {
+      return String(line || "").replace(/^\[[^\]]+\]\s*/, "").trim();
+    }
+
+    function compactLogText(text, maxLength = 140) {
+      const compact = String(text || "")
+        .replace(/\s+/g, " ")
+        .replace(/result=\{.*$/i, "abgeschlossen")
+        .trim();
+      if (compact.length <= maxLength) {
+        return compact;
+      }
+      return `${compact.slice(0, Math.max(0, maxLength - 1)).trim()}…`;
+    }
+
+    function toolDisplayName(tool) {
+      const names = {
+        "actions.validate": "Vorschlag prüfen",
+        "command.execute": "nativen Befehl senden",
+        "layers.ensureMany": "mehrere Layer anlegen",
+        "layers.create": "Layer anlegen",
+        "layers.rename": "Layer umbenennen",
+        "layers.setColor": "Layerfarbe setzen",
+        "geometry.create": "Geometrie erstellen",
+        "geometry.move": "Geometrie verschieben",
+        "geometry.copy": "Geometrie kopieren",
+        "geometry.rotate": "Geometrie drehen",
+        "geometry.scale": "Geometrie skalieren",
+        "geometry.delete": "Geometrie löschen",
+        "rectangles.extrude": "Rechtecke extrudieren",
+        "profile.extrude": "Profil extrudieren",
+        "bim.classify": "BIM klassifizieren",
+        "selection.set": "Auswahl setzen",
+        "document.save": "Zeichnung speichern",
+        "undo.last": "Rückgängig",
+        "undo.redo": "Wiederholen",
+      };
+      return names[tool] || tool || "Aktion";
+    }
+
+    function batchSummaryTextFromLog(payload) {
+      const text = String(payload || "");
+      let completed = null;
+      let requested = null;
+      let failed = null;
+
+      try {
+        const result = JSON.parse(text);
+        if (result && typeof result === "object") {
+          completed = Number.isFinite(Number(result.actionsCompleted)) ? Number(result.actionsCompleted) : completed;
+          requested = Number.isFinite(Number(result.actionsRequested)) ? Number(result.actionsRequested) : requested;
+          failed = Number.isFinite(Number(result.failed)) ? Number(result.failed) : failed;
+        }
+      } catch {
+        const completedMatch = text.match(/"actionsCompleted"\s*:\s*(\d+)/);
+        const requestedMatch = text.match(/"actionsRequested"\s*:\s*(\d+)/);
+        const failedMatch = text.match(/"failed"\s*:\s*(\d+)/);
+        if (completedMatch) {
+          completed = Number(completedMatch[1]);
+        }
+        if (requestedMatch) {
+          requested = Number(requestedMatch[1]);
+        }
+        if (failedMatch) {
+          failed = Number(failedMatch[1]);
+        }
+      }
+
+      if (completed !== null && requested !== null) {
+        if (failed && failed > 0) {
+          return `BRX meldet: ${completed}/${requested} Aktionen abgeschlossen, ${failed} fehlgeschlagen.`;
+        }
+        return `BRX meldet: ${completed}/${requested} Aktionen abgeschlossen.`;
+      }
+      return "BRX meldet: Batch-Ausführung abgeschlossen.";
+    }
+
+    function updateBatchThinking(text) {
+      addThinkingDetail(text, { key: "batch-progress" });
+    }
+
+    function addBrxThinkingDetailFromLog(line) {
+      const text = stripLogTimestamp(line);
+      let match = text.match(/^AI Agent: Nutzer bestaetigt; fuehre (\d+) Aktionen nacheinander aus/);
+      if (match) {
+        batchThinkingState = { active: true, current: 0, total: Number(match[1] || "0") };
+        addThinkingDetail(`Bestätigt. Ich führe ${match[1]} Aktionen nacheinander aus.`);
+        return true;
+      }
+
+      match = text.match(/^AI Agent: Nutzer bestaetigt; fuehre ([\w.]+) ueber ([\w.]+) aus/);
+      if (match) {
+        batchThinkingState = { active: false, current: 0, total: 0 };
+        addThinkingDetail(`Bestätigt. Ich führe ${toolDisplayName(match[1])} in BricsCAD aus.`);
+        return true;
+      }
+
+      match = text.match(/^Qt -> BRX: actions\.validate Batch-Aktion (\d+)\/(\d+)/);
+      if (match) {
+        batchThinkingState = { active: true, current: Number(match[1] || "0"), total: Number(match[2] || "0") };
+        updateBatchThinking(`Ich prüfe Aktion ${match[1]}/${match[2]} in BricsCAD.`);
+        return true;
+      }
+
+      match = text.match(/^BRX Preflight: Batch-Aktion (\d+)\/(\d+) gueltig/);
+      if (match) {
+        batchThinkingState = { active: true, current: Number(match[1] || "0"), total: Number(match[2] || "0") };
+        updateBatchThinking(`BRX bestätigt Aktion ${match[1]}/${match[2]}.`);
+        return true;
+      }
+
+      match = text.match(/^BRX Preflight: Batch-Aktion (\d+)\/(\d+) abgelehnt:\s*(.*)$/);
+      if (match) {
+        addThinkingDetail(`BRX stoppt Aktion ${match[1]}/${match[2]}: ${compactLogText(match[3])}`);
+        return true;
+      }
+
+      match = text.match(/^Qt -> BRX Batch (\d+)\/(\d+): ([\w.]+) saveBefore=(true|false)/);
+      if (match) {
+        const saveHint = match[4] === "true" ? " mit Sicherung" : "";
+        batchThinkingState = { active: true, current: Number(match[1] || "0"), total: Number(match[2] || "0") };
+        updateBatchThinking(`Ich führe Aktion ${match[1]}/${match[2]} in BricsCAD aus: ${toolDisplayName(match[3])}${saveHint}.`);
+        return true;
+      }
+
+      match = text.match(/^Qt -> BRX: actions\.validate (\d+) Aktion\(en\)/);
+      if (match) {
+        const count = Number(match[1] || "0");
+        addThinkingDetail(count > 1
+          ? `Ich lasse ${count} geplante Aktionen von BRX prüfen.`
+          : "Ich lasse die geplante Aktion von BRX prüfen.");
+        return true;
+      }
+
+      if (text.includes("BRX Preflight: gueltig mit Warnungen")) {
+        addThinkingDetail("BRX bestätigt den Vorschlag mit Hinweisen.");
+        return true;
+      }
+
+      if (text.includes("BRX Preflight: gueltig")) {
+        addThinkingDetail("BRX bestätigt: der Vorschlag ist ausführbar.");
+        return true;
+      }
+
+      match = text.match(/^BRX Preflight: abgelehnt:\s*(.*)$/);
+      if (match) {
+        addThinkingDetail(`BRX lehnt den Vorschlag ab: ${compactLogText(match[1])}`);
+        return true;
+      }
+
+      match = text.match(/^BRX -> Qt: ERROR ([\w.]+)\s*(.*)$/);
+      if (match) {
+        addThinkingDetail(`BRX meldet einen Fehler bei ${toolDisplayName(match[1])}: ${compactLogText(match[2])}`);
+        return true;
+      }
+
+      match = text.match(/^BRX -> Qt: ([\w.]+) ausgefuehrt/);
+      if (match) {
+        if (batchThinkingState.active && batchThinkingState.total > 1) {
+          updateBatchThinking(`BRX meldet: Aktion ${batchThinkingState.current}/${batchThinkingState.total} abgeschlossen.`);
+        } else {
+          addThinkingDetail(`BRX meldet: ${toolDisplayName(match[1])} abgeschlossen.`);
+        }
+        return true;
+      }
+
+      match = text.match(/^BRX Batch:\s*(.*)$/);
+      if (match) {
+        batchThinkingState = { active: false, current: 0, total: 0 };
+        addThinkingDetail(batchSummaryTextFromLog(match[1]));
+        return true;
+      }
+
+      return false;
+    }
+
     function handleBridgeLogLine(line) {
       const text = String(line || "");
       if (text.includes("Qt -> BRX: capabilities.list")) {
@@ -3146,8 +3363,15 @@
         addThinkingDetail(`Ich prüfe die Antwort erneut: ${loopMatch[0].replace(/^AI Agent Loop[^:]*:\s*/, "")}`);
         return;
       }
+      if (text.includes("AI Agent: fasse BRX Ergebnis fuer den Chat zusammen")) {
+        pendingExecutionSummary = true;
+        addThinkingDetail("Ich erstelle eine kurze Abschlusszusammenfassung der Ausführung.");
+        return;
+      }
       if (text.includes("AI JSON:")) {
-        addThinkingDetail("Ich habe eine finale Antwort erhalten und prüfe das Format.");
+        if (!pendingExecutionSummary) {
+          addThinkingDetail("Ich habe eine finale Antwort erhalten und prüfe das Format.");
+        }
         return;
       }
       if (text.includes("AI Vorschlag:")) {
@@ -3156,6 +3380,9 @@
       }
       if (text.includes("AI -> Qt Kontextabfrage")) {
         addThinkingDetail(`Ich hole Zeichnungskontext: ${text.replace(/^\[[^\]]+\]\s*AI -> Qt Kontextabfrage:\s*/, "")}`);
+        return;
+      }
+      if (addBrxThinkingDetailFromLog(text)) {
         return;
       }
       if ((isBusy || thinkingIndicator) && text.includes("BRX -> Qt Kontext")) {

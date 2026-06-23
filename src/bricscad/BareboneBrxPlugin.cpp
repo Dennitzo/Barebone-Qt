@@ -10,6 +10,7 @@
 #include <windows.h>
 
 #include "arxHeaders.h"
+#include "AcDb/AcDbSymbolUtilities_Services.h"
 
 #include <algorithm>
 #include <atomic>
@@ -22,6 +23,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <set>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -91,7 +93,23 @@ constexpr const char* kSelectorSchema = R"({
 const BridgeMethodDescriptor kBridgeMethods[] = {
     {"capabilities.list", "query", "readOnly", "Liefert die verfuegbaren BRX-Bridge-Methoden und Schemas.", nullptr, nullptr},
     {"actions.list", "query", "readOnly", "Liefert die dokumentierten Barebone-BRX API-Aktionen mit POST-Optionen, Pflichtfeldern und Beispielen.", nullptr, nullptr},
-    {"commands.list", "query", "readOnly", "Liefert eine Low-Level-Startliste nativer BricsCAD-Kommandos. Fuer Ausfuehrung bevorzugt die dokumentierten API-Aktionen verwenden.", nullptr, nullptr},
+    {
+        "actions.validate",
+        "query",
+        "readOnly",
+        "Prueft einen Agent-Action-Vorschlag trocken gegen BRX-Syntax, Pflichtdaten und aktuellen Zeichnungszustand.",
+        R"JSON({
+"type":"object",
+"properties":{
+  "actions":{"type":"array","items":{"type":"object"}},
+  "tool":{"type":"string"},
+  "method":{"type":"string"},
+  "params":{"type":"object"}
+}
+})JSON",
+        nullptr,
+    },
+    {"commands.list", "query", "readOnly", "Liefert eine Low-Level-Startliste nativer BricsCAD-Kommandos und zugehoeriger Bridge-Tools.", nullptr, nullptr},
     {"layers.list", "query", "readOnly", "Listet Layer der aktiven Zeichnung.", nullptr, nullptr},
     {
         "geometry.query",
@@ -542,7 +560,7 @@ R"JSON({
         "layers.create",
         "action",
         "modifiesDrawing",
-        "Legt einen Layer an, optional mit Farbe.",
+        "Legt einen Layer ueber BricsCADs nativen -LAYER-Command im Command Context an, optional mit Farbe.",
         R"JSON({
 "type":"object",
 "required":["name"],
@@ -564,7 +582,7 @@ R"JSON({
         "layers.rename",
         "action",
         "modifiesDrawing",
-        "Benennt einen vorhandenen Layer um.",
+        "Benennt einen vorhandenen Layer ueber BricsCADs nativen -LAYER-Command im Command Context um.",
         R"JSON({
 "type":"object",
 "required":["oldName","newName"],
@@ -586,7 +604,7 @@ R"JSON({
         "layers.setColor",
         "action",
         "modifiesDrawing",
-        "Setzt die ACI-Farbe eines Layers.",
+        "Setzt die ACI-Farbe eines Layers ueber BricsCADs nativen -LAYER-Command im Command Context.",
         R"JSON({
 "type":"object",
 "required":["name","colorIndex"],
@@ -602,6 +620,48 @@ R"JSON({
 "required":["name","colorIndex"],
 "bodySchema":{"type":"object","properties":{"name":"layer name","colorIndex":"ACI color index 1..255","saveBefore":"boolean default true"}},
 "examples":[{"name":"AI-Walls","colorIndex":3}]
+})JSON",
+    },
+    {
+        "layers.batch",
+        "action",
+        "modifiesDrawing",
+        "Fuehrt mehrere Layer-Aktionen seriell ueber BricsCADs nativen -LAYER-Command im Command Context aus.",
+        R"JSON({
+"type":"object",
+"required":["actions"],
+"properties":{
+  "actions":{"type":"array","items":{"type":"object"}},
+  "saveBefore":{"type":"boolean"},
+  "reason":{"type":"string"}
+}
+})JSON",
+        R"JSON({
+"method":"layers.batch",
+"required":["actions"],
+"bodySchema":{"type":"object","properties":{"actions":"array of {tool|method|operation, params}; supported operations: layers.create, layers.rename, layers.setColor","saveBefore":"boolean default true"}},
+"examples":[{"actions":[{"tool":"layers.create","params":{"name":"Layer1"}},{"tool":"layers.setColor","params":{"name":"Layer1","colorIndex":3}}],"saveBefore":true}]
+})JSON",
+    },
+    {
+        "command.execute",
+        "action",
+        "modifiesDrawing",
+        "Sendet eine vorvalidierte native BricsCAD-Kommandozeile an das aktive Dokument.",
+        R"JSON({
+"type":"object",
+"required":["commandLine"],
+"properties":{
+  "commandLine":{"type":"string"},
+  "saveBefore":{"type":"boolean"},
+  "reason":{"type":"string"}
+}
+})JSON",
+        R"JSON({
+"method":"command.execute",
+"required":["commandLine"],
+"bodySchema":{"type":"object","properties":{"commandLine":"single native BricsCAD command line from commands.list; no scripts or multi-command lines","saveBefore":"boolean default true"}},
+"examples":[{"commandLine":"_.-LAYER _New AI-Walls","saveBefore":true}]
 })JSON",
     },
     {
@@ -695,23 +755,23 @@ const BridgeCommandDescriptor kBridgeCommands[] = {
     {"EXTRUDE", "Extrudiert 2D-Profile zu 3D-Solids.",
      R"({"selectionSet":true,"commandLine":true,"params":{"heightMm":{"type":"number","unit":"mm","required":true}}})"},
     {"MOVE", "Verschiebt Entities.",
-     R"({"selectionSet":true,"commandLine":true,"apiPreferred":"geometry.move"})"},
+     R"({"selectionSet":true,"commandLine":true,"bridgeTool":"geometry.move"})"},
     {"COPY", "Kopiert Entities.",
-     R"({"selectionSet":true,"commandLine":true,"apiPreferred":"geometry.copy"})"},
+     R"({"selectionSet":true,"commandLine":true,"bridgeTool":"geometry.copy"})"},
     {"ROTATE", "Rotiert Entities.",
-     R"({"selectionSet":true,"commandLine":true,"apiPreferred":"geometry.rotate"})"},
+     R"({"selectionSet":true,"commandLine":true,"bridgeTool":"geometry.rotate"})"},
     {"SCALE", "Skaliert Entities uniform. Nicht fuer einachsiges Verlaengern verwenden.",
-     R"({"selectionSet":true,"commandLine":true,"apiPreferred":"geometry.scale","limits":"uniform factor only; not for one-axis extension"})"},
+     R"({"selectionSet":true,"commandLine":true,"bridgeTool":"geometry.scale","limits":"uniform factor only; not for one-axis extension"})"},
     {"ERASE", "Loescht Entities.",
-     R"({"selectionSet":true,"commandLine":true,"apiPreferred":"geometry.delete"})"},
+     R"({"selectionSet":true,"commandLine":true,"bridgeTool":"geometry.delete"})"},
     {"LAYER", "Verwaltet Layer.",
-     R"({"commandLine":true,"apiPreferred":"layers.create|layers.rename|layers.setColor"})"},
+     R"({"commandLine":true,"bridgeTool":"layers.create|layers.rename|layers.setColor"})"},
     {"SAVE", "Speichert die Zeichnung.",
-     R"({"commandLine":true,"apiPreferred":"document.save"})"},
+     R"({"commandLine":true,"bridgeTool":"document.save"})"},
     {"UNDO", "Macht zuletzt ausgefuehrte Aktionen rueckgaengig.",
      R"({"selectionSet":false,"commandLine":true,"params":{"steps":{"type":"number","minimum":1,"required":false}}})"},
     {"REDO", "Stellt rueckgaengig gemachte Aktion wieder her.",
-     R"({"selectionSet":false,"commandLine":true,"apiPreferred":"undo.redo"})"},
+     R"({"selectionSet":false,"commandLine":true,"bridgeTool":"undo.redo"})"},
     {"BIMCLASSIFY", "Klassifiziert Entities als BIM-Elemente.",
      R"({"selectionSet":true,"commandLine":true,"params":{"classification":{"enum":["BIMWall"],"required":true}},"options":[{"option":"Wall","classification":"BIMWall"},{"option":"Column","classification":"BIMColumn"},{"option":"Slab","classification":"BIMSlab"},{"option":"Beam","classification":"BIMBeam"}]})"},
     {"UNION", "Vereint 3D-Solids.",
@@ -1379,6 +1439,10 @@ bool requiresCommandContext(const std::string& request)
         || command == "EXTRUDESELECTOR"
         || command == "BIMCLASSIFY"
         || command == "BIMCLASSIFYSELECTOR"
+        || command == "LAYERCREATE"
+        || command == "LAYERRENAME"
+        || command == "LAYERSETCOLOR"
+        || command == "LAYERBATCH"
         || command == "UNDO"
         || command == "REDO";
 }
@@ -1861,7 +1925,7 @@ std::string jsonCapabilitiesResponse(int id)
         << "\"methods\":["
         << "{\"name\":\"capabilities.list\",\"kind\":\"query\",\"risk\":\"readOnly\",\"description\":\"Liefert die verfuegbaren BRX-Bridge-Methoden und Schemas.\"},"
         << "{\"name\":\"actions.list\",\"kind\":\"query\",\"risk\":\"readOnly\",\"description\":\"Liefert die dokumentierten Barebone-BRX API-Aktionen mit POST-Optionen, Pflichtfeldern und Beispielen.\"},"
-        << "{\"name\":\"commands.list\",\"kind\":\"query\",\"risk\":\"readOnly\",\"description\":\"Liefert eine Low-Level-Startliste nativer BricsCAD-Kommandos. Fuer Ausfuehrung bevorzugt die dokumentierten API-Aktionen verwenden.\"},"
+        << "{\"name\":\"commands.list\",\"kind\":\"query\",\"risk\":\"readOnly\",\"description\":\"Liefert eine Low-Level-Startliste nativer BricsCAD-Kommandos und zugehoeriger Bridge-Tools.\"},"
         << "{\"name\":\"layers.list\",\"kind\":\"query\",\"risk\":\"readOnly\",\"description\":\"Listet Layer der aktiven Zeichnung.\"},"
         << "{\"name\":\"geometry.query\",\"kind\":\"query\",\"risk\":\"readOnly\",\"description\":\"Liest aktuelle Geometrien aus der Zeichnung anhand eines Selectors und optionaler Filter.\","
         << "\"paramsSchema\":{\"type\":\"object\",\"properties\":{\"selector\":{\"type\":\"object\",\"properties\":{\"scope\":{\"enum\":[\"currentSpace\",\"selection\",\"handles\",\"lastResult\",\"lastExtruded\"]},\"layer\":{\"type\":\"string\"},\"handles\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"kind\":{\"enum\":[\"polyline\",\"solid\",\"entity\"]},\"shape\":{\"enum\":[\"rectangle\"]}}},\"filters\":{\"type\":\"object\",\"properties\":{\"layer\":{\"type\":\"string\"},\"layers\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"kind\":{\"enum\":[\"polyline\",\"solid\",\"entity\"]},\"kinds\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"shape\":{\"enum\":[\"rectangle\"]},\"shapes\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"types\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}}},\"include\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"limit\":{\"type\":\"number\",\"minimum\":1}}}},"
@@ -1914,7 +1978,7 @@ std::string jsonCommandsResponse(int id)
     response << "{\"id\":" << id
         << ",\"type\":\"response\""
         << ",\"ok\":true"
-        << ",\"result\":{\"schema\":\"barebone.bricscad.commands.v1\",\"description\":\"Startliste bekannter nativer BricsCAD-Kommandos. Weitere vorhandene Befehle koennen ueber command.execute.commandLine gesendet werden.\",\"commands\":["
+        << ",\"result\":{\"schema\":\"barebone.bricscad.commands.v1\",\"description\":\"Freigegebene native BricsCAD-Kommandos fuer validiertes command.execute. command.execute akzeptiert nur einzelne vollstaendige Kommandozeilen aus dieser Liste.\",\"commands\":["
         << "{\"name\":\"RECTANGLE\",\"description\":\"Zeichnet ein Rechteck ueber zwei Eckpunkte oder Optionen.\",\"commandLine\":true},"
         << "{\"name\":\"EXTRUDE\",\"description\":\"Extrudiert 2D-Profile zu 3D-Solids.\",\"selectionSet\":true,\"commandLine\":true,\"params\":{\"heightMm\":{\"type\":\"number\",\"unit\":\"mm\",\"required\":true}}},"
         << "{\"name\":\"UNDO\",\"description\":\"Macht zuletzt ausgefuehrte Aktionen rueckgaengig.\",\"selectionSet\":false,\"commandLine\":true,\"params\":{\"steps\":{\"type\":\"number\",\"minimum\":1,\"required\":false}}},"
@@ -1989,7 +2053,7 @@ std::string jsonCommandsResponseFromDescriptors(int id)
         << ",\"type\":\"response\""
         << ",\"ok\":true"
         << ",\"result\":{\"schema\":\"barebone.bricscad.commands.v1\","
-        << "\"description\":\"Startliste bekannter nativer BricsCAD-Kommandos. Fuer Automatisierung bevorzugt dokumentierte API-Aktionen verwenden.\","
+        << "\"description\":\"Startliste bekannter nativer BricsCAD-Kommandos mit zugehoerigen Bridge-Tools. Die AI kann je nach Aufgabe zwischen freigegebenen Tools und validierter nativer command.execute-Ausfuehrung waehlen.\","
         << "\"commands\":[";
     for (std::size_t i = 0; i < bridgeCommandCount(); ++i) {
         appendCommandDescriptor(response, kBridgeCommands[i], i + 1 == bridgeCommandCount());
@@ -3542,8 +3606,961 @@ bool prepareMutation(
             return false;
         }
         appendDebug(debugLines, "Document lock: " + errorStatusText(docLock->lockStatus()));
+    } else {
+        appendDebug(debugLines, "Command context active; explicit document lock skipped");
     }
     return true;
+}
+
+bool ensureNativeCommandContext(std::vector<std::string>& debugLines, const std::string& commandName)
+{
+    if (acDocManager == nullptr) {
+        appendDebug(debugLines, "Native command blocked for " + commandName + ": document manager unavailable");
+        return false;
+    }
+
+    const bool applicationContext = acDocManager->isApplicationContext();
+    appendDebug(debugLines, "Native command context for " + commandName + ": "
+        + std::string(applicationContext ? "application" : "command"));
+    if (applicationContext) {
+        appendDebug(debugLines, "Native command blocked for " + commandName + ": acedCommand requires BricsCAD command context");
+        return false;
+    }
+    return true;
+}
+
+int normalizedLayerColorIndex(int requestedColorIndex)
+{
+    if (requestedColorIndex >= 1 && requestedColorIndex <= 255) {
+        return requestedColorIndex;
+    }
+    return 7;
+}
+
+AcDbObjectId defaultLayerLinetypeId(AcDbDatabase* database, AcDbLayerTable* layerTable)
+{
+    AcDbObjectId linetypeId;
+
+    if (layerTable != nullptr) {
+        AcDbLayerTableRecord* layerZero = nullptr;
+        if (layerTable->getAt(_ACRX_T("0"), layerZero, AcDb::kForRead) == Acad::eOk && layerZero != nullptr) {
+            linetypeId = layerZero->linetypeObjectId();
+            layerZero->close();
+        }
+    }
+
+    if (linetypeId.isNull() && database != nullptr && acdbSymUtil() != nullptr) {
+        linetypeId = acdbSymUtil()->linetypeContinuousId(database);
+    }
+
+    if (linetypeId.isNull() && database != nullptr) {
+        AcDbLinetypeTable* linetypeTable = nullptr;
+        if (database->getLinetypeTable(linetypeTable, AcDb::kForRead) == Acad::eOk && linetypeTable != nullptr) {
+            AcDbLinetypeTableRecord* record = nullptr;
+            if (linetypeTable->getAt(_ACRX_T("Continuous"), record, AcDb::kForRead) == Acad::eOk && record != nullptr) {
+                linetypeId = record->objectId();
+                record->close();
+            } else if (linetypeTable->getAt(_ACRX_T("CONTINUOUS"), record, AcDb::kForRead) == Acad::eOk && record != nullptr) {
+                linetypeId = record->objectId();
+                record->close();
+            }
+            linetypeTable->close();
+        }
+    }
+
+    return linetypeId;
+}
+
+Acad::ErrorStatus initializeNewLayerRecord(
+    AcDbLayerTableRecord* record,
+    const std::basic_string<ACHAR>& nativeName)
+{
+    if (record == nullptr) {
+        return Acad::eNullObjectPointer;
+    }
+
+    return record->setName(nativeName.c_str());
+}
+
+Acad::ErrorStatus stabilizeExistingLayerRecord(
+    AcDbLayerTableRecord* record)
+{
+    if (record == nullptr) {
+        return Acad::eNullObjectPointer;
+    }
+
+    return Acad::eOk;
+}
+
+Acad::ErrorStatus addInitializedLayerRecord(
+    AcDbDatabase* database,
+    AcDbLayerTable* layerTable,
+    const std::basic_string<ACHAR>& nativeName,
+    int requestedColorIndex)
+{
+    if (layerTable == nullptr) {
+        return Acad::eNullObjectPointer;
+    }
+
+    auto* record = new AcDbLayerTableRecord();
+    Acad::ErrorStatus status = initializeNewLayerRecord(record, nativeName);
+    if (status != Acad::eOk) {
+        delete record;
+        return status;
+    }
+
+    AcDbObjectId layerId;
+    status = layerTable->add(layerId, record);
+    if (status == Acad::eOk) {
+        if (requestedColorIndex >= 1 && requestedColorIndex <= 255) {
+            AcCmColor color;
+            color.setColorIndex(static_cast<Adesk::UInt16>(normalizedLayerColorIndex(requestedColorIndex)));
+            (void)record->setColor(color);
+        }
+        record->close();
+    } else {
+        delete record;
+    }
+    return status;
+}
+
+std::string validationLayerKey(const std::string& layerName)
+{
+    return toUpperAscii(trim(layerName));
+}
+
+void addUniqueMessage(std::vector<std::string>& target, const std::string& message)
+{
+    if (!message.empty() && std::find(target.begin(), target.end(), message) == target.end()) {
+        target.push_back(message);
+    }
+}
+
+struct ActionValidationState {
+    AcDbDatabase* database = nullptr;
+    std::set<std::string> plannedLayers;
+    std::set<std::string> removedLayers;
+};
+
+struct ActionValidationResult {
+    std::string tool;
+    std::vector<std::string> errors;
+    std::vector<std::string> missing;
+    std::vector<std::string> warnings;
+    std::vector<std::string> hints;
+
+    bool valid() const
+    {
+        return errors.empty() && missing.empty();
+    }
+};
+
+bool layerExistsInDatabase(AcDbDatabase* database, const std::string& layerName)
+{
+    if (database == nullptr || trim(layerName).empty()) {
+        return false;
+    }
+
+    AcDbLayerTable* layerTable = nullptr;
+    if (database->getLayerTable(layerTable, AcDb::kForRead) != Acad::eOk || layerTable == nullptr) {
+        return false;
+    }
+    const bool exists = layerTable->has(utf8ToAchar(layerName).c_str());
+    layerTable->close();
+    return exists;
+}
+
+bool layerExistsForValidation(const ActionValidationState& state, const std::string& layerName)
+{
+    const std::string key = validationLayerKey(layerName);
+    if (key.empty() || state.removedLayers.find(key) != state.removedLayers.end()) {
+        return false;
+    }
+    if (state.plannedLayers.find(key) != state.plannedLayers.end()) {
+        return true;
+    }
+    return layerExistsInDatabase(state.database, layerName);
+}
+
+void markLayerPlanned(ActionValidationState& state, const std::string& layerName)
+{
+    const std::string key = validationLayerKey(layerName);
+    if (!key.empty()) {
+        state.plannedLayers.insert(key);
+        state.removedLayers.erase(key);
+    }
+}
+
+void markLayerRemoved(ActionValidationState& state, const std::string& layerName)
+{
+    const std::string key = validationLayerKey(layerName);
+    if (!key.empty()) {
+        state.removedLayers.insert(key);
+        state.plannedLayers.erase(key);
+    }
+}
+
+bool validateLayerReference(
+    const ActionValidationState& state,
+    const std::string& layerName,
+    const std::string& path,
+    std::vector<std::string>& errors,
+    std::vector<std::string>& missing)
+{
+    const std::string trimmedLayer = trim(layerName);
+    if (trimmedLayer.empty()) {
+        addUniqueMessage(missing, path);
+        return false;
+    }
+    if (!layerExistsForValidation(state, trimmedLayer)) {
+        addUniqueMessage(errors, path + " verweist auf nicht vorhandenen Layer '" + trimmedLayer + "'");
+        return false;
+    }
+    return true;
+}
+
+std::optional<double> finiteJsonNumberProperty(const std::string& object, const std::string& key)
+{
+    const std::optional<double> value = jsonDoubleProperty(object, key);
+    if (!value.has_value() || !std::isfinite(*value)) {
+        return std::nullopt;
+    }
+    return value;
+}
+
+std::optional<double> firstFiniteNumberProperty(const std::string& object, const std::vector<std::string>& keys)
+{
+    for (const std::string& key : keys) {
+        const std::optional<double> value = finiteJsonNumberProperty(object, key);
+        if (value.has_value()) {
+            return value;
+        }
+    }
+    return std::nullopt;
+}
+
+bool hasJsonPointValue(
+    const std::string& object,
+    const std::string& key,
+    const std::string& path,
+    std::vector<std::string>& errors,
+    std::vector<std::string>& missing)
+{
+    if (const std::optional<std::string> point = jsonObjectProperty(object, key); point.has_value()) {
+        const bool hasX = finiteJsonNumberProperty(*point, "x").has_value();
+        const bool hasY = finiteJsonNumberProperty(*point, "y").has_value();
+        if (!hasX) {
+            addUniqueMessage(missing, path + ".x");
+        }
+        if (!hasY) {
+            addUniqueMessage(missing, path + ".y");
+        }
+        if (jsonDoubleProperty(*point, "z").has_value() && !finiteJsonNumberProperty(*point, "z").has_value()) {
+            addUniqueMessage(errors, path + ".z muss eine gueltige Zahl sein");
+        }
+        return hasX && hasY;
+    }
+
+    if (const std::optional<std::string> pointArray = jsonArrayProperty(object, key); pointArray.has_value()) {
+        const std::vector<double> values = jsonNumberArrayValues(*pointArray);
+        if (values.size() < 2) {
+            addUniqueMessage(missing, path + " braucht mindestens [x,y]");
+            return false;
+        }
+        for (double value : values) {
+            if (!std::isfinite(value)) {
+                addUniqueMessage(errors, path + " enthaelt keine gueltige Zahl");
+                return false;
+            }
+        }
+        return true;
+    }
+
+    addUniqueMessage(missing, path);
+    return false;
+}
+
+bool hasAnyJsonPointValue(
+    const std::string& object,
+    const std::vector<std::string>& keys,
+    const std::string& path,
+    std::vector<std::string>& errors,
+    std::vector<std::string>& missing)
+{
+    for (const std::string& key : keys) {
+        if (jsonObjectProperty(object, key).has_value() || jsonArrayProperty(object, key).has_value()) {
+            return hasJsonPointValue(object, key, path + "." + key, errors, missing);
+        }
+    }
+    addUniqueMessage(missing, path + "." + keys.front());
+    return false;
+}
+
+bool validateNonZeroVector(
+    const std::string& paramsJson,
+    const std::string& tool,
+    std::vector<std::string>& errors,
+    std::vector<std::string>& missing)
+{
+    bool hasVector = false;
+    JsonPoint3d vector;
+    if (jsonObjectProperty(paramsJson, "vector").has_value() || jsonArrayProperty(paramsJson, "vector").has_value()) {
+        hasVector = hasJsonPointValue(paramsJson, "vector", tool + ".params.vector", errors, missing);
+        vector = jsonPointProperty(paramsJson, "vector");
+    } else if (jsonObjectProperty(paramsJson, "offset").has_value() || jsonArrayProperty(paramsJson, "offset").has_value()) {
+        hasVector = hasJsonPointValue(paramsJson, "offset", tool + ".params.offset", errors, missing);
+        vector = jsonPointProperty(paramsJson, "offset");
+    } else if ((jsonObjectProperty(paramsJson, "fromPoint").has_value() || jsonArrayProperty(paramsJson, "fromPoint").has_value())
+        || (jsonObjectProperty(paramsJson, "toPoint").has_value() || jsonArrayProperty(paramsJson, "toPoint").has_value())) {
+        const bool fromOk = hasJsonPointValue(paramsJson, "fromPoint", tool + ".params.fromPoint", errors, missing);
+        const bool toOk = hasJsonPointValue(paramsJson, "toPoint", tool + ".params.toPoint", errors, missing);
+        if (fromOk && toOk) {
+            const JsonPoint3d from = jsonPointProperty(paramsJson, "fromPoint");
+            const JsonPoint3d to = jsonPointProperty(paramsJson, "toPoint");
+            vector = JsonPoint3d{to.x - from.x, to.y - from.y, to.z - from.z};
+            hasVector = true;
+        }
+    }
+
+    if (!hasVector) {
+        addUniqueMessage(missing, tool + ".params.vector oder offset");
+        return false;
+    }
+
+    if (std::abs(vector.x) <= kRectangleTolerance
+        && std::abs(vector.y) <= kRectangleTolerance
+        && std::abs(vector.z) <= kRectangleTolerance) {
+        addUniqueMessage(errors, tool + " braucht einen nicht-leeren Vektor/Offset");
+        return false;
+    }
+    return true;
+}
+
+bool validateSelectorForAction(
+    const ActionValidationState& state,
+    const std::string& paramsJson,
+    const std::string& tool,
+    bool requireObjects,
+    AcDbObjectIdArray* resolvedIds,
+    std::vector<std::string>& errors,
+    std::vector<std::string>& missing,
+    std::vector<std::string>& debugLines)
+{
+    const std::string selectorJson = selectorJsonFromParams(paramsJson);
+    if (selectorJson.empty()) {
+        addUniqueMessage(missing, tool + ".params.selector, handles, handle, layer oder target");
+        return false;
+    }
+
+    const std::string scope = jsonStringProperty(selectorJson, "scope").value_or("currentSpace");
+    const std::vector<std::string> allowedScopes{"currentSpace", "selection", "handles", "lastResult", "lastExtruded"};
+    if (std::find(allowedScopes.begin(), allowedScopes.end(), scope) == allowedScopes.end()) {
+        addUniqueMessage(errors, tool + ".params.selector.scope ist nicht erlaubt: " + scope);
+        return false;
+    }
+
+    if (const std::optional<std::string> layer = jsonStringProperty(selectorJson, "layer"); layer.has_value() && !layer->empty()) {
+        validateLayerReference(state, *layer, tool + ".params.selector.layer", errors, missing);
+    }
+
+    if (scope == "handles") {
+        const std::optional<std::string> handlesArray = jsonArrayProperty(selectorJson, "handles");
+        const std::vector<std::string> handles = handlesArray.has_value() ? jsonStringArrayValues(*handlesArray) : std::vector<std::string>{};
+        if (handles.empty()) {
+            addUniqueMessage(missing, tool + ".params.selector.handles");
+        }
+        for (const std::string& handle : handles) {
+            AcDbObjectId id;
+            if (!objectIdFromHandleText(handle, id)) {
+                addUniqueMessage(errors, tool + ".params.selector.handles enthaelt unbekannten Handle '" + handle + "'");
+            }
+        }
+    }
+
+    if (!errors.empty() || !missing.empty()) {
+        return false;
+    }
+
+    const AcDbObjectIdArray ids = selectorObjectIds(selectorJson, state.database, debugLines);
+    if (resolvedIds != nullptr) {
+        *resolvedIds = ids;
+    }
+
+    if (requireObjects && ids.isEmpty()) {
+        addUniqueMessage(errors, tool + ".params.selector findet keine Objekte");
+        return false;
+    }
+    return true;
+}
+
+int countRectangleProfiles(const AcDbObjectIdArray& ids, std::vector<std::string>& debugLines)
+{
+    int count = 0;
+    for (int i = 0; i < ids.length(); ++i) {
+        AcDbEntity* entity = nullptr;
+        const Acad::ErrorStatus status = acdbOpenObject(entity, ids.at(i), AcDb::kForRead);
+        if (status != Acad::eOk || entity == nullptr) {
+            appendDebug(debugLines, "validate rectangle open failed handle=" + objectHandleText(ids.at(i)) + ": " + errorStatusText(status));
+            continue;
+        }
+        const bool isRectangle = entityShape(entity) == "rectangle";
+        entity->close();
+        if (isRectangle) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+int countExtrudableProfiles(const AcDbObjectIdArray& ids, std::vector<std::string>& debugLines)
+{
+    int count = 0;
+    for (int i = 0; i < ids.length(); ++i) {
+        AcDbEntity* entity = nullptr;
+        const Acad::ErrorStatus status = acdbOpenObject(entity, ids.at(i), AcDb::kForRead);
+        if (status != Acad::eOk || entity == nullptr) {
+            appendDebug(debugLines, "validate profile open failed handle=" + objectHandleText(ids.at(i)) + ": " + errorStatusText(status));
+            continue;
+        }
+        const AcDbCurve* curve = AcDbCurve::cast(entity);
+        bool accept = curve != nullptr;
+        const AcDbPolyline* polyline = AcDbPolyline::cast(entity);
+        if (polyline != nullptr && polyline->isClosed() == Adesk::kFalse) {
+            accept = false;
+        }
+        entity->close();
+        if (accept) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+int countSolids(const AcDbObjectIdArray& ids, std::vector<std::string>& debugLines)
+{
+    int count = 0;
+    for (int i = 0; i < ids.length(); ++i) {
+        AcDbEntity* entity = nullptr;
+        const Acad::ErrorStatus status = acdbOpenObject(entity, ids.at(i), AcDb::kForRead);
+        if (status != Acad::eOk || entity == nullptr) {
+            appendDebug(debugLines, "validate solid open failed handle=" + objectHandleText(ids.at(i)) + ": " + errorStatusText(status));
+            continue;
+        }
+        const bool solid = AcDb3dSolid::cast(entity) != nullptr;
+        entity->close();
+        if (solid) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+bool validateGeometryCreateParams(
+    const ActionValidationState& state,
+    const std::string& paramsJson,
+    ActionValidationResult& result)
+{
+    const std::string geometryType = toUpperAscii(trim(jsonStringProperty(paramsJson, "geometry").value_or(
+        jsonStringProperty(paramsJson, "type").value_or(""))));
+    if (geometryType.empty()) {
+        addUniqueMessage(result.missing, "geometry.create.params.geometry");
+        return false;
+    }
+
+    if (const std::optional<std::string> layer = jsonStringProperty(paramsJson, "layer"); layer.has_value() && !layer->empty()) {
+        validateLayerReference(state, *layer, "geometry.create.params.layer", result.errors, result.missing);
+    }
+
+    if (geometryType == "POINT") {
+        hasAnyJsonPointValue(paramsJson, {"position", "point"}, "geometry.create.params", result.errors, result.missing);
+    } else if (geometryType == "RECTANGLE") {
+        hasJsonPointValue(paramsJson, "origin", "geometry.create.params.origin", result.errors, result.missing);
+        const std::optional<double> width = firstFiniteNumberProperty(paramsJson, {"width", "widthMm", "x"});
+        const std::optional<double> depth = firstFiniteNumberProperty(paramsJson, {"depth", "depthMm", "length", "lengthMm", "y"});
+        if (!width.has_value() || std::abs(*width) <= kRectangleTolerance) {
+            addUniqueMessage(result.missing, "geometry.create.params.width");
+        }
+        if (!depth.has_value() || std::abs(*depth) <= kRectangleTolerance) {
+            addUniqueMessage(result.missing, "geometry.create.params.depth oder length");
+        }
+    } else if (geometryType == "LINE") {
+        const bool startOk = hasJsonPointValue(paramsJson, "start", "geometry.create.params.start", result.errors, result.missing);
+        const bool endOk = hasJsonPointValue(paramsJson, "end", "geometry.create.params.end", result.errors, result.missing);
+        if (startOk && endOk) {
+            const JsonPoint3d start = jsonPointProperty(paramsJson, "start");
+            const JsonPoint3d end = jsonPointProperty(paramsJson, "end");
+            if (std::abs(start.x - end.x) <= kRectangleTolerance
+                && std::abs(start.y - end.y) <= kRectangleTolerance
+                && std::abs(start.z - end.z) <= kRectangleTolerance) {
+                addUniqueMessage(result.errors, "geometry.create LINE braucht unterschiedliche start/end Punkte");
+            }
+        }
+    } else if (geometryType == "CIRCLE") {
+        hasAnyJsonPointValue(paramsJson, {"center", "origin"}, "geometry.create.params", result.errors, result.missing);
+        const std::optional<double> radius = firstFiniteNumberProperty(paramsJson, {"radius", "radiusMm"});
+        if (!radius.has_value() || *radius <= kRectangleTolerance) {
+            addUniqueMessage(result.missing, "geometry.create.params.radius");
+        }
+    } else if (geometryType == "ARC") {
+        hasAnyJsonPointValue(paramsJson, {"center", "origin"}, "geometry.create.params", result.errors, result.missing);
+        const std::optional<double> radius = firstFiniteNumberProperty(paramsJson, {"radius", "radiusMm"});
+        if (!radius.has_value() || *radius <= kRectangleTolerance) {
+            addUniqueMessage(result.missing, "geometry.create.params.radius");
+        }
+        const double startAngle = jsonAngleRadians(paramsJson, "startAngle", "startAngleDeg", 0.0);
+        const double endAngle = jsonAngleRadians(paramsJson, "endAngle", "endAngleDeg", 3.14159265358979323846 / 2.0);
+        if (std::abs(startAngle - endAngle) <= kRectangleTolerance) {
+            addUniqueMessage(result.errors, "geometry.create ARC braucht unterschiedliche start/end Winkel");
+        }
+    } else if (geometryType == "POLYLINE") {
+        const std::optional<std::string> pointsArray = jsonArrayProperty(paramsJson, "points");
+        const std::vector<std::string> points = pointsArray.has_value() ? jsonObjectArrayValues(*pointsArray) : std::vector<std::string>{};
+        if (points.size() < 2) {
+            addUniqueMessage(result.missing, "geometry.create.params.points mit mindestens zwei Punkten");
+        }
+        for (std::size_t i = 0; i < points.size(); ++i) {
+            hasJsonPointValue(std::string("{\"point\":") + points[i] + "}", "point", "geometry.create.params.points[" + std::to_string(i) + "]", result.errors, result.missing);
+        }
+    } else if (geometryType == "BOX" || geometryType == "CUBOID" || geometryType == "QUADER") {
+        hasJsonPointValue(paramsJson, "origin", "geometry.create.params.origin", result.errors, result.missing);
+        const std::optional<double> width = firstFiniteNumberProperty(paramsJson, {"width", "widthMm", "x"});
+        const std::optional<double> depth = firstFiniteNumberProperty(paramsJson, {"depth", "depthMm", "length", "lengthMm", "y"});
+        const std::optional<double> height = firstFiniteNumberProperty(paramsJson, {"height", "heightMm", "z"});
+        if (!width.has_value() || *width <= kRectangleTolerance) {
+            addUniqueMessage(result.missing, "geometry.create.params.width");
+        }
+        if (!depth.has_value() || *depth <= kRectangleTolerance) {
+            addUniqueMessage(result.missing, "geometry.create.params.depth oder length");
+        }
+        if (!height.has_value() || *height <= kRectangleTolerance) {
+            addUniqueMessage(result.missing, "geometry.create.params.height");
+        }
+    } else {
+        addUniqueMessage(result.errors, "geometry.create unterstuetzt nur point, line, polyline, rectangle, circle, arc oder box");
+    }
+    return result.valid();
+}
+
+bool validateActionObject(
+    const std::string& actionJson,
+    ActionValidationState& state,
+    ActionValidationResult& result,
+    std::vector<std::string>& debugLines);
+
+void validateLayerBatchParams(
+    const std::string& paramsJson,
+    ActionValidationState& state,
+    ActionValidationResult& result,
+    std::vector<std::string>& debugLines)
+{
+    const std::optional<std::string> actionsArray = jsonArrayProperty(paramsJson, "actions");
+    if (!actionsArray.has_value()) {
+        addUniqueMessage(result.missing, "layers.batch.params.actions");
+        return;
+    }
+    const std::vector<std::string> actions = jsonObjectArrayValues(*actionsArray);
+    if (actions.empty()) {
+        addUniqueMessage(result.missing, "layers.batch.params.actions");
+        return;
+    }
+    if (actions.size() > 50) {
+        addUniqueMessage(result.errors, "layers.batch erlaubt maximal 50 Aktionen");
+        return;
+    }
+    for (std::size_t i = 0; i < actions.size(); ++i) {
+        ActionValidationResult nested;
+        validateActionObject(actions[i], state, nested, debugLines);
+        for (const std::string& message : nested.errors) {
+            addUniqueMessage(result.errors, "layers.batch.actions[" + std::to_string(i) + "]: " + message);
+        }
+        for (const std::string& message : nested.missing) {
+            addUniqueMessage(result.missing, "layers.batch.actions[" + std::to_string(i) + "]: " + message);
+        }
+        for (const std::string& message : nested.warnings) {
+            addUniqueMessage(result.warnings, "layers.batch.actions[" + std::to_string(i) + "]: " + message);
+        }
+        for (const std::string& message : nested.hints) {
+            addUniqueMessage(result.hints, message);
+        }
+    }
+}
+
+std::string stripCommandPrefixes(std::string token)
+{
+    token = trim(token);
+    while (!token.empty() && (token.front() == '_' || token.front() == '.' || token.front() == '-')) {
+        token.erase(token.begin());
+    }
+    return toUpperAscii(token);
+}
+
+std::string nativeCommandNameFromLine(const std::string& commandLine)
+{
+    std::string text = trim(commandLine);
+    while (text.size() >= 2 && text[0] == '^' && (text[1] == 'C' || text[1] == 'c')) {
+        text = trim(text.substr(2));
+    }
+    const std::size_t separator = text.find_first_of(" \t");
+    const std::string token = separator == std::string::npos ? text : text.substr(0, separator);
+    return stripCommandPrefixes(token);
+}
+
+bool nativeCommandLineHasArguments(const std::string& commandLine)
+{
+    std::string text = trim(commandLine);
+    while (text.size() >= 2 && text[0] == '^' && (text[1] == 'C' || text[1] == 'c')) {
+        text = trim(text.substr(2));
+    }
+    const std::size_t separator = text.find_first_of(" \t");
+    if (separator == std::string::npos) {
+        return false;
+    }
+    return !trim(text.substr(separator + 1)).empty();
+}
+
+bool isKnownBridgeCommand(const std::string& commandName)
+{
+    const std::string normalized = toUpperAscii(commandName);
+    for (const BridgeCommandDescriptor& command : kBridgeCommands) {
+        if (toUpperAscii(command.name) == normalized) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool commandExecuteAllowsNoArguments(const std::string& commandName)
+{
+    static const std::set<std::string> allowedWithoutArguments{
+        "REDO",
+        "SAVE",
+    };
+    return allowedWithoutArguments.find(toUpperAscii(commandName)) != allowedWithoutArguments.end();
+}
+
+void validateCommandExecuteParams(const std::string& paramsJson, ActionValidationResult& result)
+{
+    const std::string commandLine = trim(jsonStringProperty(paramsJson, "commandLine").value_or(""));
+    if (commandLine.empty()) {
+        addUniqueMessage(result.missing, "command.execute.params.commandLine");
+        return;
+    }
+    if (commandLine.size() > 500) {
+        addUniqueMessage(result.errors, "command.execute.params.commandLine darf maximal 500 Zeichen haben");
+    }
+    if (commandLine.find('\n') != std::string::npos
+        || commandLine.find('\r') != std::string::npos
+        || commandLine.find(';') != std::string::npos) {
+        addUniqueMessage(result.errors, "command.execute erlaubt nur eine einzelne native Kommandozeile ohne Semikolon oder Zeilenumbruch");
+    }
+
+    const std::string commandName = nativeCommandNameFromLine(commandLine);
+    if (commandName.empty()) {
+        addUniqueMessage(result.missing, "command.execute.params.commandLine.command");
+        return;
+    }
+    if (!isKnownBridgeCommand(commandName)) {
+        addUniqueMessage(result.errors, "command.execute command '" + commandName + "' ist nicht in commands.list freigegeben");
+        return;
+    }
+    if (!nativeCommandLineHasArguments(commandLine) && !commandExecuteAllowsNoArguments(commandName)) {
+        addUniqueMessage(result.missing, "command.execute.params.commandLine braucht vollstaendige Argumente fuer " + commandName);
+    }
+    addUniqueMessage(result.hints, "command.execute wird vor Nutzerbestaetigung validiert und als einzelne native BricsCAD-Kommandozeile gepostet");
+}
+
+bool validateActionObject(
+    const std::string& actionJson,
+    ActionValidationState& state,
+    ActionValidationResult& result,
+    std::vector<std::string>& debugLines)
+{
+    result.tool = jsonStringProperty(actionJson, "tool").value_or(
+        jsonStringProperty(actionJson, "method").value_or(
+            jsonStringProperty(actionJson, "operation").value_or("")));
+    if (result.tool == "create" || result.tool == "rename" || result.tool == "setColor") {
+        result.tool = "layers." + result.tool;
+    }
+    if (result.tool.empty()) {
+        addUniqueMessage(result.missing, "action.tool");
+        return false;
+    }
+
+    const std::optional<std::string> params = jsonObjectProperty(actionJson, "params");
+    std::string paramsJson = params.value_or("{}");
+    if (!params.has_value() && result.tool != "document.save") {
+        addUniqueMessage(result.missing, result.tool + ".params");
+    }
+
+    if (result.tool == "layers.create") {
+        const std::string name = trim(jsonStringProperty(paramsJson, "name").value_or(""));
+        bool planCreatedLayer = false;
+        if (name.empty()) {
+            addUniqueMessage(result.missing, "layers.create.params.name");
+        } else {
+            if (validationLayerKey(name) == "0") {
+                addUniqueMessage(result.errors, "Layer 0 darf nicht neu angelegt werden");
+            }
+            if (layerExistsForValidation(state, name)) {
+                addUniqueMessage(result.warnings, "Layer '" + name + "' existiert bereits; layers.create wuerde ueberspringen");
+            } else {
+                planCreatedLayer = true;
+            }
+        }
+        if (const std::optional<int> colorIndex = jsonIntProperty(paramsJson, "colorIndex"); colorIndex.has_value()
+            && (*colorIndex < 1 || *colorIndex > 255)) {
+            addUniqueMessage(result.errors, "layers.create.params.colorIndex muss 1..255 sein");
+        }
+        if (planCreatedLayer && result.valid()) {
+            markLayerPlanned(state, name);
+        }
+    } else if (result.tool == "layers.rename") {
+        const std::string oldName = trim(jsonStringProperty(paramsJson, "oldName").value_or(""));
+        const std::string newName = trim(jsonStringProperty(paramsJson, "newName").value_or(""));
+        if (oldName.empty()) {
+            addUniqueMessage(result.missing, "layers.rename.params.oldName");
+        }
+        if (newName.empty()) {
+            addUniqueMessage(result.missing, "layers.rename.params.newName");
+        }
+        if (!oldName.empty() && (validationLayerKey(oldName) == "0" || validationLayerKey(oldName) == "DEFPOINTS")) {
+            addUniqueMessage(result.errors, "Layer '" + oldName + "' darf nicht umbenannt werden");
+        }
+        if (!oldName.empty() && !layerExistsForValidation(state, oldName)) {
+            addUniqueMessage(result.errors, "layers.rename.params.oldName verweist auf nicht vorhandenen Layer '" + oldName + "'");
+        }
+        if (!newName.empty() && layerExistsForValidation(state, newName)) {
+            addUniqueMessage(result.errors, "layers.rename.params.newName existiert bereits: '" + newName + "'");
+        }
+        if (result.valid()) {
+            markLayerRemoved(state, oldName);
+            markLayerPlanned(state, newName);
+        }
+    } else if (result.tool == "layers.setColor") {
+        const std::string name = trim(jsonStringProperty(paramsJson, "name").value_or(""));
+        validateLayerReference(state, name, "layers.setColor.params.name", result.errors, result.missing);
+        const int colorIndex = jsonIntProperty(paramsJson, "colorIndex").value_or(0);
+        if (colorIndex < 1 || colorIndex > 255) {
+            addUniqueMessage(result.errors, "layers.setColor.params.colorIndex muss 1..255 sein");
+        }
+    } else if (result.tool == "layers.batch") {
+        validateLayerBatchParams(paramsJson, state, result, debugLines);
+    } else if (result.tool == "geometry.create") {
+        validateGeometryCreateParams(state, paramsJson, result);
+    } else if (result.tool == "geometry.move") {
+        AcDbObjectIdArray ids;
+        validateSelectorForAction(state, paramsJson, result.tool, true, &ids, result.errors, result.missing, debugLines);
+        validateNonZeroVector(paramsJson, result.tool, result.errors, result.missing);
+    } else if (result.tool == "geometry.copy") {
+        AcDbObjectIdArray ids;
+        validateSelectorForAction(state, paramsJson, result.tool, true, &ids, result.errors, result.missing, debugLines);
+        validateNonZeroVector(paramsJson, result.tool, result.errors, result.missing);
+        const int count = jsonIntProperty(paramsJson, "count").value_or(1);
+        if (count < 1 || count > 100) {
+            addUniqueMessage(result.errors, "geometry.copy.params.count muss 1..100 sein");
+        }
+    } else if (result.tool == "geometry.rotate") {
+        AcDbObjectIdArray ids;
+        validateSelectorForAction(state, paramsJson, result.tool, true, &ids, result.errors, result.missing, debugLines);
+        hasJsonPointValue(paramsJson, "basePoint", "geometry.rotate.params.basePoint", result.errors, result.missing);
+        const double angle = jsonAngleRadians(paramsJson, "angleRad", "angleDeg", 0.0);
+        if (!std::isfinite(angle) || std::abs(angle) <= kRectangleTolerance) {
+            addUniqueMessage(result.missing, "geometry.rotate.params.angleDeg oder angleRad");
+        }
+        if ((jsonObjectProperty(paramsJson, "axis").has_value() || jsonArrayProperty(paramsJson, "axis").has_value())
+            && hasJsonPointValue(paramsJson, "axis", "geometry.rotate.params.axis", result.errors, result.missing)) {
+            const JsonPoint3d axis = jsonPointProperty(paramsJson, "axis");
+            if (std::sqrt(axis.x * axis.x + axis.y * axis.y + axis.z * axis.z) <= kRectangleTolerance) {
+                addUniqueMessage(result.errors, "geometry.rotate.params.axis darf kein Nullvektor sein");
+            }
+        }
+    } else if (result.tool == "geometry.scale") {
+        AcDbObjectIdArray ids;
+        validateSelectorForAction(state, paramsJson, result.tool, true, &ids, result.errors, result.missing, debugLines);
+        hasJsonPointValue(paramsJson, "basePoint", "geometry.scale.params.basePoint", result.errors, result.missing);
+        const double factor = jsonDoubleProperty(paramsJson, "factor").value_or(0.0);
+        if (!std::isfinite(factor) || factor <= kRectangleTolerance) {
+            addUniqueMessage(result.errors, "geometry.scale.params.factor muss > 0 sein");
+        }
+        if (jsonDoubleProperty(paramsJson, "xFactor").has_value()
+            || jsonDoubleProperty(paramsJson, "yFactor").has_value()
+            || jsonDoubleProperty(paramsJson, "zFactor").has_value()) {
+            addUniqueMessage(result.errors, "geometry.scale erlaubt nur uniformen factor, keine xFactor/yFactor/zFactor");
+        }
+    } else if (result.tool == "geometry.delete") {
+        AcDbObjectIdArray ids;
+        validateSelectorForAction(state, paramsJson, result.tool, true, &ids, result.errors, result.missing, debugLines);
+        if (!jsonBoolProperty(paramsJson, "confirm").value_or(false)) {
+            addUniqueMessage(result.missing, "geometry.delete.params.confirm=true");
+        }
+    } else if (result.tool == "selection.set") {
+        AcDbObjectIdArray ids;
+        validateSelectorForAction(state, paramsJson, result.tool, true, &ids, result.errors, result.missing, debugLines);
+    } else if (result.tool == "rectangles.extrude") {
+        AcDbObjectIdArray ids;
+        validateSelectorForAction(state, paramsJson, result.tool, true, &ids, result.errors, result.missing, debugLines);
+        const double heightMm = jsonDoubleProperty(paramsJson, "heightMm").value_or(0.0);
+        if (!std::isfinite(heightMm) || heightMm <= kRectangleTolerance) {
+            addUniqueMessage(result.errors, "rectangles.extrude.params.heightMm muss > 0 sein");
+        }
+        if (!ids.isEmpty() && countRectangleProfiles(ids, debugLines) <= 0) {
+            addUniqueMessage(result.errors, "rectangles.extrude Selector enthaelt keine geschlossenen Rechteck-Polylinien");
+        }
+    } else if (result.tool == "profile.extrude") {
+        AcDbObjectIdArray ids;
+        validateSelectorForAction(state, paramsJson, result.tool, true, &ids, result.errors, result.missing, debugLines);
+        const double heightMm = jsonDoubleProperty(paramsJson, "heightMm").value_or(
+            jsonDoubleProperty(paramsJson, "height").value_or(0.0));
+        if (!std::isfinite(heightMm) || heightMm <= kRectangleTolerance) {
+            addUniqueMessage(result.errors, "profile.extrude.params.heightMm muss > 0 sein");
+        }
+        if (!ids.isEmpty() && countExtrudableProfiles(ids, debugLines) <= 0) {
+            addUniqueMessage(result.errors, "profile.extrude Selector enthaelt keine extrudierbaren Profile");
+        }
+    } else if (result.tool == "bim.classify") {
+        const std::string requestedClass = jsonStringProperty(paramsJson, "classification").value_or(
+            jsonStringProperty(paramsJson, "class").value_or(""));
+        const std::string bimClass = normalizeBimClass(requestedClass);
+        if (bimClass.empty()) {
+            addUniqueMessage(result.errors, "bim.classify.params.classification erlaubt aktuell nur BIMWall");
+        }
+        AcDbObjectIdArray ids;
+        if (jsonObjectProperty(paramsJson, "selector").has_value()
+            || jsonArrayProperty(paramsJson, "handles").has_value()
+            || jsonStringProperty(paramsJson, "handle").has_value()
+            || !jsonStringProperty(paramsJson, "target").value_or("").empty()) {
+            validateSelectorForAction(state, paramsJson, result.tool, true, &ids, result.errors, result.missing, debugLines);
+        } else {
+            ids = lastExtrudedSolidIds();
+            if (ids.isEmpty()) {
+                addUniqueMessage(result.errors, "bim.classify braucht selector/target oder zuletzt extrudierte Solids");
+            }
+        }
+        if (!ids.isEmpty() && countSolids(ids, debugLines) <= 0) {
+            addUniqueMessage(result.errors, "bim.classify Ziel enthaelt keine 3D-Solids");
+        }
+    } else if (result.tool == "document.save") {
+        if (state.database == nullptr) {
+            addUniqueMessage(result.errors, "Keine aktive BricsCAD Zeichnung gefunden");
+        }
+    } else if (result.tool == "undo.last" || result.tool == "undo.redo") {
+        const int steps = jsonIntProperty(paramsJson, "steps").value_or(1);
+        if (steps < 1 || steps > 50) {
+            addUniqueMessage(result.errors, result.tool + ".params.steps muss 1..50 sein");
+        }
+    } else if (result.tool == "command.execute") {
+        validateCommandExecuteParams(paramsJson, result);
+    } else {
+        addUniqueMessage(result.errors, "Unbekannte oder nicht validierbare Action: " + result.tool);
+    }
+
+    return result.valid();
+}
+
+std::string actionValidationResultJson(const ActionValidationResult& result, int index)
+{
+    std::ostringstream json;
+    json << "{\"index\":" << index
+        << ",\"tool\":\"" << jsonEscape(result.tool) << "\""
+        << ",\"valid\":" << (result.valid() ? "true" : "false")
+        << ",\"errors\":" << jsonDebugArray(result.errors)
+        << ",\"missing\":" << jsonDebugArray(result.missing)
+        << ",\"warnings\":" << jsonDebugArray(result.warnings)
+        << ",\"hints\":" << jsonDebugArray(result.hints)
+        << '}';
+    return json.str();
+}
+
+std::string validateActionsInApplicationContext(const std::string& paramsJson)
+{
+    std::vector<std::string> debugLines;
+    auto fail = [&debugLines](const std::string& message) {
+        appendDebug(debugLines, "ERROR: " + message);
+        std::ostringstream response;
+        response << errorResponse(message);
+        appendDebugResponse(response, debugLines);
+        return response.str();
+    };
+
+    AcDbDatabase* database = workingDatabase();
+    if (database == nullptr) {
+        return fail("Keine aktive BricsCAD Zeichnung gefunden");
+    }
+
+    const bool applicationContext = acDocManager != nullptr && acDocManager->isApplicationContext();
+    std::unique_ptr<AcAxDocLock> docLock;
+    if (applicationContext) {
+        docLock = std::make_unique<AcAxDocLock>(database);
+        if (docLock->lockStatus() != Acad::eOk) {
+            return fail("Aktive Zeichnung konnte nicht gesperrt werden: " + errorStatusText(docLock->lockStatus()));
+        }
+        appendDebug(debugLines, "Validation document lock: " + errorStatusText(docLock->lockStatus()));
+    }
+
+    std::vector<std::string> actions;
+    if (const std::optional<std::string> actionsArray = jsonArrayProperty(paramsJson, "actions"); actionsArray.has_value()) {
+        actions = jsonObjectArrayValues(*actionsArray);
+    } else if (jsonStringProperty(paramsJson, "tool").has_value() || jsonStringProperty(paramsJson, "method").has_value()) {
+        actions.push_back(paramsJson);
+    }
+
+    if (actions.empty()) {
+        return fail("actions.validate braucht actions[] oder tool+params");
+    }
+    if (actions.size() > 50) {
+        return fail("actions.validate erlaubt maximal 50 Aktionen");
+    }
+
+    ActionValidationState state;
+    state.database = database;
+    std::vector<std::string> errors;
+    std::vector<std::string> missing;
+    std::vector<std::string> warnings;
+    std::vector<std::string> hints;
+
+    std::ostringstream actionResults;
+    actionResults << '[';
+    for (std::size_t i = 0; i < actions.size(); ++i) {
+        ActionValidationResult result;
+        validateActionObject(actions[i], state, result, debugLines);
+        if (i > 0) {
+            actionResults << ',';
+        }
+        actionResults << actionValidationResultJson(result, static_cast<int>(i + 1));
+        for (const std::string& message : result.errors) {
+            addUniqueMessage(errors, "Aktion " + std::to_string(i + 1) + " (" + result.tool + "): " + message);
+        }
+        for (const std::string& message : result.missing) {
+            addUniqueMessage(missing, "Aktion " + std::to_string(i + 1) + " (" + result.tool + "): " + message);
+        }
+        for (const std::string& message : result.warnings) {
+            addUniqueMessage(warnings, "Aktion " + std::to_string(i + 1) + " (" + result.tool + "): " + message);
+        }
+        for (const std::string& message : result.hints) {
+            addUniqueMessage(hints, message);
+        }
+    }
+    actionResults << ']';
+
+    if (!missing.empty()) {
+        addUniqueMessage(hints, "Fehlende Werte ueber ask_user erfragen oder mit nachvollziehbaren Default-Werten explizit in params setzen.");
+    }
+    if (!errors.empty()) {
+        addUniqueMessage(hints, "Korrigiere tool/params anhand der BRX-Capabilities, bevor der Nutzer eine Ausfuehrung bestaetigt.");
+    }
+
+    const bool valid = errors.empty() && missing.empty();
+    std::ostringstream json;
+    json << "{\"schema\":\"barebone.bricscad.actions.validate.result.v1\""
+        << ",\"valid\":" << (valid ? "true" : "false")
+        << ",\"actionsRequested\":" << actions.size()
+        << ",\"errors\":" << jsonDebugArray(errors)
+        << ",\"missing\":" << jsonDebugArray(missing)
+        << ",\"warnings\":" << jsonDebugArray(warnings)
+        << ",\"hints\":" << jsonDebugArray(hints)
+        << ",\"actions\":" << actionResults.str()
+        << '}';
+    return okJsonResultResponse(json.str(), debugLines);
 }
 
 JsonPoint3d actionVectorFromParams(const std::string& paramsJson)
@@ -3854,6 +4871,14 @@ std::string saveDocumentInApplicationContext(const std::string& paramsJson)
     return okJsonResultResponse(json.str(), debugLines);
 }
 
+Acad::ErrorStatus applyLayerMutation(
+    AcDbDatabase* database,
+    const std::string& paramsJson,
+    const std::string& operation,
+    std::string& summary,
+    bool& skipped,
+    std::vector<std::string>& debugLines);
+
 std::string mutateLayerInApplicationContext(const std::string& paramsJson, const std::string& operation)
 {
     std::vector<std::string> debugLines;
@@ -3874,79 +4899,10 @@ std::string mutateLayerInApplicationContext(const std::string& paramsJson, const
         return fail(errorMessage);
     }
 
-    AcDbLayerTable* layerTable = nullptr;
-    const Acad::ErrorStatus tableStatus = database->getLayerTable(layerTable, AcDb::kForWrite);
-    if (tableStatus != Acad::eOk || layerTable == nullptr) {
-        return fail("Layer-Tabelle konnte nicht fuer Schreiben geoeffnet werden: " + errorStatusText(tableStatus));
-    }
-
-    Acad::ErrorStatus status = Acad::eInvalidInput;
     std::string summary;
-    if (operation == "create") {
-        const std::string name = trim(jsonStringProperty(paramsJson, "name").value_or(""));
-        if (name.empty()) {
-            layerTable->close();
-            return fail("layers.create braucht name");
-        }
-        const std::basic_string<ACHAR> nativeName = utf8ToAchar(name);
-        if (layerTable->has(nativeName.c_str())) {
-            status = Acad::eOk;
-            summary = "layers.create skipped existing layer " + name;
-        } else {
-            auto* record = new AcDbLayerTableRecord();
-            record->setName(nativeName.c_str());
-            const int colorIndex = jsonIntProperty(paramsJson, "colorIndex").value_or(0);
-            if (colorIndex > 0) {
-                AcCmColor color;
-                color.setColorIndex(static_cast<Adesk::UInt16>(std::min(colorIndex, 255)));
-                record->setColor(color);
-            }
-            AcDbObjectId layerId;
-            status = layerTable->add(layerId, record);
-            if (status == Acad::eOk) {
-                record->close();
-            } else {
-                delete record;
-            }
-            summary = "layers.create " + name;
-        }
-    } else if (operation == "rename") {
-        const std::string oldName = trim(jsonStringProperty(paramsJson, "oldName").value_or(""));
-        const std::string newName = trim(jsonStringProperty(paramsJson, "newName").value_or(""));
-        if (oldName.empty() || newName.empty()) {
-            layerTable->close();
-            return fail("layers.rename braucht oldName und newName");
-        }
-        AcDbLayerTableRecord* record = nullptr;
-        status = layerTable->getAt(utf8ToAchar(oldName).c_str(), record, AcDb::kForWrite);
-        if (status == Acad::eOk && record != nullptr) {
-            status = record->setName(utf8ToAchar(newName).c_str());
-            record->close();
-        }
-        summary = "layers.rename " + oldName + " -> " + newName;
-    } else if (operation == "setColor") {
-        const std::string name = trim(jsonStringProperty(paramsJson, "name").value_or(""));
-        const int colorIndex = jsonIntProperty(paramsJson, "colorIndex").value_or(0);
-        if (name.empty() || colorIndex < 1 || colorIndex > 255) {
-            layerTable->close();
-            return fail("layers.setColor braucht name und colorIndex 1..255");
-        }
-        AcDbLayerTableRecord* record = nullptr;
-        status = layerTable->getAt(utf8ToAchar(name).c_str(), record, AcDb::kForWrite);
-        if (status == Acad::eOk && record != nullptr) {
-            AcCmColor color;
-            color.setColorIndex(static_cast<Adesk::UInt16>(colorIndex));
-            record->setColor(color);
-            status = Acad::eOk;
-            record->close();
-        }
-        summary = "layers.setColor " + name + " colorIndex=" + std::to_string(colorIndex);
-    } else {
-        layerTable->close();
-        return fail("Unbekannte Layer-Operation: " + operation);
-    }
-
-    layerTable->close();
+    bool skipped = false;
+    const Acad::ErrorStatus status = applyLayerMutation(database, paramsJson, operation, summary, skipped, debugLines);
+    appendDebug(debugLines, "Layer mutation executed via native BricsCAD -LAYER command path");
     if (status != Acad::eOk) {
         return fail(summary + " fehlgeschlagen: " + errorStatusText(status));
     }
@@ -3955,6 +4911,283 @@ std::string mutateLayerInApplicationContext(const std::string& paramsJson, const
     AcDbObjectIdArray failed;
     const std::string schema = "barebone.bricscad.layers." + operation + ".result.v1";
     return okJsonResultResponse(genericActionResultJson(schema, summary, affected, failed, saveBefore, savedBefore), debugLines);
+}
+
+std::string layerOperationFromAction(const std::string& actionJson)
+{
+    std::string operation = jsonStringProperty(actionJson, "operation").value_or("");
+    if (operation.empty()) {
+        operation = jsonStringProperty(actionJson, "tool").value_or(
+            jsonStringProperty(actionJson, "method").value_or(""));
+    }
+    if (operation == "layers.create" || operation == "create") {
+        return "create";
+    }
+    if (operation == "layers.rename" || operation == "rename") {
+        return "rename";
+    }
+    if (operation == "layers.setColor" || operation == "setColor") {
+        return "setColor";
+    }
+    return {};
+}
+
+std::string layerParamsFromAction(const std::string& actionJson)
+{
+    if (const std::optional<std::string> params = jsonObjectProperty(actionJson, "params"); params.has_value()) {
+        return *params;
+    }
+    return actionJson;
+}
+
+Acad::ErrorStatus layerCommandStatus(int commandStatus)
+{
+    return commandStatus == RTNORM ? Acad::eOk : Acad::eInvalidInput;
+}
+
+int runNativeLayerNewCommand(const std::string& name, std::vector<std::string>& debugLines)
+{
+    if (!ensureNativeCommandContext(debugLines, "_.-LAYER _New")) {
+        return RTERROR;
+    }
+    appendDebug(debugLines, "Calling acedCommand _.-LAYER _New name='" + name + "'");
+    const std::basic_string<ACHAR> nativeName = utf8ToAchar(name);
+    const int commandStatus = acedCommand(
+        RTSTR, _T("_.-LAYER"),
+        RTSTR, _T("_New"),
+        RTSTR, nativeName.c_str(),
+        RTSTR, _T(""),
+        RTNONE);
+    appendDebug(debugLines, "acedCommand _.-LAYER _New status=" + std::to_string(commandStatus));
+    return commandStatus;
+}
+
+int runNativeLayerRenameCommand(const std::string& oldName, const std::string& newName, std::vector<std::string>& debugLines)
+{
+    if (!ensureNativeCommandContext(debugLines, "_.-LAYER _Rename")) {
+        return RTERROR;
+    }
+    appendDebug(debugLines, "Calling acedCommand _.-LAYER _Rename old='" + oldName + "' new='" + newName + "'");
+    const std::basic_string<ACHAR> nativeOldName = utf8ToAchar(oldName);
+    const std::basic_string<ACHAR> nativeNewName = utf8ToAchar(newName);
+    const int commandStatus = acedCommand(
+        RTSTR, _T("_.-LAYER"),
+        RTSTR, _T("_Rename"),
+        RTSTR, nativeOldName.c_str(),
+        RTSTR, nativeNewName.c_str(),
+        RTSTR, _T(""),
+        RTNONE);
+    appendDebug(debugLines, "acedCommand _.-LAYER _Rename status=" + std::to_string(commandStatus));
+    return commandStatus;
+}
+
+int runNativeLayerColorCommand(const std::string& name, int colorIndex, std::vector<std::string>& debugLines)
+{
+    if (!ensureNativeCommandContext(debugLines, "_.-LAYER _Color")) {
+        return RTERROR;
+    }
+    appendDebug(debugLines, "Calling acedCommand _.-LAYER _Color name='" + name + "' colorIndex=" + std::to_string(colorIndex));
+    const std::basic_string<ACHAR> nativeName = utf8ToAchar(name);
+    const std::basic_string<ACHAR> nativeColor = utf8ToAchar(std::to_string(colorIndex));
+    const int commandStatus = acedCommand(
+        RTSTR, _T("_.-LAYER"),
+        RTSTR, _T("_Color"),
+        RTSTR, nativeColor.c_str(),
+        RTSTR, nativeName.c_str(),
+        RTSTR, _T(""),
+        RTNONE);
+    appendDebug(debugLines, "acedCommand _.-LAYER _Color status=" + std::to_string(commandStatus));
+    return commandStatus;
+}
+
+Acad::ErrorStatus applyLayerMutation(
+    AcDbDatabase* database,
+    const std::string& paramsJson,
+    const std::string& operation,
+    std::string& summary,
+    bool& skipped,
+    std::vector<std::string>& debugLines)
+{
+    skipped = false;
+    if (database == nullptr) {
+        summary = "Keine aktive Zeichnung";
+        return Acad::eNullObjectPointer;
+    }
+
+    if (operation == "create") {
+        const std::string name = trim(jsonStringProperty(paramsJson, "name").value_or(""));
+        if (name.empty()) {
+            summary = "layers.create braucht name";
+            return Acad::eInvalidInput;
+        }
+        if (layerExistsInDatabase(database, name)) {
+            skipped = true;
+            summary = "layers.create skipped existing layer " + name;
+            return Acad::eOk;
+        }
+
+        const int colorIndex = jsonIntProperty(paramsJson, "colorIndex").value_or(0);
+        Acad::ErrorStatus status = layerCommandStatus(runNativeLayerNewCommand(name, debugLines));
+        if (status == Acad::eOk && !layerExistsInDatabase(database, name)) {
+            summary = "layers.create " + name + " command returned success but layer was not found after creation";
+            return Acad::eInvalidInput;
+        }
+        if (status == Acad::eOk && colorIndex >= 1 && colorIndex <= 255) {
+            status = layerCommandStatus(runNativeLayerColorCommand(name, colorIndex, debugLines));
+        }
+        summary = "layers.create " + name;
+        return status;
+    }
+
+    if (operation == "rename") {
+        const std::string oldName = trim(jsonStringProperty(paramsJson, "oldName").value_or(""));
+        const std::string newName = trim(jsonStringProperty(paramsJson, "newName").value_or(""));
+        if (oldName.empty() || newName.empty()) {
+            summary = "layers.rename braucht oldName und newName";
+            return Acad::eInvalidInput;
+        }
+        if (oldName == newName) {
+            skipped = true;
+            summary = "layers.rename skipped unchanged layer " + oldName;
+            return Acad::eOk;
+        }
+        if (!layerExistsInDatabase(database, oldName)) {
+            summary = "layers.rename oldName nicht gefunden: " + oldName;
+            return Acad::eInvalidInput;
+        }
+        if (layerExistsInDatabase(database, newName)) {
+            summary = "layers.rename newName existiert bereits: " + newName;
+            return Acad::eInvalidInput;
+        }
+        Acad::ErrorStatus status = layerCommandStatus(runNativeLayerRenameCommand(oldName, newName, debugLines));
+        if (status == Acad::eOk && !layerExistsInDatabase(database, newName)) {
+            summary = "layers.rename command returned success but new layer was not found: " + newName;
+            return Acad::eInvalidInput;
+        }
+        summary = "layers.rename " + oldName + " -> " + newName;
+        return status;
+    }
+
+    if (operation == "setColor") {
+        const std::string name = trim(jsonStringProperty(paramsJson, "name").value_or(""));
+        const int colorIndex = jsonIntProperty(paramsJson, "colorIndex").value_or(0);
+        if (name.empty() || colorIndex < 1 || colorIndex > 255) {
+            summary = "layers.setColor braucht name und colorIndex 1..255";
+            return Acad::eInvalidInput;
+        }
+        if (!layerExistsInDatabase(database, name)) {
+            summary = "layers.setColor Layer nicht gefunden: " + name;
+            return Acad::eInvalidInput;
+        }
+        const Acad::ErrorStatus status = layerCommandStatus(runNativeLayerColorCommand(name, colorIndex, debugLines));
+        summary = "layers.setColor " + name + " colorIndex=" + std::to_string(colorIndex);
+        return status;
+    }
+
+    summary = "Unbekannte Layer-Operation: " + operation;
+    return Acad::eInvalidInput;
+}
+
+std::string mutateLayerBatchInApplicationContext(const std::string& paramsJson)
+{
+    std::vector<std::string> debugLines;
+    auto fail = [&debugLines](const std::string& message) {
+        appendDebug(debugLines, "ERROR: " + message);
+        std::ostringstream response;
+        response << errorResponse(message);
+        appendDebugResponse(response, debugLines);
+        return response.str();
+    };
+
+    const std::optional<std::string> actionsArray = jsonArrayProperty(paramsJson, "actions");
+    if (!actionsArray.has_value()) {
+        return fail("layers.batch braucht actions[]");
+    }
+
+    const std::vector<std::string> actions = jsonObjectArrayValues(*actionsArray);
+    if (actions.empty()) {
+        return fail("layers.batch actions[] ist leer");
+    }
+    if (actions.size() > 50) {
+        return fail("layers.batch erlaubt maximal 50 Aktionen");
+    }
+
+    const bool saveBefore = jsonBoolProperty(paramsJson, "saveBefore").value_or(true);
+    AcDbDatabase* database = nullptr;
+    bool savedBefore = false;
+    std::unique_ptr<AcAxDocLock> docLock;
+    std::string errorMessage;
+    if (!prepareMutation(database, saveBefore, savedBefore, docLock, debugLines, errorMessage)) {
+        return fail(errorMessage);
+    }
+
+    int completed = 0;
+    int skipped = 0;
+    int failed = 0;
+    std::ostringstream actionResults;
+    actionResults << '[';
+    for (std::size_t i = 0; i < actions.size(); ++i) {
+        const std::string operation = layerOperationFromAction(actions[i]);
+        const std::string actionParams = layerParamsFromAction(actions[i]);
+        std::string summary;
+        bool wasSkipped = false;
+        Acad::ErrorStatus status = Acad::eInvalidInput;
+        if (operation.empty()) {
+            summary = "layers.batch Aktion " + std::to_string(i + 1) + " hat keine unterstuetzte Layer-Operation";
+        } else {
+            status = applyLayerMutation(database, actionParams, operation, summary, wasSkipped, debugLines);
+        }
+
+        if (i > 0) {
+            actionResults << ',';
+        }
+        actionResults << "{\"index\":" << (i + 1)
+            << ",\"operation\":\"" << jsonEscape(operation.empty() ? std::string("<unbekannt>") : operation) << "\""
+            << ",\"ok\":" << (status == Acad::eOk ? "true" : "false")
+            << ",\"skipped\":" << (wasSkipped ? "true" : "false")
+            << ",\"summary\":\"" << jsonEscape(summary) << "\"";
+
+        if (status == Acad::eOk) {
+            ++completed;
+            if (wasSkipped) {
+                ++skipped;
+            }
+        } else {
+            ++failed;
+            actionResults << ",\"error\":\"" << jsonEscape(errorStatusText(status)) << "\"";
+        }
+        actionResults << '}';
+        appendDebug(debugLines,
+            "layers.batch action " + std::to_string(i + 1)
+            + " operation=" + (operation.empty() ? std::string("<unbekannt>") : operation)
+            + " status=" + errorStatusText(status)
+            + " summary=" + summary);
+    }
+    actionResults << ']';
+
+    appendDebug(debugLines, "Layer batch executed via native BricsCAD -LAYER command path");
+    appendDebug(debugLines, "layers.batch action results=" + actionResults.str());
+    if (failed > 0) {
+        std::ostringstream response;
+        response << errorResponse("layers.batch fehlgeschlagen: " + std::to_string(failed) + " Fehler");
+        appendDebugResponse(response, debugLines);
+        return response.str();
+    }
+
+    std::ostringstream json;
+    json << "{\"schema\":\"barebone.bricscad.layers.batch.result.v1\""
+        << ",\"summary\":\"layers.batch completed=" << completed << " skipped=" << skipped << "\""
+        << ",\"actionsRequested\":" << actions.size()
+        << ",\"completed\":" << completed
+        << ",\"skipped\":" << skipped
+        << ",\"failed\":" << failed
+        << ",\"results\":" << actionResults.str()
+        << ",\"warnings\":[]"
+        << ",\"timeMs\":0"
+        << ",\"saveBefore\":" << (saveBefore ? "true" : "false")
+        << ",\"savedBefore\":" << (savedBefore ? "true" : "false")
+        << '}';
+    return okJsonResultResponse(json.str(), debugLines);
 }
 
 bool curveLength(AcDbEntity* entity, double& length)
@@ -4517,6 +5750,9 @@ std::string postNativeCommandLineInApplicationContext(const std::string& command
 
 int runNativeExtrudeCommand(const ads_name selectionSet, double heightMm, std::vector<std::string>& debugLines)
 {
+    if (!ensureNativeCommandContext(debugLines, "_.EXTRUDE")) {
+        return RTERROR;
+    }
     {
         std::ostringstream line;
         line << "Calling acedCommand _.EXTRUDE heightMm=" << heightMm;
@@ -4536,6 +5772,9 @@ int runNativeExtrudeCommand(const ads_name selectionSet, double heightMm, std::v
 
 int runNativeBimClassifyCommand(const ads_name selectionSet, const std::string& bimClass, std::vector<std::string>& debugLines)
 {
+    if (!ensureNativeCommandContext(debugLines, "_.BIMCLASSIFY")) {
+        return RTERROR;
+    }
     const std::string option = bimClassCommandOption(bimClass);
     if (option.empty()) {
         appendDebug(debugLines, "BIMCLASSIFY unsupported class=" + bimClass);
@@ -4557,6 +5796,9 @@ int runNativeBimClassifyCommand(const ads_name selectionSet, const std::string& 
 
 int runNativeUndoCommand(int steps, std::vector<std::string>& debugLines)
 {
+    if (!ensureNativeCommandContext(debugLines, "_.UNDO")) {
+        return RTERROR;
+    }
     {
         std::ostringstream line;
         line << "Calling acedCommand _.UNDO steps=" << steps;
@@ -4576,6 +5818,9 @@ int runNativeUndoCommand(int steps, std::vector<std::string>& debugLines)
 
 int runNativeRedoCommand(int steps, std::vector<std::string>& debugLines)
 {
+    if (!ensureNativeCommandContext(debugLines, "_.REDO")) {
+        return RTERROR;
+    }
     int finalStatus = RTNORM;
     for (int i = 0; i < steps; ++i) {
         appendDebug(debugLines, "Calling acedCommand _.REDO step=" + std::to_string(i + 1));
@@ -5289,6 +6534,11 @@ std::string handlePluginRequestInApplicationContext(const std::string& request)
         return listLayersInApplicationContext();
     }
 
+    if (command == "ACTIONVALIDATE") {
+        const std::string paramsJson = parts.size() >= 2 ? percentDecode(parts[1]) : "{}";
+        return validateActionsInApplicationContext(paramsJson);
+    }
+
     if (command == "GEOMETRYQUERY") {
         const std::string paramsJson = parts.size() >= 2 ? percentDecode(parts[1]) : "{}";
         return geometryQueryInApplicationContext(paramsJson);
@@ -5352,6 +6602,10 @@ std::string handlePluginRequestInApplicationContext(const std::string& request)
     if (command == "LAYERSETCOLOR") {
         const std::string paramsJson = parts.size() >= 2 ? percentDecode(parts[1]) : "{}";
         return mutateLayerInApplicationContext(paramsJson, "setColor");
+    }
+    if (command == "LAYERBATCH") {
+        const std::string paramsJson = parts.size() >= 2 ? percentDecode(parts[1]) : "{}";
+        return mutateLayerBatchInApplicationContext(paramsJson);
     }
 
     if (command == "DOCUMENTSAVE") {
@@ -5562,6 +6816,20 @@ std::string jsonResponseForBridgeRequest(const std::string& line)
         return jsonActionsResponseFromDescriptors(id);
     }
 
+    if (method == "actions.validate") {
+        const std::optional<std::string> params = jsonObjectProperty(line, "params");
+        if (!params.has_value()) {
+            appendBridgeUiLog("BRX -> Qt error id=" + std::to_string(id) + " method=actions.validate missing params");
+            return jsonErrorResponse(id, "actions.validate erwartet params");
+        }
+        appendBridgeUiLog("Qt -> BRX actions.validate params=" + *params);
+        std::ostringstream request;
+        request << "ACTIONVALIDATE\t" << percentEncode(*params);
+        const std::string response = jsonResponseFromProtocol(id, method, dispatchPluginRequest(request.str()));
+        appendBridgeUiLog("BRX -> Qt response id=" + std::to_string(id) + " method=actions.validate");
+        return response;
+    }
+
     if (method == "layers.list") {
         const std::string response = jsonResponseFromProtocol(id, method, dispatchPluginRequest("LAYERS"));
         appendBridgeUiLog("BRX -> Qt response id=" + std::to_string(id) + " method=layers.list");
@@ -5641,6 +6909,9 @@ std::string jsonResponseForBridgeRequest(const std::string& line)
     }
     if (method == "layers.setColor") {
         return dispatchJsonParamsMethod("LAYERSETCOLOR");
+    }
+    if (method == "layers.batch") {
+        return dispatchJsonParamsMethod("LAYERBATCH");
     }
     if (method == "document.save") {
         const std::string params = jsonObjectProperty(line, "params").value_or("{}");

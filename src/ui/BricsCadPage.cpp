@@ -42,6 +42,8 @@ constexpr quint16 kBridgePort = 47626;
 constexpr const char* kBridgeTokenFileName = "BareboneQtBridge.token";
 constexpr bool kAgentActionToolsEnabled = true;
 constexpr int kMaxAgentValidationRetries = 4;
+constexpr int kMaxAgentBatchActions = 25;
+constexpr int kAgentBatchActionDelayMs = 1000;
 constexpr qsizetype kMaxDocumentContextChars = 90000;
 
 bool useResponsesApiForModel(const QString& model)
@@ -122,6 +124,17 @@ QString promptWithDocumentContext(const QString& prompt, const QJsonObject& cont
         .arg(prompt,
             metadataLines.isEmpty() ? QStringLiteral("- Angehängtes Dokument") : metadataLines.join('\n'),
             selectedText);
+}
+
+bool bridgeCapabilitiesContainMethod(const QJsonObject& capabilities, const QString& methodName)
+{
+    const QJsonArray methods = capabilities.value("methods").toArray();
+    for (const QJsonValue& value : methods) {
+        if (value.toObject().value("name").toString() == methodName) {
+            return true;
+        }
+    }
+    return false;
 }
 
 QString bridgeTokenFilePath()
@@ -333,6 +346,79 @@ QString bridgeErrorMessage(const QJsonObject& response, const QString& fallback)
 {
     const QString error = response.value("error").toString();
     return error.isEmpty() ? fallback : error;
+}
+
+QStringList stringsFromJsonArray(const QJsonArray& values)
+{
+    QStringList result;
+    for (const QJsonValue& value : values) {
+        const QString text = value.toString().trimmed();
+        if (!text.isEmpty() && !result.contains(text)) {
+            result << text;
+        }
+    }
+    return result;
+}
+
+QString validationFailureMessage(const QJsonObject& response)
+{
+    const QJsonObject result = response.value("result").toObject();
+    QStringList lines;
+
+    const QString transportError = response.value("error").toString().trimmed();
+    if (!transportError.isEmpty()) {
+        lines << QString("BRX Fehler: %1").arg(transportError);
+    }
+
+    const QStringList errors = stringsFromJsonArray(result.value("errors").toArray());
+    if (!errors.isEmpty()) {
+        lines << QString("Fehler: %1").arg(errors.join("; "));
+    }
+
+    const QStringList missing = stringsFromJsonArray(result.value("missing").toArray());
+    if (!missing.isEmpty()) {
+        lines << QString("Fehlende Daten: %1").arg(missing.join("; "));
+    }
+
+    const QStringList hints = stringsFromJsonArray(result.value("hints").toArray());
+    if (!hints.isEmpty()) {
+        lines << QString("Hinweise: %1").arg(hints.join("; "));
+    }
+
+    if (lines.isEmpty()) {
+        lines << QStringLiteral("BRX Preflight konnte den Vorschlag nicht validieren.");
+    }
+    return lines.join("\n").left(4000);
+}
+
+QJsonObject agentResponseContractObject()
+{
+    return QJsonObject{
+        {"schema", "barebone.agent.response.v2"},
+        {"strictJsonObject", true},
+        {"preferred", true},
+        {"legacyAcceptedOnlyForCompatibility", true},
+        {"topLevel", QJsonObject{
+            {"required", QJsonArray{"schema", "type", "message"}},
+            {"schema", "barebone.agent.response.v2"},
+            {"allowedTypes", QJsonArray{"message", "ask_user", "context_request", "action_proposal", "plan"}},
+        }},
+        {"actionProposal", QJsonObject{
+            {"required", QJsonArray{"type", "message", "proposal"}},
+            {"proposalRequired", QJsonArray{"requiresConfirmation", "actions"}},
+            {"actionShape", QJsonObject{
+                {"required", QJsonArray{"tool", "params"}},
+                {"toolSource", "tools[].name"},
+                {"paramsSource", "tools[].inputSchema"},
+            }},
+            {"forbiddenTopLevelFields", QJsonArray{"tool", "params", "actions"}},
+        }},
+        {"askUser", QJsonObject{
+            {"required", QJsonArray{"type", "message", "missing"}},
+            {"draftPolicy", "If a draft is included, use draft.proposal with the same proposal shape as action_proposal."},
+        }},
+        {"defaultsPolicy", "Ask only for mandatory unknown data. For domain-standard requests, propose sensible defaults and list them in assumptions."},
+    };
 }
 
 QString normalizedAiBaseUrl(QString value, const QString& provider)
@@ -1485,13 +1571,21 @@ void BricsCadPage::sendAgentEnvelope(const QJsonObject& envelope, const QString&
             "Du sprichst immer auf Deutsch mit dem Nutzer; nur JSON-Felder, Toolnamen und technische Parameter bleiben wie in der API vorgegeben. "
             "Du entscheidest selbst, ob du antwortest, Kontext brauchst, nachfragst oder eine ausfuehrbare BricsCAD-Aktion vorschlaegst. "
             "Barebone-Qt bleibt die Kontrollinstanz: riskante Aktionen werden validiert und erst nach Nutzerbestaetigung an BRX gesendet. "
+            "Direkte BricsCAD-DB-Schreibvorgaenge sind verboten, weil sie in BricsCAD wegen Renderer-/Datenbank-Stabilitaet nicht ausreichend stabil sind; schlage niemals AcDb-/Datenbank-Schreibzugriffe, direkte LayerTable-/EntityTable-Mutationen oder Pseudo-Tools dafuer vor. "
+            "Nutze fuer Aenderungen ausschliesslich die freigegebenen tools[].name. "
+            "Du darfst je nach Aufgabe selbst zwischen spezialisierten Bridge-Tools und command.execute fuer native BricsCAD-Kommandos entscheiden; command.execute braucht eine vollstaendige einzelne Kommandozeile aus commands.list und wird vor der Nutzerbestaetigung per BRX validiert. "
+            "Nutze niemals ein direktes DB-Batch-Tool. "
             "Antworte ausschliesslich als gueltiges JSON-Objekt ohne Markdown. "
             "Diese Anwendung ist BricsCAD-fokussiert: nutze den gelieferten BricsCAD-Kontext, pendingDrafts und Capabilities auch bei kurzen Folgeantworten wie '100mm' oder 'x=100 y=200'. "
             "Nutze den Envelope mit userPrompt, conversation, context, documentContext, capabilities, readOnlyMethods, tools, pendingProposal, pendingDraft und lastToolResult. "
             "Wenn documentContext vorhanden ist und der Nutzer nach PDF-, Word- oder Textdatei-Inhalten fragt, antworte als type=message aus diesem Kontext; verweise bei PDFs auf Seiten und frage nach einem engeren Seitenbereich, wenn der noetige Text nicht enthalten ist. "
             "Wenn Zeichnungskontext fehlt, nutze context_request mit exakt einer Methode aus readOnlyMethods. "
             "Wenn du ausfuehren willst, nutze action_proposal mit tool exakt aus tools[].name und params passend zu inputSchema/apiDoc.post. "
+            "Nutze bevorzugt Barebone-Agent-JSON v2 mit schema=\"barebone.agent.response.v2\". Bei action_proposal stehen ausfuehrbare Aktionen ausschliesslich unter proposal.actions; nutze tool/params nicht mehr direkt auf Top-Level. "
+            "Bei ask_user darf draft.proposal dieselbe proposal-Struktur enthalten. Legacy-Formen mit Top-Level tool/params oder actions[] werden nur aus Kompatibilitaet akzeptiert, sollen aber nicht erzeugt werden. "
             "Bei action_proposal muessen alle required-Felder aus inputSchema/apiDoc.post.required in params enthalten sein; nutze Beispiele nur als Formathilfe und lasse keine Pflichtfelder weg. "
+            "Frage nur nach wirklich zwingend fehlenden Daten. Wenn der Nutzer eine fachuebliche oder generische Aufgabe formuliert, nutze sinnvolle Defaults und nenne sie als assumptions im Vorschlag, statt lange Listen abzufragen. "
+            "Bei Aufgaben wie '20 TGA-Layer anlegen' erzeuge einen Vorschlag mit typischen TGA-/Planungs-Layern und passenden ACI-Farben; frage nur nach, wenn der Nutzer ausdrücklich eigene Namen/Farben verlangt. "
             "Neue Grundgeometrien wie Kreis, Rechteck, Linie, Polyline, Punkt, Bogen oder Box werden mit geometry.create erstellt; erfinde keine Toolnamen wie draw.circle. "
             "Fuer geometry.create rectangle ist die zweite 2D-Abmessung als depth oder length zu senden, nicht als height; Angaben wie y, b, Tiefe oder Rechteck-Hoehe bedeuten dabei depth/length. "
             "Eine Wand mit Laenge, Wandstaerke und Hoehe kann als geometry.create geometry=box erstellt werden; Laenge=width, Wandstaerke=depth, Hoehe=height, danach optional bim.classify mit target=lastExtruded. "
@@ -1502,15 +1596,21 @@ void BricsCadPage::sendAgentEnvelope(const QJsonObject& envelope, const QString&
             "Frage fuer geometry.create nicht nach allgemeinem Zeichnungskontext; Einheiten sind mm und fehlender Layer kann als Layer 0 angenommen werden. "
             "Bei Extrusionen bedeuten z, hoehe, height, heightMm oder eine alleinstehende mm-Angabe immer params.heightMm. "
             "Bei Verschieben, Verlaengern oder Face-Bewegung bedeutet eine alleinstehende mm-Angabe die Distanz/Offset-Angabe; frage nicht erneut nach derselben Distanz, wenn userPrompt sie enthaelt. "
-            "Wenn der Nutzer von Auswahl, ausgewaehlt, selektiert oder selection spricht, verwende fuer passende Tools params.selector.scope=\"selection\" statt nach Handles zu fragen. "
-            "Wenn Angaben fehlen, frage natuerlich nach; speichere dabei einen draft mit deiner beabsichtigten Aktion. "
-            "Wenn mehrere Schritte noetig sind, schlage genau den ersten sicheren Schritt vor und setze continueAfterSuccess=true plus nextIntent als kurze Beschreibung fuer den Folgeschritt. "
-            "Akzeptierte Antworttypen: "
-            "{\"type\":\"message\",\"message\":\"...\"}, "
-            "{\"type\":\"ask_user\",\"message\":\"...\",\"missing\":[\"...\"],\"draft\":{...}}, "
-            "{\"type\":\"context_request\",\"message\":\"...\",\"method\":\"selection.describe\",\"params\":{},\"reason\":\"...\"}, "
-            "{\"type\":\"action_proposal\",\"message\":\"...\",\"tool\":\"name-aus-tools\",\"params\":{},\"requiresConfirmation\":true,\"continueAfterSuccess\":false,\"nextIntent\":\"...\"}, "
-            "{\"type\":\"plan\",\"message\":\"...\",\"steps\":[...],\"neededContext\":[...],\"missingCapabilities\":[...]}. "
+        "Wenn der Nutzer von Auswahl, ausgewaehlt, selektiert oder selection spricht, verwende fuer passende Tools params.selector.scope=\"selection\" statt nach Handles zu fragen. "
+        "Wenn Angaben fehlen, frage natuerlich nach; speichere dabei einen draft mit deiner beabsichtigten Aktion. "
+        "Jeder action_proposal wird vor der Nutzerbestaetigung per BRX actions.validate trocken geprueft; fehlende Daten, unbekannte Handles/Layer oder unklare Selector-Ziele muessen korrigiert oder per ask_user abgefragt werden. "
+            "Wenn mehrere voneinander unabhaengige Aktionen mit vorhandenen Parametern noetig sind, nutze ein einziges action_proposal mit proposal.actions:[{\"tool\":\"...\",\"params\":{...}},...], damit der Nutzer einmal bestaetigt und Barebone-Qt die Aktionen seriell einzeln an BRX sendet. "
+            "Fuer mehrere Layer mit Namen/Farben nutze bevorzugt das virtuelle Qt-Tool layers.ensureMany mit params.layers:[{\"name\":\"...\",\"colorIndex\":1},...]; Barebone-Qt expandiert es intern in einzelne validierte layers.create-Aktionen. "
+            "Beispiele fuer Batch-Aktionen sind mehrere Layer anlegen, mehrere Layerfarben setzen oder mehrere gleichartige Grundgeometrien erstellen. "
+            "Nutze fuer solche Aufgaben proposal.actions[] oder layers.ensureMany und kein layers.batch-Tool; Barebone-Qt fuehrt Batch intern aus, validiert jede Aktion vor der Ausfuehrung per BRX actions.validate und speichert nur bei der ersten Aktion. "
+            "Teile solche Batch-Aufgaben nicht mit continueAfterSuccess/nextIntent in einzelne AI-Folgeprompts auf. "
+            "Nutze continueAfterSuccess nur fuer echte mehrstufige Workflows, bei denen das Ergebnis einer Aktion fuer die naechste AI-Entscheidung benoetigt wird. "
+            "Akzeptierte Antworttypen im bevorzugten v2-Format: "
+            "{\"schema\":\"barebone.agent.response.v2\",\"type\":\"message\",\"message\":\"...\"}, "
+            "{\"schema\":\"barebone.agent.response.v2\",\"type\":\"ask_user\",\"message\":\"...\",\"missing\":[\"...\"],\"draft\":{\"proposal\":{\"requiresConfirmation\":true,\"actions\":[{\"tool\":\"name-aus-tools\",\"params\":{}}]}}}, "
+            "{\"schema\":\"barebone.agent.response.v2\",\"type\":\"context_request\",\"message\":\"...\",\"method\":\"selection.describe\",\"params\":{},\"reason\":\"...\"}, "
+            "{\"schema\":\"barebone.agent.response.v2\",\"type\":\"action_proposal\",\"message\":\"...\",\"assumptions\":[\"...\"],\"proposal\":{\"requiresConfirmation\":true,\"actions\":[{\"tool\":\"name-aus-tools\",\"params\":{}}],\"continueAfterSuccess\":false}}, "
+            "{\"schema\":\"barebone.agent.response.v2\",\"type\":\"plan\",\"message\":\"...\",\"steps\":[...],\"neededContext\":[...],\"missingCapabilities\":[...]}. "
             "Nutze plan nur, wenn keine ausfuehrbare CAD-Aktion vorgeschlagen werden kann. "
             "Alte Typnamen assistant_message, tool_proposal und operation_plan sind nur Kompatibilitaet; bevorzuge message und action_proposal. "
             "Behaupte niemals, dass eine Aktion bereits ausgefuehrt wurde, bevor Barebone-Qt ein BRX-Resultat geliefert hat."},
@@ -1722,10 +1822,15 @@ void BricsCadPage::handleAgentReply(const QString& content)
             appendAgentChat("Barebone-Qt", QString("AI Vorschlag abgelehnt: %1").arg(errorMessage));
             return;
         }
-        setAgentProposal(proposal);
-        appendBridgeLog(QString("AI Vorschlag: %1 params=%2")
-            .arg(proposal.value("tool").toString(),
-                QString::fromUtf8(QJsonDocument(proposal.value("params").toObject()).toJson(QJsonDocument::Compact))));
+        const QJsonArray actions = agentProposalActions(proposal);
+        if (actions.size() > 1) {
+            appendBridgeLog(QString("AI Batch-Vorschlag: %1 Aktionen").arg(actions.size()));
+        } else {
+            appendBridgeLog(QString("AI Vorschlag: %1 params=%2")
+                .arg(proposal.value("tool").toString(),
+                    QString::fromUtf8(QJsonDocument(proposal.value("params").toObject()).toJson(QJsonDocument::Compact))));
+        }
+        preflightAgentProposal(content, proposal, proposal);
         return;
     }
 
@@ -1758,6 +1863,11 @@ void BricsCadPage::handleAgentReply(const QString& content)
             return;
         }
         m_pendingAgentDraft = reply.value("draft").toObject();
+        if (m_pendingAgentDraft.contains("proposal")
+            || m_pendingAgentDraft.contains("actions")
+            || m_pendingAgentDraft.contains("tool")) {
+            m_pendingAgentDraft = normalizedAgentProposal(m_pendingAgentDraft);
+        }
         QStringList providedFields = providedMissingFields(m_lastAgentUserPrompt, missing, m_pendingAgentDraft);
         providedFields.append(inferredProvidedFieldsFromAskMessage(m_lastAgentUserPrompt, message, m_pendingAgentDraft));
         providedFields.removeDuplicates();
@@ -1872,8 +1982,14 @@ bool BricsCadPage::retryAgentAfterValidationFailure(
     });
     envelope.insert("instruction",
         "Korrigiere deine letzte Antwort. Antworte ausschliesslich mit einem gueltigen JSON-Objekt. "
+        "Nutze Barebone-Agent-JSON v2 mit schema=\"barebone.agent.response.v2\". "
         "Nutze keinen freien Plan und keine Pseudo-Actions. Wenn die Aufgabe ausfuehrbar ist, liefere genau einen action_proposal fuer den naechsten sicheren Schritt. "
+        "Direkte BricsCAD-DB-Schreibvorgaenge, AcDb-/LayerTable-/EntityTable-Mutationen und Pseudo-Tools fuer DB-Writes sind verboten; nutze ausschliesslich tools[].name. "
+        "Wenn mehrere unabhaengige Aktionen mit bekannten Parametern erforderlich sind, liefere ein action_proposal mit proposal.actions:[{\"tool\":\"...\",\"params\":{...}},...] und proposal.continueAfterSuccess=false. "
+        "Fuer mehrere Layer mit Namen/Farben nutze bevorzugt layers.ensureMany mit params.layers. "
+        "Nutze continueAfterSuccess nicht, um Batch-Aufgaben wie mehrere Layer oder mehrere gleichartige Objekte einzeln nachzufordern. "
         "tool muss exakt einem tools[].name entsprechen. params muessen inputSchema/apiDoc.post erfuellen. "
+        "Wenn validationError mit BRX Preflight beginnt, wiederhole nicht denselben Vorschlag; nutze die dort genannten Fehler, fehlenden Daten und Hinweise verbindlich. "
         "Wenn echte Informationen fehlen, nutze ask_user mit missing und einem draft. "
         "Wenn du Zeichnungskontext brauchst, nutze context_request mit exakt einer readOnlyMethods[].name Methode. "
         "Wenn die Anfrage allgemein ist, nutze type=message.");
@@ -1885,7 +2001,48 @@ bool BricsCadPage::retryAgentAfterValidationFailure(
 
 QJsonObject BricsCadPage::normalizedAgentProposal(const QJsonObject& proposal) const
 {
-    QJsonObject normalized = proposal;
+    QJsonObject normalized = proposal.value("proposal").toObject();
+    if (normalized.isEmpty()) {
+        normalized = proposal;
+    } else {
+        const QString message = proposal.value("message").toString().trimmed();
+        if (!message.isEmpty()) {
+            normalized.insert("message", message);
+            normalized.insert("summary", message);
+        }
+        if (proposal.contains("assumptions")) {
+            normalized.insert("assumptions", proposal.value("assumptions"));
+        }
+        if (proposal.contains("schema")) {
+            normalized.insert("schema", proposal.value("schema"));
+        }
+    }
+
+    const QJsonArray actions = normalized.value("actions").toArray();
+    if (!actions.isEmpty()) {
+        QJsonArray normalizedActions;
+        for (const QJsonValue& value : actions) {
+            if (value.isObject()) {
+                normalizedActions.append(normalizedAgentAction(value.toObject()));
+            }
+        }
+        normalized.insert("actions", normalizedActions);
+        normalized.insert("requiresConfirmation", true);
+        normalized.insert("continueAfterSuccess", false);
+        normalized.remove("nextIntent");
+        return normalized;
+    }
+
+    const QJsonObject action = normalizedAgentAction(proposal);
+    normalized.insert("tool", action.value("tool"));
+    normalized.insert("params", action.value("params").toObject());
+    normalized.insert("requiresConfirmation", true);
+    return normalized;
+}
+
+QJsonObject BricsCadPage::normalizedAgentAction(const QJsonObject& action) const
+{
+    QJsonObject normalized = action;
     if (normalized.value("tool").toString().trimmed().isEmpty()
         && !normalized.value("name").toString().trimmed().isEmpty()) {
         normalized.insert("tool", normalized.value("name").toString().trimmed());
@@ -1928,6 +2085,322 @@ QJsonObject BricsCadPage::normalizedAgentProposal(const QJsonObject& proposal) c
 
     normalized.insert("params", params);
     return normalized;
+}
+
+QJsonArray BricsCadPage::agentProposalActions(const QJsonObject& proposal) const
+{
+    const QJsonArray actions = proposal.value("actions").toArray();
+    QJsonArray expanded;
+    if (!actions.isEmpty()) {
+        for (const QJsonValue& value : actions) {
+            if (value.isObject()) {
+                const QJsonArray actionExpansion = expandedAgentActions(value.toObject());
+                for (const QJsonValue& expandedValue : actionExpansion) {
+                    expanded.append(expandedValue);
+                }
+            }
+        }
+        return expanded;
+    }
+
+    if (!proposal.value("tool").toString().trimmed().isEmpty()) {
+        return expandedAgentActions(QJsonObject{
+            {"tool", proposal.value("tool").toString()},
+            {"params", proposal.value("params").toObject()},
+            {"reason", proposal.value("reason").toString()},
+        });
+    }
+    return expanded;
+}
+
+QJsonArray BricsCadPage::expandedAgentActions(const QJsonObject& action) const
+{
+    const QJsonObject normalized = normalizedAgentAction(action);
+    const QString tool = normalized.value("tool").toString().trimmed();
+    const QJsonObject params = normalized.value("params").toObject();
+
+    QJsonArray expanded;
+    if (tool != QStringLiteral("layers.ensureMany")) {
+        expanded.append(normalized);
+        return expanded;
+    }
+
+    const QJsonArray layers = params.value("layers").toArray();
+    for (const QJsonValue& value : layers) {
+        const QJsonObject layer = value.toObject();
+        const QString name = repairMojibakeText(layer.value("name").toString()).trimmed();
+        if (name.isEmpty()) {
+            continue;
+        }
+
+        QJsonObject createParams{{"name", name}};
+        if (layer.contains("colorIndex") && !layer.value("colorIndex").isNull()) {
+            createParams.insert("colorIndex", layer.value("colorIndex"));
+        }
+        expanded.append(QJsonObject{
+            {"tool", "layers.create"},
+            {"params", createParams},
+            {"reason", normalized.value("reason").toString(params.value("reason").toString())},
+            {"virtualSource", "layers.ensureMany"},
+        });
+    }
+
+    return expanded;
+}
+
+QJsonObject BricsCadPage::agentPreflightParams(const QJsonObject& proposal) const
+{
+    QJsonArray actions;
+    for (const QJsonValue& value : agentProposalActions(proposal)) {
+        const QJsonObject action = value.toObject();
+        actions.append(QJsonObject{
+            {"tool", action.value("tool").toString()},
+            {"params", action.value("params").toObject()},
+        });
+    }
+
+    return QJsonObject{
+        {"source", "agent_preflight"},
+        {"actions", actions},
+    };
+}
+
+QString actionCompletionText(const QJsonObject& action, const QJsonObject& result)
+{
+    const QString tool = action.value("tool").toString();
+    const QJsonObject params = action.value("params").toObject();
+    const QString summary = result.value("summary").toString().trimmed();
+
+    if (tool == QStringLiteral("layers.create")) {
+        const QString name = params.value("name").toString().trimmed();
+        return name.isEmpty() ? QStringLiteral("Layer angelegt") : QString("Layer \"%1\" angelegt").arg(name);
+    }
+    if (tool == QStringLiteral("layers.rename")) {
+        const QString oldName = params.value("oldName").toString().trimmed();
+        const QString newName = params.value("newName").toString().trimmed();
+        if (!oldName.isEmpty() && !newName.isEmpty()) {
+            return QString("Layer \"%1\" in \"%2\" umbenannt").arg(oldName, newName);
+        }
+        return QStringLiteral("Layer umbenannt");
+    }
+    if (tool == QStringLiteral("layers.setColor")) {
+        const QString name = params.value("name").toString().trimmed();
+        const int colorIndex = params.value("colorIndex").toInt();
+        if (!name.isEmpty() && colorIndex > 0) {
+            return QString("Layer \"%1\" auf Farbe %2 gesetzt").arg(name).arg(colorIndex);
+        }
+        return QStringLiteral("Layerfarbe gesetzt");
+    }
+    if (tool == QStringLiteral("geometry.create")) {
+        const QString geometry = params.value("geometry").toString(params.value("type").toString()).trimmed();
+        return geometry.isEmpty() ? QStringLiteral("Geometrie erstellt") : QString("%1 erstellt").arg(geometry);
+    }
+    if (tool == QStringLiteral("command.execute")) {
+        const QString commandLine = params.value("commandLine").toString().trimmed();
+        return commandLine.isEmpty()
+            ? QStringLiteral("nativen BricsCAD-Befehl gesendet")
+            : QString("nativen BricsCAD-Befehl gesendet: %1").arg(commandLine.left(120));
+    }
+    if (!summary.isEmpty()) {
+        return repairMojibakeText(summary);
+    }
+    if (tool == QStringLiteral("document.save")) {
+        return QStringLiteral("Zeichnung gespeichert");
+    }
+    return tool.isEmpty() ? QStringLiteral("Aktion abgeschlossen") : QString("%1 abgeschlossen").arg(tool);
+}
+
+QJsonObject executionStatsForActions(const QJsonArray& actions, const QJsonArray& results)
+{
+    int layerCreateRequested = 0;
+    int layerCreated = 0;
+    int layerSkippedExisting = 0;
+    int layerColorSet = 0;
+    int explicitFailures = 0;
+    QJsonArray createdLayerNames;
+    QJsonArray skippedLayerNames;
+
+    for (const QJsonValue& value : actions) {
+        if (value.toObject().value("tool").toString() == QStringLiteral("layers.create")) {
+            ++layerCreateRequested;
+        }
+    }
+
+    for (const QJsonValue& value : results) {
+        const QJsonObject item = value.toObject();
+        const QString tool = item.value("tool").toString();
+        const QJsonObject params = item.value("params").toObject();
+        const QJsonObject result = item.value("result").toObject();
+        const QString summary = repairMojibakeText(result.value("summary").toString()).trimmed();
+        const QString summaryLower = summary.toLower();
+        explicitFailures += std::max(0, result.value("failed").toInt(0));
+
+        if (tool == QStringLiteral("layers.create")) {
+            const QString name = repairMojibakeText(params.value("name").toString()).trimmed();
+            if (summaryLower.contains(QStringLiteral("skipped existing"))
+                || summaryLower.contains(QStringLiteral("existiert bereits"))
+                || summaryLower.contains(QStringLiteral("uebersprungen"))
+                || summaryLower.contains(QStringLiteral("übersprungen"))) {
+                ++layerSkippedExisting;
+                if (!name.isEmpty()) {
+                    skippedLayerNames.append(name);
+                }
+            } else {
+                ++layerCreated;
+                if (!name.isEmpty()) {
+                    createdLayerNames.append(name);
+                }
+            }
+        } else if (tool == QStringLiteral("layers.setColor")) {
+            ++layerColorSet;
+        }
+    }
+
+    const int requested = actions.size();
+    const int completed = results.size();
+    const int failed = std::max(0, requested - completed) + explicitFailures;
+
+    QJsonObject stats{
+        {"actionsRequested", requested},
+        {"actionsCompleted", completed},
+        {"failed", failed},
+    };
+    if (layerCreateRequested > 0) {
+        stats.insert("layerCreatesRequested", layerCreateRequested);
+        stats.insert("layersCreated", layerCreated);
+        stats.insert("layersSkippedExisting", layerSkippedExisting);
+        stats.insert("createdLayerNames", createdLayerNames);
+        stats.insert("skippedExistingLayerNames", skippedLayerNames);
+    }
+    if (layerColorSet > 0) {
+        stats.insert("layerColorsSet", layerColorSet);
+    }
+    return stats;
+}
+
+QString agentCompletionSummary(const QJsonArray& actions, const QJsonArray& results, const QString& fallbackSummary)
+{
+    const QJsonObject stats = executionStatsForActions(actions, results);
+    const int layerCreateRequested = stats.value("layerCreatesRequested").toInt(0);
+    if (layerCreateRequested > 0 && actions.size() > 3) {
+        const int created = stats.value("layersCreated").toInt(0);
+        const int skipped = stats.value("layersSkippedExisting").toInt(0);
+        const int failed = stats.value("failed").toInt(0);
+        if (failed == 0) {
+            if (created > 0 && skipped > 0) {
+                return QString("Erledigt. Ich habe %1 neue Layer angelegt; %2 waren bereits vorhanden und wurden unveraendert uebernommen.")
+                    .arg(created)
+                    .arg(skipped);
+            }
+            if (created > 0) {
+                return QString("Erledigt. Ich habe %1 neue Layer angelegt.").arg(created);
+            }
+            if (skipped > 0) {
+                return QString("Erledigt. Alle %1 Layer waren bereits vorhanden und wurden unveraendert uebernommen.").arg(skipped);
+            }
+        }
+    }
+
+    QStringList items;
+    for (int i = 0; i < actions.size(); ++i) {
+        const QJsonObject action = actions.at(i).toObject();
+        QJsonObject result;
+        if (i < results.size()) {
+            result = results.at(i).toObject().value("result").toObject();
+        }
+        const QString text = actionCompletionText(action, result).trimmed();
+        if (!text.isEmpty()) {
+            items << text;
+        }
+    }
+
+    if (items.isEmpty()) {
+        return fallbackSummary.trimmed().isEmpty()
+            ? QStringLiteral("Erledigt.")
+            : QString("Erledigt. %1").arg(fallbackSummary.trimmed());
+    }
+
+    if (items.size() == 1) {
+        return QString("Erledigt. %1.").arg(items.first());
+    }
+
+    return QString("Erledigt. Ich habe %1 Aktionen in BricsCAD ausgefuehrt: %2.")
+        .arg(items.size())
+        .arg(items.join(QStringLiteral("; ")));
+}
+
+void BricsCadPage::preflightAgentProposal(const QString& rejectedContent, const QJsonObject& rejectedObject, const QJsonObject& proposal)
+{
+    if (!bridgeCapabilitiesContainMethod(m_brxCapabilities, QStringLiteral("actions.validate"))) {
+        clearAgentProposal();
+        setAgentBusy(false);
+        appendBridgeLog("AI Agent: Vorschlag blockiert, BRX actions.validate fehlt");
+        appendAgentChat("Barebone-Qt", "BRX Preflight ist nicht verfuegbar. Bitte BareboneBrx.brx neu laden, damit Vorschlaege vor der Bestaetigung trocken geprueft werden koennen.");
+        if (m_brxAuthenticated) {
+            m_capabilitiesRequested = false;
+            requestBridgeCapabilities();
+        }
+        return;
+    }
+
+    const QJsonObject params = agentPreflightParams(proposal);
+    const int actionCount = params.value("actions").toArray().size();
+    appendBridgeLog(QString("Qt -> BRX: actions.validate %1 Aktion(en)").arg(actionCount));
+    setAgentBusy(true);
+
+    const bool queued = sendBridgeRequest(
+        QStringLiteral("actions.validate"),
+        params,
+        15000,
+        [this, rejectedContent, rejectedObject, proposal](const QJsonObject& response) {
+            appendJsonDebugLines(m_bridgeLog, response.value("debug").toArray());
+            const QJsonObject result = response.value("result").toObject();
+            const bool transportOk = response.value("ok").toBool(false);
+            const bool valid = transportOk && result.value("valid").toBool(false);
+            if (valid) {
+                const QStringList warnings = stringsFromJsonArray(result.value("warnings").toArray());
+                if (!warnings.isEmpty()) {
+                    appendBridgeLog(QString("BRX Preflight: gueltig mit Warnungen: %1").arg(warnings.join("; ").left(500)));
+                } else {
+                    appendBridgeLog("BRX Preflight: gueltig");
+                }
+                m_agentValidationRetries = 0;
+                setAgentBusy(false);
+                QJsonObject readyProposal = proposal;
+                if (!warnings.isEmpty()) {
+                    QJsonArray warningValues;
+                    for (const QString& warning : warnings) {
+                        warningValues.append(repairMojibakeText(warning));
+                    }
+                    readyProposal.insert("preflightWarnings", warningValues);
+                }
+                setAgentProposal(readyProposal);
+                return;
+            }
+
+            const QString message = validationFailureMessage(response);
+            appendBridgeLog(QString("BRX Preflight: abgelehnt: %1").arg(message.left(700).replace('\n', " | ")));
+            clearAgentProposal();
+
+            const bool validationResultAvailable = !result.isEmpty();
+            if (validationResultAvailable
+                && retryAgentAfterValidationFailure(
+                    rejectedContent,
+                    rejectedObject,
+                    QString("BRX Preflight hat den action_proposal abgelehnt. Korrigiere tool/params oder frage fehlende Daten ab.\n%1").arg(message))) {
+                return;
+            }
+
+            setAgentBusy(false);
+            appendAgentChat("Barebone-Qt", QString("BRX Preflight abgelehnt: %1").arg(message));
+        });
+
+    if (!queued) {
+        setAgentBusy(false);
+        clearAgentProposal();
+        appendBridgeLog("AI Agent: actions.validate konnte nicht gesendet werden");
+        appendAgentChat("Barebone-Qt", "BRX Preflight konnte nicht gesendet werden. Vorschlag wurde nicht zur Bestaetigung freigegeben.");
+    }
 }
 
 void BricsCadPage::handleAgentContextRequest(const QJsonObject& request)
@@ -2004,19 +2477,32 @@ void BricsCadPage::continueAgentWithContextResult(const QJsonObject& contextRequ
             {"forbiddenTools", QJsonArray{"geometry.scale"}},
             {"policy", "A standalone mm value after a pending extension or face-move request is the distance/offset value, not a new unrelated prompt."},
         }},
+        {"directDatabaseWrites", QJsonObject{
+            {"available", false},
+            {"reason", "Direct BricsCAD database writes are disabled because DB write mutations have caused renderer instability."},
+            {"policy", "Never propose AcDb writes, LayerTable writes, EntityTable writes, direct database mutation workflows, or pseudo tools for database writes. Use only tools[].name exposed by Qt."},
+        }},
     });
     envelope.insert("actionToolsEnabled", kAgentActionToolsEnabled);
+    envelope.insert("responseContract", agentResponseContractObject());
     envelope.insert("executionPolicy", QJsonObject{
         {"mode", kAgentActionToolsEnabled ? QStringLiteral("confirmed-actions") : QStringLiteral("context-only")},
         {"toolProposalAllowed", kAgentActionToolsEnabled && !availableAgentTools().isEmpty()},
         {"whenNoToolFits", "plan"},
+        {"batchActionsAllowed", true},
+        {"maxBatchActions", kMaxAgentBatchActions},
+        {"batchDelayMs", kAgentBatchActionDelayMs},
+        {"batchPolicy", "Use proposal.actions[] for independent repeated actions with known params. For multiple layer creates with names/colors, prefer the virtual Qt tool layers.ensureMany; Qt expands it into individual layers.create actions. Qt executes internal batches as individual BRX requests, waits for each BRX response, sets saveBefore=true only on the first action, and stops on the first failure. Do not use continueAfterSuccess for simple repetition."},
+        {"preflightValidation", "Before user confirmation, Qt calls BRX actions.validate for the whole proposal. During internal batch execution Qt also calls BRX actions.validate for the current single action before sending it. If validation rejects a proposal, correct params/tool or ask_user for missing data; never repeat the same invalid proposal."},
+        {"nativeCommandPolicy", "The agent may choose command.execute when a native BricsCAD command is the better fit. command.execute must contain exactly one complete command line from commands.list, no semicolon or newline, and is always validated by BRX actions.validate before user confirmation."},
+        {"databaseWritePolicy", "Direct BricsCAD DB writes are forbidden. Proposals must use only tools[].name; never suggest AcDb, LayerTable, EntityTable, database mutation, or DB batch write operations."},
     });
     envelope.insert("tools", availableAgentTools());
     envelope.insert("pendingProposal", m_pendingAgentProposal);
     envelope.insert("pendingDraft", m_pendingAgentDraft);
     envelope.insert("lastToolResult", m_lastAgentToolResult);
     envelope.insert("conversationMode", "direct-ai-with-confirmed-actions");
-    envelope.insert("expectedResponse", "strict-json-object");
+    envelope.insert("expectedResponse", "barebone-agent-json-v2-strict-object");
 
     const QString compact = QString::fromUtf8(QJsonDocument(envelope).toJson(QJsonDocument::Compact));
     sendAgentEnvelope(envelope, compact, true, "context_result");
@@ -2031,69 +2517,241 @@ void BricsCadPage::executeAgentProposal()
         return;
     }
 
-    const QString tool = m_pendingAgentProposal.value("tool").toString();
-    const QString bridgeMethod = bridgeMethodForTool(tool);
-    const QJsonObject params = m_pendingAgentProposal.value("params").toObject();
     const QJsonObject executedProposal = m_pendingAgentProposal;
+    const QJsonArray actions = agentProposalActions(executedProposal);
 
-    appendAgentChat("Barebone-Qt", QString("Bestaetigt. Fuehre %1 ueber %2 aus.").arg(tool, bridgeMethod));
-    const bool queued = sendBridgeRequest(
-        bridgeMethod,
-        params,
-        30000,
-        [this, tool, bridgeMethod, executedProposal](const QJsonObject& response) {
-            appendJsonDebugLines(m_bridgeLog, response.value("debug").toArray());
-            if (!response.value("ok").toBool(false)) {
-                const QString message = bridgeErrorMessage(response, "Tool-Ausfuehrung fehlgeschlagen");
-                appendAgentChat("BRX", QString("%1 fehlgeschlagen: %2").arg(tool, message));
-                appendBridgeLog(QString("BRX -> Qt: ERROR %1 %2").arg(bridgeMethod, message));
-                clearAgentProposal();
+    if (actions.isEmpty()) {
+        appendAgentChat("Barebone-Qt", "Vorschlag kann nicht ausgefuehrt werden: keine Aktionen gefunden");
+        clearAgentProposal();
+        return;
+    }
+
+    clearAgentProposal();
+    setAgentBusy(true);
+
+    if (actions.size() > 1) {
+        appendBridgeLog(QString("AI Agent: Nutzer bestaetigt; fuehre %1 Aktionen nacheinander aus").arg(actions.size()));
+    } else {
+        const QJsonObject action = actions.first().toObject();
+        appendBridgeLog(QString("AI Agent: Nutzer bestaetigt; fuehre %1 ueber %2 aus")
+            .arg(action.value("tool").toString(), bridgeMethodForTool(action.value("tool").toString())));
+    }
+
+    executeAgentActionBatch(executedProposal, actions, 0, {});
+}
+
+void BricsCadPage::executeAgentActionBatch(const QJsonObject& proposal, const QJsonArray& actions, int index, QJsonArray results)
+{
+    if (index >= actions.size()) {
+        const int total = actions.size();
+        const QString fallbackTool = !results.isEmpty()
+            ? results.first().toObject().value("tool").toString()
+            : proposal.value("tool").toString();
+        const QString resultSummary = total > 1
+            ? QString("Batch ausgefuehrt: %1 Aktionen abgeschlossen.").arg(total)
+            : QString("%1 wurde erfolgreich ausgefuehrt.").arg(fallbackTool);
+        const QJsonObject executionStats = executionStatsForActions(actions, results);
+
+        QJsonObject batchResult{
+            {"schema", "barebone.qt.agent.batch.result.v1"},
+            {"summary", resultSummary},
+            {"actionsRequested", total},
+            {"actionsCompleted", total},
+            {"failed", executionStats.value("failed").toInt(0)},
+            {"executionStats", executionStats},
+            {"results", results},
+        };
+        m_lastAgentToolResult = batchResult;
+        m_pendingAgentDraft = {};
+        m_agentValidationRetries = 0;
+
+        appendBridgeLog(QString("BRX Batch: %1").arg(QString::fromUtf8(QJsonDocument(batchResult).toJson(QJsonDocument::Compact)).left(1600)));
+
+        const QString finalSummary = agentCompletionSummary(actions, results, resultSummary);
+
+        m_agentConversation.append(QJsonObject{
+            {"role", "assistant"},
+            {"content", QString::fromUtf8(QJsonDocument(QJsonObject{
+                {"type", "tool_result"},
+                {"message", finalSummary},
+                {"status", "completed"},
+                {"batch", total > 1},
+                {"result", batchResult},
+            }).toJson(QJsonDocument::Compact))},
+        });
+
+        if (proposal.value("continueAfterSuccess").toBool(false) && actions.size() == 1) {
+            setAgentBusy(false);
+            QJsonObject response;
+            if (!results.isEmpty()) {
+                response = results.first().toObject().value("response").toObject();
+            }
+            continueAgentAfterToolResult(proposal, response);
+        } else {
+            requestAgentExecutionSummary(proposal, actions, results, batchResult, finalSummary);
+        }
+        return;
+    }
+
+    const QJsonObject action = actions.at(index).toObject();
+    const QString tool = action.value("tool").toString();
+    const QString bridgeMethod = bridgeMethodForTool(tool);
+    QJsonObject params = action.value("params").toObject();
+    if (actions.size() > 1) {
+        params.insert("saveBefore", index == 0);
+    }
+
+    auto executeCurrentAction = [this, proposal, actions, index, results, tool, bridgeMethod, params]() mutable {
+        appendBridgeLog(QString("Qt -> BRX Batch %1/%2: %3 saveBefore=%4")
+            .arg(index + 1)
+            .arg(actions.size())
+            .arg(bridgeMethod)
+            .arg(params.value("saveBefore").toBool(false) ? "true" : "false"));
+
+        const bool queued = sendBridgeRequest(
+            bridgeMethod,
+            params,
+            30000,
+            [this, proposal, actions, index, results, tool, bridgeMethod, params](const QJsonObject& response) mutable {
+                appendJsonDebugLines(m_bridgeLog, response.value("debug").toArray());
+                if (!response.value("ok").toBool(false)) {
+                    const QString message = bridgeErrorMessage(response, "Tool-Ausfuehrung fehlgeschlagen");
+                    appendAgentChat("BRX", QString("%1 fehlgeschlagen: %2").arg(tool, message));
+                    appendBridgeLog(QString("BRX -> Qt: ERROR %1 %2").arg(bridgeMethod, message));
+                    setAgentBusy(false);
+                    m_agentValidationRetries = 0;
+                    appendAgentChat("Barebone-Qt", QString("Batch-Ausfuehrung nach Aktion %1/%2 gestoppt, damit BricsCAD nicht weiter belastet wird. Bitte pruefe, ob BricsCAD noch stabil laeuft, und sende die korrigierte Anweisung danach erneut.")
+                        .arg(index + 1)
+                        .arg(actions.size()));
+                    return;
+                }
+
+                const QJsonObject result = response.value("result").toObject();
+                m_lastAgentToolResult = result;
+                m_pendingAgentDraft = {};
                 m_agentValidationRetries = 0;
-                appendAgentChat("Barebone-Qt", "Automatische Folgeaktionen wurden nach dem BRX-Fehler gestoppt, damit BricsCAD nicht weiter belastet wird. Bitte pruefe, ob BricsCAD noch stabil laeuft, und sende die korrigierte Anweisung danach erneut.");
+
+                appendBridgeLog(QString("BRX -> Qt: %1 ausgefuehrt result=%2")
+                    .arg(bridgeMethod, QString::fromUtf8(QJsonDocument(result).toJson(QJsonDocument::Compact)).left(1000)));
+
+                results.append(QJsonObject{
+                    {"index", index + 1},
+                    {"tool", tool},
+                    {"bridgeMethod", bridgeMethod},
+                    {"params", params},
+                    {"response", response},
+                    {"result", result},
+                });
+
+                if (index + 1 < actions.size()) {
+                    QTimer::singleShot(kAgentBatchActionDelayMs, this, [this, proposal, actions, index, results]() mutable {
+                        executeAgentActionBatch(proposal, actions, index + 1, results);
+                    });
+                } else {
+                    executeAgentActionBatch(proposal, actions, index + 1, results);
+                }
+            });
+        if (!queued) {
+            appendAgentChat("Barebone-Qt", QString("BRX Plugin ist nicht verbunden. %1 wurde nicht gesendet.").arg(tool));
+            setAgentBusy(false);
+        }
+    };
+
+    if (actions.size() <= 1) {
+        executeCurrentAction();
+        return;
+    }
+
+    if (!bridgeCapabilitiesContainMethod(m_brxCapabilities, QStringLiteral("actions.validate"))) {
+        appendAgentChat("Barebone-Qt", "Batch-Ausfuehrung gestoppt: BRX Preflight ist nicht verfuegbar.");
+        appendBridgeLog("AI Batch: actions.validate fehlt fuer Einzelaktions-Preflight");
+        setAgentBusy(false);
+        return;
+    }
+
+    QJsonArray preflightActions;
+    preflightActions.append(QJsonObject{
+        {"tool", tool},
+        {"params", params},
+    });
+    const QJsonObject preflightParams{
+        {"source", "agent_batch_step_preflight"},
+        {"actions", preflightActions},
+    };
+
+    appendBridgeLog(QString("Qt -> BRX: actions.validate Batch-Aktion %1/%2")
+        .arg(index + 1)
+        .arg(actions.size()));
+
+    const bool preflightQueued = sendBridgeRequest(
+        QStringLiteral("actions.validate"),
+        preflightParams,
+        15000,
+        [this, actions, index, executeCurrentAction](const QJsonObject& response) mutable {
+            appendJsonDebugLines(m_bridgeLog, response.value("debug").toArray());
+            const QJsonObject result = response.value("result").toObject();
+            const bool valid = response.value("ok").toBool(false) && result.value("valid").toBool(false);
+            if (valid) {
+                appendBridgeLog(QString("BRX Preflight: Batch-Aktion %1/%2 gueltig")
+                    .arg(index + 1)
+                    .arg(actions.size()));
+                executeCurrentAction();
                 return;
             }
 
-            const QJsonObject result = response.value("result").toObject();
-            m_lastAgentToolResult = result;
-            m_pendingAgentDraft = {};
+            const QString message = validationFailureMessage(response);
+            appendBridgeLog(QString("BRX Preflight: Batch-Aktion %1/%2 abgelehnt: %3")
+                .arg(index + 1)
+                .arg(actions.size())
+                .arg(message.left(700).replace('\n', " | ")));
+            appendAgentChat("Barebone-Qt", QString("Batch-Ausfuehrung vor Aktion %1/%2 gestoppt: BRX Preflight hat die Aktion abgelehnt: %3")
+                .arg(index + 1)
+                .arg(actions.size())
+                .arg(message));
+            setAgentBusy(false);
             m_agentValidationRetries = 0;
-
-            const QString summary = result.value("summary").toString().trimmed();
-            if (!summary.isEmpty()) {
-                appendAgentChat("BRX", summary);
-            } else if (result.contains("affected") || result.contains("failed")) {
-                appendAgentChat("BRX", QString("%1 ausgefuehrt: %2 betroffen, %3 Fehler.")
-                    .arg(tool)
-                    .arg(result.value("affected").toInt())
-                    .arg(result.value("failed").toInt(result.value("errors").toInt())));
-            } else if (result.contains("handle")) {
-                appendAgentChat("BRX", QString("%1 ausgefuehrt: Handle %2.")
-                    .arg(tool, result.value("handle").toString()));
-            } else {
-                appendAgentChat("BRX", QString("%1 ausgefuehrt.").arg(tool));
-            }
-
-            appendBridgeLog(QString("BRX -> Qt: %1 ausgefuehrt result=%2")
-                .arg(bridgeMethod, QString::fromUtf8(QJsonDocument(result).toJson(QJsonDocument::Compact)).left(1000)));
-            const QString resultSummary = !summary.isEmpty()
-                ? summary
-                : QString("%1 wurde erfolgreich ausgefuehrt.").arg(tool);
-            m_agentConversation.append(QJsonObject{
-                {"role", "assistant"},
-                {"content", QString::fromUtf8(QJsonDocument(QJsonObject{
-                    {"type", "message"},
-                    {"message", QString("BRX Ergebnis: %1 Aktion abgeschlossen; offene Rueckfragen sind erledigt.").arg(resultSummary)},
-                    {"tool", tool},
-                    {"status", "completed"},
-                }).toJson(QJsonDocument::Compact))},
-            });
-            clearAgentProposal();
-            continueAgentAfterToolResult(executedProposal, response);
         });
-    if (!queued) {
-        appendAgentChat("Barebone-Qt", QString("BRX Plugin ist nicht verbunden. %1 wurde nicht gesendet.").arg(tool));
+    if (!preflightQueued) {
+        appendAgentChat("Barebone-Qt", "Batch-Ausfuehrung gestoppt: BRX Plugin ist nicht verbunden. actions.validate wurde nicht gesendet.");
+        setAgentBusy(false);
     }
 }
+
+void BricsCadPage::requestAgentExecutionSummary(
+    const QJsonObject& proposal,
+    const QJsonArray& actions,
+    const QJsonArray& results,
+    const QJsonObject& batchResult,
+    const QString& fallbackSummary)
+{
+    appendBridgeLog("AI Agent: fasse BRX Ergebnis fuer den Chat zusammen");
+
+    QJsonObject envelope = agentRequestEnvelope(
+        QStringLiteral("Fasse die abgeschlossene BricsCAD-Ausfuehrung kurz zusammen."),
+        m_lastDocumentContext);
+    envelope.insert("type", "execution_summary");
+    envelope.insert("completedProposal", proposal);
+    envelope.insert("executedActions", actions);
+    envelope.insert("toolResults", results);
+    envelope.insert("batchResult", batchResult);
+    envelope.insert("executionStats", batchResult.value("executionStats").toObject(executionStatsForActions(actions, results)));
+    envelope.insert("fallbackSummary", fallbackSummary);
+    envelope.insert("expectedResponse", "barebone-agent-json-v2-strict-object");
+    envelope.insert("includeConversationHistory", true);
+    envelope.insert("instruction",
+        "Erstelle aus completedProposal, executedActions, executionStats, toolResults und batchResult eine kurze Abschlussnachricht im ChatGPT-Stil. "
+        "Antworte ausschliesslich mit genau einem JSON-Objekt: {\"type\":\"message\",\"message\":\"...\"}. "
+        "Schreibe natuerlich auf Deutsch, maximal zwei kurze Saetze. "
+        "Nutze executionStats fuer konkrete Zahlen, z.B. wie viele Layer neu angelegt, uebersprungen oder fehlgeschlagen sind. "
+        "Erwaehne keine internen Qt-/BRX-Details, keine JSON-Daten, keine Validierung und keine Denkprozesse. "
+        "Behaupte nur, was in den Ergebnissen erfolgreich abgeschlossen wurde. "
+        "Falls die Ergebnisse unklar sind, nutze fallbackSummary als Grundlage.");
+
+    const QString compact = QString::fromUtf8(QJsonDocument(envelope).toJson(QJsonDocument::Compact));
+    setAgentBusy(false);
+    sendAgentEnvelope(envelope, compact, false, "execution_summary");
+}
+
 void BricsCadPage::continueAgentAfterToolResult(const QJsonObject& proposal, const QJsonObject& response)
 {
     if (!proposal.value("continueAfterSuccess").toBool(false)) {
@@ -2126,7 +2784,8 @@ void BricsCadPage::continueAgentAfterToolResult(const QJsonObject& proposal, con
     envelope.insert("readOnlyMethods", readOnlyMethods);
     envelope.insert("tools", availableAgentTools());
     envelope.insert("lastToolResult", m_lastAgentToolResult);
-    envelope.insert("expectedResponse", "strict-json-object");
+    envelope.insert("responseContract", agentResponseContractObject());
+    envelope.insert("expectedResponse", "barebone-agent-json-v2-strict-object");
 
     const QString compact = QString::fromUtf8(QJsonDocument(envelope).toJson(QJsonDocument::Compact));
     sendAgentEnvelope(envelope, compact, false, "tool_result");
@@ -2171,7 +2830,8 @@ void BricsCadPage::continueAgentAfterToolFailure(
     envelope.insert("capabilities", m_brxCapabilities);
     envelope.insert("readOnlyMethods", readOnlyMethods);
     envelope.insert("tools", availableAgentTools());
-    envelope.insert("expectedResponse", "strict-json-object");
+    envelope.insert("responseContract", agentResponseContractObject());
+    envelope.insert("expectedResponse", "barebone-agent-json-v2-strict-object");
     envelope.insert("agentLoop", QJsonObject{
         {"retry", m_agentValidationRetries},
         {"maxRetries", kMaxAgentValidationRetries},
@@ -2181,8 +2841,10 @@ void BricsCadPage::continueAgentAfterToolFailure(
         "Die bestaetigte Aktion wurde von BRX abgelehnt. Wiederhole nicht denselben Vorschlag. "
         "Nutze executionError, failedProposal, tools[].inputSchema und apiDoc.post, um params oder tool zu korrigieren. "
         "Wenn du eine korrigierte Aktion ausfuehren willst, antworte mit genau einem action_proposal. "
+        "Nutze dabei keine direkten BricsCAD-DB-Schreibvorgaenge, keine AcDb-/LayerTable-/EntityTable-Mutationen und keine Pseudo-Tools; nur tools[].name ist erlaubt. "
         "Wenn echte Informationen fehlen, nutze ask_user. Wenn Zeichnungskontext fehlt, nutze context_request. "
-        "Wenn der urspruengliche Wunsch mehrere Schritte hat, setze continueAfterSuccess=true und nextIntent fuer den naechsten Schritt.");
+        "Wenn der urspruengliche Wunsch mehrere unabhaengige Aktionen hat, nutze actions[] statt continueAfterSuccess. "
+        "Nutze continueAfterSuccess nur, wenn das Ergebnis einer Aktion fuer die naechste AI-Entscheidung benoetigt wird.");
 
     const QString compact = QString::fromUtf8(QJsonDocument(envelope).toJson(QJsonDocument::Compact));
     sendAgentEnvelope(envelope, compact, false, QString("tool_error_loop_%1").arg(m_agentValidationRetries));
@@ -2248,25 +2910,63 @@ void BricsCadPage::setAgentProposal(const QJsonObject& proposal)
     m_pendingAgentProposal = proposal;
     m_pendingAgentDraft = {};
 
-    const QString tool = proposal.value("tool").toString();
-    const QJsonObject params = proposal.value("params").toObject();
-    const QJsonObject definition = toolDefinition(tool);
-    const QString paramsText = QString::fromUtf8(QJsonDocument(params).toJson(QJsonDocument::Compact));
+    const QJsonArray actions = agentProposalActions(proposal);
     const QString summary = proposal.value("summary").toString(
         proposal.value("message").toString()).trimmed();
 
     QStringList lines;
-    lines << QString("Werkzeug: %1").arg(definition.value("title").toString(tool));
-    lines << QString("Name: %1").arg(tool.isEmpty() ? QStringLiteral("<fehlt>") : tool);
-    lines << QString("Kategorie: %1").arg(definition.value("category").toString("general"));
-    lines << QString("Bridge: %1").arg(definition.value("bridgeMethod").toString(tool));
-    lines << QString("Risiko: %1").arg(definition.value("risk").toString("modifiesDrawing"));
-    lines << QString("Bestaetigung: %1").arg(proposal.value("requiresConfirmation").toBool(true) ? "Ja" : "Nein");
-    lines << QString("Parameter: %1").arg(paramsText.isEmpty() ? QStringLiteral("{}") : paramsText);
+    if (actions.size() > 1) {
+        lines << QString("Batch: %1 Aktionen").arg(actions.size());
+        lines << QString("Bestaetigung: %1").arg(proposal.value("requiresConfirmation").toBool(true) ? "Ja" : "Nein");
+        lines << QString("Ausfuehrung: intern als Batch, zu BRX einzeln mit Einzel-Preflight");
+        lines << QString("Speichern: nur vor der ersten Aktion");
+        lines << QString("Pause zwischen Aktionen: %1 ms").arg(kAgentBatchActionDelayMs);
+        for (int i = 0; i < actions.size(); ++i) {
+            const QJsonObject action = actions.at(i).toObject();
+            const QString tool = action.value("tool").toString();
+            const QString paramsText = QString::fromUtf8(QJsonDocument(action.value("params").toObject()).toJson(QJsonDocument::Compact));
+            lines << QString("%1. %2 %3").arg(i + 1).arg(tool.isEmpty() ? QStringLiteral("<fehlt>") : tool, paramsText);
+        }
+    } else {
+        const QJsonObject action = actions.isEmpty() ? QJsonObject{} : actions.first().toObject();
+        const QString tool = action.value("tool").toString();
+        const QJsonObject params = action.value("params").toObject();
+        const QJsonObject definition = toolDefinition(tool);
+        const QString paramsText = QString::fromUtf8(QJsonDocument(params).toJson(QJsonDocument::Compact));
+
+        lines << QString("Werkzeug: %1").arg(definition.value("title").toString(tool));
+        lines << QString("Name: %1").arg(tool.isEmpty() ? QStringLiteral("<fehlt>") : tool);
+        lines << QString("Kategorie: %1").arg(definition.value("category").toString("general"));
+        lines << QString("Bridge: %1").arg(definition.value("bridgeMethod").toString(tool));
+        lines << QString("Risiko: %1").arg(definition.value("risk").toString("modifiesDrawing"));
+        lines << QString("Bestaetigung: %1").arg(proposal.value("requiresConfirmation").toBool(true) ? "Ja" : "Nein");
+        lines << QString("Parameter: %1").arg(paramsText.isEmpty() ? QStringLiteral("{}") : paramsText);
+    }
+
+    const QStringList warnings = stringsFromJsonArray(proposal.value("preflightWarnings").toArray());
+    if (!warnings.isEmpty()) {
+        lines << QString("BRX-Hinweise:");
+        for (const QString& warning : warnings.mid(0, 5)) {
+            lines << QString("- %1").arg(repairMojibakeText(warning));
+        }
+        if (warnings.size() > 5) {
+            lines << QString("- plus %1 weitere Hinweise").arg(warnings.size() - 5);
+        }
+    }
 
     const QString reason = proposal.value("reason").toString().trimmed();
     if (!reason.isEmpty()) {
         lines << QString("Grund: %1").arg(reason);
+    }
+    const QJsonArray assumptions = proposal.value("assumptions").toArray();
+    if (!assumptions.isEmpty()) {
+        lines << QString("Annahmen:");
+        for (const QJsonValue& value : assumptions) {
+            const QString assumption = repairMojibakeText(value.toString()).trimmed();
+            if (!assumption.isEmpty()) {
+                lines << QString("- %1").arg(assumption);
+            }
+        }
     }
     const QString nextIntent = proposal.value("nextIntent").toString().trimmed();
     if (!nextIntent.isEmpty()) {
@@ -2275,7 +2975,7 @@ void BricsCadPage::setAgentProposal(const QJsonObject& proposal)
 
     if (m_agentBridge) {
         Q_EMIT m_agentBridge->proposalChanged(QVariantMap{
-            {"title", "AI Vorschlag bereit"},
+            {"title", actions.size() > 1 ? "AI Batch-Vorschlag bereit" : "AI Vorschlag bereit"},
             {"summary", summary.isEmpty() ? QStringLiteral("Der Agent hat eine BricsCAD-Aktion vorbereitet.") : summary},
             {"details", lines.join("\n")},
             {"canRun", true},
@@ -2311,13 +3011,79 @@ bool BricsCadPage::validateAgentProposal(const QJsonObject& proposal, QString& e
         return false;
     }
 
-    const QString tool = proposal.value("tool").toString().trimmed();
+    QJsonArray sourceActions = proposal.value("actions").toArray();
+    if (sourceActions.isEmpty() && !proposal.value("tool").toString().trimmed().isEmpty()) {
+        sourceActions.append(QJsonObject{
+            {"tool", proposal.value("tool").toString()},
+            {"params", proposal.value("params").toObject()},
+        });
+    }
+    for (const QJsonValue& value : sourceActions) {
+        const QJsonObject action = normalizedAgentAction(value.toObject());
+        if (action.value("tool").toString() == QStringLiteral("layers.ensureMany")
+            && !validateLayersEnsureManyParams(action.value("params").toObject(), errorMessage)) {
+            return false;
+        }
+    }
+
+    const QJsonArray actions = agentProposalActions(proposal);
+    if (actions.size() > 1) {
+        if (actions.size() > kMaxAgentBatchActions) {
+            errorMessage = QString("Batch enthaelt %1 Aktionen, erlaubt sind maximal %2").arg(actions.size()).arg(kMaxAgentBatchActions);
+            return false;
+        }
+        if (proposal.value("continueAfterSuccess").toBool(false)
+            || !proposal.value("nextIntent").toString().trimmed().isEmpty()) {
+            errorMessage = "Batch-Vorschlaege duerfen keine automatische Folgeausfuehrung mit continueAfterSuccess/nextIntent verwenden";
+            return false;
+        }
+        for (int i = 0; i < actions.size(); ++i) {
+            const QJsonObject action = actions.at(i).toObject();
+            if (action.value("continueAfterSuccess").toBool(false)
+                || !action.value("nextIntent").toString().trimmed().isEmpty()) {
+                errorMessage = QString("Batch-Aktion %1 darf keine eigene Folgeausfuehrung verwenden").arg(i + 1);
+                return false;
+            }
+            QString actionError;
+            if (!validateAgentAction(action, actionError)) {
+                errorMessage = QString("Batch-Aktion %1 ist nicht gueltig: %2").arg(i + 1).arg(actionError);
+                return false;
+            }
+        }
+        return true;
+    }
+
+    if (actions.size() == 1) {
+        const QJsonObject action = actions.first().toObject();
+        const QString nextIntent = proposal.value("nextIntent").toString().trimmed();
+        const bool repeatedPrompt = QRegularExpression(QStringLiteral(R"(\b([2-9]|[1-9][0-9]+)\b)")).match(m_lastAgentUserPrompt).hasMatch()
+            || textMentionsAny(m_lastAgentUserPrompt.toLower(), {"mehrere", "viele", "zehn", "zwei", "drei", "vier", "fuenf", "fünf", "sechs", "sieben", "acht", "neun"});
+        const bool loopLikeNextIntent = textMentionsAny(nextIntent.toLower(), {"naechst", "nächst", "next", "weiter"});
+        if (proposal.value("continueAfterSuccess").toBool(false) && repeatedPrompt && loopLikeNextIntent) {
+            errorMessage = "Mehrere unabhaengige Wiederholaktionen muessen als action_proposal mit actions[] gebuendelt werden; nicht per continueAfterSuccess einzeln nachfordern";
+            return false;
+        }
+        if (!proposal.value("nextIntent").toString().trimmed().isEmpty()
+            && !proposal.value("continueAfterSuccess").toBool(false)) {
+            errorMessage = "nextIntent ist gesetzt, aber continueAfterSuccess ist false";
+            return false;
+        }
+        return validateAgentAction(action, errorMessage);
+    }
+
+    errorMessage = "tool oder actions fehlen";
+    return false;
+}
+
+bool BricsCadPage::validateAgentAction(const QJsonObject& action, QString& errorMessage) const
+{
+    const QString tool = action.value("tool").toString().trimmed();
     if (tool.isEmpty()) {
         errorMessage = "tool fehlt";
         return false;
     }
 
-    const QJsonValue paramsValue = proposal.value("params");
+    const QJsonValue paramsValue = action.value("params");
     if (!paramsValue.isObject()) {
         errorMessage = "params muss ein JSON-Objekt sein";
         return false;
@@ -2331,12 +3097,6 @@ bool BricsCadPage::validateAgentProposal(const QJsonObject& proposal, QString& e
 
     if (definition.value("kind").toString("action") != "action") {
         errorMessage = QString("\"%1\" ist keine ausfuehrbare Action").arg(tool);
-        return false;
-    }
-
-    if (!proposal.value("nextIntent").toString().trimmed().isEmpty()
-        && !proposal.value("continueAfterSuccess").toBool(false)) {
-        errorMessage = "nextIntent ist gesetzt, aber continueAfterSuccess ist false";
         return false;
     }
 
@@ -2383,6 +3143,39 @@ bool BricsCadPage::validateAgentProposal(const QJsonObject& proposal, QString& e
 
     return validateToolParams(params, definition.value("inputSchema").toObject(), errorMessage);
 }
+
+bool BricsCadPage::validateLayersEnsureManyParams(const QJsonObject& params, QString& errorMessage) const
+{
+    const QJsonArray layers = params.value("layers").toArray();
+    if (layers.isEmpty()) {
+        errorMessage = "layers.ensureMany braucht params.layers mit mindestens einem Layer";
+        return false;
+    }
+    if (layers.size() > kMaxAgentBatchActions) {
+        errorMessage = QString("layers.ensureMany enthaelt %1 Layer, erlaubt sind maximal %2")
+            .arg(layers.size())
+            .arg(kMaxAgentBatchActions);
+        return false;
+    }
+
+    for (int i = 0; i < layers.size(); ++i) {
+        const QJsonObject layer = layers.at(i).toObject();
+        const QString name = repairMojibakeText(layer.value("name").toString()).trimmed();
+        if (name.isEmpty()) {
+            errorMessage = QString("layers.ensureMany.layers[%1].name fehlt").arg(i);
+            return false;
+        }
+        if (layer.contains("colorIndex") && !layer.value("colorIndex").isNull()) {
+            const int colorIndex = layer.value("colorIndex").toInt(-1);
+            if (colorIndex < 1 || colorIndex > 255) {
+                errorMessage = QString("layers.ensureMany.layers[%1].colorIndex muss zwischen 1 und 255 liegen").arg(i);
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 bool BricsCadPage::validateToolParams(const QJsonObject& params, const QJsonObject& inputSchema, QString& errorMessage) const
 {
     if (inputSchema.isEmpty()) {
@@ -2625,7 +3418,7 @@ QJsonArray BricsCadPage::availableAgentTools() const
         if (name.isEmpty()) {
             continue;
         }
-        if (name == "command.execute") {
+        if (name == "layers.batch") {
             continue;
         }
 
@@ -2646,7 +3439,60 @@ QJsonArray BricsCadPage::availableAgentTools() const
         tools.append(tool);
     }
 
+    tools.append(layersEnsureManyToolDefinition());
     return tools;
+}
+
+QJsonObject BricsCadPage::layersEnsureManyToolDefinition() const
+{
+    return QJsonObject{
+        {"name", "layers.ensureMany"},
+        {"title", "Mehrere Layer sicher anlegen"},
+        {"description", "Qt-internes virtuelles Tool fuer kompakte Layer-Batches. Barebone-Qt expandiert layers[] vor Preflight und Ausfuehrung in einzelne layers.create-Aktionen."},
+        {"bridgeMethod", "layers.create"},
+        {"kind", "action"},
+        {"risk", "modifiesDrawing"},
+        {"category", "layer"},
+        {"confirmationRequired", true},
+        {"virtual", true},
+        {"expandsTo", "layers.create[]"},
+        {"inputSchema", QJsonObject{
+            {"type", "object"},
+            {"required", QJsonArray{"layers"}},
+            {"properties", QJsonObject{
+                {"layers", QJsonObject{
+                    {"type", "array"},
+                    {"items", QJsonObject{
+                        {"type", "object"},
+                        {"required", QJsonArray{"name"}},
+                        {"properties", QJsonObject{
+                            {"name", QJsonObject{{"type", "string"}}},
+                            {"colorIndex", QJsonObject{{"type", "number"}, {"minimum", 1}}},
+                        }},
+                    }},
+                }},
+                {"reason", QJsonObject{{"type", "string"}}},
+            }},
+        }},
+        {"apiDoc", QJsonObject{
+            {"method", "layers.ensureMany"},
+            {"virtual", true},
+            {"required", QJsonArray{"layers"}},
+            {"bodySchema", QJsonObject{
+                {"type", "object"},
+                {"properties", QJsonObject{
+                    {"layers", "array of {name, optional colorIndex}; max batch count applies"},
+                    {"reason", "optional reason shown in proposal"},
+                }},
+            }},
+            {"examples", QJsonArray{
+                QJsonObject{{"layers", QJsonArray{
+                    QJsonObject{{"name", "Heizung"}, {"colorIndex", 1}},
+                    QJsonObject{{"name", "Sanitär"}, {"colorIndex", 5}},
+                }}},
+            }},
+        }},
+    };
 }
 
 QJsonObject BricsCadPage::toolDefinition(const QString& name) const
@@ -2815,20 +3661,33 @@ QJsonObject BricsCadPage::agentRequestEnvelope(const QString& prompt, const QJso
             {"forbiddenTools", QJsonArray{"geometry.scale"}},
             {"policy", "A standalone mm value after a pending extension or face-move request is the distance/offset value, not a new unrelated prompt."},
         }},
+        {"directDatabaseWrites", QJsonObject{
+            {"available", false},
+            {"reason", "Direct BricsCAD database writes are disabled because DB write mutations have caused renderer instability."},
+            {"policy", "Never propose AcDb writes, LayerTable writes, EntityTable writes, direct database mutation workflows, or pseudo tools for database writes. Use only tools[].name exposed by Qt."},
+        }},
     });
     envelope.insert("actionToolsEnabled", kAgentActionToolsEnabled);
     envelope.insert("reasoning", QJsonObject{{"effort", normalizedReasoningEffort(m_reasoningEffort)}});
+    envelope.insert("responseContract", agentResponseContractObject());
     envelope.insert("executionPolicy", QJsonObject{
         {"mode", kAgentActionToolsEnabled ? QStringLiteral("confirmed-actions") : QStringLiteral("message-only")},
         {"toolProposalAllowed", kAgentActionToolsEnabled && !availableAgentTools().isEmpty()},
         {"whenNoToolFits", "plan"},
+        {"batchActionsAllowed", true},
+        {"maxBatchActions", kMaxAgentBatchActions},
+        {"batchDelayMs", kAgentBatchActionDelayMs},
+        {"batchPolicy", "Use proposal.actions[] for independent repeated actions with known params. For multiple layer creates with names/colors, prefer the virtual Qt tool layers.ensureMany; Qt expands it into individual layers.create actions. Qt executes internal batches as individual BRX requests, waits for each BRX response, sets saveBefore=true only on the first action, and stops on the first failure. Do not use continueAfterSuccess for simple repetition."},
+        {"preflightValidation", "Before user confirmation, Qt calls BRX actions.validate for the whole proposal. During internal batch execution Qt also calls BRX actions.validate for the current single action before sending it. If validation rejects a proposal, correct params/tool or ask_user for missing data; never repeat the same invalid proposal."},
+        {"nativeCommandPolicy", "The agent may choose command.execute when a native BricsCAD command is the better fit. command.execute must contain exactly one complete command line from commands.list, no semicolon or newline, and is always validated by BRX actions.validate before user confirmation."},
+        {"databaseWritePolicy", "Direct BricsCAD DB writes are forbidden. Proposals must use only tools[].name; never suggest AcDb, LayerTable, EntityTable, database mutation, or DB batch write operations."},
     });
     envelope.insert("tools", availableAgentTools());
     envelope.insert("pendingProposal", m_pendingAgentProposal);
     envelope.insert("pendingDraft", m_pendingAgentDraft);
     envelope.insert("lastToolResult", m_lastAgentToolResult);
     envelope.insert("conversationMode", "direct-ai-with-confirmed-actions");
-    envelope.insert("expectedResponse", "strict-json-object");
+    envelope.insert("expectedResponse", "barebone-agent-json-v2-strict-object");
     return envelope;
 }
 
@@ -3268,15 +4127,7 @@ void BricsCadPage::emitCapabilitiesStatusToWeb() const
 
     const int methodCount = m_brxCapabilities.value("methods").toArray().size();
     const int commandCount = m_brxCapabilities.value("commands").toArray().size();
-    int toolCount = 0;
-    const QJsonArray methods = m_brxCapabilities.value("methods").toArray();
-    for (const QJsonValue& value : methods) {
-        const QJsonObject method = value.toObject();
-        if (method.value("kind").toString() == "action"
-            && method.value("name").toString() != "command.execute") {
-            ++toolCount;
-        }
-    }
+    const int toolCount = availableAgentTools().size();
 
     const QString line = QString("[%1] BRX -> Qt: %2 Capabilities, %3 Commands, %4 Action-Tools")
         .arg(QDateTime::currentDateTime().toString("HH:mm:ss"))
