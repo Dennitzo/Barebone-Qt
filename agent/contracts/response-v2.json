@@ -1,0 +1,56 @@
+{
+  "schema": "barebone.agent.response.v2",
+  "strictJsonObject": true,
+  "preferred": true,
+  "legacyAcceptedOnlyForCompatibility": true,
+  "topLevel": {
+    "required": ["schema", "type", "message"],
+    "schema": "barebone.agent.response.v2",
+    "allowedTypes": ["message", "ask_user", "context_request", "action_proposal", "plan"]
+  },
+  "message": {
+    "required": ["type", "message"]
+  },
+  "actionProposal": {
+    "required": ["type", "message", "proposal"],
+    "proposalRequired": ["requiresConfirmation", "actions"],
+    "actionShape": {
+      "required": ["tool", "params"],
+      "toolSource": "tools[].name",
+      "paramsSource": "tools[].inputSchema"
+    },
+    "forbiddenTopLevelFields": ["tool", "params", "actions"]
+  },
+  "askUser": {
+    "required": ["type", "message", "missing"],
+    "draftPolicy": "If a draft is included, use draft.proposal with the same proposal shape as action_proposal."
+  },
+  "contextRequest": {
+    "required": ["type", "message", "method", "params"],
+    "methodSource": "readOnlyMethods[].name"
+  },
+  "routeRules": {
+    "general_chat": {
+      "allowedTypes": ["message"]
+    },
+    "document_qa": {
+      "allowedTypes": ["message", "ask_user"]
+    },
+    "document_qa_with_cad_context": {
+      "allowedTypes": ["message", "ask_user", "context_request"]
+    },
+    "bricscad_question": {
+      "allowedTypes": ["message", "ask_user", "context_request"]
+    },
+    "bricscad_action": {
+      "allowedTypes": ["message", "ask_user", "context_request", "action_proposal", "plan"]
+    },
+    "validation_retry": {
+      "allowedTypes": ["message", "ask_user", "context_request", "action_proposal", "plan"]
+    },
+    "execution_summary": {
+      "allowedTypes": ["message"]
+    }
+  },
+  "defaultsPolicy": "Ask only for mandatory unknown data. For domain-standard requests, propose sensible defaults and list them in assumptions."
+}

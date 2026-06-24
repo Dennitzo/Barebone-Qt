@@ -53,6 +53,11 @@ void AiWebBridge::setChatMode(const QString& mode)
     Q_EMIT chatModeChanged(mode);
 }
 
+void AiWebBridge::setTrainingMode(bool enabled)
+{
+    Q_EMIT trainingModeChanged(enabled);
+}
+
 void AiWebBridge::saveClientState(const QString& stateJson)
 {
     Q_EMIT clientStateSaved(stateJson);

@@ -1,0 +1,31 @@
+{
+  "schema": "barebone.agent.router.v1",
+  "strictJsonObject": true,
+  "allowedRoutes": [
+    "general_chat",
+    "document_qa",
+    "document_qa_with_cad_context",
+    "bricscad_question",
+    "bricscad_action",
+    "execution_summary",
+    "validation_retry"
+  ],
+  "allowedCapabilityProfiles": [
+    "general",
+    "document",
+    "document_bricscad",
+    "bricscad_readonly",
+    "bricscad_confirmed_actions",
+    "bricscad_execution_summary"
+  ],
+  "required": ["schema", "route", "capabilityProfile", "reason"],
+  "rules": [
+    "Classify only. Do not answer the user.",
+    "Do not propose or execute actions.",
+    "Use bricscad_action only for explicit drawing changes or command execution.",
+    "Use bricscad_question for CAD questions without execution intent.",
+    "Use document_qa for attached-document questions without CAD execution intent.",
+    "Use document_qa_with_cad_context for attached-document questions in BricsCAD mode when CAD context is relevant.",
+    "Use general_chat for ordinary chat and non-CAD tasks."
+  ]
+}

@@ -3740,6 +3740,10 @@ struct ActionValidationState {
     AcDbDatabase* database = nullptr;
     std::set<std::string> plannedLayers;
     std::set<std::string> removedLayers;
+    bool plannedLastResultAvailable = false;
+    std::string plannedLastResultKind;
+    std::string plannedLastResultShape;
+    bool plannedLastExtrudedSolids = false;
 };
 
 struct ActionValidationResult {
@@ -3936,6 +3940,28 @@ bool validateNonZeroVector(
     return true;
 }
 
+bool plannedTargetMatchesSelector(const std::string& selectorJson, const std::string& plannedKind, const std::string& plannedShape)
+{
+    if (plannedKind.empty()) {
+        return false;
+    }
+
+    const std::string requestedKind = toUpperAscii(trim(jsonStringProperty(selectorJson, "kind").value_or("")));
+    if (!requestedKind.empty()
+        && requestedKind != "ENTITY"
+        && requestedKind != plannedKind
+        && !(requestedKind == "RECTANGLE" && plannedShape == "RECTANGLE")) {
+        return false;
+    }
+
+    const std::string requestedShape = toUpperAscii(trim(jsonStringProperty(selectorJson, "shape").value_or("")));
+    if (!requestedShape.empty() && requestedShape != plannedShape) {
+        return false;
+    }
+
+    return true;
+}
+
 bool validateSelectorForAction(
     const ActionValidationState& state,
     const std::string& paramsJson,
@@ -3987,6 +4013,18 @@ bool validateSelectorForAction(
     }
 
     if (requireObjects && ids.isEmpty()) {
+        if (scope == "lastResult"
+            && state.plannedLastResultAvailable
+            && plannedTargetMatchesSelector(selectorJson, state.plannedLastResultKind, state.plannedLastResultShape)) {
+            appendDebug(debugLines, "Validation accepts planned lastResult target");
+            return true;
+        }
+        if (scope == "lastExtruded"
+            && state.plannedLastExtrudedSolids
+            && plannedTargetMatchesSelector(selectorJson, "SOLID", "")) {
+            appendDebug(debugLines, "Validation accepts planned lastExtruded target");
+            return true;
+        }
         addUniqueMessage(errors, tool + ".params.selector findet keine Objekte");
         return false;
     }
@@ -4139,6 +4177,32 @@ bool validateGeometryCreateParams(
         addUniqueMessage(result.errors, "geometry.create unterstuetzt nur point, line, polyline, rectangle, circle, arc oder box");
     }
     return result.valid();
+}
+
+void rememberPlannedActionResult(ActionValidationState& state, const std::string& tool, const std::string& paramsJson)
+{
+    if (tool == "geometry.create") {
+        const std::string geometryType = toUpperAscii(trim(jsonStringProperty(paramsJson, "geometry").value_or(
+            jsonStringProperty(paramsJson, "type").value_or(""))));
+        state.plannedLastResultAvailable = true;
+        state.plannedLastResultShape.clear();
+        if (geometryType == "RECTANGLE") {
+            state.plannedLastResultKind = "POLYLINE";
+            state.plannedLastResultShape = "RECTANGLE";
+        } else if (geometryType == "BOX" || geometryType == "CUBOID" || geometryType == "QUADER") {
+            state.plannedLastResultKind = "SOLID";
+        } else {
+            state.plannedLastResultKind = "ENTITY";
+        }
+        return;
+    }
+
+    if (tool == "rectangles.extrude" || tool == "profile.extrude") {
+        state.plannedLastResultAvailable = true;
+        state.plannedLastResultKind = "SOLID";
+        state.plannedLastResultShape.clear();
+        state.plannedLastExtrudedSolids = true;
+    }
 }
 
 bool validateActionObject(
@@ -4454,6 +4518,9 @@ bool validateActionObject(
         addUniqueMessage(result.errors, "Unbekannte oder nicht validierbare Action: " + result.tool);
     }
 
+    if (result.valid()) {
+        rememberPlannedActionResult(state, result.tool, paramsJson);
+    }
     return result.valid();
 }
 

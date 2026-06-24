@@ -20,6 +20,7 @@ public Q_SLOTS:
     void openSession(const QString& sessionId, const QVariantList& history);
     void setReasoningEffort(const QString& effort);
     void setChatMode(const QString& mode);
+    void setTrainingMode(bool enabled);
     void saveClientState(const QString& stateJson);
     bool copyText(const QString& text);
 
@@ -33,6 +34,7 @@ Q_SIGNALS:
     void sessionOpened(const QString& sessionId, const QVariantList& history);
     void reasoningEffortChanged(const QString& effort);
     void chatModeChanged(const QString& mode);
+    void trainingModeChanged(bool enabled);
     void clientStateSaved(const QString& stateJson);
 
     void messageAdded(const QVariantMap& message);
@@ -40,6 +42,7 @@ Q_SIGNALS:
     void proposalChanged(const QVariantMap& proposal);
     void proposalCleared();
     void reasoningEffortApplied(const QString& effort);
+    void trainingModeApplied(bool enabled);
     void clientStateLoaded(const QString& stateJson);
     void contextBudgetChanged(const QVariantMap& budget);
     void localAiStatusChanged(const QString& message, bool connected);

@@ -1,0 +1,249 @@
+{
+    "schema": "barebone.agent.workflow.v1",
+    "id": "extrude_rectangles_to_bim_wall",
+    "title": "Rechtecke automatisch zu BIM-Waenden extrudieren",
+    "description": "Waehlt alle geschlossenen Rechteck-Polylinien in BricsCAD aus, optional eingeschraenkt auf einen Layer, extrudiert sie auf eine angegebene Wandhoehe und klassifiziert die erzeugten Solids optional als BIMWall.",
+    "triggerExamples": [
+        "Extrudiere alle Rechtecke zu 3000 mm hohen Waenden",
+        "Extrudiere alle Rechtecke auf Layer BB_WORKFLOW_WALLS zu BIM-Waenden",
+        "Waehle alle Rechtecke im aktuellen Modellbereich aus und extrudiere sie auf 3 m Hoehe",
+        "Erstelle aus den Rechtecken Waende und klassifiziere sie als BIM-Waende"
+    ],
+    "requiredSlots": [
+        {
+            "name": "wallHeightMm",
+            "type": "number",
+            "description": "Extrusionshoehe der Wand in Millimetern."
+        }
+    ],
+    "optionalSlots": {
+        "rectangleSelector": {
+            "type": "object",
+            "default": {
+                "scope": "currentSpace",
+                "kind": "rectangle",
+                "shape": "rectangle"
+            },
+            "description": "Selector fuer geschlossene Rechteck-Polylinien. Ohne Layer werden alle Rechtecke im aktuellen Bereich genutzt; mit layer wird auf diesen Layer eingeschraenkt."
+        },
+        "rectangleLayer": {
+            "type": "string",
+            "description": "Optionaler Layername. Wenn angegeben, muss rectangleSelector.layer auf diesen Wert gesetzt werden."
+        },
+        "classifyAsBimWall": {
+            "type": "boolean",
+            "default": true,
+            "description": "Wenn true, werden die zuletzt extrudierten Solids mit bim.classify als BIMWall klassifiziert. Wenn false, wird dieser Schritt ausgelassen."
+        }
+    },
+    "knownSlotValues": {
+        "classifyAsBimWall": true,
+        "rectangleSelector": {
+            "scope": "currentSpace",
+            "kind": "rectangle",
+            "shape": "rectangle"
+        },
+        "wallHeightMm": 3000
+    },
+    "derivedValues": [],
+    "preferredTools": [
+        "selection.set",
+        "rectangles.extrude",
+        "bim.classify"
+    ],
+    "executionBatches": [
+        {
+            "id": "select_rectangles",
+            "title": "Rechtecke auswaehlen",
+            "mode": "sequential",
+            "stopOnFailure": true,
+            "steps": [
+                {
+                    "id": "select_matching_rectangles",
+                    "title": "Alle passenden Rechtecke selektieren",
+                    "tool": "selection.set",
+                    "paramsTemplate": {
+                        "selector": "{{rectangleSelector}}"
+                    },
+                    "requiresSlots": [
+                        "rectangleSelector"
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "extrude_rectangles",
+            "title": "Selektierte Rechtecke extrudieren",
+            "mode": "sequential",
+            "stopOnFailure": true,
+            "steps": [
+                {
+                    "id": "extrude_selected_rectangles",
+                    "title": "Rechtecke auf Wandhoehe extrudieren",
+                    "tool": "rectangles.extrude",
+                    "paramsTemplate": {
+                        "heightMm": "{{wallHeightMm}}",
+                        "selector": {
+                            "scope": "selection",
+                            "kind": "rectangle",
+                            "shape": "rectangle"
+                        },
+                        "detail": "summary",
+                        "saveBefore": true
+                    },
+                    "requiresSlots": [
+                        "wallHeightMm"
+                    ],
+                    "outputRef": "lastExtruded"
+                }
+            ]
+        },
+        {
+            "id": "optional_bim_classification",
+            "title": "Optional als BIM-Wand klassifizieren",
+            "mode": "sequential",
+            "stopOnFailure": true,
+            "condition": "{{classifyAsBimWall}} == true",
+            "steps": [
+                {
+                    "id": "classify_last_extruded",
+                    "title": "Extrudierte Solids als BIMWall klassifizieren",
+                    "tool": "bim.classify",
+                    "paramsTemplate": {
+                        "classification": "BIMWall",
+                        "target": "lastExtruded",
+                        "saveBefore": false
+                    },
+                    "requiresSlots": [],
+                    "condition": "{{classifyAsBimWall}} == true"
+                }
+            ]
+        }
+    ],
+    "steps": [
+        {
+            "id": "select_matching_rectangles",
+            "title": "Alle passenden Rechtecke selektieren",
+            "tool": "selection.set",
+            "paramsTemplate": {
+                "selector": "{{rectangleSelector}}"
+            },
+            "requiresSlots": [
+                "rectangleSelector"
+            ]
+        },
+        {
+            "id": "extrude_selected_rectangles",
+            "title": "Rechtecke auf Wandhoehe extrudieren",
+            "tool": "rectangles.extrude",
+            "paramsTemplate": {
+                "heightMm": "{{wallHeightMm}}",
+                "selector": {
+                    "scope": "selection",
+                    "kind": "rectangle",
+                    "shape": "rectangle"
+                },
+                "detail": "summary",
+                "saveBefore": true
+            },
+            "requiresSlots": [
+                "wallHeightMm"
+            ],
+            "outputRef": "lastExtruded"
+        },
+        {
+            "id": "classify_last_extruded",
+            "title": "Extrudierte Solids optional als BIMWall klassifizieren",
+            "tool": "bim.classify",
+            "paramsTemplate": {
+                "classification": "BIMWall",
+                "target": "lastExtruded",
+                "saveBefore": false
+            },
+            "requiresSlots": [],
+            "condition": "{{classifyAsBimWall}} == true"
+        }
+    ],
+    "constructionStrategy": [
+        "Wenn der Nutzer einen Layer nennt, setze rectangleSelector auf {scope:'currentSpace', layer:'<Layername>', kind:'rectangle', shape:'rectangle'}.",
+        "Wenn kein Layer genannt wird, nutze rectangleSelector={scope:'currentSpace', kind:'rectangle', shape:'rectangle'}, um alle Rechtecke im aktuellen Bereich zu erfassen.",
+        "Fuehre selection.set mit rectangleSelector aus, damit die betroffenen Rechtecke in BricsCAD sichtbar ausgewaehlt sind.",
+        "Extrudiere die aktuelle Rechteckauswahl mit rectangles.extrude und heightMm.",
+        "Wenn classifyAsBimWall=true ist oder der Nutzer BIM-Waende verlangt, klassifiziere die zuletzt extrudierten Solids mit bim.classify target=lastExtruded als BIMWall.",
+        "Wenn classifyAsBimWall=false ist, lasse den Klassifizierungsschritt weg."
+    ],
+    "validationExamples": [
+        {
+            "title": "Alle Rechtecke im aktuellen Bereich zu 3000 mm hohen BIM-Waenden",
+            "actions": [
+                {
+                    "tool": "selection.set",
+                    "params": {
+                        "selector": {
+                            "scope": "currentSpace",
+                            "kind": "rectangle",
+                            "shape": "rectangle"
+                        }
+                    }
+                },
+                {
+                    "tool": "rectangles.extrude",
+                    "params": {
+                        "heightMm": 3000,
+                        "selector": {
+                            "scope": "selection",
+                            "kind": "rectangle",
+                            "shape": "rectangle"
+                        },
+                        "detail": "summary",
+                        "saveBefore": true
+                    }
+                },
+                {
+                    "tool": "bim.classify",
+                    "params": {
+                        "classification": "BIMWall",
+                        "target": "lastExtruded",
+                        "saveBefore": false
+                    }
+                }
+            ]
+        },
+        {
+            "title": "Alle Rechtecke eines Layers extrudieren, ohne BIM-Klassifizierung",
+            "actions": [
+                {
+                    "tool": "selection.set",
+                    "params": {
+                        "selector": {
+                            "scope": "currentSpace",
+                            "layer": "BB_WORKFLOW_WALLS",
+                            "kind": "rectangle",
+                            "shape": "rectangle"
+                        }
+                    }
+                },
+                {
+                    "tool": "rectangles.extrude",
+                    "params": {
+                        "heightMm": 3000,
+                        "selector": {
+                            "scope": "selection",
+                            "kind": "rectangle",
+                            "shape": "rectangle"
+                        },
+                        "detail": "summary",
+                        "saveBefore": true
+                    }
+                }
+            ]
+        }
+    ],
+    "forbidden": [
+        "Keine classification_type oder Wall verwenden; bim.classify erlaubt aktuell classification=BIMWall.",
+        "Keine height oder extrusion_height an rectangles.extrude senden; das BRX-Schema verlangt heightMm.",
+        "Nicht selector.scope=lastResult fuer mehrere Rechtecke verwenden; lastResult kann nur das zuletzt erzeugte Ergebnis enthalten.",
+        "Wenn der Nutzer einen Layer nennt, nicht alle Rechtecke im aktuellen Bereich ungefiltert extrudieren.",
+        "Keine direkten AcDb- oder Datenbank-Schreibvorgaenge."
+    ]
+}

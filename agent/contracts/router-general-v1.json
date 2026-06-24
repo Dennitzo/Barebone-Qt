@@ -1,0 +1,21 @@
+{
+  "schema": "barebone.agent.router.general.v1",
+  "strictJsonObject": true,
+  "mode": "general",
+  "allowedRoutes": [
+    "general_chat",
+    "document_qa"
+  ],
+  "allowedCapabilityProfiles": [
+    "general",
+    "document"
+  ],
+  "required": ["schema", "route", "capabilityProfile", "reason"],
+  "rules": [
+    "Classify only. Do not answer the user.",
+    "Do not propose or execute actions.",
+    "Use document_qa for attached-document questions.",
+    "Use general_chat for ordinary chat and non-CAD tasks.",
+    "Never choose BricsCAD routes in general mode."
+  ]
+}

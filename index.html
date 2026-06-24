@@ -529,7 +529,9 @@
 
     .message-markdown p,
     .message-markdown .message-heading,
-    .message-markdown .message-table-wrap {
+    .message-markdown .message-table-wrap,
+    .message-markdown .message-code-wrap,
+    .message-markdown .message-list {
       margin: 0 0 12px;
     }
 
@@ -585,6 +587,60 @@
 
     .message-table strong {
       font-weight: 700;
+    }
+
+    .message-code-wrap {
+      max-width: 100%;
+      overflow: hidden;
+      border: 1px solid var(--composer-border);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    .message-code-lang {
+      padding: 7px 11px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.25;
+    }
+
+    .message-code {
+      margin: 0;
+      padding: 12px 14px;
+      overflow-x: auto;
+      color: var(--text);
+      background: transparent;
+      font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      white-space: pre;
+      tab-size: 2;
+    }
+
+    .message-code code {
+      font: inherit;
+      color: inherit;
+    }
+
+    .message-inline-code {
+      border-radius: 5px;
+      padding: 1px 5px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      font: 0.92em ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+
+    .message-list {
+      padding-left: 24px;
+    }
+
+    .message-list li {
+      padding-left: 4px;
+      margin: 0 0 7px;
+    }
+
+    .message-list li:last-child {
+      margin-bottom: 0;
     }
 
     .message-footer {
@@ -1123,6 +1179,11 @@
       visibility: visible;
     }
 
+    .mode-status-btn.training-active {
+      border-color: var(--warning-border);
+      color: var(--text);
+    }
+
     .send-btn:disabled,
     textarea:disabled {
       opacity: 0.55;
@@ -1313,6 +1374,10 @@
                     <span>Allgemeiner Modus</span>
                     <span class="reasoning-check">✓</span>
                   </button>
+                  <button class="reasoning-option mode-option" type="button" data-mode="training">
+                    <span>Trainingsmodus</span>
+                    <span class="reasoning-check">✓</span>
+                  </button>
                 </div>
               </div>
 
@@ -1366,6 +1431,7 @@
     const storageKey = "bareboneQt.aiAssistant.sessions.v1";
     const reasoningStorageKey = "bareboneQt.aiAssistant.reasoning.v1";
     const chatModeStorageKey = "bareboneQt.aiAssistant.mode.v1";
+    const trainingModeStorageKey = "bareboneQt.aiAssistant.trainingMode.v1";
     const sidebarCollapsedStorageKey = "bareboneQt.aiAssistant.sidebarCollapsed.v1";
     let bridge = null;
     let sessions = [];
@@ -1379,10 +1445,12 @@
     let thinkingDetailCount = 0;
     let pendingExecutionSummary = false;
     let batchThinkingState = { active: false, current: 0, total: 0 };
+    let aiThinkingState = { requests: 0, retries: 0, workflowRetries: 0 };
     let capabilitiesIndicator = null;
     let proposalInline = null;
     let reasoningEffort = "high";
     let chatMode = "bricscad";
+    let trainingMode = false;
     let applyingClientState = false;
     let documentCounter = 0;
     let documentsLoading = 0;
@@ -1776,6 +1844,10 @@
       return value === "general" ? "general" : "bricscad";
     }
 
+    function normalizeTrainingMode(value) {
+      return value === true || value === "true" || value === "workflow";
+    }
+
     function syncReasoningToQt() {
       if (bridge && typeof bridge.setReasoningEffort === "function") {
         bridge.setReasoningEffort(reasoningEffort);
@@ -1785,6 +1857,12 @@
     function syncChatModeToQt() {
       if (bridge && typeof bridge.setChatMode === "function") {
         bridge.setChatMode(chatMode);
+      }
+    }
+
+    function syncTrainingModeToQt() {
+      if (bridge && typeof bridge.setTrainingMode === "function") {
+        bridge.setTrainingMode(trainingMode);
       }
     }
 
@@ -1823,6 +1901,18 @@
       });
     }
 
+    function renderModeSelection() {
+      const activeMode = trainingMode ? "training" : chatMode;
+      modeOptions.forEach((option) => {
+        option.classList.toggle("active", option.dataset.mode === activeMode);
+      });
+      modeIndicator.textContent = trainingMode ? "Trainingsmodus" : modeLabel(chatMode);
+      modeIndicator.classList.toggle("training-active", trainingMode);
+      if (!shouldShowBrxCapabilitiesInChat()) {
+        clearCapabilitiesIndicator();
+      }
+    }
+
     function clientState() {
       return {
         version: 1,
@@ -1830,6 +1920,7 @@
         activeSessionId,
         chatCounter,
         chatMode,
+        trainingMode,
         reasoningEffort,
         sidebarCollapsed
       };
@@ -1840,13 +1931,6 @@
         return;
       }
       bridge.saveClientState(JSON.stringify(clientState()));
-    }
-
-    function renderModeSelection() {
-      modeOptions.forEach((option) => {
-        option.classList.toggle("active", option.dataset.mode === chatMode);
-      });
-      modeIndicator.textContent = modeLabel(chatMode);
     }
 
     function formatTokenCount(value) {
@@ -1940,25 +2024,65 @@
       }
     }
 
+    function storedTrainingMode() {
+      try {
+        return normalizeTrainingMode(localStorage.getItem(trainingModeStorageKey) || "false");
+      } catch (_error) {
+        return false;
+      }
+    }
+
+    function setTrainingModeSelection(value) {
+      trainingMode = normalizeTrainingMode(value);
+      if (trainingMode) {
+        chatMode = "bricscad";
+        activeSession().mode = chatMode;
+      }
+      renderModeSelection();
+      syncChatModeToQt();
+      syncTrainingModeToQt();
+      saveClientStateToQt();
+    }
+
+    function applyTrainingModeFromQt(value) {
+      trainingMode = normalizeTrainingMode(value);
+      if (trainingMode) {
+        chatMode = "bricscad";
+      }
+      try {
+        localStorage.setItem(trainingModeStorageKey, trainingMode ? "true" : "false");
+        if (trainingMode) {
+          localStorage.setItem(chatModeStorageKey, chatMode);
+        }
+      } catch (_error) {
+        // WebEngine may deny storage for some local origins. The current runtime state still works.
+      }
+      renderModeSelection();
+    }
+
     function setChatModeSelection(value, { createFreshSession = false } = {}) {
-      const nextMode = normalizeChatMode(value);
-      const changed = nextMode !== chatMode;
+      const nextTrainingMode = value === "training";
+      const nextMode = nextTrainingMode ? "bricscad" : normalizeChatMode(value);
+      const changed = nextMode !== chatMode || nextTrainingMode !== trainingMode;
 
       if (changed && createFreshSession) {
         chatMode = nextMode;
-        const nextSession = createSession(modeTitle(chatMode), chatMode);
+        trainingMode = nextTrainingMode;
+        const nextSession = createSession(nextTrainingMode ? modeTitle("training") : modeTitle(chatMode), chatMode);
         sessions.unshift(nextSession);
         activeSessionId = nextSession.id;
         renderSessionList();
         renderActiveSession();
       } else {
         chatMode = nextMode;
+        trainingMode = nextTrainingMode;
         activeSession().mode = chatMode;
       }
 
       renderModeSelection();
       persistSessions();
       syncActiveSessionToQt();
+      syncTrainingModeToQt();
     }
 
     function applyClientStateFromQt(stateJson) {
@@ -1984,6 +2108,9 @@
           : [];
         chatCounter = Number.isFinite(stored.chatCounter) ? stored.chatCounter : sessions.length;
         reasoningEffort = normalizeReasoningEffort(stored.reasoningEffort || reasoningEffort);
+        trainingMode = normalizeTrainingMode(
+          typeof stored.trainingMode !== "undefined" ? stored.trainingMode : storedTrainingMode()
+        );
         applySidebarCollapsed(
           typeof stored.sidebarCollapsed === "boolean" ? stored.sidebarCollapsed : storedSidebarCollapsed(),
           { persist: false }
@@ -1993,6 +2120,9 @@
           sessions = [createSession("BricsCAD AI Assistent", "bricscad")];
         }
         chatMode = normalizeChatMode(stored.chatMode || storedChatMode() || "bricscad");
+        if (trainingMode) {
+          chatMode = "bricscad";
+        }
         ensureStartupFreshSession();
 
         renderReasoningSelection();
@@ -2007,10 +2137,14 @@
 
       syncReasoningToQt();
       syncActiveSessionToQt();
+      syncTrainingModeToQt();
       saveClientStateToQt();
     }
 
     function modeTitle(mode) {
+      if (mode === "training") {
+        return "Trainingsmodus";
+      }
       return mode === "general" ? "Allgemeiner Chat" : "BricsCAD AI Assistent";
     }
 
@@ -2245,6 +2379,10 @@
         sessions = [createSession("BricsCAD AI Assistent")];
       }
       chatMode = storedChatMode();
+      trainingMode = storedTrainingMode();
+      if (trainingMode) {
+        chatMode = "bricscad";
+      }
       ensureStartupFreshSession();
       renderModeSelection();
     }
@@ -2253,6 +2391,7 @@
       try {
         localStorage.setItem(chatModeStorageKey, chatMode);
         localStorage.setItem(reasoningStorageKey, reasoningEffort);
+        localStorage.setItem(trainingModeStorageKey, trainingMode ? "true" : "false");
         localStorage.setItem(sidebarCollapsedStorageKey, sidebarCollapsed ? "true" : "false");
         localStorage.setItem(storageKey, JSON.stringify({
           sessions,
@@ -2427,23 +2566,81 @@
 
     function normalizeMarkdownHeading(line) {
       let value = String(line || "").trim();
+      value = value.replace(/^#{1,6}\s+/, "").trim();
       value = value.replace(/^\*\*(.+?)\*\*$/, "$1").trim();
       value = value.replace(/\s+/g, " ");
       return value;
     }
 
+    function isMarkdownHeadingLine(line) {
+      const value = String(line || "").trim();
+      if (!value) {
+        return false;
+      }
+      return /^#{1,6}\s+\S/.test(value) || /^\*\*[^*].+[^*]\*\*$/.test(value);
+    }
+
+    const markdownCodeLanguages = new Set([
+      "bat", "c", "c++", "cpp", "cs", "csharp", "css", "html", "ini", "java",
+      "javascript", "js", "json", "md", "markdown", "powershell", "ps1",
+      "py", "python", "qml", "sql", "text", "ts", "typescript", "xml",
+      "yaml", "yml"
+    ]);
+
+    function markdownCodeLanguageLabel(language) {
+      const normalized = String(language || "").trim().toLowerCase();
+      const labels = {
+        "c++": "C++",
+        "cpp": "C++",
+        "cs": "C#",
+        "csharp": "C#",
+        "javascript": "JavaScript",
+        "js": "JavaScript",
+        "powershell": "PowerShell",
+        "ps1": "PowerShell",
+        "py": "Python",
+        "python": "Python",
+        "ts": "TypeScript",
+        "typescript": "TypeScript",
+        "yaml": "YAML",
+        "yml": "YAML"
+      };
+      return labels[normalized] || language;
+    }
+
+    function extractMarkdownCodeFence(raw) {
+      let value = String(raw || "").replace(/^\s*\n/, "").replace(/\s+$/, "");
+      let language = "";
+      const firstToken = value.match(/^([A-Za-z0-9_+#.-]+)(?:[ \t]*\n|[ \t]+)([\s\S]*)$/);
+      if (firstToken && markdownCodeLanguages.has(firstToken[1].toLowerCase())) {
+        language = firstToken[1];
+        value = firstToken[2];
+      }
+      return {
+        language,
+        code: value.replace(/^\n/, "").replace(/\s+$/, "")
+      };
+    }
+
     function appendInlineMarkdown(parent, text) {
       const source = String(text || "");
-      const pattern = /\*\*(.+?)\*\*/g;
+      const pattern = /`([^`]+)`|\*\*(.+?)\*\*/g;
       let index = 0;
       let match = pattern.exec(source);
       while (match) {
         if (match.index > index) {
           parent.appendChild(document.createTextNode(source.slice(index, match.index)));
         }
-        const strong = document.createElement("strong");
-        strong.textContent = normalizeMarkdownHeading(match[1]);
-        parent.appendChild(strong);
+        if (match[1] !== undefined) {
+          const code = document.createElement("code");
+          code.className = "message-inline-code";
+          code.textContent = match[1];
+          parent.appendChild(code);
+        } else {
+          const strong = document.createElement("strong");
+          strong.textContent = normalizeMarkdownHeading(match[2]);
+          parent.appendChild(strong);
+        }
         index = match.index + match[0].length;
         match = pattern.exec(source);
       }
@@ -2456,6 +2653,27 @@
       const paragraph = document.createElement("p");
       appendInlineMarkdown(paragraph, lines.join("\n").trim());
       return paragraph;
+    }
+
+    function createMarkdownCodeBlock(codeText, language) {
+      const wrapper = document.createElement("div");
+      wrapper.className = "message-code-wrap";
+
+      const languageLabel = markdownCodeLanguageLabel(language);
+      if (languageLabel) {
+        const label = document.createElement("div");
+        label.className = "message-code-lang";
+        label.textContent = languageLabel;
+        wrapper.appendChild(label);
+      }
+
+      const pre = document.createElement("pre");
+      pre.className = "message-code";
+      const code = document.createElement("code");
+      code.textContent = codeText || "";
+      pre.appendChild(code);
+      wrapper.appendChild(pre);
+      return wrapper;
     }
 
     function createMarkdownHeading(line) {
@@ -2503,10 +2721,74 @@
       return wrapper;
     }
 
-    function renderMarkdownMessageText(text) {
-      const root = document.createElement("div");
-      root.className = "message-markdown";
-      const lines = String(text || "").replace(/\r\n/g, "\n").split("\n");
+    function orderedListMatch(line) {
+      return String(line || "").match(/^\s*(\d+)[.)]\s+(.+)$/);
+    }
+
+    function normalizeInlineOrderedListBreaks(text) {
+      return String(text || "").replace(/([^\n])\s+(\d{1,2})[.)]\s+(?=\S)/g, "$1\n$2. ");
+    }
+
+    function unorderedListMatch(line) {
+      return String(line || "").match(/^\s*[-*]\s+(.+)$/);
+    }
+
+    function normalizeInlineUnorderedListBreaks(text) {
+      return String(text || "")
+        .split("\n")
+        .map((line) => {
+          if (/^\s*[-*]\s+/.test(line)) {
+            return line;
+          }
+
+          const match = line.match(/^([\s\S]*?[.!?:])\s+-\s+([\s\S]+)$/);
+          if (!match) {
+            return line;
+          }
+
+          const prefix = match[1].trim();
+          const items = match[2]
+            .split(/\s+-\s+(?=[A-ZÄÖÜ0-9"„'`*])/)
+            .map((item) => item.trim())
+            .filter(Boolean);
+
+          if (!items.length) {
+            return line;
+          }
+
+          return [prefix, ...items.map((item) => `- ${item}`)].join("\n");
+        })
+        .join("\n");
+    }
+
+    function createMarkdownOrderedList(items, startNumber) {
+      const list = document.createElement("ol");
+      list.className = "message-list message-ordered-list";
+      if (startNumber && startNumber !== 1) {
+        list.start = startNumber;
+      }
+      items.forEach((itemLines) => {
+        const item = document.createElement("li");
+        appendInlineMarkdown(item, itemLines.join("\n").trim());
+        list.appendChild(item);
+      });
+      return list;
+    }
+
+    function createMarkdownUnorderedList(items) {
+      const list = document.createElement("ul");
+      list.className = "message-list message-unordered-list";
+      items.forEach((itemLines) => {
+        const item = document.createElement("li");
+        appendInlineMarkdown(item, itemLines.join("\n").trim());
+        list.appendChild(item);
+      });
+      return list;
+    }
+
+    function renderMarkdownTextSegment(root, text) {
+      const normalizedText = normalizeInlineUnorderedListBreaks(normalizeInlineOrderedListBreaks(text));
+      const lines = normalizedText.replace(/\r\n/g, "\n").split("\n");
       let index = 0;
       let paragraph = [];
 
@@ -2515,7 +2797,7 @@
           return;
         }
         const nonEmpty = paragraph.filter((line) => line.trim());
-        if (nonEmpty.length === 1 && /^\*\*.+\*\*$/.test(nonEmpty[0].trim())) {
+        if (nonEmpty.length === 1 && isMarkdownHeadingLine(nonEmpty[0])) {
           root.appendChild(createMarkdownHeading(nonEmpty[0]));
         } else {
           root.appendChild(createMarkdownParagraph(paragraph));
@@ -2526,6 +2808,13 @@
       while (index < lines.length) {
         const line = lines[index];
         const next = lines[index + 1];
+        if (isMarkdownHeadingLine(line)) {
+          flushParagraph();
+          root.appendChild(createMarkdownHeading(line));
+          index += 1;
+          continue;
+        }
+
         if (splitMarkdownTableRow(line) && isMarkdownTableSeparator(next || "")) {
           flushParagraph();
           const tableLines = [line, next];
@@ -2535,6 +2824,66 @@
             index += 1;
           }
           root.appendChild(createMarkdownTable(tableLines));
+          continue;
+        }
+
+        const orderedMatch = orderedListMatch(line);
+        if (orderedMatch) {
+          flushParagraph();
+          const startNumber = Number(orderedMatch[1] || "1");
+          const items = [];
+          while (index < lines.length) {
+            const itemMatch = orderedListMatch(lines[index]);
+            if (!itemMatch) {
+              break;
+            }
+            const itemLines = [itemMatch[2]];
+            index += 1;
+            while (index < lines.length
+              && lines[index].trim()
+              && !isMarkdownHeadingLine(lines[index])
+              && !orderedListMatch(lines[index])
+              && !(splitMarkdownTableRow(lines[index]) && isMarkdownTableSeparator(lines[index + 1] || ""))) {
+              itemLines.push(lines[index]);
+              index += 1;
+            }
+            items.push(itemLines);
+            if (index < lines.length && !lines[index].trim()) {
+              index += 1;
+              break;
+            }
+          }
+          root.appendChild(createMarkdownOrderedList(items, startNumber));
+          continue;
+        }
+
+        const unorderedMatch = unorderedListMatch(line);
+        if (unorderedMatch) {
+          flushParagraph();
+          const items = [];
+          while (index < lines.length) {
+            const itemMatch = unorderedListMatch(lines[index]);
+            if (!itemMatch) {
+              break;
+            }
+            const itemLines = [itemMatch[1]];
+            index += 1;
+            while (index < lines.length
+              && lines[index].trim()
+              && !isMarkdownHeadingLine(lines[index])
+              && !unorderedListMatch(lines[index])
+              && !orderedListMatch(lines[index])
+              && !(splitMarkdownTableRow(lines[index]) && isMarkdownTableSeparator(lines[index + 1] || ""))) {
+              itemLines.push(lines[index]);
+              index += 1;
+            }
+            items.push(itemLines);
+            if (index < lines.length && !lines[index].trim()) {
+              index += 1;
+              break;
+            }
+          }
+          root.appendChild(createMarkdownUnorderedList(items));
           continue;
         }
 
@@ -2549,6 +2898,27 @@
       }
 
       flushParagraph();
+    }
+
+    function renderMarkdownMessageText(text) {
+      const root = document.createElement("div");
+      root.className = "message-markdown";
+      const source = String(text || "");
+      const fencePattern = /```([\s\S]*?)```/g;
+      let index = 0;
+      let match = fencePattern.exec(source);
+      while (match) {
+        if (match.index > index) {
+          renderMarkdownTextSegment(root, source.slice(index, match.index));
+        }
+        const fence = extractMarkdownCodeFence(match[1]);
+        root.appendChild(createMarkdownCodeBlock(fence.code, fence.language));
+        index = match.index + match[0].length;
+        match = fencePattern.exec(source);
+      }
+      if (index < source.length) {
+        renderMarkdownTextSegment(root, source.slice(index));
+      }
       if (!root.childNodes.length) {
         root.textContent = text;
       }
@@ -2747,6 +3117,7 @@
       thinkingDetailsList = null;
       thinkingDetailCount = 0;
       batchThinkingState = { active: false, current: 0, total: 0 };
+      aiThinkingState = { requests: 0, retries: 0, workflowRetries: 0 };
     }
 
     function completeThinkingIndicator({ collapseDetails = false } = {}) {
@@ -2785,6 +3156,7 @@
       thinkingDetailsList = null;
       thinkingDetailCount = 0;
       batchThinkingState = { active: false, current: 0, total: 0 };
+      aiThinkingState = { requests: 0, retries: 0, workflowRetries: 0 };
     }
 
     function setCapabilitiesIndicator(state, text) {
@@ -2813,6 +3185,17 @@
       row.appendChild(icon);
       row.appendChild(label);
       messages.scrollTop = messages.scrollHeight;
+    }
+
+    function shouldShowBrxCapabilitiesInChat() {
+      return trainingMode || chatMode === "bricscad";
+    }
+
+    function clearCapabilitiesIndicator() {
+      if (capabilitiesIndicator && capabilitiesIndicator.isConnected) {
+        capabilitiesIndicator.remove();
+      }
+      capabilitiesIndicator = null;
     }
 
     function updateSessionTitle(session, message) {
@@ -3182,6 +3565,175 @@
       return `${compact.slice(0, Math.max(0, maxLength - 1)).trim()}…`;
     }
 
+    function routeDisplayName(route) {
+      const names = {
+        "general_chat": "allgemeine Antwort",
+        "document_qa": "Dokumentauswertung",
+        "bricscad_question": "BricsCAD-Frage",
+        "bricscad_action": "BricsCAD-Aktion",
+        "execution_summary": "Abschlusszusammenfassung",
+        "validation_retry": "Korrekturrunde"
+      };
+      return names[route] || route || "Anfrage";
+    }
+
+    function compactAiRetryReason(reason) {
+      let value = String(reason || "").trim();
+      value = value
+        .replace(/^BRX-Ausfuehrung fehlgeschlagen,\s*korrigiere Vorschlag:\s*/i, "BRX-Rückmeldung wird berücksichtigt: ")
+        .replace(/^action_proposal ist nicht gueltig:\s*/i, "Aktionsvorschlag wird korrigiert: ")
+        .replace(/^Antwort ist kein gueltiges Barebone-Agent-JSON\.\s*/i, "Antwortformat wird korrigiert. ")
+        .replace(/^Die Trainingsantwort konnte nicht als JSON gelesen werden\.\s*/i, "Workflow-JSON wird repariert. ")
+        .replace(/^Die AI hat im Trainingsmodus keine finale JSON-Antwort geliefert\.\s*/i, "Workflow-Antwort wird kompakter angefordert. ");
+      return compactLogText(value, 115);
+    }
+
+    function updateAiThinkingDetail(text, key = "ai-progress") {
+      addThinkingDetail(text, { key });
+    }
+
+    function aiRequestLabel(label) {
+      const value = String(label || "");
+      if (value.startsWith("agent_loop_")) {
+        return "Ich denke erneut nach und korrigiere die Antwort.";
+      }
+      if (value.startsWith("tool_error_loop_")) {
+        return "Ich denke erneut nach und korrigiere den Vorschlag nach der BRX-Rückmeldung.";
+      }
+      if (value === "tool_result") {
+        return "Ich werte die BRX-Rückmeldung aus.";
+      }
+      if (value === "context_result" || value === "prompt+context") {
+        return "Ich werte den Zeichnungskontext aus.";
+      }
+      if (value === "execution_summary") {
+        return "Ich erstelle eine kurze Abschlusszusammenfassung.";
+      }
+      return "Ich werte die Anfrage mit dem vorbereiteten Kontext aus.";
+    }
+
+    function addAiThinkingDetailFromLog(line) {
+      const text = stripLogTimestamp(line);
+      let match = text.match(/^Qt -> AI Router: .*mode=([^\s]+).*model=([^\s]+).*timeoutMs=(\d+)/);
+      if (match) {
+        updateAiThinkingDetail("Ich ordne die Anfrage ein und wähle den passenden Antwortweg.");
+        return true;
+      }
+
+      match = text.match(/^AI Envelope: mode=([^\s]+) route=([^\s]+) profile=([^\s]+) toolsSent=([^\s]+) policyRefs=(.*)$/);
+      if (match) {
+        const tools = match[4] && match[4] !== "-"
+          ? match[4].split(",").filter(Boolean).length
+          : 0;
+        const toolText = tools > 0 ? ` mit ${tools} passenden Tool${tools === 1 ? "" : "s"}` : " ohne Toolfreigabe";
+        updateAiThinkingDetail(`Ich bereite den Kontext vor: ${routeDisplayName(match[2])}${toolText}.`);
+        return true;
+      }
+
+      match = text.match(/^Qt -> AI Agent: ([^\s]+) provider=.*model=([^\s]+).*timeoutMs=(\d+)(?:\s+maxTokens=(\d+)\s+context=(\d+))?/);
+      if (match) {
+        aiThinkingState.requests += 1;
+        const label = match[1];
+        const isInitialPrompt = label.startsWith("prompt/");
+        if (isInitialPrompt && aiThinkingState.requests === 1) {
+          return true;
+        }
+        updateAiThinkingDetail(aiRequestLabel(label));
+        return true;
+      }
+
+      match = text.match(/^Qt -> AI Workflow Training: .*compact=(true|false).*timeoutMs=(\d+)(?:\s+maxTokens=(\d+)\s+context=(\d+))?/);
+      if (match) {
+        aiThinkingState.requests += 1;
+        const compact = match[1] === "true";
+        const isRepeatedAiRequest = aiThinkingState.requests > 1
+          || aiThinkingState.workflowRetries > 0
+          || aiThinkingState.retries > 0;
+        if (!isRepeatedAiRequest) {
+          return true;
+        }
+        updateAiThinkingDetail(compact
+          ? "Ich fordere eine kompakte Workflow-Antwort an."
+          : "Ich sende den Workflow-Entwurf erneut an die AI.",
+          "workflow-ai-request");
+        return true;
+      }
+
+      if (text.includes("Workflow Training Review: Vor dem Speichern")) {
+        updateAiThinkingDetail("Ich prüfe den Workflow vor dem Speichern punktweise.", "workflow-review");
+        return true;
+      }
+
+      if (text.includes("Workflow Training Review: Nutzerantwort wird zur Ueberarbeitung")) {
+        updateAiThinkingDetail("Ich überarbeite den Workflow anhand der Review-Antwort.", "workflow-review");
+        return true;
+      }
+
+      if (text.includes("Workflow Training Review: Nutzer hat die Vor-Speicher-Review bestaetigt")) {
+        updateAiThinkingDetail("Die Review ist bestätigt; ich bereite die finale Validierung vor.", "workflow-review");
+        return true;
+      }
+
+      match = text.match(/^AI Agent Loop (\d+)\/(\d+):\s*(.*)$/);
+      if (match) {
+        aiThinkingState.retries = Number(match[1] || "0");
+        updateAiThinkingDetail(
+          `Ich denke erneut nach und korrigiere die Antwort (${match[1]}/${match[2]}): ${compactAiRetryReason(match[3])}`,
+          "ai-retry");
+        return true;
+      }
+
+      match = text.match(/^AI Agent Loop: abgebrochen nach (\d+) Versuchen:\s*(.*)$/);
+      if (match) {
+        updateAiThinkingDetail(
+          `Ich stoppe die automatische Korrektur nach ${match[1]} Versuchen: ${compactAiRetryReason(match[2])}`,
+          "ai-retry");
+        return true;
+      }
+
+      match = text.match(/^AI Agent Loop: BRX-Fehlerkorrektur nach (\d+) Versuchen abgebrochen:\s*(.*)$/);
+      if (match) {
+        updateAiThinkingDetail(
+          `Ich stoppe die BRX-Fehlerkorrektur nach ${match[1]} Versuchen: ${compactAiRetryReason(match[2])}`,
+          "ai-retry");
+        return true;
+      }
+
+      match = text.match(/^Workflow Training Loop (\d+)\/(\d+):\s*(.*)$/);
+      if (match) {
+        aiThinkingState.workflowRetries = Number(match[1] || "0");
+        updateAiThinkingDetail(
+          `Ich überarbeite den Workflow-Entwurf (${match[1]}/${match[2]}): ${compactAiRetryReason(match[3])}`,
+          "workflow-retry");
+        return true;
+      }
+
+      match = text.match(/^Workflow Training Loop: abgebrochen nach (\d+) Versuchen:\s*(.*)$/);
+      if (match) {
+        updateAiThinkingDetail(
+          `Ich stoppe die Workflow-Korrektur nach ${match[1]} Versuchen: ${compactAiRetryReason(match[2])}`,
+          "workflow-retry");
+        return true;
+      }
+
+      if (text.includes("AI Kontext: automatisch minimiert")) {
+        updateAiThinkingDetail("Ich kürze den Kontext automatisch, damit die Anfrage in das Modellfenster passt.", "ai-context");
+        return true;
+      }
+
+      if (text.includes("AI Workflow: Antwort wurde vom Modell wegen Tokenlimit abgeschnitten")) {
+        updateAiThinkingDetail("Die Workflow-Antwort war zu lang; ich fordere eine kürzere, gültige Antwort an.", "workflow-retry");
+        return true;
+      }
+
+      if (text.includes("AI Workflow: abgeschnittene ask_user Rueckfrage rekonstruiert")) {
+        updateAiThinkingDetail("Die Workflow-Antwort war abgeschnitten; ich zeige die erkennbare Rückfrage an.", "workflow-retry");
+        return true;
+      }
+
+      return false;
+    }
+
     function toolDisplayName(tool) {
       const names = {
         "actions.validate": "Vorschlag prüfen",
@@ -3346,16 +3898,28 @@
     function handleBridgeLogLine(line) {
       const text = String(line || "");
       if (text.includes("Qt -> BRX: capabilities.list")) {
+        if (!shouldShowBrxCapabilitiesInChat()) {
+          return;
+        }
         setCapabilitiesIndicator("loading", "Lade BRX-Capabilities");
         return;
       }
       if (text.includes("BRX -> Qt: ERROR capabilities.list")) {
+        if (!shouldShowBrxCapabilitiesInChat()) {
+          return;
+        }
         setCapabilitiesIndicator("failed", "BRX-Capabilities fehlgeschlagen");
         return;
       }
       const match = text.match(/BRX -> Qt: (\d+) Capabilities, (\d+) Commands, (\d+) Action-Tools/);
       if (match) {
+        if (!shouldShowBrxCapabilitiesInChat()) {
+          return;
+        }
         setCapabilitiesIndicator("done", `BRX-Capabilities geladen: ${match[1]} Methoden, ${match[2]} Commands, ${match[3]} Action-Tools`);
+        return;
+      }
+      if (addAiThinkingDetailFromLog(text)) {
         return;
       }
       const loopMatch = text.match(/AI Agent Loop[^:]*: .*/);
@@ -3369,9 +3933,6 @@
         return;
       }
       if (text.includes("AI JSON:")) {
-        if (!pendingExecutionSummary) {
-          addThinkingDetail("Ich habe eine finale Antwort erhalten und prüfe das Format.");
-        }
         return;
       }
       if (text.includes("AI Vorschlag:")) {
@@ -3468,6 +4029,9 @@
         bridge = channel.objects.bareboneBridge;
         setBrxStatus("BRX Plugin nicht verbunden", false);
         bridge.reasoningEffortApplied.connect(applyReasoningSelectionFromQt);
+        if (bridge.trainingModeApplied) {
+          bridge.trainingModeApplied.connect(applyTrainingModeFromQt);
+        }
         bridge.clientStateLoaded.connect(applyClientStateFromQt);
         bridge.contextBudgetChanged.connect(applyContextBudget);
         if (bridge.localAiStatusChanged) {
@@ -3480,6 +4044,7 @@
         bridge.bridgeStatusChanged.connect(setBrxStatus);
         bridge.bridgeLogAdded.connect(handleBridgeLogLine);
         bridge.ready();
+        syncTrainingModeToQt();
       });
     } else {
       setLocalAiStatus("Lokale AI nicht prüfbar", false);
