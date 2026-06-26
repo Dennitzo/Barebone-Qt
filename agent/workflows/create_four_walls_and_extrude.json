@@ -1,23 +1,26 @@
 {
     "authoringNotes": {
         "assumptions": [
-            "Die Innenmaße des Raumes sind exakt 5 000 mm x 4 000 mm.",
-            "Alle Wände haben dieselbe Dicke von 240 mm.",
-            "Der Raum hat eine Höhe von 3 000 mm.",
-            "Die Wandgrundrisse werden auf einem dedizierten Workflow-Layer erzeugt, damit Extrusion und BIM-Klassifizierung gezielt auf diese Rechtecke angewendet werden können."
+            "Die Innenmaße des Raumes sind exakt 5 000 mm x 4 000 mm.",
+            "Alle Wände haben dieselbe Dicke von 240 mm.",
+            "Der Raum hat eine Höhe von 3 000 mm.",
+            "Die Wandgrundrisse werden auf einem dedizierten Workflow‑Layer erzeugt, damit die Extrusion gezielt auf diese Rechtecke angewendet werden kann.",
+            "Die erzeugten 3D‑Solids liegen nach der Extrusion in diesem BricsCAD/BRX‑Stand auf Layer 0 und werden vor der BIM‑Klassifizierung explizit ausgewählt."
         ],
-        "openQuestions": [],
-        "sourcePromptSummary": "Erstelle einen rechteckigen Raum mit einer lichten Innenfläche von 20 m². Der Raum besitzt die Innenmaße 5 000 mm x 4 000 mm, eine einheitliche Wanddicke von 240 mm und eine Raumhöhe von 3 000 mm. Zeichne dafür vier nicht überlappende, aneinander angrenzende Rechtecke als Wandgrundrisse. Anschließend werden alle vier Rechtecke um 3 000 mm extrudiert und als BIM-Wände klassifiziert."
+        "openQuestions": [
+        ],
+        "sourcePromptSummary": "Erstelle einen rechteckigen Raum mit einer lichten Innenfläche von 20 m². Der Raum besitzt die Innenmaße 5 000 mm x 4 000 mm, eine einheitliche Wanddicke von 240 mm und eine Raumhöhe von 3 000 mm. Zeichne dafür vier nicht überlappende, aneinander angrenzende Rechtecke als Wandgrundrisse. Anschließend werden alle vier Rechtecke um 3 000 mm extrudiert und als BIM‑Wände klassifiziert."
     },
     "constructionStrategy": [
         "Berechne die Außenmaße des Wandrings: outerLengthMm = roomLengthMm + 2 * wallThicknessMm und outerWidthMm = roomWidthMm + 2 * wallThicknessMm.",
-        "Lege einen dedizierten Layer für die Wandgrundrisse an, damit spätere Selector-Schritte nicht versehentlich andere Rechtecke in der Zeichnung erfassen.",
+        "Lege einen dedizierten Layer für die Wandgrundrisse an, damit spätere Selector‑Schritte nicht versehentlich andere Rechtecke in der Zeichnung erfassen.",
         "Erzeuge die Südwand am Ursprung mit Außenlänge und Wanddicke.",
         "Erzeuge die Nordwand bei y = roomWidthMm + wallThicknessMm mit Außenlänge und Wanddicke.",
-        "Erzeuge die Westwand zwischen Süd- und Nordwand bei y = wallThicknessMm mit Raum-Innenbreite und Wanddicke.",
-        "Erzeuge die Ostwand bei x = roomLengthMm + wallThicknessMm und y = wallThicknessMm mit Raum-Innenbreite und Wanddicke.",
-        "Extrudiere alle Rechtecke auf dem dedizierten Workflow-Layer um wallHeightMm.",
-        "Klassifiziere die zuletzt extrudierten Solids als BIMWall."
+        "Erzeuge die Westwand zwischen Süd- und Nordwand bei y = wallThicknessMm mit Raum‑Innenbreite und Wanddicke.",
+        "Erzeuge die Ostwand bei x = roomLengthMm + wallThicknessMm und y = wallThicknessMm mit Raum‑Innenbreite und Wanddicke.",
+        "Extrudiere alle Rechtecke auf dem dedizierten Workflow‑Layer um wallHeightMm.",
+        "Wähle die erzeugten 3D‑Solids auf Layer 0 aus.",
+        "Klassifiziere die aktuelle Solid-Auswahl als BIMWall."
     ],
     "derivedValues": [
         {
@@ -47,7 +50,7 @@
                 "roomWidthMm",
                 "wallThicknessMm"
             ],
-            "description": "Y-Position der Nordwand",
+            "description": "Y‑Position der Nordwand",
             "example": 4240,
             "expression": "roomWidthMm + wallThicknessMm",
             "name": "northWallOriginY",
@@ -58,14 +61,14 @@
                 "roomLengthMm",
                 "wallThicknessMm"
             ],
-            "description": "X-Position der Ostwand",
+            "description": "X‑Position der Ostwand",
             "example": 5240,
             "expression": "roomLengthMm + wallThicknessMm",
             "name": "eastWallOriginX",
             "unit": "mm"
         }
     ],
-    "description": "Erstellt vier nicht überlappende Rechtecke als Wandgrundrisse eines rechteckigen Raumes, extrudiert sie zu 3D-Wänden und klassifiziert die Resultate als BIM-Wände.",
+    "description": "Erstellt vier nicht überlappende Rechtecke als Wandgrundrisse eines rechteckigen Raumes, extrudiert sie zu 3D‑Wänden und klassifiziert die Resultate als BIM‑Wände.",
     "executionBatches": [
         {
             "id": "prepare_wall_layer",
@@ -85,7 +88,7 @@
                 }
             ],
             "stopOnFailure": true,
-            "title": "Wand-Layer vorbereiten"
+            "title": "Wand‑Layer vorbereiten"
         },
         {
             "id": "create_walls",
@@ -94,7 +97,7 @@
                 {
                     "id": "south_wall",
                     "paramsTemplate": {
-                        "depthMm": "{{wallThicknessMm}}",
+                        "depth": "{{wallThicknessMm}}",
                         "geometry": "rectangle",
                         "layer": "{{wallLayerName}}",
                         "origin": {
@@ -103,7 +106,7 @@
                             "z": 0
                         },
                         "saveBefore": false,
-                        "widthMm": "{{outerLengthMm}}"
+                        "width": "{{outerLengthMm}}"
                     },
                     "requiresSlots": [
                         "outerLengthMm",
@@ -116,7 +119,7 @@
                 {
                     "id": "north_wall",
                     "paramsTemplate": {
-                        "depthMm": "{{wallThicknessMm}}",
+                        "depth": "{{wallThicknessMm}}",
                         "geometry": "rectangle",
                         "layer": "{{wallLayerName}}",
                         "origin": {
@@ -125,7 +128,7 @@
                             "z": 0
                         },
                         "saveBefore": false,
-                        "widthMm": "{{outerLengthMm}}"
+                        "width": "{{outerLengthMm}}"
                     },
                     "requiresSlots": [
                         "northWallOriginY",
@@ -139,7 +142,7 @@
                 {
                     "id": "west_wall",
                     "paramsTemplate": {
-                        "depthMm": "{{roomWidthMm}}",
+                        "depth": "{{roomWidthMm}}",
                         "geometry": "rectangle",
                         "layer": "{{wallLayerName}}",
                         "origin": {
@@ -148,7 +151,7 @@
                             "z": 0
                         },
                         "saveBefore": false,
-                        "widthMm": "{{wallThicknessMm}}"
+                        "width": "{{wallThicknessMm}}"
                     },
                     "requiresSlots": [
                         "roomWidthMm",
@@ -161,7 +164,7 @@
                 {
                     "id": "east_wall",
                     "paramsTemplate": {
-                        "depthMm": "{{roomWidthMm}}",
+                        "depth": "{{roomWidthMm}}",
                         "geometry": "rectangle",
                         "layer": "{{wallLayerName}}",
                         "origin": {
@@ -170,7 +173,7 @@
                             "z": 0
                         },
                         "saveBefore": false,
-                        "widthMm": "{{wallThicknessMm}}"
+                        "width": "{{wallThicknessMm}}"
                     },
                     "requiresSlots": [
                         "eastWallOriginX",
@@ -210,23 +213,40 @@
                     "tool": "rectangles.extrude"
                 },
                 {
+                    "id": "select_extruded_solids",
+                    "paramsTemplate": {
+                        "selector": {
+                            "kind": "solid",
+                            "layer": "0",
+                            "scope": "currentSpace"
+                        }
+                    },
+                    "requiresSlots": [
+                    ],
+                    "title": "Extrudierte 3D‑Solids auswählen",
+                    "tool": "selection.set"
+                },
+                {
                     "id": "classify_walls",
                     "paramsTemplate": {
                         "classification": "BIMWall",
                         "saveBefore": false,
-                        "target": "lastExtruded"
+                        "target": "selection"
                     },
-                    "requiresSlots": [],
+                    "requiresSlots": [
+                    ],
                     "title": "Wände klassifizieren",
                     "tool": "bim.classify"
                 }
             ],
             "stopOnFailure": true,
-            "title": "Wände extrudieren und klassifizieren"
+            "title": "Wände extrudieren, auswählen und klassifizieren"
         }
     ],
+    "fileName": "create_four_walls_and_extrude.json",
     "forbidden": [
         "rectangles.extrude nicht mit selector.scope=lastResult verwenden, wenn zuvor mehrere Rechtecke erzeugt wurden.",
+        "In der Schritt‑für‑Schritt‑Ausführung bim.classify nicht mit target=lastExtruded speichern; nach der Extrusion zuerst die erzeugten Solids auswählen und dann target=selection verwenden.",
         "Nord- und Ostwand nicht auf outerWidthMm/outerLengthMm positionieren; die Ursprungspunkte liegen jeweils eine Wanddicke vor der Außenkante."
     ],
     "id": "create_four_walls_and_extrude",
@@ -254,6 +274,7 @@
         "layers.create",
         "geometry.create",
         "rectangles.extrude",
+        "selection.set",
         "bim.classify"
     ],
     "requiredSlots": [
@@ -291,7 +312,7 @@
         {
             "id": "south_wall",
             "paramsTemplate": {
-                "depthMm": "{{wallThicknessMm}}",
+                "depth": "{{wallThicknessMm}}",
                 "geometry": "rectangle",
                 "layer": "{{wallLayerName}}",
                 "origin": {
@@ -300,14 +321,14 @@
                     "z": 0
                 },
                 "saveBefore": false,
-                "widthMm": "{{outerLengthMm}}"
+                "width": "{{outerLengthMm}}"
             },
             "tool": "geometry.create"
         },
         {
             "id": "north_wall",
             "paramsTemplate": {
-                "depthMm": "{{wallThicknessMm}}",
+                "depth": "{{wallThicknessMm}}",
                 "geometry": "rectangle",
                 "layer": "{{wallLayerName}}",
                 "origin": {
@@ -316,14 +337,14 @@
                     "z": 0
                 },
                 "saveBefore": false,
-                "widthMm": "{{outerLengthMm}}"
+                "width": "{{outerLengthMm}}"
             },
             "tool": "geometry.create"
         },
         {
             "id": "west_wall",
             "paramsTemplate": {
-                "depthMm": "{{roomWidthMm}}",
+                "depth": "{{roomWidthMm}}",
                 "geometry": "rectangle",
                 "layer": "{{wallLayerName}}",
                 "origin": {
@@ -332,14 +353,14 @@
                     "z": 0
                 },
                 "saveBefore": false,
-                "widthMm": "{{wallThicknessMm}}"
+                "width": "{{wallThicknessMm}}"
             },
             "tool": "geometry.create"
         },
         {
             "id": "east_wall",
             "paramsTemplate": {
-                "depthMm": "{{roomWidthMm}}",
+                "depth": "{{roomWidthMm}}",
                 "geometry": "rectangle",
                 "layer": "{{wallLayerName}}",
                 "origin": {
@@ -348,7 +369,7 @@
                     "z": 0
                 },
                 "saveBefore": false,
-                "widthMm": "{{wallThicknessMm}}"
+                "width": "{{wallThicknessMm}}"
             },
             "tool": "geometry.create"
         },
@@ -368,19 +389,30 @@
             "tool": "rectangles.extrude"
         },
         {
+            "id": "select_extruded_solids",
+            "paramsTemplate": {
+                "selector": {
+                    "kind": "solid",
+                    "layer": "0",
+                    "scope": "currentSpace"
+                }
+            },
+            "tool": "selection.set"
+        },
+        {
             "id": "classify_walls",
             "paramsTemplate": {
                 "classification": "BIMWall",
                 "saveBefore": false,
-                "target": "lastExtruded"
+                "target": "selection"
             },
             "tool": "bim.classify"
         }
     ],
     "title": "Vier Wandgrundrisse erstellen und extrudieren",
     "triggerExamples": [
-        "Erstelle einen rechteckigen Raum mit vier Wandgrundrissen, 5 m x 4 m Innenmaß, 240 mm Wanddicke und 3 m Höhe.",
-        "Zeichne einen Grundriss aus vier aneinandergrenzenden Rechtecken und extrudiere diese als BIM-Wände."
+        "Erstelle einen rechteckigen Raum mit vier Wandgrundrissen, 5 m x 4 m Innenmaß, 240 mm Wanddicke und 3 m Höhe.",
+        "Zeichne einen Grundriss aus vier aneinandergrenzenden Rechtecken und extrudiere diese als BIM‑Wände."
     ],
     "validationExamples": [
         {
@@ -394,7 +426,7 @@
                 },
                 {
                     "params": {
-                        "depthMm": 240,
+                        "depth": 240,
                         "geometry": "rectangle",
                         "layer": "BB_WORKFLOW_WALLS",
                         "origin": {
@@ -402,14 +434,13 @@
                             "y": 0,
                             "z": 0
                         },
-                        "saveBefore": false,
-                        "widthMm": 5480
+                        "width": 5480
                     },
                     "tool": "geometry.create"
                 },
                 {
                     "params": {
-                        "depthMm": 240,
+                        "depth": 240,
                         "geometry": "rectangle",
                         "layer": "BB_WORKFLOW_WALLS",
                         "origin": {
@@ -417,14 +448,13 @@
                             "y": 4240,
                             "z": 0
                         },
-                        "saveBefore": false,
-                        "widthMm": 5480
+                        "width": 5480
                     },
                     "tool": "geometry.create"
                 },
                 {
                     "params": {
-                        "depthMm": 4000,
+                        "depth": 4000,
                         "geometry": "rectangle",
                         "layer": "BB_WORKFLOW_WALLS",
                         "origin": {
@@ -432,14 +462,13 @@
                             "y": 240,
                             "z": 0
                         },
-                        "saveBefore": false,
-                        "widthMm": 240
+                        "width": 240
                     },
                     "tool": "geometry.create"
                 },
                 {
                     "params": {
-                        "depthMm": 4000,
+                        "depth": 4000,
                         "geometry": "rectangle",
                         "layer": "BB_WORKFLOW_WALLS",
                         "origin": {
@@ -447,8 +476,7 @@
                             "y": 240,
                             "z": 0
                         },
-                        "saveBefore": false,
-                        "widthMm": 240
+                        "width": 240
                     },
                     "tool": "geometry.create"
                 },
@@ -456,7 +484,6 @@
                     "params": {
                         "detail": "summary",
                         "heightMm": 3000,
-                        "saveBefore": false,
                         "selector": {
                             "kind": "rectangle",
                             "layer": "BB_WORKFLOW_WALLS",
@@ -468,14 +495,26 @@
                 },
                 {
                     "params": {
+                        "selector": {
+                            "kind": "solid",
+                            "layer": "0",
+                            "scope": "currentSpace"
+                        }
+                    },
+                    "tool": "selection.set"
+                },
+                {
+                    "params": {
                         "classification": "BIMWall",
-                        "saveBefore": false,
-                        "target": "lastExtruded"
+                        "target": "selection"
                     },
                     "tool": "bim.classify"
                 }
             ],
-            "title": "Beispiel für einen 20 m²-Raum mit vier Wandgrundrissen"
+            "title": "Beispiel für einen 20 m²‑Raum mit vier Wandgrundrisse"
         }
+    ],
+    "validationWarnings": [
+        "BRX actions.validate konnte ein statisches Trainingsbeispiel nicht vollstaendig pruefen, weil es von vorher erzeugten/ausgewaehlten Objekten abhaengt: Fehler: Aktion 7 (selection.set): selection.set.params.selector findet keine Objekte; Aktion 8 (bim.classify): bim.classify.params.selector findet keine Objekte\nHinweise: Korrigiere tool/params anhand der BRX-Capabilities, bevor der Nutzer eine Ausfuehrung bestaetigt."
     ]
 }

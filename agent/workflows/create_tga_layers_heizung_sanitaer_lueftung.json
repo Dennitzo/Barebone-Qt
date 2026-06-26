@@ -1,0 +1,845 @@
+{
+    "authoringNotes": {
+        "assumptions": [
+            "Alle Layer existieren noch nicht oder werden überschrieben, falls sie bereits vorhanden sind."
+        ],
+        "openQuestions": [],
+        "sourcePromptSummary": "Erstelle neue Haus- und TGA-Layer für die Gewerke Heizung, Sanitär, Lüftung und Elektro mit eindeutigen, sinnvollen ACI-Farben."
+    },
+    "constructionStrategy": [
+        "1. Definiere zuerst die Haus-Layer `Haus - Wände`, `Haus - Böden`, `Haus - Türen`, `Haus - Fenster` und `Haus - Dächer` mit eindeutigen ACI-Farbcodes.",
+        "2. Ergänze danach die TGA-Layer für Sanitär, Heizung, Lüftung und Elektro mit eindeutigen, gewerktypischen ACI-Farbcodes.",
+        "3. Verwende das Tool `layers.ensureMany`, um alle Haus- und TGA-Layer in einem Schritt anzulegen.",
+        "4. Der Workflow ist batch‑basiert, damit die Layer sofort im Zeichnungskontext verfügbar sind."
+    ],
+    "derivedValues": [],
+    "description": "Der Workflow legt Haus-Basislayer sowie sämtliche Layer für die Gewerke Heizung, Sanitär, Lüftung und Elektro an. Haus-Layer erhalten neutrale bzw. baunahe Farben; Sanitär ist blau/cyan, Heizung rot/orange, Lüftung grünlich und Elektro gelblich codiert. Jeder Layer erhält einen eindeutigen ACI-Farbcode. Die Layer werden in einem einzigen Batch mit dem Tool `layers.ensureMany` erzeugt.",
+    "executionBatches": [
+        {
+            "id": "create_layers",
+            "mode": "sequential",
+            "steps": [
+                {
+                    "id": "step_create_tga_layers",
+                    "paramsTemplate": {
+                        "layers": "{{tgaLayers}}"
+                    },
+                    "requiresSlots": [
+                        "tgaLayers"
+                    ],
+                    "title": "Alle Haus- und TGA‑Layer anlegen",
+                    "tool": "layers.ensureMany"
+                }
+            ],
+            "stopOnFailure": true,
+            "title": "Haus- und TGA‑Layer erstellen"
+        }
+    ],
+    "forbidden": [],
+    "id": "create_tga_layers_heizung_sanitaer_lueftung",
+    "knownSlotValues": {
+        "layerName": [
+            {
+                "name": "Haus - Wände",
+                "colorIndex": 8
+            },
+            {
+                "name": "Haus - Böden",
+                "colorIndex": 9
+            },
+            {
+                "name": "Haus - Türen",
+                "colorIndex": 30
+            },
+            {
+                "name": "Haus - Fenster",
+                "colorIndex": 4
+            },
+            {
+                "name": "Haus - Dächer",
+                "colorIndex": 250
+            },
+            {
+                "name": "Sanitär – Rohrleitungen",
+                "colorIndex": 140
+            },
+            {
+                "name": "Sanitär – Armaturen",
+                "colorIndex": 141
+            },
+            {
+                "name": "Sanitär – Sanitäreinrichtungen",
+                "colorIndex": 142
+            },
+            {
+                "name": "Sanitär – Abwasserrohre",
+                "colorIndex": 143
+            },
+            {
+                "name": "Sanitär – Trinkwasserverteilung",
+                "colorIndex": 144
+            },
+            {
+                "name": "Sanitär – Warmwasserbereitung",
+                "colorIndex": 145
+            },
+            {
+                "name": "Sanitär – Zirkulationssysteme",
+                "colorIndex": 146
+            },
+            {
+                "name": "Sanitär – Vorwandinstallationen",
+                "colorIndex": 147
+            },
+            {
+                "name": "Sanitär – Installationsschächte",
+                "colorIndex": 148
+            },
+            {
+                "name": "Sanitär – Schmutzwasserentlüftung",
+                "colorIndex": 149
+            },
+            {
+                "name": "Sanitär – Regenwasserableitung",
+                "colorIndex": 150
+            },
+            {
+                "name": "Sanitär – Hebeanlagen",
+                "colorIndex": 151
+            },
+            {
+                "name": "Sanitär – Druckerhöhungsanlagen",
+                "colorIndex": 152
+            },
+            {
+                "name": "Sanitär – Wasseraufbereitung",
+                "colorIndex": 153
+            },
+            {
+                "name": "Sanitär – Hygienespülung und Legionellenschutz",
+                "colorIndex": 154
+            },
+            {
+                "name": "Sanitär – Brandschutzdurchführungen",
+                "colorIndex": 155
+            },
+            {
+                "name": "Sanitär – Befestigungssysteme",
+                "colorIndex": 156
+            },
+            {
+                "name": "Heizung – Heizkörper",
+                "colorIndex": 10
+            },
+            {
+                "name": "Heizung – Fußbodenheizung",
+                "colorIndex": 11
+            },
+            {
+                "name": "Heizung – Heizungsrohre",
+                "colorIndex": 12
+            },
+            {
+                "name": "Heizung – Wärmeerzeuger",
+                "colorIndex": 13
+            },
+            {
+                "name": "Heizung – Heizkreisverteiler",
+                "colorIndex": 14
+            },
+            {
+                "name": "Heizung – Umwälzpumpen",
+                "colorIndex": 15
+            },
+            {
+                "name": "Heizung – Regelarmaturen",
+                "colorIndex": 16
+            },
+            {
+                "name": "Heizung – Absperr- und Sicherheitsarmaturen",
+                "colorIndex": 17
+            },
+            {
+                "name": "Heizung – Entlüftungssysteme",
+                "colorIndex": 18
+            },
+            {
+                "name": "Heizung – Abgasanlagen",
+                "colorIndex": 19
+            },
+            {
+                "name": "Heizung – Heizungsverteiler",
+                "colorIndex": 20
+            },
+            {
+                "name": "Heizung – Flächenheiz- und Kühlsysteme",
+                "colorIndex": 21
+            },
+            {
+                "name": "Heizung – Befestigungssysteme",
+                "colorIndex": 22
+            },
+            {
+                "name": "Lüftung – Lüftungskanäle",
+                "colorIndex": 90
+            },
+            {
+                "name": "Lüftung – Abluftventilatoren",
+                "colorIndex": 91
+            },
+            {
+                "name": "Lüftung – Lüftungsgeräte",
+                "colorIndex": 92
+            },
+            {
+                "name": "Lüftung – Luftauslässe",
+                "colorIndex": 93
+            },
+            {
+                "name": "Lüftung – Volumenstromregler",
+                "colorIndex": 94
+            },
+            {
+                "name": "Lüftung – Schalldämpfer",
+                "colorIndex": 95
+            },
+            {
+                "name": "Lüftung – Brandschutzklappen",
+                "colorIndex": 96
+            },
+            {
+                "name": "Lüftung – Kondensatableitung",
+                "colorIndex": 97
+            },
+            {
+                "name": "Lüftung – Revisionsöffnungen",
+                "colorIndex": 98
+            },
+            {
+                "name": "Lüftung – Befestigungssysteme",
+                "colorIndex": 99
+            },
+            {
+                "name": "Elektroinstallation – Durchlauferhitzer",
+                "colorIndex": 2
+            },
+            {
+                "name": "Elektroinstallation – Stellmotoren",
+                "colorIndex": 31
+            },
+            {
+                "name": "Elektroinstallation – Regelungen",
+                "colorIndex": 32
+            },
+            {
+                "name": "Elektroinstallation – Begleitheizungen",
+                "colorIndex": 33
+            }
+        ],
+        "tgaLayers": [
+            {
+                "name": "Haus - Wände",
+                "colorIndex": 8
+            },
+            {
+                "name": "Haus - Böden",
+                "colorIndex": 9
+            },
+            {
+                "name": "Haus - Türen",
+                "colorIndex": 30
+            },
+            {
+                "name": "Haus - Fenster",
+                "colorIndex": 4
+            },
+            {
+                "name": "Haus - Dächer",
+                "colorIndex": 250
+            },
+            {
+                "name": "Sanitär – Rohrleitungen",
+                "colorIndex": 140
+            },
+            {
+                "name": "Sanitär – Armaturen",
+                "colorIndex": 141
+            },
+            {
+                "name": "Sanitär – Sanitäreinrichtungen",
+                "colorIndex": 142
+            },
+            {
+                "name": "Sanitär – Abwasserrohre",
+                "colorIndex": 143
+            },
+            {
+                "name": "Sanitär – Trinkwasserverteilung",
+                "colorIndex": 144
+            },
+            {
+                "name": "Sanitär – Warmwasserbereitung",
+                "colorIndex": 145
+            },
+            {
+                "name": "Sanitär – Zirkulationssysteme",
+                "colorIndex": 146
+            },
+            {
+                "name": "Sanitär – Vorwandinstallationen",
+                "colorIndex": 147
+            },
+            {
+                "name": "Sanitär – Installationsschächte",
+                "colorIndex": 148
+            },
+            {
+                "name": "Sanitär – Schmutzwasserentlüftung",
+                "colorIndex": 149
+            },
+            {
+                "name": "Sanitär – Regenwasserableitung",
+                "colorIndex": 150
+            },
+            {
+                "name": "Sanitär – Hebeanlagen",
+                "colorIndex": 151
+            },
+            {
+                "name": "Sanitär – Druckerhöhungsanlagen",
+                "colorIndex": 152
+            },
+            {
+                "name": "Sanitär – Wasseraufbereitung",
+                "colorIndex": 153
+            },
+            {
+                "name": "Sanitär – Hygienespülung und Legionellenschutz",
+                "colorIndex": 154
+            },
+            {
+                "name": "Sanitär – Brandschutzdurchführungen",
+                "colorIndex": 155
+            },
+            {
+                "name": "Sanitär – Befestigungssysteme",
+                "colorIndex": 156
+            },
+            {
+                "name": "Heizung – Heizkörper",
+                "colorIndex": 10
+            },
+            {
+                "name": "Heizung – Fußbodenheizung",
+                "colorIndex": 11
+            },
+            {
+                "name": "Heizung – Heizungsrohre",
+                "colorIndex": 12
+            },
+            {
+                "name": "Heizung – Wärmeerzeuger",
+                "colorIndex": 13
+            },
+            {
+                "name": "Heizung – Heizkreisverteiler",
+                "colorIndex": 14
+            },
+            {
+                "name": "Heizung – Umwälzpumpen",
+                "colorIndex": 15
+            },
+            {
+                "name": "Heizung – Regelarmaturen",
+                "colorIndex": 16
+            },
+            {
+                "name": "Heizung – Absperr- und Sicherheitsarmaturen",
+                "colorIndex": 17
+            },
+            {
+                "name": "Heizung – Entlüftungssysteme",
+                "colorIndex": 18
+            },
+            {
+                "name": "Heizung – Abgasanlagen",
+                "colorIndex": 19
+            },
+            {
+                "name": "Heizung – Heizungsverteiler",
+                "colorIndex": 20
+            },
+            {
+                "name": "Heizung – Flächenheiz- und Kühlsysteme",
+                "colorIndex": 21
+            },
+            {
+                "name": "Heizung – Befestigungssysteme",
+                "colorIndex": 22
+            },
+            {
+                "name": "Lüftung – Lüftungskanäle",
+                "colorIndex": 90
+            },
+            {
+                "name": "Lüftung – Abluftventilatoren",
+                "colorIndex": 91
+            },
+            {
+                "name": "Lüftung – Lüftungsgeräte",
+                "colorIndex": 92
+            },
+            {
+                "name": "Lüftung – Luftauslässe",
+                "colorIndex": 93
+            },
+            {
+                "name": "Lüftung – Volumenstromregler",
+                "colorIndex": 94
+            },
+            {
+                "name": "Lüftung – Schalldämpfer",
+                "colorIndex": 95
+            },
+            {
+                "name": "Lüftung – Brandschutzklappen",
+                "colorIndex": 96
+            },
+            {
+                "name": "Lüftung – Kondensatableitung",
+                "colorIndex": 97
+            },
+            {
+                "name": "Lüftung – Revisionsöffnungen",
+                "colorIndex": 98
+            },
+            {
+                "name": "Lüftung – Befestigungssysteme",
+                "colorIndex": 99
+            },
+            {
+                "name": "Elektroinstallation – Durchlauferhitzer",
+                "colorIndex": 2
+            },
+            {
+                "name": "Elektroinstallation – Stellmotoren",
+                "colorIndex": 31
+            },
+            {
+                "name": "Elektroinstallation – Regelungen",
+                "colorIndex": 32
+            },
+            {
+                "name": "Elektroinstallation – Begleitheizungen",
+                "colorIndex": 33
+            }
+        ]
+    },
+    "optionalSlots": {},
+    "preferredTools": [
+        "layers.ensureMany"
+    ],
+    "requiredSlots": [],
+    "schema": "barebone.agent.workflow.v1",
+    "title": "Haus- und TGA-Layer erstellen für Heizung, Sanitär, Lüftung und Elektro",
+    "triggerExamples": [],
+    "validationExamples": [
+        {
+            "title": "Aus erfolgreichem Trainingslauf",
+            "actions": [
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Haus - Wände",
+                        "colorIndex": 8,
+                        "saveBefore": true
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Haus - Böden",
+                        "colorIndex": 9,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Haus - Türen",
+                        "colorIndex": 30,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Haus - Fenster",
+                        "colorIndex": 4,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Haus - Dächer",
+                        "colorIndex": 250,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Sanitär – Rohrleitungen",
+                        "colorIndex": 140,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Sanitär – Armaturen",
+                        "colorIndex": 141,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Sanitär – Sanitäreinrichtungen",
+                        "colorIndex": 142,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Sanitär – Abwasserrohre",
+                        "colorIndex": 143,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Sanitär – Trinkwasserverteilung",
+                        "colorIndex": 144,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Sanitär – Warmwasserbereitung",
+                        "colorIndex": 145,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Sanitär – Zirkulationssysteme",
+                        "colorIndex": 146,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Sanitär – Vorwandinstallationen",
+                        "colorIndex": 147,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Sanitär – Installationsschächte",
+                        "colorIndex": 148,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Sanitär – Schmutzwasserentlüftung",
+                        "colorIndex": 149,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Sanitär – Regenwasserableitung",
+                        "colorIndex": 150,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Sanitär – Hebeanlagen",
+                        "colorIndex": 151,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Sanitär – Druckerhöhungsanlagen",
+                        "colorIndex": 152,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Sanitär – Wasseraufbereitung",
+                        "colorIndex": 153,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Sanitär – Hygienespülung und Legionellenschutz",
+                        "colorIndex": 154,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Sanitär – Brandschutzdurchführungen",
+                        "colorIndex": 155,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Sanitär – Befestigungssysteme",
+                        "colorIndex": 156,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Heizung – Heizkörper",
+                        "colorIndex": 10,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Heizung – Fußbodenheizung",
+                        "colorIndex": 11,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Heizung – Heizungsrohre",
+                        "colorIndex": 12,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Heizung – Wärmeerzeuger",
+                        "colorIndex": 13,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Heizung – Heizkreisverteiler",
+                        "colorIndex": 14,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Heizung – Umwälzpumpen",
+                        "colorIndex": 15,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Heizung – Regelarmaturen",
+                        "colorIndex": 16,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Heizung – Absperr- und Sicherheitsarmaturen",
+                        "colorIndex": 17,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Heizung – Entlüftungssysteme",
+                        "colorIndex": 18,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Heizung – Abgasanlagen",
+                        "colorIndex": 19,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Heizung – Heizungsverteiler",
+                        "colorIndex": 20,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Heizung – Flächenheiz- und Kühlsysteme",
+                        "colorIndex": 21,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Heizung – Befestigungssysteme",
+                        "colorIndex": 22,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Lüftung – Lüftungskanäle",
+                        "colorIndex": 90,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Lüftung – Abluftventilatoren",
+                        "colorIndex": 91,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Lüftung – Lüftungsgeräte",
+                        "colorIndex": 92,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Lüftung – Luftauslässe",
+                        "colorIndex": 93,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Lüftung – Volumenstromregler",
+                        "colorIndex": 94,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Lüftung – Schalldämpfer",
+                        "colorIndex": 95,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Lüftung – Brandschutzklappen",
+                        "colorIndex": 96,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Lüftung – Kondensatableitung",
+                        "colorIndex": 97,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Lüftung – Revisionsöffnungen",
+                        "colorIndex": 98,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Lüftung – Befestigungssysteme",
+                        "colorIndex": 99,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Elektroinstallation – Durchlauferhitzer",
+                        "colorIndex": 2,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Elektroinstallation – Stellmotoren",
+                        "colorIndex": 31,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Elektroinstallation – Regelungen",
+                        "colorIndex": 32,
+                        "saveBefore": false
+                    }
+                },
+                {
+                    "tool": "layers.create",
+                    "params": {
+                        "name": "Elektroinstallation – Begleitheizungen",
+                        "colorIndex": 33,
+                        "saveBefore": false
+                    }
+                }
+            ]
+        }
+    ]
+}

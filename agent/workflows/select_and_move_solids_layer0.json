@@ -1,0 +1,178 @@
+{
+    "authoringNotes": {
+        "assumptions": [
+            "Alle Solids liegen bereits im Layer 0 und sind geschlossen."
+        ]
+    },
+    "constructionStrategy": [
+        "1. Selektiere alle Solids im Layer 0.",
+        "2. Verschiebe die Auswahl um den Vektor (1000,1000,0) relativ zur aktuellen Position."
+    ],
+    "derivedValues": [
+    ],
+    "description": "Wählt alle 3‑D‑Solids im Layer \"0\" aus, verschiebt sie anschließend um einen Vektor von (1000 mm, 1000 mm, 0 mm).",
+    "executionBatches": [
+        {
+            "id": "select_and_move",
+            "mode": "sequential",
+            "steps": [
+                {
+                    "id": "step_select_solids",
+                    "paramsTemplate": {
+                        "selector": {
+                            "kind": "solid",
+                            "layer": "0",
+                            "scope": "currentSpace"
+                        }
+                    },
+                    "title": "Solids im Layer 0 auswählen",
+                    "tool": "selection.set"
+                },
+                {
+                    "id": "step_move_solids",
+                    "paramsTemplate": {
+                        "selector": {
+                            "kind": "solid",
+                            "layer": "0"
+                        },
+                        "vector": {
+                            "x": 1000,
+                            "y": 1000,
+                            "z": 0
+                        }
+                    },
+                    "title": "Auswahl relativ verschieben",
+                    "tool": "geometry.move"
+                }
+            ],
+            "stopOnFailure": true,
+            "title": "Solids auswählen und verschieben"
+        }
+    ],
+    "forbidden": [
+    ],
+    "id": "select_and_move_solids_layer0",
+    "knownSlotValues": {
+        "layerName": "0",
+        "moveMode": "relativeVector",
+        "moveVector": {
+            "x": 1000,
+            "y": 1000,
+            "z": 0
+        },
+        "movementMode": "relativeVector",
+        "offset": {
+            "x": 1000,
+            "y": 1000,
+            "z": 0
+        },
+        "vector": {
+            "x": 1000,
+            "y": 1000,
+            "z": 0
+        }
+    },
+    "optionalSlots": {
+    },
+    "preferredTools": [
+        "selection.set",
+        "geometry.move"
+    ],
+    "requiredSlots": [
+    ],
+    "schema": "barebone.agent.workflow.v1",
+    "steps": [
+        {
+            "id": "step_select_solids",
+            "paramsTemplate": {
+                "selector": {
+                    "kind": "solid",
+                    "layer": "0",
+                    "scope": "currentSpace"
+                }
+            },
+            "title": "Solids im Layer 0 auswählen",
+            "tool": "selection.set"
+        },
+        {
+            "id": "step_move_solids",
+            "paramsTemplate": {
+                "selector": {
+                    "kind": "solid",
+                    "layer": "0"
+                },
+                "vector": {
+                    "x": 1000,
+                    "y": 1000,
+                    "z": 0
+                }
+            },
+            "title": "Auswahl relativ verschieben",
+            "tool": "geometry.move"
+        }
+    ],
+    "title": "Alle Solids in Layer 0 auswählen und verschieben",
+    "triggerExamples": [
+    ],
+    "validationExamples": [
+        {
+            "actions": [
+                {
+                    "params": {
+                        "selector": {
+                            "kind": "solid",
+                            "layer": "0",
+                            "scope": "currentSpace"
+                        }
+                    },
+                    "tool": "selection.set"
+                },
+                {
+                    "params": {
+                        "selector": {
+                            "scope": "selection"
+                        },
+                        "vector": {
+                            "x": 1000,
+                            "y": 1000,
+                            "z": 0
+                        }
+                    },
+                    "tool": "geometry.move"
+                }
+            ],
+            "title": "Beispiel: Solids im Layer 0 verschieben"
+        },
+        {
+            "actions": [
+                {
+                    "params": {
+                        "saveBefore": true,
+                        "selector": {
+                            "kind": "solid",
+                            "layer": "0",
+                            "scope": "currentSpace"
+                        }
+                    },
+                    "tool": "selection.set"
+                },
+                {
+                    "params": {
+                        "saveBefore": false,
+                        "selector": {
+                            "kind": "solid",
+                            "layer": "0"
+                        },
+                        "vector": {
+                            "x": 1000,
+                            "y": 1000,
+                            "z": 0
+                        }
+                    },
+                    "tool": "geometry.move"
+                }
+            ],
+            "title": "Aus erfolgreichem Trainingslauf"
+        }
+    ]
+}

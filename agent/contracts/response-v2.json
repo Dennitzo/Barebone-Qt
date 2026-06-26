@@ -6,7 +6,7 @@
   "topLevel": {
     "required": ["schema", "type", "message"],
     "schema": "barebone.agent.response.v2",
-    "allowedTypes": ["message", "ask_user", "context_request", "action_proposal", "plan"]
+    "allowedTypes": ["message", "ask_user", "context_request", "action_proposal", "workflow_run_proposal", "plan"]
   },
   "message": {
     "required": ["type", "message"]
@@ -20,6 +20,17 @@
       "paramsSource": "tools[].inputSchema"
     },
     "forbiddenTopLevelFields": ["tool", "params", "actions"]
+  },
+  "workflowRunProposal": {
+    "required": ["type", "message", "baseWorkflowId", "workflowUsage", "slotValues", "stepPlan", "actions", "requiresConfirmation"],
+    "workflowUsageDecision": ["direct", "adapted", "extended", "deviated", "no_fit"],
+    "stepPlanAction": ["use", "override", "skip", "insert"],
+    "actionShape": {
+      "required": ["tool", "params"],
+      "toolSource": "tools[].name",
+      "paramsSource": "tools[].inputSchema"
+    },
+    "policy": "Prefer workflow_run_proposal when workflowCapsules contains a useful workflow. User-facing message must describe only the concrete proposal; workflowUsage.reason is internal."
   },
   "askUser": {
     "required": ["type", "message", "missing"],
@@ -43,10 +54,10 @@
       "allowedTypes": ["message", "ask_user", "context_request"]
     },
     "bricscad_action": {
-      "allowedTypes": ["message", "ask_user", "context_request", "action_proposal", "plan"]
+      "allowedTypes": ["message", "ask_user", "context_request", "action_proposal", "workflow_run_proposal", "plan"]
     },
     "validation_retry": {
-      "allowedTypes": ["message", "ask_user", "context_request", "action_proposal", "plan"]
+      "allowedTypes": ["message", "ask_user", "context_request", "action_proposal", "workflow_run_proposal", "plan"]
     },
     "execution_summary": {
       "allowedTypes": ["message"]

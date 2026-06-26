@@ -33,6 +33,26 @@ void AiWebBridge::clearProposal()
     Q_EMIT proposalClearedByUser();
 }
 
+void AiWebBridge::cancelCurrentOperation()
+{
+    Q_EMIT operationCancelledByUser();
+}
+
+void AiWebBridge::confirmWorkflowTrainingSave()
+{
+    Q_EMIT workflowTrainingSaveConfirmed();
+}
+
+void AiWebBridge::confirmWorkflowTrainingRun()
+{
+    Q_EMIT workflowTrainingRunConfirmed();
+}
+
+void AiWebBridge::confirmWorkflowTrainingFinalSave()
+{
+    Q_EMIT workflowTrainingFinalSaveConfirmed();
+}
+
 void AiWebBridge::newChat()
 {
     Q_EMIT newChatRequested();
@@ -61,6 +81,21 @@ void AiWebBridge::setTrainingMode(bool enabled)
 void AiWebBridge::saveClientState(const QString& stateJson)
 {
     Q_EMIT clientStateSaved(stateJson);
+}
+
+void AiWebBridge::requestWorkflowList()
+{
+    Q_EMIT workflowListRequested();
+}
+
+void AiWebBridge::selectWorkflow(const QString& workflowId)
+{
+    Q_EMIT workflowSelected(workflowId);
+}
+
+void AiWebBridge::clearSelectedWorkflow()
+{
+    Q_EMIT workflowSelectionCleared();
 }
 
 bool AiWebBridge::copyText(const QString& text)

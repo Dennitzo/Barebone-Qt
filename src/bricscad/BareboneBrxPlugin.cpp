@@ -475,6 +475,7 @@ const BridgeMethodDescriptor kBridgeMethods[] = {
 "properties":{
   "selector":{"type":"object"},
   "basePoint":{"type":"object","properties":{"x":{"type":"number"},"y":{"type":"number"},"z":{"type":"number"}}},
+  "basePointMode":{"type":"string","enum":["entityCenter","eachEntityCenter","selectionCenter"]},
   "axis":{"type":"object","properties":{"x":{"type":"number"},"y":{"type":"number"},"z":{"type":"number"}}},
   "angleDeg":{"type":"number"},
   "angleRad":{"type":"number"},
@@ -487,7 +488,7 @@ const BridgeMethodDescriptor kBridgeMethods[] = {
 "method":"geometry.rotate",
 "required":["selector"],
 "oneOfRequired":[["angleDeg"],["angleRad"]],
-"bodySchema":{"type":"object","properties":{"selector":"Selector","basePoint":"rotation center; origin default","axis":"rotation axis; Z default","angleDeg":"degrees","angleRad":"radians","saveBefore":"boolean default true"}},
+"bodySchema":{"type":"object","properties":{"selector":"Selector","basePoint":"rotation center","basePointMode":"entityCenter/eachEntityCenter rotates every entity around its own extents center; selectionCenter rotates around the combined selection extents center","axis":"rotation axis; Z default","angleDeg":"degrees","angleRad":"radians","saveBefore":"boolean default true"}},
 "examples":[{"selector":{"scope":"selection"},"basePoint":{"x":0,"y":0,"z":0},"angleDeg":90}]
 })JSON",
     },
@@ -876,11 +877,14 @@ struct SelectionEntitySnapshot {
     std::string layer;
 };
 
+struct JsonPoint3d;
+
 void captureCurrentSelection(const char* reason);
 void sendSelectionSnapshotEvent(const std::vector<SelectionEntitySnapshot>& snapshot);
 AcDbObjectIdArray lastExtrudedSolidIds();
 AcDbObjectIdArray lastResultObjectIds();
 int runNativeExtrudeCommand(const ads_name selectionSet, double heightMm, std::vector<std::string>& debugLines);
+int runNativeMoveCommand(const ads_name selectionSet, const JsonPoint3d& vector, std::vector<std::string>& debugLines);
 
 class BridgeSelectionReactor final : public AcEditorReactor {
 public:
@@ -1247,6 +1251,42 @@ std::string entityLayerName(const AcDbEntity* entity)
     return result;
 }
 
+void appendDebug(std::vector<std::string>& debugLines, const std::string& message);
+
+bool setEntityLayerByName(const AcDbObjectId& entityId, const std::string& layerName, std::vector<std::string>& debugLines)
+{
+    if (entityId.isNull() || layerName.empty()) {
+        return true;
+    }
+
+    AcDbEntity* entity = nullptr;
+    const Acad::ErrorStatus openStatus = acdbOpenObject(entity, entityId, AcDb::kForWrite);
+    if (openStatus != Acad::eOk || entity == nullptr) {
+        appendDebug(debugLines, "setCreatedEntityLayer open handle=" + objectHandleText(entityId) + ": " + errorStatusText(openStatus));
+        return false;
+    }
+
+    const std::basic_string<ACHAR> nativeLayer = utf8ToAchar(layerName);
+    const Acad::ErrorStatus layerStatus = entity->setLayer(nativeLayer.c_str());
+    appendDebug(debugLines, "setCreatedEntityLayer handle=" + objectHandleText(entityId)
+        + " layer='" + layerName + "': " + errorStatusText(layerStatus));
+    entity->close();
+    return layerStatus == Acad::eOk;
+}
+
+bool setEntitiesLayerByName(const AcDbObjectIdArray& entityIds, const std::string& layerName, std::vector<std::string>& debugLines)
+{
+    if (layerName.empty()) {
+        return true;
+    }
+
+    bool ok = true;
+    for (int i = 0; i < entityIds.length(); ++i) {
+        ok = setEntityLayerByName(entityIds.at(i), layerName, debugLines) && ok;
+    }
+    return ok;
+}
+
 std::vector<SelectionEntitySnapshot> readPickfirstSelectionSnapshot()
 {
     std::vector<SelectionEntitySnapshot> snapshot;
@@ -1425,6 +1465,16 @@ void finishBridgeJob(BridgeJob* job, std::string response)
     job->doneEvent.notify_one();
 }
 
+bool commandNameInList(const std::string& command, const char* const* commands, std::size_t commandCount)
+{
+    for (std::size_t i = 0; i < commandCount; ++i) {
+        if (command == commands[i]) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool requiresCommandContext(const std::string& request)
 {
     const std::vector<std::string> parts = splitTabs(request);
@@ -1432,19 +1482,45 @@ bool requiresCommandContext(const std::string& request)
         return false;
     }
     const std::string command = toUpperAscii(parts.front());
-    return command == "POSTCOMMAND"
-        || command == "GEOMETRYCREATE"
-        || command == "PROFILEEXTRUDE"
-        || command == "EXTRUDE"
-        || command == "EXTRUDESELECTOR"
-        || command == "BIMCLASSIFY"
-        || command == "BIMCLASSIFYSELECTOR"
-        || command == "LAYERCREATE"
-        || command == "LAYERRENAME"
-        || command == "LAYERSETCOLOR"
-        || command == "LAYERBATCH"
-        || command == "UNDO"
-        || command == "REDO";
+    static constexpr const char* kCommandContextRequests[] = {
+        "POSTCOMMAND",
+        "GEOMETRYCREATE",
+        "GEOMETRYMOVE",
+        "GEOMETRYCOPY",
+        "GEOMETRYROTATE",
+        "GEOMETRYSCALE",
+        "GEOMETRYDELETE",
+        "SELECTIONSET",
+        "LAYERCREATE",
+        "LAYERRENAME",
+        "LAYERSETCOLOR",
+        "LAYERBATCH",
+        "DOCUMENTSAVE",
+        "PROFILEEXTRUDE",
+        "EXTRUDE",
+        "EXTRUDESELECTOR",
+        "BIMCLASSIFY",
+        "BIMCLASSIFYSELECTOR",
+        "UNDO",
+        "REDO",
+    };
+    static constexpr const char* kApplicationContextRequests[] = {
+        "LAYERS",
+        "ACTIONVALIDATE",
+        "GEOMETRYQUERY",
+        "SELECTIONDESCRIBE",
+        "ENTITYDESCRIBE",
+        "MEASUREBBOX",
+        "MEASURELENGTH",
+        "MEASUREAREA",
+    };
+    if (commandNameInList(command, kCommandContextRequests, sizeof(kCommandContextRequests) / sizeof(kCommandContextRequests[0]))) {
+        return true;
+    }
+    if (commandNameInList(command, kApplicationContextRequests, sizeof(kApplicationContextRequests) / sizeof(kApplicationContextRequests[0]))) {
+        return false;
+    }
+    return false;
 }
 
 void appendUtf8(std::string& output, unsigned int codepoint)
@@ -4191,6 +4267,7 @@ void rememberPlannedActionResult(ActionValidationState& state, const std::string
             state.plannedLastResultShape = "RECTANGLE";
         } else if (geometryType == "BOX" || geometryType == "CUBOID" || geometryType == "QUADER") {
             state.plannedLastResultKind = "SOLID";
+            state.plannedLastExtrudedSolids = true;
         } else {
             state.plannedLastResultKind = "ENTITY";
         }
@@ -4426,7 +4503,18 @@ bool validateActionObject(
     } else if (result.tool == "geometry.rotate") {
         AcDbObjectIdArray ids;
         validateSelectorForAction(state, paramsJson, result.tool, true, &ids, result.errors, result.missing, debugLines);
-        hasJsonPointValue(paramsJson, "basePoint", "geometry.rotate.params.basePoint", result.errors, result.missing);
+        const std::string basePointMode = toUpperAscii(trim(jsonStringProperty(paramsJson, "basePointMode").value_or("")));
+        const bool dynamicBasePoint = basePointMode == "ENTITYCENTER"
+            || basePointMode == "EACHENTITYCENTER"
+            || basePointMode == "OWNCENTER"
+            || basePointMode == "SOLIDCENTER"
+            || basePointMode == "BOUNDSCENTER"
+            || basePointMode == "SELECTIONCENTER";
+        if (basePointMode.empty()) {
+            hasJsonPointValue(paramsJson, "basePoint", "geometry.rotate.params.basePoint", result.errors, result.missing);
+        } else if (!dynamicBasePoint) {
+            addUniqueMessage(result.errors, "geometry.rotate.params.basePointMode muss entityCenter, eachEntityCenter oder selectionCenter sein");
+        }
         const double angle = jsonAngleRadians(paramsJson, "angleRad", "angleDeg", 0.0);
         if (!std::isfinite(angle) || std::abs(angle) <= kRectangleTolerance) {
             addUniqueMessage(result.missing, "geometry.rotate.params.angleDeg oder angleRad");
@@ -4663,24 +4751,38 @@ std::string transformEntitiesInApplicationContext(const std::string& paramsJson,
     }
 
     AcGeMatrix3d matrix;
+    JsonPoint3d moveVector{};
+    const bool useNativeMove = operation == "move";
+    bool useEntityCenterBasePoint = false;
+    bool useSelectionCenterBasePoint = false;
+    double rotateAngle = 0.0;
+    AcGeVector3d rotateAxis;
     if (operation == "move") {
-        const JsonPoint3d vector = actionVectorFromParams(paramsJson);
-        if (std::abs(vector.x) <= kRectangleTolerance && std::abs(vector.y) <= kRectangleTolerance && std::abs(vector.z) <= kRectangleTolerance) {
+        moveVector = actionVectorFromParams(paramsJson);
+        if (std::abs(moveVector.x) <= kRectangleTolerance && std::abs(moveVector.y) <= kRectangleTolerance && std::abs(moveVector.z) <= kRectangleTolerance) {
             return fail("geometry.move braucht einen nicht-leeren vector/offset oder fromPoint/toPoint");
         }
-        matrix = AcGeMatrix3d::translation(AcGeVector3d(vector.x, vector.y, vector.z));
     } else if (operation == "rotate") {
         const JsonPoint3d base = jsonPointProperty(paramsJson, "basePoint");
+        const std::string basePointMode = toUpperAscii(trim(jsonStringProperty(paramsJson, "basePointMode").value_or("")));
+        useEntityCenterBasePoint = basePointMode == "ENTITYCENTER"
+            || basePointMode == "EACHENTITYCENTER"
+            || basePointMode == "OWNCENTER"
+            || basePointMode == "SOLIDCENTER"
+            || basePointMode == "BOUNDSCENTER";
+        useSelectionCenterBasePoint = basePointMode == "SELECTIONCENTER";
         const JsonPoint3d axisValue = jsonPointProperty(paramsJson, "axis", JsonPoint3d{0.0, 0.0, 1.0});
-        const double angle = jsonAngleRadians(paramsJson, "angleRad", "angleDeg", 0.0);
-        if (!std::isfinite(angle) || std::abs(angle) <= kRectangleTolerance) {
+        rotateAngle = jsonAngleRadians(paramsJson, "angleRad", "angleDeg", 0.0);
+        if (!std::isfinite(rotateAngle) || std::abs(rotateAngle) <= kRectangleTolerance) {
             return fail("geometry.rotate braucht angleDeg oder angleRad != 0");
         }
-        AcGeVector3d axis(axisValue.x, axisValue.y, axisValue.z);
-        if (axis.length() <= kRectangleTolerance) {
+        rotateAxis = AcGeVector3d(axisValue.x, axisValue.y, axisValue.z);
+        if (rotateAxis.length() <= kRectangleTolerance) {
             return fail("geometry.rotate braucht eine gueltige Achse");
         }
-        matrix = AcGeMatrix3d::rotation(angle, axis, AcGePoint3d(base.x, base.y, base.z));
+        if (!useEntityCenterBasePoint && !useSelectionCenterBasePoint) {
+            matrix = AcGeMatrix3d::rotation(rotateAngle, rotateAxis, AcGePoint3d(base.x, base.y, base.z));
+        }
     } else if (operation == "scale") {
         const JsonPoint3d base = jsonPointProperty(paramsJson, "basePoint");
         const double factor = jsonDoubleProperty(paramsJson, "factor").value_or(0.0);
@@ -4702,6 +4804,81 @@ std::string transformEntitiesInApplicationContext(const std::string& paramsJson,
     }
 
     const AcDbObjectIdArray ids = selectorObjectIds(selectorJson, database, debugLines);
+    AcGePoint3d selectionCenter;
+    if (useSelectionCenterBasePoint) {
+        bool hasSelectionExtents = false;
+        AcDbExtents selectionExtents;
+        for (int i = 0; i < ids.length(); ++i) {
+            AcDbEntity* entity = nullptr;
+            const Acad::ErrorStatus openStatus = acdbOpenObject(entity, ids.at(i), AcDb::kForRead);
+            if (openStatus != Acad::eOk || entity == nullptr) {
+                continue;
+            }
+            AcDbExtents entityExtents;
+            const Acad::ErrorStatus extentsStatus = entity->getGeomExtents(entityExtents);
+            entity->close();
+            if (extentsStatus != Acad::eOk) {
+                continue;
+            }
+            if (!hasSelectionExtents) {
+                selectionExtents = entityExtents;
+                hasSelectionExtents = true;
+            } else {
+                selectionExtents.addExt(entityExtents);
+            }
+        }
+        if (!hasSelectionExtents) {
+            return fail("geometry.rotate basePointMode=selectionCenter konnte keinen Auswahl-Mittelpunkt berechnen");
+        }
+        const AcGePoint3d minPoint = selectionExtents.minPoint();
+        const AcGePoint3d maxPoint = selectionExtents.maxPoint();
+        selectionCenter = AcGePoint3d(
+            (minPoint.x + maxPoint.x) * 0.5,
+            (minPoint.y + maxPoint.y) * 0.5,
+            (minPoint.z + maxPoint.z) * 0.5);
+        matrix = AcGeMatrix3d::rotation(rotateAngle, rotateAxis, selectionCenter);
+        appendDebug(debugLines, "geometry.rotate basePointMode=selectionCenter center="
+            + std::to_string(selectionCenter.x) + ","
+            + std::to_string(selectionCenter.y) + ","
+            + std::to_string(selectionCenter.z));
+    }
+    if (useNativeMove) {
+        AcDbObjectIdArray affectedIds;
+        AcDbObjectIdArray failedIds;
+        if (ids.isEmpty()) {
+            return fail("geometry.move selector findet keine Objekte");
+        }
+
+        if (docLock != nullptr) {
+            docLock.reset();
+            appendDebug(debugLines, "Document lock released before native MOVE");
+        }
+
+        ads_name selectionSet{};
+        if (!createSelectionSet(ids, selectionSet, debugLines)) {
+            for (int i = 0; i < ids.length(); ++i) {
+                failedIds.append(ids.at(i));
+            }
+        } else {
+            const int commandStatus = runNativeMoveCommand(selectionSet, moveVector, debugLines);
+            if (commandStatus == RTNORM) {
+                affectedIds = ids;
+                rememberLastResult(affectedIds, "geometry.move", debugLines);
+            } else {
+                for (int i = 0; i < ids.length(); ++i) {
+                    failedIds.append(ids.at(i));
+                }
+            }
+            const int freeStatus = acedSSFree(selectionSet);
+            appendDebug(debugLines, "acedSSFree geometry.move status=" + std::to_string(freeStatus));
+        }
+
+        const std::string schema = "barebone.bricscad.geometry.move.result.v1";
+        const std::string summary = "geometry.move affected=" + std::to_string(affectedIds.length())
+            + " failed=" + std::to_string(failedIds.length());
+        return okJsonResultResponse(genericActionResultJson(schema, summary, affectedIds, failedIds, saveBefore, savedBefore), debugLines);
+    }
+
     AcDbObjectIdArray affectedIds;
     AcDbObjectIdArray failedIds;
     for (int i = 0; i < ids.length(); ++i) {
@@ -4713,7 +4890,29 @@ std::string transformEntitiesInApplicationContext(const std::string& paramsJson,
             failedIds.append(id);
             continue;
         }
-        const Acad::ErrorStatus transformStatus = entity->transformBy(matrix);
+        AcGeMatrix3d entityMatrix = matrix;
+        if (useEntityCenterBasePoint) {
+            AcDbExtents extents;
+            const Acad::ErrorStatus extentsStatus = entity->getGeomExtents(extents);
+            if (extentsStatus != Acad::eOk) {
+                appendDebug(debugLines, operation + " extents failed handle=" + objectHandleText(id) + ": " + errorStatusText(extentsStatus));
+                entity->close();
+                failedIds.append(id);
+                continue;
+            }
+            const AcGePoint3d minPoint = extents.minPoint();
+            const AcGePoint3d maxPoint = extents.maxPoint();
+            const AcGePoint3d entityCenter(
+                (minPoint.x + maxPoint.x) * 0.5,
+                (minPoint.y + maxPoint.y) * 0.5,
+                (minPoint.z + maxPoint.z) * 0.5);
+            entityMatrix = AcGeMatrix3d::rotation(rotateAngle, rotateAxis, entityCenter);
+            appendDebug(debugLines, operation + " entityCenter handle=" + objectHandleText(id)
+                + " center=" + std::to_string(entityCenter.x)
+                + "," + std::to_string(entityCenter.y)
+                + "," + std::to_string(entityCenter.z));
+        }
+        const Acad::ErrorStatus transformStatus = entity->transformBy(entityMatrix);
         entity->close();
         appendDebug(debugLines, operation + " transform handle=" + objectHandleText(id) + ": " + errorStatusText(transformStatus));
         if (transformStatus == Acad::eOk) {
@@ -5729,6 +5928,17 @@ std::string createGeometryInApplicationContext(const std::string& paramsJson)
         if (createdSolidIds.isEmpty()) {
             return fail("Box-Extrusion abgeschlossen, aber kein neues 3D-Solid erkannt");
         }
+        std::unique_ptr<AcAxDocLock> postExtrudeDocLock;
+        if (applicationContext && !layerName.empty()) {
+            postExtrudeDocLock = std::make_unique<AcAxDocLock>(database);
+            if (postExtrudeDocLock->lockStatus() != Acad::eOk) {
+                return fail("Aktive Zeichnung konnte nach EXTRUDE nicht gesperrt werden: " + errorStatusText(postExtrudeDocLock->lockStatus()));
+            }
+            appendDebug(debugLines, "Post-EXTRUDE document lock: " + errorStatusText(postExtrudeDocLock->lockStatus()));
+        }
+        if (!setEntitiesLayerByName(createdSolidIds, layerName, debugLines)) {
+            return fail("Layer konnte fuer erzeugte 3D-Solids nicht gesetzt werden");
+        }
         resultEntityId = createdSolidIds.at(0);
         createdCount = createdSolidIds.length();
         rememberLastExtrudedSolids(createdSolidIds, layerName, debugLines);
@@ -5834,6 +6044,37 @@ int runNativeExtrudeCommand(const ads_name selectionSet, double heightMm, std::v
         RTNONE);
     appendDebug(debugLines, "acedCommand _.EXTRUDE status=" + std::to_string(commandStatus));
     acedUpdateDisplay();
+    return commandStatus;
+}
+
+int runNativeMoveCommand(const ads_name selectionSet, const JsonPoint3d& vector, std::vector<std::string>& debugLines)
+{
+    if (!ensureNativeCommandContext(debugLines, "_.MOVE")) {
+        return RTERROR;
+    }
+    {
+        std::ostringstream line;
+        line << "Calling acedCommand _.MOVE vector=(" << vector.x << "," << vector.y << "," << vector.z << ")";
+        appendDebug(debugLines, line.str());
+    }
+
+    ads_point basePoint{};
+    ads_point targetPoint{};
+    basePoint[0] = 0.0;
+    basePoint[1] = 0.0;
+    basePoint[2] = 0.0;
+    targetPoint[0] = vector.x;
+    targetPoint[1] = vector.y;
+    targetPoint[2] = vector.z;
+
+    const int commandStatus = acedCommand(
+        RTSTR, _T("_.MOVE"),
+        RTPICKS, selectionSet,
+        RTSTR, _T(""),
+        RT3DPOINT, basePoint,
+        RT3DPOINT, targetPoint,
+        RTNONE);
+    appendDebug(debugLines, "acedCommand _.MOVE status=" + std::to_string(commandStatus));
     return commandStatus;
 }
 

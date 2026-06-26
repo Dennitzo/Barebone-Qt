@@ -1,0 +1,181 @@
+{
+    "authoringNotes": {
+        "assumptions": [
+            "Alle Rechtecke liegen im Layer 0 und sind geschlossen"
+        ],
+        "openQuestions": [
+        ],
+        "sourcePromptSummary": "Erstelle neuen Workflow: Alle Rechtecke im Layer \"0\" selektieren und extrudieren auf Höhe=3000mm. Nach dem Extrudieren die 3D Solid in Layer \"0\" erneut selektieren und dann als BIMwall klassifizieren."
+    },
+    "constructionStrategy": [
+        "Selektiere alle Rechtecke im Layer 0 mit selector.scope=currentSpace",
+        "Extrudiere diese Rechtecke um 3000 mm Höhe",
+        "Wähle die resultierenden Solids auf Layer 0 aus",
+        "Klassifiziere die Auswahl als BIMWall"
+    ],
+    "derivedValues": [
+    ],
+    "description": "Wählt alle Rechtecke im Layer \"0\", extrudiert sie auf 3000 mm Höhe, wählt die resultierenden Solids erneut aus und klassifiziert sie als BIMWall.",
+    "executionBatches": [
+        {
+            "id": "select_and_extrude",
+            "mode": "sequential",
+            "steps": [
+                {
+                    "id": "select_rectangles",
+                    "paramsTemplate": {
+                        "detail": "summary",
+                        "heightMm": 3000,
+                        "selector": {
+                            "kind": "rectangle",
+                            "layer": "0",
+                            "scope": "currentSpace"
+                        }
+                    },
+                    "title": "Rechtecke im Layer 0 selektieren",
+                    "tool": "rectangles.extrude"
+                },
+                {
+                    "id": "select_solids",
+                    "paramsTemplate": {
+                        "selector": {
+                            "kind": "solid",
+                            "layer": "0",
+                            "scope": "currentSpace"
+                        }
+                    },
+                    "title": "Extrudierte Solids auswählen",
+                    "tool": "selection.set"
+                }
+            ],
+            "stopOnFailure": true,
+            "title": "Selektieren und extrudieren"
+        },
+        {
+            "id": "classify_walls",
+            "mode": "sequential",
+            "steps": [
+                {
+                    "id": "classify_bimwall",
+                    "paramsTemplate": {
+                        "classification": "BIMWall",
+                        "selector": {
+                            "kind": "solid",
+                            "layer": "0",
+                            "scope": "currentSpace"
+                        }
+                    },
+                    "title": "Solids als BIMWall klassifizieren",
+                    "tool": "bim.classify"
+                }
+            ],
+            "stopOnFailure": true,
+            "title": "Klassifizierung"
+        }
+    ],
+    "forbidden": [
+    ],
+    "id": "select_rectangles_and_extrude_bimwall",
+    "knownSlotValues": {
+        "classification": "BIMWall",
+        "layerName": "0",
+        "wallHeightMm": 3000
+    },
+    "optionalSlots": {
+    },
+    "preferredTools": [
+        "rectangles.extrude",
+        "selection.set",
+        "bim.classify"
+    ],
+    "requiredSlots": [
+    ],
+    "schema": "barebone.agent.workflow.v1",
+    "steps": [
+        {
+            "id": "select_rectangles",
+            "paramsTemplate": {
+                "detail": "summary",
+                "heightMm": 3000,
+                "selector": {
+                    "kind": "rectangle",
+                    "layer": "0",
+                    "scope": "currentSpace"
+                }
+            },
+            "title": "Rechtecke im Layer 0 selektieren",
+            "tool": "rectangles.extrude"
+        },
+        {
+            "id": "select_solids",
+            "paramsTemplate": {
+                "selector": {
+                    "kind": "solid",
+                    "layer": "0",
+                    "scope": "currentSpace"
+                }
+            },
+            "title": "Extrudierte Solids auswählen",
+            "tool": "selection.set"
+        },
+        {
+            "id": "classify_bimwall",
+            "paramsTemplate": {
+                "classification": "BIMWall",
+                "selector": {
+                    "kind": "solid",
+                    "layer": "0",
+                    "scope": "currentSpace"
+                }
+            },
+            "title": "Solids als BIMWall klassifizieren",
+            "tool": "bim.classify"
+        }
+    ],
+    "title": "Rechtecke selektieren, extrudieren und klassifizieren als BIMWall",
+    "triggerExamples": [
+    ],
+    "validationExamples": [
+        {
+            "actions": [
+                {
+                    "params": {
+                        "detail": "summary",
+                        "heightMm": 3000,
+                        "saveBefore": true,
+                        "selector": {
+                            "kind": "rectangle",
+                            "layer": "0",
+                            "scope": "currentSpace"
+                        }
+                    },
+                    "tool": "rectangles.extrude"
+                },
+                {
+                    "params": {
+                        "saveBefore": false,
+                        "selector": {
+                            "kind": "solid",
+                            "layer": "0",
+                            "scope": "currentSpace"
+                        }
+                    },
+                    "tool": "selection.set"
+                },
+                {
+                    "params": {
+                        "classification": "BIMWall",
+                        "saveBefore": false,
+                        "selector": {
+                            "kind": "solid",
+                            "layer": "0",
+                            "scope": "currentSpace"
+                        }
+                    },
+                    "tool": "bim.classify"
+                }
+            ],
+            "title": "Aus erfolgreichem Trainingslauf"
+        }
+    ]
+}

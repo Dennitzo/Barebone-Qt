@@ -858,6 +858,11 @@
       white-space: pre-wrap;
     }
 
+    .message.workflow-save-prompt .inline-proposal-card {
+      background: var(--success-bg);
+      border-color: var(--success-border);
+    }
+
     .inline-proposal-title {
       font-weight: 800;
       margin-bottom: 6px;
@@ -1123,6 +1128,11 @@
       place-items: center;
     }
 
+    .send-btn.stop {
+      background: var(--text);
+      color: var(--surface);
+    }
+
     .tools-menu {
       position: absolute;
       left: 0;
@@ -1182,6 +1192,299 @@
     .mode-status-btn.training-active {
       border-color: var(--warning-border);
       color: var(--text);
+    }
+
+    .active-workflow {
+      width: min(820px, 100%);
+      margin: 0 auto 8px;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-muted);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .active-workflow.visible {
+      display: flex;
+    }
+
+    .active-workflow-label {
+      min-width: 0;
+      max-width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface);
+      padding: 6px 4px 6px 10px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .active-workflow-name {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .active-workflow-remove {
+      width: 22px;
+      height: 22px;
+      border: 0;
+      border-radius: 50%;
+      background: transparent;
+      color: var(--text-muted);
+      display: grid;
+      place-items: center;
+      padding: 0;
+      flex-shrink: 0;
+    }
+
+    .active-workflow-remove:hover {
+      color: var(--text);
+      background: var(--surface-hover);
+    }
+
+    .workflow-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(0, 0, 0, 0.32);
+      overflow: auto;
+    }
+
+    .workflow-overlay.open {
+      display: flex;
+    }
+
+    .workflow-panel {
+      width: min(980px, 100%);
+      height: min(760px, calc(100vh - 48px));
+      max-height: min(760px, calc(100vh - 48px));
+      min-height: 520px;
+      display: grid;
+      grid-template-columns: 330px 1fr;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--bg);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .workflow-list-pane,
+    .workflow-detail-pane {
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .workflow-list-pane {
+      border-right: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .workflow-panel-header {
+      min-height: 54px;
+      flex-shrink: 0;
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .workflow-panel-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--text);
+    }
+
+    .workflow-search {
+      margin: 12px;
+      height: 38px;
+      flex-shrink: 0;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 10px;
+      color: var(--text-muted);
+    }
+
+    .workflow-search input {
+      min-width: 0;
+      width: 100%;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+      font-size: 14px;
+    }
+
+    .workflow-list {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: scroll;
+      scrollbar-gutter: stable;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+      padding: 0 8px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .workflow-item {
+      width: 100%;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text);
+      padding: 10px;
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .workflow-item:hover,
+    .workflow-item.active {
+      background: var(--surface-hover);
+    }
+
+    .workflow-item-title {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .workflow-item-meta {
+      color: var(--text-muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .workflow-detail {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: scroll;
+      scrollbar-gutter: stable;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .workflow-list::-webkit-scrollbar,
+    .workflow-detail::-webkit-scrollbar {
+      width: 8px;
+      background: transparent;
+    }
+
+    .workflow-list::-webkit-scrollbar-thumb,
+    .workflow-detail::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 999px;
+    }
+
+    .workflow-list:hover::-webkit-scrollbar-thumb,
+    .workflow-detail:hover::-webkit-scrollbar-thumb {
+      background: var(--text-muted);
+    }
+
+    .workflow-detail-empty {
+      margin: auto;
+      max-width: 360px;
+      color: var(--text-muted);
+      text-align: center;
+      line-height: 1.5;
+    }
+
+    .workflow-detail-title {
+      font-size: 20px;
+      line-height: 1.3;
+      font-weight: 800;
+      color: var(--text);
+    }
+
+    .workflow-detail-id {
+      color: var(--text-muted);
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+
+    .workflow-section {
+      border-top: 1px solid var(--border);
+      padding-top: 12px;
+    }
+
+    .workflow-section-title {
+      margin-bottom: 8px;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .workflow-section-text,
+    .workflow-section-list {
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .workflow-section-list {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    .workflow-section-list li {
+      margin-bottom: 6px;
+    }
+
+    .workflow-chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .workflow-chip {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--text-muted);
+      padding: 5px 9px;
+      font-size: 12px;
+      line-height: 1.2;
+    }
+
+    .workflow-hint {
+      flex-shrink: 0;
+      margin-top: auto;
+      border-top: 1px solid var(--border);
+      padding: 12px 16px;
+      color: var(--text-muted);
+      font-size: 13px;
+      line-height: 1.45;
+      background: var(--surface);
     }
 
     .send-btn:disabled,
@@ -1250,6 +1553,21 @@
       .composer-wrap {
         padding: 0 10px 12px;
       }
+
+      .workflow-overlay {
+        padding: 12px;
+      }
+
+      .workflow-panel {
+        grid-template-columns: 1fr;
+        min-height: 0;
+      }
+
+      .workflow-list-pane {
+        max-height: 260px;
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+      }
     }
   </style>
 </head>
@@ -1315,7 +1633,6 @@
           <div class="proposal-title" id="proposal-title">AI Vorschlag bereit</div>
           <div class="proposal-details" id="proposal-details"></div>
           <div class="proposal-actions">
-            <button class="cancel-btn" id="proposal-cancel" type="button">Verwerfen</button>
             <button class="confirm-btn" id="proposal-confirm" type="button">Ausführen</button>
           </div>
         </div>
@@ -1325,6 +1642,12 @@
             <textarea id="prompt-input" placeholder="Nachricht eingeben ..." aria-label="Prompt eingeben"></textarea>
             <input id="document-file-input" type="file" hidden multiple
               accept=".pdf,.docx,.txt,.md,.markdown,.csv,.json,.xml,.html,.htm,.rtf,.log,.ini,.yaml,.yml,.css,.js,.ts,.py,.cpp,.c,.h,.hpp,.cs,.java,.sql" />
+            <div class="active-workflow" id="active-workflow">
+              <span class="active-workflow-label" id="active-workflow-label">
+                <span class="active-workflow-name" id="active-workflow-name">Workflow aktiv</span>
+                <button class="active-workflow-remove" id="active-workflow-remove" type="button" aria-label="Workflow aushängen">X</button>
+              </span>
+            </div>
             <div class="document-context" id="document-context" hidden></div>
 
             <div class="composer-footer">
@@ -1334,6 +1657,17 @@
                     <path d="M12 5v14" />
                     <path d="M5 12h14" />
                   </svg>
+                </button>
+                <button class="tool-btn" id="workflows-button" type="button" aria-label="Workflows anzeigen" title="Workflows" hidden>
+                  <svg viewBox="0 0 24 24">
+                    <path d="M8 6h13" />
+                    <path d="M8 12h13" />
+                    <path d="M8 18h13" />
+                    <path d="M3 6h.01" />
+                    <path d="M3 12h.01" />
+                    <path d="M3 18h.01" />
+                  </svg>
+                  <span>Workflows</span>
                 </button>
                 <button class="tool-btn" id="tools-button" type="button">
                   <svg viewBox="0 0 24 24">
@@ -1398,6 +1732,36 @@
     </main>
   </div>
 
+  <div class="workflow-overlay" id="workflow-overlay" aria-hidden="true">
+    <div class="workflow-panel" role="dialog" aria-modal="true" aria-labelledby="workflow-panel-title">
+      <div class="workflow-list-pane">
+        <div class="workflow-panel-header">
+          <div class="workflow-panel-title" id="workflow-panel-title">Workflows</div>
+          <button class="icon-btn" id="workflow-close" type="button" aria-label="Workflows schließen">
+            <svg viewBox="0 0 24 24">
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </button>
+        </div>
+        <label class="workflow-search" for="workflow-search">
+          <svg viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-3.5-3.5" />
+          </svg>
+          <input id="workflow-search" type="search" placeholder="Workflows suchen" autocomplete="off" />
+        </label>
+        <div class="workflow-list" id="workflow-list"></div>
+      </div>
+      <div class="workflow-detail-pane">
+        <div class="workflow-detail" id="workflow-detail">
+          <div class="workflow-detail-empty">Wähle einen Workflow aus. Danach kannst du ihn per Chat steuern, zum Beispiel mit „Workflow ausführen“ oder „Workflow bearbeiten“.</div>
+        </div>
+        <div class="workflow-hint">Ausführung, Bearbeitung und Debugging laufen über den Chatprompt. Jeder Workflow-Schritt wird weiterhin durch Qt und BRX validiert.</div>
+      </div>
+    </div>
+  </div>
+
   <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
   <script>
     const app = document.getElementById("app");
@@ -1415,8 +1779,13 @@
     const proposalCancel = document.getElementById("proposal-cancel");
     const newChatButton = document.getElementById("new-chat-button");
     const attachButton = document.getElementById("attach-button");
+    const workflowsButton = document.getElementById("workflows-button");
     const documentFileInput = document.getElementById("document-file-input");
     const documentContext = document.getElementById("document-context");
+    const activeWorkflow = document.getElementById("active-workflow");
+    const activeWorkflowLabel = document.getElementById("active-workflow-label");
+    const activeWorkflowName = document.getElementById("active-workflow-name");
+    const activeWorkflowRemove = document.getElementById("active-workflow-remove");
     const chatSearch = document.getElementById("chat-search");
     const chatList = document.getElementById("chat-list");
     const sidebarToggle = document.getElementById("sidebar-toggle");
@@ -1427,6 +1796,21 @@
     const toolsMenu = document.getElementById("tools-menu");
     const reasoningOptions = Array.from(document.querySelectorAll(".reasoning-option[data-reasoning]"));
     const modeOptions = Array.from(document.querySelectorAll(".mode-option"));
+    const workflowOverlay = document.getElementById("workflow-overlay");
+    const workflowClose = document.getElementById("workflow-close");
+    const workflowSearch = document.getElementById("workflow-search");
+    const workflowList = document.getElementById("workflow-list");
+    const workflowDetail = document.getElementById("workflow-detail");
+
+    const sendIcon = `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 19V5" />
+        <path d="m5 12 7-7 7 7" />
+      </svg>`;
+    const stopIcon = `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor" stroke="none"></rect>
+      </svg>`;
 
     const storageKey = "bareboneQt.aiAssistant.sessions.v1";
     const reasoningStorageKey = "bareboneQt.aiAssistant.reasoning.v1";
@@ -1443,15 +1827,21 @@
     let thinkingIndicator = null;
     let thinkingDetailsList = null;
     let thinkingDetailCount = 0;
+    let completingThinkingIndicator = false;
     let pendingExecutionSummary = false;
     let batchThinkingState = { active: false, current: 0, total: 0 };
     let aiThinkingState = { requests: 0, retries: 0, workflowRetries: 0 };
     let capabilitiesIndicator = null;
     let proposalInline = null;
+    let workflowSavePromptInline = null;
+    let workflowSavePromptSignature = "";
     let reasoningEffort = "high";
     let chatMode = "bricscad";
     let trainingMode = false;
+    let workflows = [];
+    let selectedWorkflow = null;
     let applyingClientState = false;
+    let clientStateSaveTimer = 0;
     let documentCounter = 0;
     let documentsLoading = 0;
     const sessionDocuments = new Map();
@@ -1579,7 +1969,15 @@
         documentContext.appendChild(chip);
       });
 
-      sendButton.disabled = isBusy || documentsLoading > 0;
+      updateSendButtonState();
+    }
+
+    function updateSendButtonState() {
+      sendButton.disabled = documentsLoading > 0;
+      sendButton.classList.toggle("stop", isBusy);
+      sendButton.setAttribute("aria-label", isBusy ? "Laufenden Prozess stoppen" : "Nachricht senden");
+      sendButton.title = isBusy ? "Stoppen" : "Absenden";
+      sendButton.innerHTML = isBusy ? stopIcon : sendIcon;
     }
 
     function removeDocument(documentId) {
@@ -1589,6 +1987,309 @@
         docs.splice(index, 1);
         renderDocumentContext();
       }
+    }
+
+    function normalizeWorkflow(workflow) {
+      const wrapper = workflow && typeof workflow === "object" ? workflow : {};
+      const nested = wrapper.workflow && typeof wrapper.workflow === "object" ? wrapper.workflow : {};
+      const value = { ...nested, ...wrapper };
+      delete value.workflow;
+      const id = String(value.id || value.workflowId || value.fileName || "").trim();
+      const title = String(value.title || id || "Workflow").trim();
+      return {
+        ...value,
+        id,
+        title,
+        description: String(value.description || value.summary || "").trim(),
+        fileName: String(value.fileName || "").trim()
+      };
+    }
+
+    function workflowMetaText(workflow) {
+      const stepCount = Number(workflow.stepCount || (Array.isArray(workflow.steps) ? workflow.steps.length : 0)) || 0;
+      const batchCount = Number(workflow.batchCount || (Array.isArray(workflow.executionBatches) ? workflow.executionBatches.length : 0)) || 0;
+      const parts = [];
+      if (stepCount > 0) {
+        parts.push(`${stepCount} Schritt${stepCount === 1 ? "" : "e"}`);
+      }
+      if (batchCount > 0) {
+        parts.push(`${batchCount} Batch${batchCount === 1 ? "" : "es"}`);
+      }
+      if (workflow.fileName) {
+        parts.push(workflow.fileName);
+      }
+      return parts.join(" · ") || "Workflow";
+    }
+
+    function openWorkflowOverlay() {
+      workflowOverlay.classList.add("open");
+      workflowOverlay.setAttribute("aria-hidden", "false");
+      if (bridge && typeof bridge.requestWorkflowList === "function") {
+        bridge.requestWorkflowList();
+      }
+      renderWorkflowList();
+      renderWorkflowDetail(selectedWorkflow);
+      requestAnimationFrame(() => workflowSearch.focus());
+    }
+
+    function closeWorkflowOverlay() {
+      workflowOverlay.classList.remove("open");
+      workflowOverlay.setAttribute("aria-hidden", "true");
+    }
+
+    function scrollWorkflowPane(element, deltaY) {
+      if (!element) {
+        return false;
+      }
+      const before = element.scrollTop;
+      element.scrollTop += deltaY;
+      return element.scrollTop !== before;
+    }
+
+    function workflowTextContent(workflow) {
+      return [
+        workflow.title,
+        workflow.id,
+        workflow.description,
+        workflow.fileName,
+        Array.isArray(workflow.triggerExamples) ? workflow.triggerExamples.join(" ") : "",
+        Array.isArray(workflow.preferredTools) ? workflow.preferredTools.join(" ") : ""
+      ].join(" ").toLowerCase();
+    }
+
+    function filteredWorkflows() {
+      const query = workflowSearch.value.trim().toLowerCase();
+      if (!query) {
+        return workflows;
+      }
+      return workflows.filter((workflow) => workflowTextContent(workflow).includes(query));
+    }
+
+    function renderWorkflowList() {
+      workflowList.replaceChildren();
+      const visible = filteredWorkflows();
+      if (!visible.length) {
+        const empty = document.createElement("div");
+        empty.className = "workflow-detail-empty";
+        empty.textContent = workflows.length ? "Keine Workflows gefunden." : "Noch keine Workflows vorhanden.";
+        workflowList.appendChild(empty);
+        return;
+      }
+
+      visible.forEach((workflow) => {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = "workflow-item";
+        item.classList.toggle("active", selectedWorkflow && selectedWorkflow.id === workflow.id);
+
+        const title = document.createElement("span");
+        title.className = "workflow-item-title";
+        title.textContent = workflow.title;
+
+        const meta = document.createElement("span");
+        meta.className = "workflow-item-meta";
+        meta.textContent = workflowMetaText(workflow);
+
+        item.appendChild(title);
+        item.appendChild(meta);
+        item.addEventListener("click", () => {
+          if (bridge && typeof bridge.selectWorkflow === "function") {
+            bridge.selectWorkflow(workflow.id);
+          } else {
+            applySelectedWorkflowFromQt(workflow);
+          }
+        });
+        workflowList.appendChild(item);
+      });
+    }
+
+    function createWorkflowSection(title, content) {
+      const section = document.createElement("section");
+      section.className = "workflow-section";
+      const heading = document.createElement("div");
+      heading.className = "workflow-section-title";
+      heading.textContent = title;
+      section.appendChild(heading);
+
+      if (Array.isArray(content)) {
+        const list = document.createElement("ul");
+        list.className = "workflow-section-list";
+        content.filter(Boolean).forEach((entry) => {
+          const item = document.createElement("li");
+          item.textContent = typeof entry === "string" ? entry : JSON.stringify(entry);
+          list.appendChild(item);
+        });
+        section.appendChild(list);
+      } else {
+        const text = document.createElement("div");
+        text.className = "workflow-section-text";
+        text.textContent = String(content || "").trim();
+        section.appendChild(text);
+      }
+      return section;
+    }
+
+    function workflowOrderedSteps(workflow) {
+      const rows = [];
+      if (Array.isArray(workflow.executionBatches) && workflow.executionBatches.length) {
+        workflow.executionBatches.forEach((batch) => {
+          if (!batch || !Array.isArray(batch.steps)) {
+            return;
+          }
+          batch.steps.forEach((step) => rows.push({ ...step, batchTitle: batch.title || batch.id || "" }));
+        });
+      } else if (Array.isArray(workflow.steps)) {
+        workflow.steps.forEach((step) => rows.push(step));
+      }
+      return rows;
+    }
+
+    function workflowStrategyWithTools(workflow) {
+      const lines = [];
+      if (Array.isArray(workflow.constructionStrategy)) {
+        workflow.constructionStrategy.filter(Boolean).forEach((entry) => lines.push(String(entry)));
+      }
+      const steps = workflowOrderedSteps(workflow);
+      if (steps.length) {
+        if (lines.length) {
+          lines.push("Werkzeugfolge:");
+        }
+        steps.forEach((step, index) => {
+          const title = step.title || step.id || "Schritt";
+          const tool = step.tool || "Tool offen";
+          lines.push(`${index + 1}. ${tool} - ${title}`);
+        });
+      }
+      return lines;
+    }
+
+    function renderWorkflowDetail(workflow) {
+      workflowDetail.replaceChildren();
+      if (!workflow || !workflow.id) {
+        const empty = document.createElement("div");
+        empty.className = "workflow-detail-empty";
+        empty.textContent = "Wähle einen Workflow aus. Danach kannst du ihn per Chat steuern, zum Beispiel mit „Workflow ausführen“ oder „Workflow bearbeiten“. ";
+        workflowDetail.appendChild(empty);
+        return;
+      }
+
+      const title = document.createElement("div");
+      title.className = "workflow-detail-title";
+      title.textContent = workflow.title;
+      workflowDetail.appendChild(title);
+
+      const id = document.createElement("div");
+      id.className = "workflow-detail-id";
+      id.textContent = workflow.id;
+      workflowDetail.appendChild(id);
+
+      if (workflow.description) {
+        workflowDetail.appendChild(createWorkflowSection("Beschreibung", workflow.description));
+      }
+      const strategyLines = workflowStrategyWithTools(workflow);
+      if (strategyLines.length) {
+        workflowDetail.appendChild(createWorkflowSection("Strategie", strategyLines));
+      }
+      if (Array.isArray(workflow.requiredSlots) && workflow.requiredSlots.length) {
+        workflowDetail.appendChild(createWorkflowSection("Pflichtangaben", workflow.requiredSlots.map((slot) => {
+          if (typeof slot === "string") {
+            return slot;
+          }
+          return slot && slot.name ? `${slot.name}${slot.description ? `: ${slot.description}` : ""}` : JSON.stringify(slot);
+        })));
+      }
+      if (Array.isArray(workflow.derivedValues) && workflow.derivedValues.length) {
+        workflowDetail.appendChild(createWorkflowSection("Berechnungen", workflow.derivedValues.map((value) => {
+          if (!value || typeof value !== "object") {
+            return String(value);
+          }
+          const name = value.name || "Wert";
+          const expression = value.expression ? ` = ${value.expression}` : "";
+          const example = value.example !== undefined ? ` (Beispiel: ${JSON.stringify(value.example)})` : "";
+          return `${name}${expression}${example}`;
+        })));
+      }
+      if (Array.isArray(workflow.executionBatches) && workflow.executionBatches.length) {
+        workflowDetail.appendChild(createWorkflowSection("Batch-Ausführungen", workflow.executionBatches.map((batch) => {
+          const steps = Array.isArray(batch.steps) ? batch.steps.length : 0;
+          return `${batch.title || batch.id || "Batch"}${steps ? ` (${steps} Schritt${steps === 1 ? "" : "e"})` : ""}`;
+        })));
+      } else if (Array.isArray(workflow.steps) && workflow.steps.length) {
+        workflowDetail.appendChild(createWorkflowSection("Schritte", workflow.steps.map((step) => `${step.title || step.id || step.tool || "Schritt"}${step.tool ? ` · ${step.tool}` : ""}`)));
+      }
+      if (Array.isArray(workflow.preferredTools) && workflow.preferredTools.length) {
+        const section = document.createElement("section");
+        section.className = "workflow-section";
+        const heading = document.createElement("div");
+        heading.className = "workflow-section-title";
+        heading.textContent = "Tools";
+        const chips = document.createElement("div");
+        chips.className = "workflow-chip-row";
+        workflow.preferredTools.forEach((tool) => {
+          const chip = document.createElement("span");
+          chip.className = "workflow-chip";
+          chip.textContent = tool;
+          chips.appendChild(chip);
+        });
+        section.appendChild(heading);
+        section.appendChild(chips);
+        workflowDetail.appendChild(section);
+      }
+      if (Array.isArray(workflow.validationWarnings) && workflow.validationWarnings.length) {
+        workflowDetail.appendChild(createWorkflowSection("Validierungshinweise", workflow.validationWarnings));
+      }
+    }
+
+    function renderActiveWorkflow() {
+      if (!trainingMode || !selectedWorkflow || !selectedWorkflow.id) {
+        activeWorkflow.classList.remove("visible");
+        activeWorkflowName.textContent = "Workflow aktiv";
+        activeWorkflowLabel.title = "";
+        return;
+      }
+      activeWorkflowName.textContent = `Workflow aktiv: ${selectedWorkflow.title}`;
+      activeWorkflowLabel.title = selectedWorkflow.title;
+      activeWorkflow.classList.add("visible");
+    }
+
+    function selectedWorkflowContext() {
+      if (!selectedWorkflow || !selectedWorkflow.id) {
+        return null;
+      }
+      return {
+        id: selectedWorkflow.id,
+        title: selectedWorkflow.title,
+        description: selectedWorkflow.description || "",
+        fileName: selectedWorkflow.fileName || ""
+      };
+    }
+
+    function promptContextForSubmit(text) {
+      const context = buildDocumentContextForPrompt(text);
+      const workflow = selectedWorkflowContext();
+      if (workflow) {
+        context.hasWorkflow = true;
+        context.selectedWorkflow = workflow;
+      }
+      return context;
+    }
+
+    function applyWorkflowListFromQt(list) {
+      workflows = Array.isArray(list) ? list.map(normalizeWorkflow).filter((workflow) => workflow.id) : [];
+      renderWorkflowList();
+      if (selectedWorkflow && !workflows.some((workflow) => workflow.id === selectedWorkflow.id)) {
+        selectedWorkflow = null;
+        renderActiveWorkflow();
+        renderWorkflowDetail(null);
+      }
+    }
+
+    function applySelectedWorkflowFromQt(workflow) {
+      const normalized = normalizeWorkflow(workflow);
+      selectedWorkflow = normalized.id ? normalized : null;
+      renderActiveWorkflow();
+      renderWorkflowList();
+      renderWorkflowDetail(selectedWorkflow);
     }
 
     function ensurePdfParserReady() {
@@ -1908,6 +2609,13 @@
       });
       modeIndicator.textContent = trainingMode ? "Trainingsmodus" : modeLabel(chatMode);
       modeIndicator.classList.toggle("training-active", trainingMode);
+      workflowsButton.hidden = !trainingMode;
+      workflowsButton.disabled = !trainingMode;
+      workflowsButton.style.display = trainingMode ? "" : "none";
+      if (!trainingMode && workflowOverlay.classList.contains("open")) {
+        closeWorkflowOverlay();
+      }
+      renderActiveWorkflow();
       if (!shouldShowBrxCapabilitiesInChat()) {
         clearCapabilitiesIndicator();
       }
@@ -1930,7 +2638,15 @@
       if (applyingClientState || !bridge || typeof bridge.saveClientState !== "function") {
         return;
       }
-      bridge.saveClientState(JSON.stringify(clientState()));
+      if (clientStateSaveTimer) {
+        window.clearTimeout(clientStateSaveTimer);
+      }
+      clientStateSaveTimer = window.setTimeout(() => {
+        clientStateSaveTimer = 0;
+        if (!applyingClientState && bridge && typeof bridge.saveClientState === "function") {
+          bridge.saveClientState(JSON.stringify(clientState()));
+        }
+      }, 50);
     }
 
     function formatTokenCount(value) {
@@ -2925,25 +3641,36 @@
       return root;
     }
 
+    function messageNeedsMath(text) {
+      const value = String(text || "");
+      return /\\\(|\\\[|\$\$/.test(value) || /(^|[^\\])\$[^$\n]{1,240}\$/.test(value);
+    }
+
     function typesetMath(element) {
-      if (!element) {
+      if (!element || !element.isConnected) {
         return;
       }
       if (window.MathJax && typeof window.MathJax.typesetPromise === "function") {
-        window.MathJax.typesetPromise([element]).catch(() => {});
+        window.setTimeout(() => {
+          if (element && element.isConnected) {
+            window.MathJax.typesetPromise([element]).catch(() => {});
+          }
+        }, 0);
         return;
       }
       window.__bareboneQueuedMath = window.__bareboneQueuedMath || [];
-      window.__bareboneQueuedMath.push(element);
+      if (!window.__bareboneQueuedMath.includes(element)) {
+        window.__bareboneQueuedMath.push(element);
+      }
     }
 
     window.__bareboneTypesetQueuedMath = function typesetQueuedMath() {
-      const queued = window.__bareboneQueuedMath || [];
+      const queued = (window.__bareboneQueuedMath || []).filter((element) => element && element.isConnected);
       window.__bareboneQueuedMath = [];
       if (!queued.length || !window.MathJax || typeof window.MathJax.typesetPromise !== "function") {
         return undefined;
       }
-      return window.MathJax.typesetPromise(queued).catch(() => {});
+      return window.setTimeout(() => window.MathJax.typesetPromise(queued).catch(() => {}), 0);
     };
 
     function renderMessage(message) {
@@ -2985,7 +3712,9 @@
       content.appendChild(createMessageFooter(text));
       article.appendChild(content);
       messages.appendChild(article);
-      typesetMath(article);
+      if (messageNeedsMath(text)) {
+        typesetMath(article);
+      }
       messages.scrollTop = messages.scrollHeight;
     }
 
@@ -3116,47 +3845,58 @@
       thinkingIndicator = null;
       thinkingDetailsList = null;
       thinkingDetailCount = 0;
+      completingThinkingIndicator = false;
       batchThinkingState = { active: false, current: 0, total: 0 };
       aiThinkingState = { requests: 0, retries: 0, workflowRetries: 0 };
     }
 
     function completeThinkingIndicator({ collapseDetails = false } = {}) {
-      if (!thinkingIndicator) {
+      if (!thinkingIndicator || completingThinkingIndicator) {
         return;
       }
-      if (thinkingDetailCount === 0) {
-        clearThinkingIndicator();
-        return;
-      }
+      completingThinkingIndicator = true;
 
-      const spinner = thinkingIndicator.querySelector(".loading-spinner");
-      if (spinner) {
-        spinner.className = "status-mark done";
-        spinner.textContent = "✓";
-        spinner.removeAttribute("aria-hidden");
-      }
-
-      const toggle = thinkingIndicator.querySelector(".thinking-toggle");
-      if (toggle) {
-        const label = toggle.querySelector("span");
-        if (label) {
-          label.textContent = "Gedacht";
-        }
-        toggle.setAttribute("aria-label", "Denkschritte anzeigen");
-        toggle.setAttribute("aria-expanded", collapseDetails ? "false" : "true");
-      }
-
-      const details = thinkingIndicator.querySelector(".thinking-details");
-      if (details && collapseDetails) {
-        details.classList.remove("open");
-      }
-
-      thinkingIndicator.classList.remove("thinking-indicator");
+      const indicator = thinkingIndicator;
+      const detailCount = thinkingDetailCount;
       thinkingIndicator = null;
       thinkingDetailsList = null;
       thinkingDetailCount = 0;
       batchThinkingState = { active: false, current: 0, total: 0 };
       aiThinkingState = { requests: 0, retries: 0, workflowRetries: 0 };
+
+      if (detailCount === 0) {
+        removeTransientIndicator(indicator);
+        completingThinkingIndicator = false;
+        return;
+      }
+
+      try {
+        const spinner = indicator.querySelector(".loading-spinner");
+        if (spinner) {
+          spinner.className = "status-mark done";
+          spinner.textContent = "✓";
+          spinner.removeAttribute("aria-hidden");
+        }
+
+        const toggle = indicator.querySelector(".thinking-toggle");
+        if (toggle) {
+          const label = toggle.querySelector("span");
+          if (label) {
+            label.textContent = "Gedacht";
+          }
+          toggle.setAttribute("aria-label", "Denkschritte anzeigen");
+          toggle.setAttribute("aria-expanded", collapseDetails ? "false" : "true");
+        }
+
+        const details = indicator.querySelector(".thinking-details");
+        if (details && collapseDetails) {
+          details.classList.remove("open");
+        }
+
+        indicator.classList.remove("thinking-indicator");
+      } finally {
+        completingThinkingIndicator = false;
+      }
     }
 
     function setCapabilitiesIndicator(state, text) {
@@ -3240,7 +3980,7 @@
       agentStatus.textContent = isBusy ? "AI arbeitet" : "Leerlauf";
       agentStatus.classList.toggle("thinking", isBusy);
       input.disabled = isBusy;
-      sendButton.disabled = isBusy || documentsLoading > 0;
+      updateSendButtonState();
       attachButton.disabled = isBusy;
       if (isBusy) {
         showThinkingIndicator();
@@ -3324,18 +4064,6 @@
       const actions = document.createElement("div");
       actions.className = "inline-proposal-actions";
 
-      const cancel = document.createElement("button");
-      cancel.className = "cancel-btn";
-      cancel.type = "button";
-      cancel.textContent = "Verwerfen";
-      cancel.addEventListener("click", () => {
-        clearProposal();
-        if (bridge) {
-          bridge.clearProposal();
-        }
-      });
-
-      actions.appendChild(cancel);
       if (proposal.canRun !== false) {
         const confirm = document.createElement("button");
         confirm.className = "confirm-btn";
@@ -3353,7 +4081,6 @@
       article.appendChild(bubble);
       proposalInline = article;
       messages.appendChild(article);
-      typesetMath(article);
       messages.scrollTop = messages.scrollHeight;
     }
 
@@ -3362,6 +4089,88 @@
         proposalInline.remove();
       }
       proposalInline = null;
+    }
+
+    function removeWorkflowSavePrompt() {
+      if (workflowSavePromptInline && workflowSavePromptInline.parentNode) {
+        workflowSavePromptInline.remove();
+      }
+      workflowSavePromptInline = null;
+      workflowSavePromptSignature = "";
+    }
+
+    function renderWorkflowSavePrompt(prompt) {
+      if (!prompt) {
+        removeWorkflowSavePrompt();
+        return;
+      }
+      const signature = JSON.stringify({
+        action: prompt.action || "",
+        title: prompt.title || "",
+        message: prompt.message || "",
+        workflowTitle: prompt.workflowTitle || ""
+      });
+      if (workflowSavePromptInline && workflowSavePromptSignature === signature) {
+        return;
+      }
+      removeWorkflowSavePrompt();
+      workflowSavePromptSignature = signature;
+
+      completeThinkingIndicator();
+
+      const article = document.createElement("article");
+      article.className = "message system inline-proposal workflow-save-prompt";
+
+      const avatar = document.createElement("div");
+      avatar.className = "assistant-avatar";
+      avatar.textContent = "Qt";
+      article.appendChild(avatar);
+
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+
+      const card = document.createElement("div");
+      card.className = "inline-proposal-card";
+
+      const title = document.createElement("div");
+      title.className = "inline-proposal-title";
+      title.textContent = germanizeText(prompt.title || "Workflow speichern");
+      card.appendChild(title);
+
+      const summaryText = germanizeText(prompt.message || "");
+      if (summaryText) {
+        const summary = document.createElement("div");
+        summary.className = "inline-proposal-summary";
+        summary.textContent = summaryText;
+        card.appendChild(summary);
+      }
+
+      const actions = document.createElement("div");
+      actions.className = "inline-proposal-actions";
+
+      const save = document.createElement("button");
+      save.className = "confirm-btn";
+      save.type = "button";
+      save.textContent = prompt.buttonText || "Speichern";
+      save.addEventListener("click", () => {
+        removeWorkflowSavePrompt();
+        const action = String(prompt.action || "").trim();
+        if (action === "run" && bridge && typeof bridge.confirmWorkflowTrainingRun === "function") {
+          bridge.confirmWorkflowTrainingRun();
+        } else if (action === "finalSave" && bridge && typeof bridge.confirmWorkflowTrainingFinalSave === "function") {
+          bridge.confirmWorkflowTrainingFinalSave();
+        } else if (bridge && typeof bridge.confirmWorkflowTrainingSave === "function") {
+          bridge.confirmWorkflowTrainingSave();
+        }
+      });
+      actions.appendChild(save);
+
+      card.appendChild(actions);
+      bubble.appendChild(card);
+      article.appendChild(bubble);
+      workflowSavePromptInline = article;
+      messages.appendChild(article);
+      messages.scrollTop = messages.scrollHeight;
     }
 
     function setProposal(proposal, options = {}) {
@@ -3382,6 +4191,8 @@
 
     function renderActiveSession() {
       clearThinkingIndicator();
+      workflowSavePromptInline = null;
+      workflowSavePromptSignature = "";
       messages.replaceChildren();
       const session = activeSession();
       renderDocumentContext();
@@ -3501,6 +4312,12 @@
     }
 
     function submitPrompt() {
+      if (isBusy) {
+        if (bridge && typeof bridge.cancelCurrentOperation === "function") {
+          bridge.cancelCurrentOperation();
+        }
+        return;
+      }
       const text = input.value.trim();
       if (!text) {
         input.focus();
@@ -3514,9 +4331,10 @@
         addMessage({ speaker: "Barebone-Qt", message: "Dateien werden noch gelesen. Bitte sende die Anfrage gleich erneut.", time: nowTime() }, { record: false });
         return;
       }
-      const documentPromptContext = buildDocumentContextForPrompt(text);
+      const documentPromptContext = promptContextForSubmit(text);
       input.value = "";
-      if (documentPromptContext.hasDocuments && typeof bridge.sendPromptWithContext === "function") {
+      removeWorkflowSavePrompt();
+      if ((documentPromptContext.hasDocuments || documentPromptContext.hasWorkflow) && typeof bridge.sendPromptWithContext === "function") {
         bridge.sendPromptWithContext(text, documentPromptContext);
       } else {
         bridge.sendPrompt(text);
@@ -3616,12 +4434,78 @@
       const text = stripLogTimestamp(line);
       let match = text.match(/^Qt -> AI Router: .*mode=([^\s]+).*model=([^\s]+).*timeoutMs=(\d+)/);
       if (match) {
-        updateAiThinkingDetail("Ich ordne die Anfrage ein und wähle den passenden Antwortweg.");
+        return true;
+      }
+
+      match = text.match(/^Qt -> AI Tool Selector: tools=(\d+)/);
+      if (match) {
+        updateAiThinkingDetail(`Ich lasse die AI aus ${match[1]} verfügbaren Werkzeugen die passenden auswählen.`, "tool-selector");
+        return true;
+      }
+
+      match = text.match(/^Qt -> AI Tool\/Workflow Selector: tools=(\d+) workflows=(\d+)/);
+      if (match) {
+        updateAiThinkingDetail(`Ich lasse die AI aus ${match[1]} Werkzeugen und ${match[2]} Workflows die passenden Kontexte auswählen.`, "tool-selector");
+        return true;
+      }
+
+      match = text.match(/^AI Tool Selector: tools=([^\s]+)(?:\s+reason=(.*))?/);
+      if (match) {
+        const tools = match[1].split(",").filter(Boolean);
+        const suffix = match[2] ? ` ${compactLogText(match[2], 100)}` : "";
+        updateAiThinkingDetail(`Ich nutze ${tools.length} passende Werkzeug${tools.length === 1 ? "" : "e"}: ${tools.join(", ")}.${suffix}`, "tool-selector");
+        return true;
+      }
+
+      match = text.match(/^AI Tool\/Workflow Selector: tools=([^\s]+)\s+workflows=([^\s]*)(?:\s+reason=(.*))?/);
+      if (match) {
+        const tools = match[1].split(",").filter(Boolean);
+        const workflows = match[2].split(",").filter(Boolean);
+        const suffix = match[3] ? ` ${compactLogText(match[3], 100)}` : "";
+        updateAiThinkingDetail(`Ich nutze ${tools.length} Werkzeug${tools.length === 1 ? "" : "e"} und ${workflows.length} Workflow${workflows.length === 1 ? "" : "s"} als Kontext.${suffix}`, "tool-selector");
+        return true;
+      }
+
+      match = text.match(/^AI Tool\/Workflow Selector: workflows=([^\s]+)(?:\s+reason=(.*))?/);
+      if (match) {
+        const workflows = match[1].split(",").filter(Boolean);
+        const suffix = match[2] ? ` ${compactLogText(match[2], 100)}` : "";
+        updateAiThinkingDetail(`Ich nutze ${workflows.length} passenden Workflow${workflows.length === 1 ? "" : "s"} als bevorzugten Kontext.${suffix}`, "tool-selector");
+        return true;
+      }
+
+      match = text.match(/^AI Tool\/Workflow Selector: lokale Workflow-Auswahl (.*)$/);
+      if (match) {
+        const workflows = match[1].split(",").filter(Boolean);
+        updateAiThinkingDetail(`Ich nutze lokal ${workflows.length} passenden Workflow${workflows.length === 1 ? "" : "s"} als Kontext.`, "tool-selector");
+        return true;
+      }
+
+      match = text.match(/^AI Workflow-Auswahl: decision=([^\s]+)\s+workflow=([^\s]+)\s+reason=(.*)$/);
+      if (match) {
+        const labels = {
+          "direct": "Der Workflow passt direkt.",
+          "adapted": "Ich passe einen Workflow an die Anfrage an.",
+          "extended": "Ich erweitere einen Workflow mit Zusatzschritten.",
+          "deviated": "Ich nutze den Workflow nur als Vorlage.",
+          "no_fit": "Kein Workflow passt ausreichend; ich plane frei mit den Werkzeugen."
+        };
+        const suffix = match[3] ? ` ${compactLogText(match[3], 120)}` : "";
+        updateAiThinkingDetail(`${labels[match[1]] || `Workflow-Entscheidung: ${match[1]}.`}${suffix}`, "workflow-selection");
+        return true;
+      }
+
+      match = text.match(/^AI Workflow-Run-Vorschlag: (\d+) Aktionen workflow=(.*)$/);
+      if (match) {
+        updateAiThinkingDetail(`Ich bereite einen Workflow-Run mit ${match[1]} Schritt${match[1] === "1" ? "" : "en"} vor.`, "workflow-run");
         return true;
       }
 
       match = text.match(/^AI Envelope: mode=([^\s]+) route=([^\s]+) profile=([^\s]+) toolsSent=([^\s]+) policyRefs=(.*)$/);
       if (match) {
+        if (match[1] === "general" || match[2] === "general_chat") {
+          return true;
+        }
         const tools = match[4] && match[4] !== "-"
           ? match[4].split(",").filter(Boolean).length
           : 0;
@@ -3671,6 +4555,48 @@
 
       if (text.includes("Workflow Training Review: Nutzer hat die Vor-Speicher-Review bestaetigt")) {
         updateAiThinkingDetail("Die Review ist bestätigt; ich bereite die finale Validierung vor.", "workflow-review");
+        return true;
+      }
+
+      match = text.match(/^Workflow Run: Vorschlag aus (.*) mit (\d+) Aktionen/);
+      if (match) {
+        updateAiThinkingDetail(`Ich bereite den Workflow „${match[1]}“ mit ${match[2]} Schritt${match[2] === "1" ? "" : "en"} vor.`, "workflow-run");
+        return true;
+      }
+
+      match = text.match(/^Qt -> AI Workflow Step Review: step=(\d+)\/(\d+) failed=(true|false)/);
+      if (match) {
+        updateAiThinkingDetail(
+          match[3] === "true"
+            ? `Ich lasse die AI den fehlgeschlagenen Workflow-Schritt ${match[1]}/${match[2]} prüfen.`
+            : `Ich lasse die AI Workflow-Schritt ${match[1]}/${match[2]} auswerten.`,
+          "workflow-step-review");
+        return true;
+      }
+
+      match = text.match(/^AI Workflow Step Review: decision=([^\s]+)\s+message=(.*)$/);
+      if (match) {
+        const decisionLabels = {
+          "continue": "AI bestätigt den nächsten Workflow-Schritt.",
+          "ask_user": "AI benötigt eine Nutzerentscheidung zum Workflow.",
+          "repair_action": "AI korrigiert eine Workflow-Aktion.",
+          "repair_workflow": "AI überführt den Workflow in die Trainingskorrektur.",
+          "stop_success": "AI bewertet den Workflow als abgeschlossen.",
+          "stop_failed": "AI bricht den Workflow mit Begründung ab."
+        };
+        const suffix = match[2] ? ` ${compactLogText(match[2], 100)}` : "";
+        updateAiThinkingDetail(`${decisionLabels[match[1]] || `AI entscheidet: ${match[1]}.`}${suffix}`, "workflow-step-review");
+        return true;
+      }
+
+      match = text.match(/^Workflow Step Review: Aktion (\d+)\/(\d+) durch AI-Korrektur ersetzt/);
+      if (match) {
+        updateAiThinkingDetail(`Ich ersetze Workflow-Aktion ${match[1]}/${match[2]} durch die AI-Korrektur und validiere erneut.`, "workflow-step-repair");
+        return true;
+      }
+
+      if (text.includes("Workflow Step Review: Workflow-Reparatur im Trainingsmodus gestartet")) {
+        updateAiThinkingDetail("Ich öffne den Workflow mit BRX-Log im Trainingsmodus zur Reparatur.", "workflow-step-repair");
         return true;
       }
 
@@ -3973,17 +4899,55 @@
       }
     });
 
-    proposalCancel.addEventListener("click", () => {
-      clearProposal();
-      if (bridge) {
-        bridge.clearProposal();
-      }
-    });
+    if (proposalCancel) {
+      proposalCancel.addEventListener("click", () => {
+        clearProposal();
+        if (bridge) {
+          bridge.clearProposal();
+        }
+      });
+    }
 
     newChatButton.addEventListener("click", requestNewChat);
     attachButton.addEventListener("click", () => {
       if (!isBusy) {
         documentFileInput.click();
+      }
+    });
+    workflowsButton.addEventListener("click", () => {
+      if (trainingMode) {
+        openWorkflowOverlay();
+      }
+    });
+    activeWorkflowRemove.addEventListener("click", () => {
+      if (bridge && typeof bridge.clearSelectedWorkflow === "function") {
+        bridge.clearSelectedWorkflow();
+      }
+      applySelectedWorkflowFromQt({});
+      input.focus();
+    });
+    workflowClose.addEventListener("click", closeWorkflowOverlay);
+    workflowOverlay.addEventListener("click", (event) => {
+      if (event.target === workflowOverlay) {
+        closeWorkflowOverlay();
+      }
+    });
+    workflowOverlay.addEventListener("wheel", (event) => {
+      const scrollTarget = event.target.closest(".workflow-list, .workflow-detail");
+      if (scrollTarget) {
+        if (scrollWorkflowPane(scrollTarget, event.deltaY)) {
+          event.preventDefault();
+        }
+        return;
+      }
+      if (scrollWorkflowPane(workflowDetail, event.deltaY)) {
+        event.preventDefault();
+      }
+    }, { passive: false });
+    workflowSearch.addEventListener("input", renderWorkflowList);
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && workflowOverlay.classList.contains("open")) {
+        closeWorkflowOverlay();
       }
     });
     documentFileInput.addEventListener("change", () => {
@@ -4023,6 +4987,7 @@
     loadSessions();
     renderSessionList();
     renderActiveSession();
+    updateSendButtonState();
 
     if (window.qt && window.qt.webChannelTransport && window.QWebChannel) {
       new QWebChannel(window.qt.webChannelTransport, (channel) => {
@@ -4041,9 +5006,36 @@
         bridge.statusChanged.connect(setBusy);
         bridge.proposalChanged.connect(setProposal);
         bridge.proposalCleared.connect(clearProposal);
+        if (bridge.workflowTrainingSavePromptChanged) {
+          bridge.workflowTrainingSavePromptChanged.connect(renderWorkflowSavePrompt);
+        }
+        if (bridge.workflowTrainingSavePromptCleared) {
+          bridge.workflowTrainingSavePromptCleared.connect(removeWorkflowSavePrompt);
+        }
+        if (bridge.workflowTrainingRunPromptChanged) {
+          bridge.workflowTrainingRunPromptChanged.connect(renderWorkflowSavePrompt);
+        }
+        if (bridge.workflowTrainingRunPromptCleared) {
+          bridge.workflowTrainingRunPromptCleared.connect(removeWorkflowSavePrompt);
+        }
+        if (bridge.workflowTrainingFinalSavePromptChanged) {
+          bridge.workflowTrainingFinalSavePromptChanged.connect(renderWorkflowSavePrompt);
+        }
+        if (bridge.workflowTrainingFinalSavePromptCleared) {
+          bridge.workflowTrainingFinalSavePromptCleared.connect(removeWorkflowSavePrompt);
+        }
         bridge.bridgeStatusChanged.connect(setBrxStatus);
         bridge.bridgeLogAdded.connect(handleBridgeLogLine);
+        if (bridge.workflowListChanged) {
+          bridge.workflowListChanged.connect(applyWorkflowListFromQt);
+        }
+        if (bridge.selectedWorkflowChanged) {
+          bridge.selectedWorkflowChanged.connect(applySelectedWorkflowFromQt);
+        }
         bridge.ready();
+        if (typeof bridge.requestWorkflowList === "function") {
+          bridge.requestWorkflowList();
+        }
         syncTrainingModeToQt();
       });
     } else {
