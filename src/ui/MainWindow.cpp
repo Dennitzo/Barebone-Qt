@@ -22,6 +22,11 @@ bool effectiveDarkTheme(const QString& theme)
     return QApplication::palette().color(QPalette::Window).lightness() < 128;
 }
 
+bool englishUi(const ConfigManager& config)
+{
+    return config.language().trimmed().compare(QStringLiteral("en"), Qt::CaseInsensitive) == 0;
+}
+
 }
 
 MainWindow::MainWindow(ConfigManager& config, QWidget* parent)
@@ -30,7 +35,9 @@ MainWindow::MainWindow(ConfigManager& config, QWidget* parent)
 {
     buildUi();
     applyStyle();
+    retranslateUi();
     QObject::connect(&m_config, &ConfigManager::changed, this, &MainWindow::applyStyle);
+    QObject::connect(&m_config, &ConfigManager::changed, this, &MainWindow::retranslateUi);
 }
 
 void MainWindow::buildUi()
@@ -170,6 +177,33 @@ void MainWindow::buildUi()
     QObject::connect(m_bricsCadButton, &QPushButton::clicked, this, selectBricsCad);
     QObject::connect(m_settingsButton, &QPushButton::clicked, this, selectSettings);
     selectDashboard();
+}
+
+void MainWindow::retranslateUi()
+{
+    const bool en = englishUi(m_config);
+    setWindowTitle(QStringLiteral("Barebone-Qt"));
+    if (m_dashboardButton) {
+        m_dashboardButton->setText(en ? QStringLiteral("AI Assistant") : QStringLiteral("AI Assistent"));
+    }
+    if (m_dropdownButton) {
+        m_dropdownButton->setText(en ? QStringLiteral("More") : QStringLiteral("Dropdown"));
+    }
+    if (m_templateButton) {
+        m_templateButton->setText(en ? QStringLiteral("Template") : QStringLiteral("Vorlage"));
+    }
+    if (m_bricsCadButton) {
+        m_bricsCadButton->setText(QStringLiteral("Logs"));
+    }
+    if (m_settingsButton) {
+        m_settingsButton->setText(en ? QStringLiteral("Settings") : QStringLiteral("Einstellungen"));
+    }
+    if (m_template) {
+        m_template->setLanguage(en ? QStringLiteral("en") : QStringLiteral("de"));
+    }
+    if (m_settings) {
+        m_settings->retranslateUi();
+    }
 }
 
 void MainWindow::closeEvent(QCloseEvent* event)

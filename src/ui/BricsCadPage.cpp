@@ -83,6 +83,24 @@ QString effectiveWebTheme(QString theme)
         : QStringLiteral("light");
 }
 
+QString effectiveUiLanguage(QString language)
+{
+    const QString normalized = language.trimmed().toLower();
+    return normalized == QStringLiteral("en") ? QStringLiteral("en") : QStringLiteral("de");
+}
+
+bool englishUiLanguage(const ConfigManager& config)
+{
+    return effectiveUiLanguage(config.language()) == QStringLiteral("en");
+}
+
+QString aiLanguageInstruction(const ConfigManager& config)
+{
+    return englishUiLanguage(config)
+        ? QStringLiteral("Answer in English unless the user explicitly asks for another language.")
+        : QStringLiteral("Antworte auf Deutsch, sofern der Nutzer keine andere Sprache wuenscht.");
+}
+
 QString jsStringLiteral(const QString& value)
 {
     QJsonArray array;
@@ -5250,7 +5268,8 @@ BricsCadPage::BricsCadPage(ConfigManager& config, QWidget* parent)
     m_agentChannel = new QWebChannel(m_agentWebView);
     m_agentChannel->registerObject(QStringLiteral("bareboneBridge"), m_agentBridge);
     m_agentWebView->page()->setWebChannel(m_agentChannel);
-    m_agentWebView->setUrl(QUrl(QStringLiteral("qrc:/web/ai-assistant.html?profile=unified")));
+    m_agentWebView->setUrl(QUrl(QStringLiteral("qrc:/web/ai-assistant.html?profile=unified&theme=%1&lang=%2")
+        .arg(effectiveWebTheme(m_config.theme()), effectiveUiLanguage(m_config.language()))));
 
     m_localAiPollTimer = new QTimer(this);
     m_localAiPollTimer->setSingleShot(true);
@@ -5372,6 +5391,7 @@ BricsCadPage::BricsCadPage(ConfigManager& config, QWidget* parent)
             Q_EMIT target->assistantWorkspaceApplied(workspace);
         });
         emitUiThemeToWeb();
+        emitUiLanguageToWeb();
         emitToWebAsync(m_agentBridge, [message = m_localAiStatusMessage, reachable = m_localAiReachable](AiWebBridge* target) {
             Q_EMIT target->localAiStatusChanged(message, reachable);
         });
@@ -5394,6 +5414,7 @@ BricsCadPage::BricsCadPage(ConfigManager& config, QWidget* parent)
     });
     QObject::connect(&m_config, &ConfigManager::changed, this, [this]() {
         emitUiThemeToWeb();
+        emitUiLanguageToWeb();
         refreshLocalContextWindow(true);
         scheduleLocalAiStatusPoll();
     });
@@ -5428,6 +5449,16 @@ void BricsCadPage::emitUiThemeToWeb() const
     }
     emitToWebAsync(m_agentBridge, [theme = effectiveWebTheme(m_config.theme())](AiWebBridge* target) {
         Q_EMIT target->uiThemeChanged(theme);
+    });
+}
+
+void BricsCadPage::emitUiLanguageToWeb() const
+{
+    if (!m_agentBridge) {
+        return;
+    }
+    emitToWebAsync(m_agentBridge, [language = effectiveUiLanguage(m_config.language())](AiWebBridge* target) {
+        Q_EMIT target->uiLanguageChanged(language);
     });
 }
 
@@ -5478,9 +5509,6 @@ void BricsCadPage::refreshLocalContextWindow(bool force)
     }
 
     m_contextWindowRequestInFlight = true;
-    if (!m_localAiReachable) {
-        setLocalAiStatus(QStringLiteral("Lokale AI wird geprüft"), false);
-    }
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     request.setTransferTimeout(5000);
@@ -5711,14 +5739,15 @@ BricsCadPage::ContextBuildResult BricsCadPage::buildGeneralMessagesForBudget(
     int requestedOutputTokens) const
 {
     const QString systemPrompt =
-        "Du bist ein allgemeiner AI Chat-Assistent in Barebone-Qt. "
-        "Antworte direkt, hilfreich und auf Deutsch, sofern der Nutzer keine andere Sprache wuenscht. "
-        "Ohne freigegebene Tools sollst du keine Aktionen in BricsCAD behaupten. "
-        "Wenn die Nutzeranfrage einen Dokumentkontext enthaelt, nutze diesen als primaere Quelle und verweise bei PDFs nach Moeglichkeit auf Seiten. "
-        "Bei Berechnungen nenne immer zuerst die Grundgleichung, erklaere danach kurz alle in der Grundgleichung verwendeten Symbole, danach die Werte mit SI-Einheiten und erst dann das Ergebnis. "
-        "Fuehre Einheiten in jeder eingesetzten Zahl und in jedem Zwischenschritt mit; schreibe Summen nicht als reine Zahlenkette mit Einheit nur am Ende. "
-        "Wenn Werte nicht in SI-Einheiten vorliegen, zeige zuerst die Umrechnung in SI-Einheiten. Schreibe Einheiten nie in LaTeX-Indizes; erklaere Einheiten im Text, in Tabellen oder in Rechenschritten. Pro Index darf maximal ein \\mathrm{...} vorkommen, z.B. \\Phi_{\\mathrm{HL,Gebaeude}} statt \\Phi_{\\mathrm{HL},\\mathrm{Gebaeude}}. "
-        "Wenn der Nutzer nach Rechtschreibfehlern, Tippfehlern oder Korrektur fragt, liste gefundene Stellen mit Original und Korrektur; wenn du keine offensichtlichen Fehler findest, sage das ausdruecklich.";
+        QStringLiteral("Du bist ein allgemeiner AI Chat-Assistent in Barebone-Qt. %1 ")
+            .arg(aiLanguageInstruction(m_config))
+        + QStringLiteral(
+            "Ohne freigegebene Tools sollst du keine Aktionen in BricsCAD behaupten. "
+            "Wenn die Nutzeranfrage einen Dokumentkontext enthaelt, nutze diesen als primaere Quelle und verweise bei PDFs nach Moeglichkeit auf Seiten. "
+            "Bei Berechnungen nenne immer zuerst die Grundgleichung, erklaere danach kurz alle in der Grundgleichung verwendeten Symbole, danach die Werte mit SI-Einheiten und erst dann das Ergebnis. "
+            "Fuehre Einheiten in jeder eingesetzten Zahl und in jedem Zwischenschritt mit; schreibe Summen nicht als reine Zahlenkette mit Einheit nur am Ende. "
+            "Wenn Werte nicht in SI-Einheiten vorliegen, zeige zuerst die Umrechnung in SI-Einheiten. Schreibe Einheiten nie in LaTeX-Indizes; erklaere Einheiten im Text, in Tabellen oder in Rechenschritten. Pro Index darf maximal ein \\mathrm{...} vorkommen, z.B. \\Phi_{\\mathrm{HL,Gebaeude}} statt \\Phi_{\\mathrm{HL},\\mathrm{Gebaeude}}. "
+            "Wenn der Nutzer nach Rechtschreibfehlern, Tippfehlern oder Korrektur fragt, liste gefundene Stellen mit Original und Korrektur; wenn du keine offensichtlichen Fehler findest, sage das ausdruecklich.");
 
     const int maxHistoryMessages = static_cast<int>(m_agentConversation.size());
     const int budget = inputBudgetTokens(requestedOutputTokens);
@@ -6688,19 +6717,21 @@ void BricsCadPage::sendAgentEnvelope(const QJsonObject& envelope, const QString&
         && !routeAllowsCadActions(requestRoute);
     const QString corePrompt = agentResourceText(QStringLiteral(":/agent/policies/core.md"));
     const QString generalPlainPrompt = QStringLiteral(
-        "Du bist der AI Assistent fuer Barebone-Qt. Antworte auf Deutsch.\n\n"
+        "Du bist der AI Assistent fuer Barebone-Qt. %1\n\n"
         "Der Nutzer befindet sich im Allgemeinen Modus. Der eingehende User-Content ist ein JSON-Envelope, aber deine Antwort soll eine normale direkte Chatantwort sein.\n"
         "Nutze aus dem Envelope vor allem userPrompt, documentContext, selectedWorkflow, selectedWorkflows, workflowCapsules, compactState und conversation. Ignoriere JSON-responseContract-Vorgaben, solange keine CAD-Aktion freigegeben ist.\n"
         "Wenn selectedWorkflow oder workflowCapsules einen allgemeinen Workflow enthalten, behandle dessen Tabellen, Formeln, Beispiele, Annahmen und contextSummary als primaeren Kontext fuer die Antwort.\n"
         "Bei Berechnungen gilt: erst die Grundgleichung, dann alle verwendeten Symbole kurz erklaeren, dann Werte mit SI-Einheiten einsetzen, dann Zwischenergebnisse und Endergebnis. Jede eingesetzte Zahl und jeder Summand muss seine Einheit tragen; keine reinen Zahlenketten mit Einheit nur am Ende. Wenn Eingaben nicht in SI-Einheiten vorliegen, zeige zuerst die SI-Umrechnung. Keine Einheiten in LaTeX-Indizes schreiben. Pro Index darf maximal ein \\mathrm{...} vorkommen, z.B. \\Phi_{\\mathrm{HL,Gebaeude}} statt \\Phi_{\\mathrm{HL},\\mathrm{Gebaeude}}.\n"
         "Antworte nicht als JSON-Objekt und verwende keinen Barebone-Agent-Antworttyp. Markdown fuer Listen, Tabellen und Codebloecke ist erlaubt.\n"
-        "Schlage keine CAD-Tools, keine BRX-Ausfuehrung und keine Aktionen vor. Wenn Live-BricsCAD-Daten noetig waeren, erklaere knapp, dass dafuer der BricsCAD-Modus/BRX-Kontext erforderlich ist.");
+        "Schlage keine CAD-Tools, keine BRX-Ausfuehrung und keine Aktionen vor. Wenn Live-BricsCAD-Daten noetig waeren, erklaere knapp, dass dafuer der BricsCAD-Modus/BRX-Kontext erforderlich ist.")
+        .arg(aiLanguageInstruction(m_config));
     const QJsonObject systemMessage{
         {"role", "system"},
         {"content", plainGeneralResponse
             ? generalPlainPrompt
             : (corePrompt.isEmpty()
-            ? QStringLiteral("Du bist der AI Assistent fuer Barebone-Qt. Antworte ausschliesslich mit einem gueltigen JSON-Objekt gemaess responseContract.")
+            ? QStringLiteral("Du bist der AI Assistent fuer Barebone-Qt. %1 Antworte ausschliesslich mit einem gueltigen JSON-Objekt gemaess responseContract.")
+                .arg(aiLanguageInstruction(m_config))
             : corePrompt)},
     };
     const bool includeConversationHistory = envelope.value("includeConversationHistory").toBool(true);
@@ -13078,14 +13109,15 @@ void BricsCadPage::requestAgentExecutionSummary(
     envelope.insert("expectedResponse", "barebone-agent-json-v2-strict-object");
     envelope.insert("includeConversationHistory", true);
     envelope.insert("instruction",
-        "Erstelle aus completedProposal, executedActions, executionStats, toolResults und batchResult eine kurze Abschlussnachricht im ChatGPT-Stil. "
+        QStringLiteral("Erstelle aus completedProposal, executedActions, executionStats, toolResults und batchResult eine kurze Abschlussnachricht im ChatGPT-Stil. "
         "Antworte ausschliesslich mit genau einem JSON-Objekt: {\"type\":\"message\",\"message\":\"...\"}. "
-        "Schreibe natuerlich auf Deutsch, maximal zwei kurze Saetze. "
+        "%1 Schreibe natuerlich, maximal zwei kurze Saetze. "
         "Nutze executionStats fuer konkrete Zahlen, z.B. wie viele Layer neu angelegt wurden, wie viele boxSolidsCreated entstanden sind und wie viele bimWallsClassified wurden. "
         "Zaehle Layer-Aktionen nicht als Wandkoerper oder Geometrieobjekte. "
         "Erwaehne keine internen Qt-/BRX-Details, keine JSON-Daten, keine Validierung und keine Denkprozesse. "
         "Behaupte nur, was in den Ergebnissen erfolgreich abgeschlossen wurde. "
-        "Falls die Ergebnisse unklar sind, nutze fallbackSummary als Grundlage.");
+        "Falls die Ergebnisse unklar sind, nutze fallbackSummary als Grundlage.")
+            .arg(aiLanguageInstruction(m_config)));
 
     const QString compact = QString::fromUtf8(QJsonDocument(envelope).toJson(QJsonDocument::Compact));
     setAgentBusy(false);
@@ -14465,7 +14497,8 @@ QJsonObject BricsCadPage::agentRequestEnvelope(const QString& prompt, const QJso
         responseContract = QJsonObject{
             {"schema", "barebone.general.response.v1"},
             {"format", "plain_text"},
-            {"policy", "Antworte direkt als normale deutsche Chatantwort. Kein JSON-Objekt, kein Barebone-Agent-Antworttyp. Markdown ist erlaubt. Bei Berechnungen: zuerst Grundgleichung, dann Symbolerklärung, dann SI-Umrechnung, dann Rechenschritte mit Einheit an jeder Zahl und jedem Summanden, dann Ergebnis. Keine Einheiten in LaTeX-Indizes. Pro Index maximal ein \\mathrm{...}, z.B. \\Phi_{\\mathrm{HL,Gebaeude}} statt \\Phi_{\\mathrm{HL},\\mathrm{Gebaeude}}."},
+            {"policy", QStringLiteral("%1 Antworte direkt als normale Chatantwort. Kein JSON-Objekt, kein Barebone-Agent-Antworttyp. Markdown ist erlaubt. Bei Berechnungen: zuerst Grundgleichung, dann Symbolerklärung, dann SI-Umrechnung, dann Rechenschritte mit Einheit an jeder Zahl und jedem Summanden, dann Ergebnis. Keine Einheiten in LaTeX-Indizes. Pro Index maximal ein \\mathrm{...}, z.B. \\Phi_{\\mathrm{HL,Gebaeude}} statt \\Phi_{\\mathrm{HL},\\mathrm{Gebaeude}}.")
+                .arg(aiLanguageInstruction(m_config))},
         };
     }
 

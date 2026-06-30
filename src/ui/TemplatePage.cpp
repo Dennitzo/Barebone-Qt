@@ -8,9 +8,14 @@
 
 namespace {
 
+QString metricMarkup(const QString& title, const QString& value)
+{
+    return QString("<span style='color:#8a93a3;font-size:12px;font-weight:700;letter-spacing:0'>%1</span><br><b style='font-size:26px'>%2</b>").arg(title, value);
+}
+
 QLabel* metricLabel(const QString& title, const QString& value, QWidget* parent)
 {
-    auto* label = new QLabel(QString("<span style='color:#8a93a3;font-size:12px;font-weight:700;letter-spacing:0'>%1</span><br><b style='font-size:26px'>%2</b>").arg(title, value), parent);
+    auto* label = new QLabel(metricMarkup(title, value), parent);
     label->setMinimumHeight(72);
     return label;
 }
@@ -34,7 +39,8 @@ QWidget* wrapCard(QWidget* content, QWidget* parent, int height = 138)
 }
 
 TemplatePage::TemplatePage(Mode mode, QWidget* agentWidget, QWidget* parent)
-    : QWidget(parent)
+    : QWidget(parent),
+      m_mode(mode)
 {
     auto* root = new QVBoxLayout(this);
     if (mode == Mode::Dashboard && agentWidget) {
@@ -49,9 +55,9 @@ TemplatePage::TemplatePage(Mode mode, QWidget* agentWidget, QWidget* parent)
     root->setContentsMargins(28, 24, 28, 24);
     root->setSpacing(20);
 
-    auto* title = new QLabel("Vorlage", this);
-    title->setObjectName("pageTitle");
-    root->addWidget(title);
+    m_titleLabel = new QLabel(this);
+    m_titleLabel->setObjectName("pageTitle");
+    root->addWidget(m_titleLabel);
 
     auto* scroll = new QScrollArea(this);
     scroll->setWidgetResizable(true);
@@ -63,7 +69,7 @@ TemplatePage::TemplatePage(Mode mode, QWidget* agentWidget, QWidget* parent)
 
     if (mode == Mode::Vorlage) {
         QGridLayout* metricsGrid = nullptr;
-        auto* metricsGroup = createGroup("Kachelgruppe", &metricsGrid);
+        auto* metricsGroup = createGroup(QStringLiteral("Kachelgruppe"), &metricsGrid);
         metricsGrid->addWidget(createMetricCard("Status", "Online", 9100), 0, 0);
         metricsGrid->addWidget(createMetricCard("Fortschritt", "84.20 %", 8420), 0, 1);
         metricsGrid->addWidget(createMetricCard("Auslastung", "61.75 %", 6175), 0, 2);
@@ -80,6 +86,7 @@ TemplatePage::TemplatePage(Mode mode, QWidget* agentWidget, QWidget* parent)
     contentLayout->addStretch();
     scroll->setWidget(content);
     root->addWidget(scroll, 1);
+    setLanguage(QStringLiteral("de"));
 }
 
 QWidget* TemplatePage::createMetricCard(const QString& title, const QString& value, int progress)
@@ -88,7 +95,9 @@ QWidget* TemplatePage::createMetricCard(const QString& title, const QString& val
     auto* layout = new QVBoxLayout(wrapper);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(8);
-    layout->addWidget(metricLabel(title, value, wrapper));
+    auto* label = metricLabel(title, value, wrapper);
+    m_metricLabels.append(label);
+    layout->addWidget(label);
     if (progress >= 0) {
         auto* bar = new QProgressBar(wrapper);
         bar->setRange(0, 10000);
@@ -110,6 +119,7 @@ QWidget* TemplatePage::createGroup(const QString& title, QGridLayout** gridTarge
 
     auto* label = new QLabel(title, group);
     label->setObjectName("settingsSectionTitle");
+    m_groupLabel = label;
     layout->addWidget(label);
 
     auto* grid = new QGridLayout();
@@ -118,4 +128,23 @@ QWidget* TemplatePage::createGroup(const QString& title, QGridLayout** gridTarge
     *gridTarget = grid;
     layout->addLayout(grid);
     return group;
+}
+
+void TemplatePage::setLanguage(const QString& language)
+{
+    m_language = language.trimmed().toLower() == QStringLiteral("en") ? QStringLiteral("en") : QStringLiteral("de");
+    const bool en = m_language == QStringLiteral("en");
+    if (m_titleLabel) {
+        m_titleLabel->setText(en ? QStringLiteral("Template") : QStringLiteral("Vorlage"));
+    }
+    if (m_groupLabel) {
+        m_groupLabel->setText(en ? QStringLiteral("Tile group") : QStringLiteral("Kachelgruppe"));
+    }
+    const QStringList titles = en
+        ? QStringList{QStringLiteral("Status"), QStringLiteral("Progress"), QStringLiteral("Load"), QStringLiteral("Storage"), QStringLiteral("Entries")}
+        : QStringList{QStringLiteral("Status"), QStringLiteral("Fortschritt"), QStringLiteral("Auslastung"), QStringLiteral("Speicher"), QStringLiteral("Eintraege")};
+    const QStringList values = {QStringLiteral("Online"), QStringLiteral("84.20 %"), QStringLiteral("61.75 %"), QStringLiteral("248 GB"), QStringLiteral("9")};
+    for (qsizetype i = 0; i < m_metricLabels.size() && i < titles.size(); ++i) {
+        m_metricLabels.at(i)->setText(metricMarkup(titles.at(i), values.at(i)));
+    }
 }

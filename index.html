@@ -6,6 +6,19 @@
   <title>Barebone AI Assistent</title>
 
   <script>
+    (() => {
+      const params = new URLSearchParams(window.location.search);
+      const theme = String(params.get("theme") || "").trim().toLowerCase();
+      if (theme === "light" || theme === "dark") {
+        document.documentElement.dataset.theme = theme;
+      }
+      const language = String(params.get("lang") || "").trim().toLowerCase() === "en" ? "en" : "de";
+      document.documentElement.lang = language;
+      window.__bareboneInitialLanguage = language;
+    })();
+  </script>
+
+  <script>
     window.MathJax = {
       tex: {
         inlineMath: [["\\(", "\\)"], ["$", "$"]],
@@ -1069,6 +1082,7 @@
       }
     }
 
+    html[data-theme="light"],
     body[data-theme="light"] {
       --bg: #f7f7f4;
       --surface: #f4f3f3;
@@ -1096,6 +1110,7 @@
       --shadow-soft: 0 8px 30px rgba(0, 0, 0, 0.08);
     }
 
+    html[data-theme="dark"],
     body[data-theme="dark"] {
       --bg: #171717;
       --surface: #1a1a1a;
@@ -1950,7 +1965,7 @@
         </div>
 
         <div class="topbar-right">
-          <span class="status-pill checking" id="local-ai-status">Lokale AI wird geprüft</span>
+          <span class="status-pill disconnected" id="local-ai-status">Lokale AI nicht erreichbar</span>
           <span class="status-pill disconnected" id="brx-status">BRX Plugin nicht verbunden</span>
         </div>
       </header>
@@ -2099,6 +2114,208 @@
       bricscad: "BricsCAD",
       chat: "Chat"
     };
+    let uiLanguage = window.__bareboneInitialLanguage === "en" ? "en" : "de";
+    const i18n = {
+      de: {
+        sidebarCollapse: "Sidebar einklappen",
+        sidebarExpand: "Sidebar ausklappen",
+        clearHistory: "Chatverlauf leeren",
+        newChat: "Neuer Chat",
+        searchSessions: "Sitzung suchen",
+        sessions: "Sitzungen",
+        assistantTitle: "AI Assistent",
+        chooseWorkspace: "AI Arbeitsbereich wählen",
+        localAiReachable: "Lokale AI erreichbar",
+        localAiUnavailable: "Lokale AI nicht erreichbar",
+        localAiInactive: "Lokale AI nicht aktiv",
+        localAiInvalidUrl: "Lokale AI URL ungültig",
+        localAiInvalidResponse: "Lokale AI Antwort ungültig",
+        localAiNotCheckable: "Lokale AI nicht prüfbar",
+        brxConnected: "BRX Plugin verbunden",
+        brxDisconnected: "BRX Plugin nicht verbunden",
+        qtBridgeNotReady: "Qt Bridge nicht bereit",
+        proposalReady: "AI Vorschlag bereit",
+        execute: "Ausführen",
+        promptPlaceholder: "Nachricht eingeben ...",
+        promptAria: "Prompt eingeben",
+        workflowActive: "Workflow aktiv",
+        detachWorkflow: "Workflow aushängen",
+        attachFile: "Datei hinzufügen",
+        attachFileAria: "Datei als Kontext hinzufügen",
+        workflows: "Workflows",
+        showWorkflows: "Workflows anzeigen",
+        tools: "Tools",
+        bricscadMode: "BricsCAD Modus",
+        chatMode: "Chat Modus",
+        generalMode: "Allgemeiner Modus",
+        trainingMode: "Trainingsmodus",
+        context: "Kontext",
+        reasoning: "Schlussfolgern",
+        off: "Aus",
+        low: "Niedrig",
+        medium: "Mittel",
+        high: "Hoch",
+        mode: "Modus",
+        disclaimerChat: "AI kann Fehler machen. Im Chat Modus können keine BricsCAD-Aktionen ausgeführt werden.",
+        disclaimerGeneral: "AI kann Fehler machen. Im Allgemeinen Modus können keine BricsCAD-Aktionen ausgeführt werden.",
+        disclaimerBricscad: "AI kann Fehler machen. BricsCAD-Aktionen werden erst nach Bestätigung ausgeführt.",
+        closeWorkflows: "Workflows schließen",
+        searchWorkflows: "Workflows suchen",
+        workflowEmpty: "Wähle einen Workflow aus. Danach kannst du ihn als Kontext im Chat nutzen.",
+        workflowHint: "Ausführung, Bearbeitung und Debugging laufen über den Chatprompt. Jeder Workflow-Schritt wird weiterhin durch Qt und BRX validiert.",
+        copy: "Kopieren",
+        copied: "Kopiert",
+        copyFailed: "Kopieren fehlgeschlagen",
+        copyMessage: "Nachricht kopieren",
+        copiedMessage: "Nachricht kopiert",
+        sharePdf: "Als PDF teilen",
+        exportPdf: "Nachricht als PDF exportieren",
+        pdfUnavailable: "PDF-Export nicht verfügbar",
+        pdfStarted: "PDF-Export gestartet",
+        pdfFailed: "PDF-Export fehlgeschlagen",
+        saveWorkflow: "Workflow speichern",
+        deleteWorkflow: "Workflow löschen",
+        saveAsSession: "Als Sitzung speichern",
+        jumpToStart: "Zum Anfang springen",
+        delete: "Löschen",
+        save: "Speichern",
+        cancel: "Abbrechen",
+        deleteWorkflowTitle: "Workflow löschen",
+        tables: "Tabellen",
+        formulas: "Formeln",
+        formula: "Formel",
+        examples: "Beispiele",
+        example: "Beispiel",
+        assumptions: "Annahmen",
+        notes: "Hinweise",
+        strategy: "Strategie",
+        requiredSlots: "Pflichtangaben",
+        derivedValues: "Berechnete Werte",
+        batches: "Batch-Ausführungen",
+        steps: "Schritte",
+        validationNotes: "Validierungshinweise",
+        actions: "Aktionen",
+        value: "Wert",
+        batch: "Batch",
+        step: "Schritt",
+        deleteWorkflowQuestion: (title) => `Soll der Workflow „${title}“ dauerhaft vom PC gelöscht werden?`,
+        savedSession: "Gespeicherte Sitzung",
+        sessionSuffix: "Sitzung",
+        greetingChat: "Worüber möchtest du sprechen?",
+        greetingBricscad: "Was möchtest du mit BricsCAD tun?",
+        trainingIntro: "Trainingsmodus aktiv. Beschreibe den neuen BricsCAD Workflow, den wir erstellen wollen.",
+        thinking: "Denkt nach",
+        thought: "Gedacht",
+        workflowSaveThinking: "Ich bereite die ausgewählte AI-Nachricht als Workflow vor.",
+        workflowSaveUnavailable: "Workflow speichern ist in der Qt-Bridge noch nicht verfügbar.",
+        runtimeWorkspaceSwitch: "Arbeitsbereich wechseln",
+        runtimeSessionSwitch: "Sitzung wechseln",
+        runtimeQtChannel: "Qt WebChannel",
+        runtimeInit: "Initialisierung"
+      },
+      en: {
+        sidebarCollapse: "Collapse sidebar",
+        sidebarExpand: "Expand sidebar",
+        clearHistory: "Clear chat history",
+        newChat: "New chat",
+        searchSessions: "Search sessions",
+        sessions: "Sessions",
+        assistantTitle: "AI Assistant",
+        chooseWorkspace: "Choose AI workspace",
+        localAiReachable: "Local AI reachable",
+        localAiUnavailable: "Local AI not reachable",
+        localAiInactive: "Local AI inactive",
+        localAiInvalidUrl: "Local AI URL invalid",
+        localAiInvalidResponse: "Local AI response invalid",
+        localAiNotCheckable: "Local AI cannot be checked",
+        brxConnected: "BRX plugin connected",
+        brxDisconnected: "BRX plugin disconnected",
+        qtBridgeNotReady: "Qt bridge not ready",
+        proposalReady: "AI proposal ready",
+        execute: "Run",
+        promptPlaceholder: "Type a message ...",
+        promptAria: "Enter prompt",
+        workflowActive: "Workflow active",
+        detachWorkflow: "Detach workflow",
+        attachFile: "Add file",
+        attachFileAria: "Add file as context",
+        workflows: "Workflows",
+        showWorkflows: "Show workflows",
+        tools: "Tools",
+        bricscadMode: "BricsCAD mode",
+        chatMode: "Chat mode",
+        generalMode: "General mode",
+        trainingMode: "Training mode",
+        context: "Context",
+        reasoning: "Reasoning",
+        off: "Off",
+        low: "Low",
+        medium: "Medium",
+        high: "High",
+        mode: "Mode",
+        disclaimerChat: "AI can make mistakes. BricsCAD actions cannot be executed in Chat mode.",
+        disclaimerGeneral: "AI can make mistakes. BricsCAD actions cannot be executed in General mode.",
+        disclaimerBricscad: "AI can make mistakes. BricsCAD actions are executed only after confirmation.",
+        closeWorkflows: "Close workflows",
+        searchWorkflows: "Search workflows",
+        workflowEmpty: "Select a workflow. It will be used as context in chat.",
+        workflowHint: "Execution, editing, and debugging run through the chat prompt. Every workflow step is still validated by Qt and BRX.",
+        copy: "Copy",
+        copied: "Copied",
+        copyFailed: "Copy failed",
+        copyMessage: "Copy message",
+        copiedMessage: "Message copied",
+        sharePdf: "Share as PDF",
+        exportPdf: "Export message as PDF",
+        pdfUnavailable: "PDF export unavailable",
+        pdfStarted: "PDF export started",
+        pdfFailed: "PDF export failed",
+        saveWorkflow: "Save workflow",
+        deleteWorkflow: "Delete workflow",
+        saveAsSession: "Save as session",
+        jumpToStart: "Jump to start",
+        delete: "Delete",
+        save: "Save",
+        cancel: "Cancel",
+        deleteWorkflowTitle: "Delete workflow",
+        tables: "Tables",
+        formulas: "Formulas",
+        formula: "Formula",
+        examples: "Examples",
+        example: "Example",
+        assumptions: "Assumptions",
+        notes: "Notes",
+        strategy: "Strategy",
+        requiredSlots: "Required inputs",
+        derivedValues: "Calculated values",
+        batches: "Execution batches",
+        steps: "Steps",
+        validationNotes: "Validation notes",
+        actions: "Actions",
+        value: "Value",
+        batch: "Batch",
+        step: "Step",
+        deleteWorkflowQuestion: (title) => `Delete workflow “${title}” permanently from this PC?`,
+        savedSession: "Saved session",
+        sessionSuffix: "Session",
+        greetingChat: "What would you like to talk about?",
+        greetingBricscad: "What would you like to do with BricsCAD?",
+        trainingIntro: "Training mode active. Describe the new BricsCAD workflow we should create.",
+        thinking: "Thinking",
+        thought: "Thought",
+        workflowSaveThinking: "I am preparing the selected AI message as a workflow.",
+        workflowSaveUnavailable: "Workflow save is not available in the Qt bridge yet.",
+        runtimeWorkspaceSwitch: "Switch workspace",
+        runtimeSessionSwitch: "Switch session",
+        runtimeQtChannel: "Qt WebChannel",
+        runtimeInit: "Initialization"
+      }
+    };
+    const t = (key, ...args) => {
+      const table = i18n[uiLanguage] || i18n.de;
+      const value = table[key] ?? i18n.de[key] ?? key;
+      return typeof value === "function" ? value(...args) : value;
+    };
     const normalizeWorkspace = (value) => {
       const normalized = String(value || "").trim().toLowerCase();
       return normalized === "chat" ? normalized : "bricscad";
@@ -2150,6 +2367,158 @@
     const workflowSearch = document.getElementById("workflow-search");
     const workflowList = document.getElementById("workflow-list");
     const workflowDetail = document.getElementById("workflow-detail");
+
+    function localizeStatusMessage(message, connected, kind) {
+      const text = String(message || "").trim();
+      const lower = text.toLowerCase();
+      if (kind === "localAi") {
+        if (connected || lower.includes("erreichbar") && !lower.includes("nicht") || lower.includes("reachable") && !lower.includes("not")) {
+          return t("localAiReachable");
+        }
+        if (lower.includes("nicht aktiv") || lower.includes("inactive")) {
+          return t("localAiInactive");
+        }
+        if (lower.includes("url") && (lower.includes("ung") || lower.includes("invalid"))) {
+          return t("localAiInvalidUrl");
+        }
+        if (lower.includes("antwort") && (lower.includes("ung") || lower.includes("invalid"))) {
+          return t("localAiInvalidResponse");
+        }
+        if (lower.includes("nicht prüfbar") || lower.includes("nicht pruefbar") || lower.includes("cannot be checked")) {
+          return t("localAiNotCheckable");
+        }
+        return t("localAiUnavailable");
+      }
+      if (kind === "brx") {
+        if (connected || lower.includes("verbunden") && !lower.includes("nicht") || lower.includes("connected") && !lower.includes("disconnected")) {
+          return t("brxConnected");
+        }
+        if (lower.includes("qt bridge") || lower.includes("bridge")) {
+          return t("qtBridgeNotReady");
+        }
+        return t("brxDisconnected");
+      }
+      return text;
+    }
+
+    function applyUiLanguage(language) {
+      uiLanguage = String(language || "").trim().toLowerCase() === "en" ? "en" : "de";
+      document.documentElement.lang = uiLanguage;
+      if (sidebarToggle) {
+        sidebarToggle.setAttribute("aria-label", sidebarCollapsed ? t("sidebarExpand") : t("sidebarCollapse"));
+      }
+      if (clearHistoryButton) {
+        clearHistoryButton.setAttribute("aria-label", t("clearHistory"));
+        clearHistoryButton.title = t("clearHistory");
+      }
+      if (newChatButton && newChatButton.lastChild) {
+        newChatButton.lastChild.textContent = ` ${t("newChat")}`;
+      }
+      if (chatSearch) {
+        chatSearch.placeholder = t("searchSessions");
+      }
+      if (sidebarTitle) {
+        sidebarTitle.textContent = t("sessions");
+      }
+      const modelTitle = document.querySelector(".model-title");
+      if (modelTitle) {
+        modelTitle.textContent = t("assistantTitle");
+      }
+      if (workspaceSwitcher) {
+        workspaceSwitcher.setAttribute("aria-label", t("chooseWorkspace"));
+      }
+      if (proposalTitle) {
+        proposalTitle.textContent = t("proposalReady");
+      }
+      if (proposalConfirm) {
+        proposalConfirm.textContent = t("execute");
+      }
+      if (input) {
+        input.placeholder = t("promptPlaceholder");
+        input.setAttribute("aria-label", t("promptAria"));
+      }
+      if (activeWorkflowName && !selectedWorkflow) {
+        activeWorkflowName.textContent = t("workflowActive");
+      }
+      if (activeWorkflowRemove) {
+        activeWorkflowRemove.setAttribute("aria-label", t("detachWorkflow"));
+      }
+      if (attachButton) {
+        attachButton.setAttribute("aria-label", t("attachFileAria"));
+        attachButton.title = t("attachFile");
+      }
+      if (workflowsButton) {
+        workflowsButton.setAttribute("aria-label", t("showWorkflows"));
+        workflowsButton.title = t("workflows");
+        const span = workflowsButton.querySelector("span");
+        if (span) {
+          span.textContent = t("workflows");
+        }
+      }
+      if (toolsButton) {
+        const span = toolsButton.querySelector("span");
+        if (span) {
+          span.textContent = t("tools");
+        }
+      }
+      if (trainingBaseModeIndicator) {
+        trainingBaseModeIndicator.textContent = t("bricscadMode");
+      }
+      if (contextLabel && contextMeter.classList.contains("unknown")) {
+        contextLabel.textContent = t("context");
+      }
+      if (toolsModeTitle) {
+        toolsModeTitle.textContent = t("mode");
+      }
+      const menuTitles = Array.from(document.querySelectorAll(".tools-menu-title"));
+      if (menuTitles[0]) {
+        menuTitles[0].textContent = t("reasoning");
+      }
+      const reasoningLabels = { none: "off", low: "low", medium: "medium", high: "high" };
+      reasoningOptions.forEach((option) => {
+        const label = option.querySelector("span:first-child");
+        if (label) {
+          label.textContent = t(reasoningLabels[option.dataset.reasoning] || option.dataset.reasoning);
+        }
+      });
+      modeOptions.forEach((option) => {
+        const label = option.querySelector("span:first-child");
+        if (!label) {
+          return;
+        }
+        const mode = option.dataset.mode;
+        label.textContent = mode === "training"
+          ? t("trainingMode")
+          : (mode === "general" ? t("generalMode") : t("bricscadMode"));
+      });
+      if (workflowClose) {
+        workflowClose.setAttribute("aria-label", t("closeWorkflows"));
+      }
+      if (workflowSearch) {
+        workflowSearch.placeholder = t("searchWorkflows");
+      }
+      const workflowPanelTitle = document.getElementById("workflow-panel-title");
+      if (workflowPanelTitle) {
+        workflowPanelTitle.textContent = t("workflows");
+      }
+      const workflowEmpty = workflowDetail?.querySelector(".workflow-detail-empty");
+      if (workflowEmpty) {
+        workflowEmpty.textContent = t("workflowEmpty");
+      }
+      const workflowHint = document.querySelector(".workflow-hint");
+      if (workflowHint) {
+        workflowHint.textContent = t("workflowHint");
+      }
+      setLocalAiStatus(localAiStatusText || (localAiReachable ? t("localAiReachable") : t("localAiUnavailable")), localAiReachable);
+      setBrxStatus(brxStatus?.textContent || "", brxStatus?.classList.contains("connected"));
+      if (sessions.length) {
+        renderModeSelection();
+        updateLastAiWorkflowFooterActions();
+        renderSessionList();
+      } else {
+        updateModeDisclaimer();
+      }
+    }
 
     const sendIcon = `
       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -2988,14 +3357,14 @@
         })));
       }
       if (workflow.kind === "general" && Array.isArray(workflow.tables) && workflow.tables.length) {
-        workflowDetail.appendChild(createWorkflowTableSection("Tabellen", workflow.tables));
+        workflowDetail.appendChild(createWorkflowTableSection(t("tables"), workflow.tables));
       }
       if (workflow.kind === "general" && Array.isArray(workflow.formulas) && workflow.formulas.length) {
-        workflowDetail.appendChild(createWorkflowSection("Formeln", workflow.formulas.map((formula) => {
+        workflowDetail.appendChild(createWorkflowSection(t("formulas"), workflow.formulas.map((formula) => {
           if (!formula || typeof formula !== "object") {
             return String(formula || "");
           }
-          const name = formula.name || formula.id || "Formel";
+          const name = formula.name || formula.id || t("formula");
           const expression = latexForWorkflowFormula(formula) || formula.expression;
           const rendered = expression ? `: \\[${expression}\\]` : "";
           const unit = formula.unit ? ` [${formula.unit}]` : "";
@@ -3003,28 +3372,28 @@
         })));
       }
       if (workflow.kind === "general" && Array.isArray(workflow.examples) && workflow.examples.length) {
-        workflowDetail.appendChild(createWorkflowSection("Beispiele", workflow.examples.map((example) => {
+        workflowDetail.appendChild(createWorkflowSection(t("examples"), workflow.examples.map((example) => {
           if (typeof example === "string") {
             return example;
           }
           if (!example || typeof example !== "object") {
             return String(example || "");
           }
-          return `${example.title || "Beispiel"}${example.result ? `: ${example.result}` : ""}${example.description ? ` - ${example.description}` : ""}`;
+          return `${example.title || t("example")}${example.result ? `: ${example.result}` : ""}${example.description ? ` - ${example.description}` : ""}`;
         })));
       }
       if (workflow.kind === "general" && Array.isArray(workflow.assumptions) && workflow.assumptions.length) {
-        workflowDetail.appendChild(createWorkflowSection("Annahmen", workflow.assumptions));
+        workflowDetail.appendChild(createWorkflowSection(t("assumptions"), workflow.assumptions));
       }
       if (workflow.kind === "general" && Array.isArray(workflow.warnings) && workflow.warnings.length) {
-        workflowDetail.appendChild(createWorkflowSection("Hinweise", workflow.warnings));
+        workflowDetail.appendChild(createWorkflowSection(t("notes"), workflow.warnings));
       }
       const strategyLines = workflowStrategyWithTools(workflow);
       if (strategyLines.length) {
-        workflowDetail.appendChild(createWorkflowSection("Strategie", strategyLines));
+        workflowDetail.appendChild(createWorkflowSection(t("strategy"), strategyLines));
       }
       if (Array.isArray(workflow.requiredSlots) && workflow.requiredSlots.length) {
-        workflowDetail.appendChild(createWorkflowSection("Pflichtangaben", workflow.requiredSlots.map((slot) => {
+        workflowDetail.appendChild(createWorkflowSection(t("requiredSlots"), workflow.requiredSlots.map((slot) => {
           if (typeof slot === "string") {
             return slot;
           }
@@ -3032,23 +3401,23 @@
         })));
       }
       if (Array.isArray(workflow.derivedValues) && workflow.derivedValues.length) {
-        workflowDetail.appendChild(createWorkflowSection("Berechnete Werte", workflow.derivedValues.map((value) => {
+        workflowDetail.appendChild(createWorkflowSection(t("derivedValues"), workflow.derivedValues.map((value) => {
           if (!value || typeof value !== "object") {
             return String(value);
           }
-          const name = value.name || "Wert";
+          const name = value.name || t("value");
           const expression = value.expression ? ` = ${value.expression}` : "";
-          const example = value.example !== undefined ? ` (Beispiel: ${JSON.stringify(value.example)})` : "";
+          const example = value.example !== undefined ? ` (${t("example")}: ${JSON.stringify(value.example)})` : "";
           return `${name}${expression}${example}`;
         })));
       }
       if (Array.isArray(workflow.executionBatches) && workflow.executionBatches.length) {
-        workflowDetail.appendChild(createWorkflowSection("Batch-Ausführungen", workflow.executionBatches.map((batch) => {
+        workflowDetail.appendChild(createWorkflowSection(t("batches"), workflow.executionBatches.map((batch) => {
           const steps = Array.isArray(batch.steps) ? batch.steps.length : 0;
-          return `${batch.title || batch.id || "Batch"}${steps ? ` (${steps} Schritt${steps === 1 ? "" : "e"})` : ""}`;
+          return `${batch.title || batch.id || t("batch")}${steps ? ` (${steps} ${t("step")}${uiLanguage === "de" && steps !== 1 ? "e" : ""})` : ""}`;
         })));
       } else if (Array.isArray(workflow.steps) && workflow.steps.length) {
-        workflowDetail.appendChild(createWorkflowSection("Schritte", workflow.steps.map((step) => `${step.title || step.id || step.tool || "Schritt"}${step.tool ? ` · ${step.tool}` : ""}`)));
+        workflowDetail.appendChild(createWorkflowSection(t("steps"), workflow.steps.map((step) => `${step.title || step.id || step.tool || t("step")}${step.tool ? ` · ${step.tool}` : ""}`)));
       }
       if (Array.isArray(workflow.preferredTools) && workflow.preferredTools.length) {
         const section = document.createElement("section");
@@ -3069,18 +3438,18 @@
         workflowDetail.appendChild(section);
       }
       if (Array.isArray(workflow.validationWarnings) && workflow.validationWarnings.length) {
-        workflowDetail.appendChild(createWorkflowSection("Validierungshinweise", workflow.validationWarnings));
+        workflowDetail.appendChild(createWorkflowSection(t("validationNotes"), workflow.validationWarnings));
       }
       if (isGeneralWorkflowWorkspace() && workflow.kind === "general") {
         const actions = document.createElement("section");
         actions.className = "workflow-section";
         const heading = document.createElement("div");
         heading.className = "workflow-section-title";
-        heading.textContent = "Aktionen";
+        heading.textContent = t("actions");
         const deleteButton = document.createElement("button");
         deleteButton.type = "button";
         deleteButton.className = "message-footer-link";
-        deleteButton.textContent = "Workflow löschen";
+        deleteButton.textContent = t("deleteWorkflow");
         deleteButton.addEventListener("click", (event) => {
           event.preventDefault();
           event.stopPropagation();
@@ -3109,11 +3478,11 @@
       const canShowWorkflow = trainingMode;
       if (!canShowWorkflow || !selectedWorkflow || !selectedWorkflow.id) {
         activeWorkflow.classList.remove("visible");
-        activeWorkflowName.textContent = "Workflow aktiv";
+        activeWorkflowName.textContent = t("workflowActive");
         activeWorkflowLabel.title = "";
         return;
       }
-      activeWorkflowName.textContent = `Workflow aktiv: ${selectedWorkflow.title}`;
+      activeWorkflowName.textContent = `${t("workflowActive")}: ${selectedWorkflow.title}`;
       activeWorkflowLabel.title = selectedWorkflow.title;
       activeWorkflow.classList.add("visible");
     }
@@ -3574,7 +3943,7 @@
       sidebarCollapsed = !!collapsed;
       app.classList.toggle("sidebar-collapsed", sidebarCollapsed);
       sidebarToggle.setAttribute("aria-expanded", String(!sidebarCollapsed));
-      sidebarToggle.setAttribute("aria-label", sidebarCollapsed ? "Sidebar ausklappen" : "Sidebar einklappen");
+      sidebarToggle.setAttribute("aria-label", sidebarCollapsed ? t("sidebarExpand") : t("sidebarCollapse"));
       if (persist) {
         persistSidebarState();
       }
@@ -3591,12 +3960,12 @@
         return;
       }
       if (isChatWorkspace()) {
-        modeDisclaimer.textContent = "AI kann Fehler machen. Im Chat Modus können keine BricsCAD-Aktionen ausgeführt werden.";
+        modeDisclaimer.textContent = t("disclaimerChat");
         return;
       }
       modeDisclaimer.textContent = chatMode === "general" && !trainingMode
-        ? "AI kann Fehler machen. Im Allgemeinen Modus können keine BricsCAD-Aktionen ausgeführt werden."
-        : "AI kann Fehler machen. BricsCAD-Aktionen werden erst nach Bestätigung ausgeführt.";
+        ? t("disclaimerGeneral")
+        : t("disclaimerBricscad");
     }
 
     function applyProfileChrome() {
@@ -3604,14 +3973,14 @@
       workspaceOptions.forEach((option) => {
         option.classList.toggle("active", option.dataset.workspace === activeWorkspace);
       });
-      document.querySelector(".model-title").textContent = "AI Assistent";
+      document.querySelector(".model-title").textContent = t("assistantTitle");
       if (sidebarTitle) {
-        sidebarTitle.textContent = "Sitzungen";
+        sidebarTitle.textContent = t("sessions");
         sidebarTitle.hidden = isChatWorkspace();
         sidebarTitle.style.display = isChatWorkspace() ? "none" : "";
       }
-      chatSearch.placeholder = "Sitzung suchen";
-      newChatButton.lastChild.textContent = " Neuer Chat";
+      chatSearch.placeholder = t("searchSessions");
+      newChatButton.lastChild.textContent = ` ${t("newChat")}`;
       if (clearHistoryButton) {
         clearHistoryButton.hidden = false;
         clearHistoryButton.style.display = "";
@@ -3641,8 +4010,8 @@
         option.classList.toggle("active", option.dataset.mode === activeMode);
       });
       modeIndicator.textContent = trainingMode
-        ? "Trainingsmodus"
-        : (isChatWorkspace() ? "Chat Modus" : modeLabel(chatMode));
+        ? t("trainingMode")
+        : (isChatWorkspace() ? t("chatMode") : modeLabel(chatMode));
       modeIndicator.classList.toggle("training-active", trainingMode);
       if (trainingBaseModeIndicator) {
         const showBaseMode = trainingMode;
@@ -3788,13 +4157,13 @@
       contextMeter.classList.toggle("warn", state === "warn");
       contextMeter.classList.toggle("full", state === "full");
       contextMeter.classList.toggle("minimized", minimized);
-      contextLabel.textContent = available ? `${percent}%` : "Kontext";
+      contextLabel.textContent = available ? `${percent}%` : t("context");
 
-      const model = info && info.model ? `\nModell: ${info.model}` : "";
+      const model = info && info.model ? `\n${uiLanguage === "en" ? "Model" : "Modell"}: ${info.model}` : "";
       const detail = info && info.detail ? `\n${info.detail}` : "";
       contextMeter.title = available
-        ? `Kontext: ${formatTokenCount(usedTokens)} / ${formatTokenCount(maxTokens)} Tokens${model}${detail}`
-        : `Kontextlaenge wird von LM Studio noch nicht gemeldet${model}${detail}`;
+        ? `${t("context")}: ${formatTokenCount(usedTokens)} / ${formatTokenCount(maxTokens)} Tokens${model}${detail}`
+        : `${uiLanguage === "en" ? "Context length has not been reported by LM Studio yet" : "Kontextlaenge wird von LM Studio noch nicht gemeldet"}${model}${detail}`;
     }
 
     function setStatusPillState(element, state) {
@@ -3804,29 +4173,31 @@
     }
 
     function setBrxStatus(message, connected) {
-      brxStatus.textContent = message || (connected ? "BRX Plugin verbunden" : "BRX Plugin nicht verbunden");
+      brxStatus.textContent = localizeStatusMessage(message || "", connected, "brx");
       setStatusPillState(brxStatus, connected ? "connected" : "disconnected");
     }
 
     function applyUiTheme(theme) {
       const normalized = String(theme || "").trim().toLowerCase();
       if (normalized === "light" || normalized === "dark") {
+        document.documentElement.dataset.theme = normalized;
         document.body.dataset.theme = normalized;
       } else {
+        delete document.documentElement.dataset.theme;
         delete document.body.dataset.theme;
       }
     }
 
     function setLocalAiStatus(message, connected) {
-      const label = message || (connected ? "Lokale AI erreichbar" : "Lokale AI nicht erreichbar");
+      const label = localizeStatusMessage(message || "", connected, "localAi");
       const checking = /prüf|pruef|wird|lade/i.test(label);
-      if (checking && localAiStatus.classList.contains("connected")) {
+      if (checking) {
         return;
       }
       localAiReachable = !!connected;
       localAiStatusText = label;
       localAiStatus.textContent = label;
-      setStatusPillState(localAiStatus, checking ? "checking" : (connected ? "connected" : "disconnected"));
+      setStatusPillState(localAiStatus, connected ? "connected" : "disconnected");
     }
 
     function loadReasoningSelection() {
@@ -4059,13 +4430,13 @@
 
     function modeTitle(mode) {
       if (mode === "training") {
-        return "Trainingsmodus";
+        return t("trainingMode");
       }
       return mode === "general" ? "Chat" : "BricsCAD AI Assistent";
     }
 
     function modeLabel(mode) {
-      return mode === "general" ? "Allgemeiner Modus" : "BricsCAD Modus";
+      return mode === "general" ? t("generalMode") : t("bricscadMode");
     }
 
     function defaultGreeting(mode = chatMode) {
@@ -4073,7 +4444,7 @@
         return {
         speaker: "AI",
         messageId: nextMessageId("ai"),
-        message: "Worüber möchtest du sprechen?",
+        message: t("greetingChat"),
         time: nowTime(),
         kind: "greeting"
         };
@@ -4081,7 +4452,7 @@
       return {
         speaker: "AI",
         messageId: nextMessageId("ai"),
-        message: "Was möchtest du mit BricsCAD tun?",
+        message: t("greetingBricscad"),
         time: nowTime(),
         kind: "greeting"
       };
@@ -4498,8 +4869,8 @@
       const button = document.createElement("button");
       button.className = "message-action message-copy";
       button.type = "button";
-      button.title = "Kopieren";
-      button.setAttribute("aria-label", "Nachricht kopieren");
+      button.title = t("copy");
+      button.setAttribute("aria-label", t("copyMessage"));
       button.innerHTML = copyIcon;
       button.addEventListener("click", (event) => {
         event.preventDefault();
@@ -4507,20 +4878,20 @@
         copyToClipboard(text).then(() => {
           button.classList.add("copied");
           button.innerHTML = copiedIcon;
-          button.title = "Kopiert";
-          button.setAttribute("aria-label", "Nachricht kopiert");
+          button.title = t("copied");
+          button.setAttribute("aria-label", t("copiedMessage"));
           setTimeout(() => {
             button.classList.remove("copied");
             button.innerHTML = copyIcon;
-            button.title = "Kopieren";
-            button.setAttribute("aria-label", "Nachricht kopieren");
+            button.title = t("copy");
+            button.setAttribute("aria-label", t("copyMessage"));
           }, 1200);
         }).catch(() => {
-          button.title = "Kopieren fehlgeschlagen";
+          button.title = t("copyFailed");
           setTimeout(() => {
             button.classList.remove("copied");
             button.innerHTML = copyIcon;
-            button.title = "Kopieren";
+            button.title = t("copy");
           }, 1200);
         });
       });
@@ -4542,32 +4913,32 @@
       const button = document.createElement("button");
       button.className = "message-action message-share";
       button.type = "button";
-      button.title = "Als PDF teilen";
-      button.setAttribute("aria-label", "Nachricht als PDF exportieren");
+      button.title = t("sharePdf");
+      button.setAttribute("aria-label", t("exportPdf"));
       button.innerHTML = shareIcon;
       button.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
         if (!bridge || typeof bridge.exportMessageToPdf !== "function") {
-          button.title = "PDF-Export nicht verfügbar";
+          button.title = t("pdfUnavailable");
           setTimeout(() => {
-            button.title = "Als PDF teilen";
+            button.title = t("sharePdf");
           }, 1400);
           return;
         }
         button.classList.add("copied");
         button.innerHTML = doneIcon;
-        button.title = "PDF-Export gestartet";
+        button.title = t("pdfStarted");
         try {
           bridge.exportMessageToPdf(String(messageId || ""), suggestedPdfTitleFromMessage(text));
         } catch (_error) {
-          button.title = "PDF-Export fehlgeschlagen";
+          button.title = t("pdfFailed");
         }
         setTimeout(() => {
           button.classList.remove("copied");
           button.innerHTML = shareIcon;
-          button.title = "Als PDF teilen";
-          button.setAttribute("aria-label", "Nachricht als PDF exportieren");
+          button.title = t("sharePdf");
+          button.setAttribute("aria-label", t("exportPdf"));
         }, 1400);
       });
       return button;
@@ -4601,10 +4972,10 @@
         action: "deleteWorkflow",
         workflowId: workflow.id,
         workflowTitle: workflow.title,
-        title: "Workflow löschen",
-        message: `Soll der Workflow „${workflow.title}“ dauerhaft vom PC gelöscht werden?`,
-        buttonText: "Löschen",
-        cancelText: "Abbrechen"
+        title: t("deleteWorkflowTitle"),
+        message: t("deleteWorkflowQuestion", workflow.title),
+        buttonText: t("delete"),
+        cancelText: t("cancel")
       });
     }
 
@@ -4625,7 +4996,7 @@
       }
       removeWorkflowSavePrompt();
       const normalizedCommand = germanizeText(String(command || "")).trim().toLowerCase();
-      if (isGeneralWorkflowWorkspace() && normalizedCommand === "als sitzung speichern") {
+      if (isGeneralWorkflowWorkspace() && (normalizedCommand === "als sitzung speichern" || normalizedCommand === "save as session")) {
         saveCurrentChatAsRegularSession();
         input.focus();
         return;
@@ -4634,19 +5005,19 @@
         input.focus();
         return;
       }
-      if (isGeneralWorkflowWorkspace() && normalizedCommand === "workflow speichern") {
+      if (isGeneralWorkflowWorkspace() && (normalizedCommand === "workflow speichern" || normalizedCommand === "save workflow")) {
         showThinkingIndicator();
-        addThinkingDetail("Ich bereite die ausgewählte AI-Nachricht als Workflow vor.", { key: "general-workflow-save" });
+        addThinkingDetail(t("workflowSaveThinking"), { key: "general-workflow-save" });
         const messageText = messageTextById(messageId);
         if (typeof bridge.saveMessageAsWorkflow === "function") {
           bridge.saveMessageAsWorkflow(String(messageId || ""), messageText);
         } else {
-          addThinkingDetail("Workflow speichern ist in der Qt-Bridge noch nicht verfügbar.", { key: "general-workflow-save" });
+          addThinkingDetail(t("workflowSaveUnavailable"), { key: "general-workflow-save" });
         }
         input.focus();
         return;
       }
-      if (isGeneralWorkflowWorkspace() && normalizedCommand === "workflow löschen") {
+      if (isGeneralWorkflowWorkspace() && (normalizedCommand === "workflow löschen" || normalizedCommand === "delete workflow")) {
         renderWorkflowDeletePrompt(activeGeneralWorkflow());
         input.focus();
         return;
@@ -4698,8 +5069,8 @@
       }
       const baseTitle = source.title && !isDefaultSessionTitle(source.title)
         ? source.title
-        : "Gespeicherte Sitzung";
-      const session = createSession(`${baseTitle} - Sitzung`, "general", {
+        : t("savedSession");
+      const session = createSession(`${baseTitle} - ${t("sessionSuffix")}`, "general", {
         includeGreeting: false,
         kind: "chat",
         trainingMode: false
@@ -4730,8 +5101,12 @@
     function isInitialAssistantGreeting(message) {
       const text = germanizeText(String(message?.message || "")).trim();
       return message?.kind === "greeting"
+        || text === t("greetingChat")
+        || text === t("greetingBricscad")
         || text === "Worüber möchtest du sprechen?"
-        || text === "Was möchtest du mit BricsCAD tun?";
+        || text === "Was möchtest du mit BricsCAD tun?"
+        || text === "What would you like to talk about?"
+        || text === "What would you like to do with BricsCAD?";
     }
 
     function shouldShowWorkflowFooterForMessage(message, role) {
@@ -4763,12 +5138,12 @@
       }
       footer.classList.add("has-workflow-actions");
       const messageId = lastAssistant.dataset.messageId || "";
-      footer.appendChild(createWorkflowFooterLink("Workflow speichern", "Workflow speichern", messageId));
+      footer.appendChild(createWorkflowFooterLink(t("saveWorkflow"), "Workflow speichern", messageId));
       if (activeGeneralWorkflow()) {
-        footer.appendChild(createWorkflowFooterLink("Workflow löschen", "Workflow löschen", messageId));
+        footer.appendChild(createWorkflowFooterLink(t("deleteWorkflow"), "Workflow löschen", messageId));
       }
-      footer.appendChild(createWorkflowFooterLink("Als Sitzung speichern", "Als Sitzung speichern", messageId));
-      footer.appendChild(createWorkflowFooterLink("Zum Anfang springen", "Zum Anfang springen", messageId));
+      footer.appendChild(createWorkflowFooterLink(t("saveAsSession"), "Als Sitzung speichern", messageId));
+      footer.appendChild(createWorkflowFooterLink(t("jumpToStart"), "Zum Anfang springen", messageId));
     }
 
     function splitMarkdownTableRow(line) {
@@ -5517,10 +5892,10 @@
       toggle.className = "thinking-toggle";
       toggle.type = "button";
       toggle.setAttribute("aria-expanded", message.thinkingCollapsed ? "false" : "true");
-      toggle.setAttribute("aria-label", "Denkschritte anzeigen");
+      toggle.setAttribute("aria-label", t("thought"));
 
       const label = document.createElement("span");
-      label.textContent = "Gedacht";
+      label.textContent = t("thought");
 
       const chevron = document.createElement("svg");
       chevron.className = "thinking-chevron";
@@ -5561,7 +5936,7 @@
       const button = document.createElement("button");
       button.className = "message-continue";
       button.type = "button";
-      button.textContent = "Weiterführen";
+      button.textContent = uiLanguage === "en" ? "Continue" : "Weiterführen";
       button.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -5569,7 +5944,7 @@
           return;
         }
         button.disabled = true;
-        button.textContent = "Wird fortgeführt";
+        button.textContent = uiLanguage === "en" ? "Continuing" : "Wird fortgeführt";
         const prompt = [
           "Bitte führe deine letzte Antwort direkt fort.",
           "Wiederhole nichts, sondern setze ab dem letzten unvollständigen Gedanken sinnvoll fort.",
@@ -5687,7 +6062,7 @@
         toggle.className = "thinking-toggle";
         toggle.type = "button";
         toggle.setAttribute("aria-expanded", "true");
-        toggle.setAttribute("aria-label", "Denkschritte anzeigen");
+        toggle.setAttribute("aria-label", t("thought"));
 
         const label = document.createElement("span");
         label.textContent = text;
@@ -5728,7 +6103,7 @@
 
     function showThinkingIndicator() {
       if (!thinkingIndicator) {
-        thinkingIndicator = createStatusMessage({ speaker: "AI", text: "Denkt nach", state: "loading", details: true });
+        thinkingIndicator = createStatusMessage({ speaker: "AI", text: t("thinking"), state: "loading", details: true });
       }
       messages.scrollTop = messages.scrollHeight;
     }
@@ -5813,9 +6188,9 @@
         if (toggle) {
           const label = toggle.querySelector("span");
           if (label) {
-            label.textContent = "Gedacht";
+            label.textContent = t("thought");
           }
-          toggle.setAttribute("aria-label", "Denkschritte anzeigen");
+          toggle.setAttribute("aria-label", t("thought"));
           toggle.setAttribute("aria-expanded", collapseDetails ? "false" : "true");
         }
 
@@ -5828,7 +6203,7 @@
         if (persistedDetails.length) {
           activeSession().messages.push({
             speaker: "AI",
-            message: "Gedacht",
+            message: t("thought"),
             time: nowTime(),
             kind: "thinking",
             thinkingDetails: persistedDetails,
@@ -5958,12 +6333,16 @@
     }
 
     function isDuplicateTrainingIntro(normalized) {
-      const trainingIntro = "Trainingsmodus aktiv. Beschreibe den neuen BricsCAD Workflow, den wir erstellen wollen.";
+      const trainingIntros = [
+        t("trainingIntro"),
+        "Trainingsmodus aktiv. Beschreibe den neuen BricsCAD Workflow, den wir erstellen wollen.",
+        "Training mode active. Describe the new BricsCAD workflow we should create."
+      ];
       return normalized.speaker === "Barebone-Qt"
-        && normalized.message === trainingIntro
+        && trainingIntros.includes(normalized.message)
         && activeSession().messages.some((message) => (
           message.speaker === "Barebone-Qt"
-          && message.message === trainingIntro
+          && trainingIntros.includes(message.message)
         ));
     }
 
@@ -6039,7 +6418,7 @@
 
       const title = document.createElement("div");
       title.className = "inline-proposal-title";
-      title.textContent = germanizeText(proposal.title || "AI Vorschlag bereit");
+      title.textContent = germanizeText(proposal.title || t("proposalReady"));
       card.appendChild(title);
 
       const summaryText = germanizeText(proposal.summary || proposal.message || "");
@@ -6056,10 +6435,10 @@
         toggle.className = "inline-proposal-toggle";
         toggle.type = "button";
         toggle.setAttribute("aria-expanded", "false");
-        toggle.setAttribute("aria-label", "Details anzeigen");
+        toggle.setAttribute("aria-label", uiLanguage === "en" ? "Show details" : "Details anzeigen");
 
         const toggleLabel = document.createElement("span");
-        toggleLabel.textContent = "Details anzeigen";
+        toggleLabel.textContent = uiLanguage === "en" ? "Show details" : "Details anzeigen";
 
         const chevron = document.createElement("svg");
         chevron.className = "thinking-chevron";
@@ -6076,7 +6455,9 @@
         toggle.addEventListener("click", () => {
           const expanded = toggle.getAttribute("aria-expanded") === "true";
           toggle.setAttribute("aria-expanded", String(!expanded));
-          toggleLabel.textContent = expanded ? "Details anzeigen" : "Details ausblenden";
+          toggleLabel.textContent = expanded
+            ? (uiLanguage === "en" ? "Show details" : "Details anzeigen")
+            : (uiLanguage === "en" ? "Hide details" : "Details ausblenden");
           details.classList.toggle("open", !expanded);
         });
 
@@ -6091,7 +6472,7 @@
         const confirm = document.createElement("button");
         confirm.className = "confirm-btn";
         confirm.type = "button";
-        confirm.textContent = "Ausführen";
+        confirm.textContent = t("execute");
         confirm.addEventListener("click", () => {
           if (bridge) {
             bridge.confirmProposal();
@@ -6157,7 +6538,7 @@
 
       const title = document.createElement("div");
       title.className = "inline-proposal-title";
-      title.textContent = germanizeText(prompt.title || "Workflow speichern");
+      title.textContent = germanizeText(prompt.title || t("saveWorkflow"));
       card.appendChild(title);
 
       const summaryText = germanizeText(prompt.message || "");
@@ -6174,7 +6555,7 @@
       const save = document.createElement("button");
       save.className = "confirm-btn";
       save.type = "button";
-      save.textContent = prompt.buttonText || "Speichern";
+      save.textContent = prompt.buttonText || t("save");
       save.addEventListener("click", () => {
         removeWorkflowSavePrompt();
         const action = String(prompt.action || "").trim();
@@ -6197,7 +6578,7 @@
         const cancel = document.createElement("button");
         cancel.className = "cancel-btn";
         cancel.type = "button";
-        cancel.textContent = prompt.cancelText || "Abbrechen";
+        cancel.textContent = prompt.cancelText || t("cancel");
         cancel.addEventListener("click", () => {
           pendingWorkflowDeleteId = "";
           removeWorkflowSavePrompt();
@@ -6358,7 +6739,7 @@
         deleteButton.type = "button";
         deleteButton.className = "chat-delete";
         deleteButton.textContent = "X";
-        deleteButton.setAttribute("aria-label", `Sitzung ${title} löschen`);
+        deleteButton.setAttribute("aria-label", uiLanguage === "en" ? `Delete session ${title}` : `Sitzung ${title} löschen`);
         deleteButton.addEventListener("click", (event) => {
           event.preventDefault();
           event.stopPropagation();
@@ -6388,7 +6769,9 @@
         } else {
           addMessage({
             speaker: "Barebone-Qt",
-            message: "Workflow kann nicht geladen werden, weil die Qt Bridge nicht bereit ist.",
+            message: uiLanguage === "en"
+              ? "Workflow cannot be loaded because the Qt bridge is not ready."
+              : "Workflow kann nicht geladen werden, weil die Qt Bridge nicht bereit ist.",
             time: nowTime()
           }, { record: false });
         }
@@ -6442,7 +6825,7 @@
         if (workflowMatches.length) {
           const title = document.createElement("div");
           title.className = "sidebar-section-title workflow-title";
-          title.textContent = "Workflows";
+          title.textContent = t("workflows");
           chatList.appendChild(title);
           workflowMatches.forEach((workflow) => {
             const active = isGeneralWorkflowSession() && activeSession().workflowId === workflow.id;
@@ -6461,7 +6844,7 @@
       if (isGeneralWorkflowWorkspace() && sessionMatches.length) {
         const title = document.createElement("div");
         title.className = "sidebar-section-title sessions-title";
-        title.textContent = "Sitzungen";
+        title.textContent = t("sessions");
         chatList.appendChild(title);
       }
       sessionMatches.forEach((session) => {
@@ -6473,7 +6856,7 @@
           try {
             switchSession(session.id);
           } catch (error) {
-            reportClientRuntimeError(error, "Sitzung wechseln");
+            reportClientRuntimeError(error, t("runtimeSessionSwitch"));
           }
         }, () => deleteSession(session.id)));
       });
@@ -7265,13 +7648,14 @@
         try {
           switchWorkspace(option.dataset.workspace);
         } catch (error) {
-          reportClientRuntimeError(error, "Arbeitsbereich wechseln");
+          reportClientRuntimeError(error, t("runtimeWorkspaceSwitch"));
         }
       });
     });
     document.addEventListener("click", closeToolsMenu);
 
     function initializeAssistantUi() {
+      applyUiLanguage(uiLanguage);
       applySidebarCollapsed(storedSidebarCollapsed(), { persist: false });
       loadReasoningSelection();
       loadSessions();
@@ -7282,8 +7666,8 @@
 
     function connectQtBridge() {
       if (!(window.qt && window.qt.webChannelTransport && window.QWebChannel)) {
-        setLocalAiStatus("Lokale AI nicht prüfbar", false);
-        setBrxStatus("Qt Bridge nicht bereit", false);
+        setLocalAiStatus(t("localAiNotCheckable"), false);
+        setBrxStatus(t("qtBridgeNotReady"), false);
         return;
       }
       new QWebChannel(window.qt.webChannelTransport, (channel) => {
@@ -7293,7 +7677,7 @@
             throw new Error("bareboneBridge wurde nicht im Qt WebChannel registriert.");
           }
           bridgeReady = true;
-          setBrxStatus("BRX Plugin nicht verbunden", false);
+          setBrxStatus(t("brxDisconnected"), false);
           bridge.reasoningEffortApplied.connect(applyReasoningSelectionFromQt);
           if (bridge.trainingModeApplied) {
             bridge.trainingModeApplied.connect(applyTrainingModeFromQt);
@@ -7305,6 +7689,9 @@
           bridge.contextBudgetChanged.connect(applyContextBudget);
           if (bridge.uiThemeChanged) {
             bridge.uiThemeChanged.connect(applyUiTheme);
+          }
+          if (bridge.uiLanguageChanged) {
+            bridge.uiLanguageChanged.connect(applyUiLanguage);
           }
           if (bridge.localAiStatusChanged) {
             bridge.localAiStatusChanged.connect(setLocalAiStatus);
@@ -7349,7 +7736,7 @@
           bridgeReady = false;
           bridge = null;
           reportClientRuntimeError(error, "Qt WebChannel");
-          setBrxStatus("Qt Bridge nicht bereit", false);
+          setBrxStatus(t("qtBridgeNotReady"), false);
         }
       });
     }
@@ -7358,7 +7745,7 @@
       initializeAssistantUi();
       connectQtBridge();
     } catch (error) {
-      reportClientRuntimeError(error, "Initialisierung");
+      reportClientRuntimeError(error, t("runtimeInit"));
     }
 
     requestAnimationFrame(() => input.focus());

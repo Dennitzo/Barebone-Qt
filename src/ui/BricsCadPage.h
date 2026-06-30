@@ -240,6 +240,7 @@ private:
     void setChatMode(const QString& mode);
     void setTrainingMode(bool enabled);
     void emitUiThemeToWeb() const;
+    void emitUiLanguageToWeb() const;
     bool isBricsCadMode() const;
     bool isChatWorkspace() const;
     QString unifiedAssistantState() const;
@@ -264,7 +265,7 @@ private:
     QString m_chatMode = QStringLiteral("bricscad");
     QString m_assistantWorkspace = QStringLiteral("bricscad");
     QString m_reasoningEffort = QStringLiteral("high");
-    QString m_localAiStatusMessage = QStringLiteral("Lokale AI wird geprüft");
+    QString m_localAiStatusMessage = QStringLiteral("Lokale AI nicht erreichbar");
     QString m_contextWindowModel;
     int m_contextWindowTokens = 0;
     int m_contextWindowMaxTokens = 0;

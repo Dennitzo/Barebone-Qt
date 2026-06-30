@@ -78,6 +78,7 @@ Q_SIGNALS:
     void contextBudgetChanged(const QVariantMap& budget);
     void localAiStatusChanged(const QString& message, bool connected);
     void uiThemeChanged(const QString& theme);
+    void uiLanguageChanged(const QString& language);
     void bridgeStatusChanged(const QString& message, bool connected);
     void bridgeLogAdded(const QString& message);
     void workflowListChanged(const QVariantList& workflows);

@@ -23,6 +23,7 @@ protected:
 private:
     void buildUi();
     void applyStyle();
+    void retranslateUi();
     QString lightStyle() const;
     QString darkStyle() const;
 

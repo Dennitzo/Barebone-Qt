@@ -15,9 +15,9 @@ SettingsPage::SettingsPage(ConfigManager& config, QWidget* parent)
     root->setContentsMargins(28, 24, 28, 24);
     root->setSpacing(20);
 
-    auto* title = new QLabel("Einstellungen", this);
-    title->setObjectName("pageTitle");
-    root->addWidget(title);
+    m_titleLabel = new QLabel(this);
+    m_titleLabel->setObjectName("pageTitle");
+    root->addWidget(m_titleLabel);
 
     auto* section = new QWidget(this);
     section->setObjectName("settingsSection");
@@ -63,23 +63,23 @@ SettingsPage::SettingsPage(ConfigManager& config, QWidget* parent)
     m_aiApiKey->setEchoMode(QLineEdit::Password);
     m_aiApiKey->setPlaceholderText("sk-...");
 
-    auto* themeLabel = new QLabel("Theme", section);
-    themeLabel->setObjectName("settingsFieldLabel");
-    auto* languageLabel = new QLabel("Sprache", section);
-    languageLabel->setObjectName("settingsFieldLabel");
-    auto* aiProviderLabel = new QLabel("AI Anbieter", section);
-    aiProviderLabel->setObjectName("settingsFieldLabel");
-    auto* aiBaseUrlLabel = new QLabel("AI Server URL", section);
-    aiBaseUrlLabel->setObjectName("settingsFieldLabel");
-    auto* aiModelLabel = new QLabel("AI Modell", section);
-    aiModelLabel->setObjectName("settingsFieldLabel");
+    m_themeLabel = new QLabel(section);
+    m_themeLabel->setObjectName("settingsFieldLabel");
+    m_languageLabel = new QLabel(section);
+    m_languageLabel->setObjectName("settingsFieldLabel");
+    m_aiProviderLabel = new QLabel(section);
+    m_aiProviderLabel->setObjectName("settingsFieldLabel");
+    m_aiBaseUrlLabel = new QLabel(section);
+    m_aiBaseUrlLabel->setObjectName("settingsFieldLabel");
+    m_aiModelLabel = new QLabel(section);
+    m_aiModelLabel->setObjectName("settingsFieldLabel");
     m_aiApiKeyLabel = new QLabel("Secret Key", section);
     m_aiApiKeyLabel->setObjectName("settingsFieldLabel");
-    form->addRow(themeLabel, m_theme);
-    form->addRow(languageLabel, m_language);
-    form->addRow(aiProviderLabel, m_aiProvider);
-    form->addRow(aiBaseUrlLabel, m_aiBaseUrl);
-    form->addRow(aiModelLabel, m_aiModel);
+    form->addRow(m_themeLabel, m_theme);
+    form->addRow(m_languageLabel, m_language);
+    form->addRow(m_aiProviderLabel, m_aiProvider);
+    form->addRow(m_aiBaseUrlLabel, m_aiBaseUrl);
+    form->addRow(m_aiModelLabel, m_aiModel);
     form->addRow(m_aiApiKeyLabel, m_aiApiKey);
 
     m_saveButton = new QPushButton("Speichern", section);
@@ -96,6 +96,7 @@ SettingsPage::SettingsPage(ConfigManager& config, QWidget* parent)
 
     root->addWidget(section);
     root->addStretch();
+    retranslateUi();
     loadSettings();
 
     QObject::connect(m_saveButton, &QPushButton::clicked, this, [this]() {
@@ -148,8 +149,59 @@ void SettingsPage::saveSettings()
     loadSettings();
 
     if (m_saveStatus) {
-        m_saveStatus->setText(QString("Gespeichert: %1").arg(m_config.aiModel()));
+        m_saveStatus->setText((isEnglish() ? QStringLiteral("Saved: %1") : QStringLiteral("Gespeichert: %1")).arg(m_config.aiModel()));
     }
+}
+
+bool SettingsPage::isEnglish() const
+{
+    return m_config.language().trimmed().compare(QStringLiteral("en"), Qt::CaseInsensitive) == 0;
+}
+
+void SettingsPage::retranslateUi()
+{
+    const bool en = isEnglish();
+    if (m_titleLabel) {
+        m_titleLabel->setText(en ? QStringLiteral("Settings") : QStringLiteral("Einstellungen"));
+    }
+    if (m_themeLabel) {
+        m_themeLabel->setText(en ? QStringLiteral("Theme") : QStringLiteral("Theme"));
+    }
+    if (m_languageLabel) {
+        m_languageLabel->setText(en ? QStringLiteral("Language") : QStringLiteral("Sprache"));
+    }
+    if (m_aiProviderLabel) {
+        m_aiProviderLabel->setText(en ? QStringLiteral("AI provider") : QStringLiteral("AI Anbieter"));
+    }
+    if (m_aiBaseUrlLabel) {
+        m_aiBaseUrlLabel->setText(en ? QStringLiteral("AI server URL") : QStringLiteral("AI Server URL"));
+    }
+    if (m_aiModelLabel) {
+        m_aiModelLabel->setText(en ? QStringLiteral("AI model") : QStringLiteral("AI Modell"));
+    }
+    if (m_aiApiKeyLabel) {
+        m_aiApiKeyLabel->setText(en ? QStringLiteral("Secret key") : QStringLiteral("Secret Key"));
+    }
+    if (m_saveButton) {
+        m_saveButton->setText(en ? QStringLiteral("Save") : QStringLiteral("Speichern"));
+    }
+    const auto setTextForData = [](QComboBox* combo, const QString& data, const QString& text) {
+        if (!combo) {
+            return;
+        }
+        const int index = combo->findData(data);
+        if (index >= 0) {
+            combo->setItemText(index, text);
+        }
+    };
+    setTextForData(m_theme, QStringLiteral("system"), en ? QStringLiteral("System") : QStringLiteral("System"));
+    setTextForData(m_theme, QStringLiteral("light"), en ? QStringLiteral("Light") : QStringLiteral("Hell"));
+    setTextForData(m_theme, QStringLiteral("dark"), en ? QStringLiteral("Dark") : QStringLiteral("Dunkel"));
+    setTextForData(m_language, QStringLiteral("de"), en ? QStringLiteral("German") : QStringLiteral("Deutsch"));
+    setTextForData(m_language, QStringLiteral("en"), en ? QStringLiteral("English") : QStringLiteral("Englisch"));
+    setTextForData(m_aiProvider, QStringLiteral("local"), en ? QStringLiteral("Local AI") : QStringLiteral("Lokale AI"));
+    setTextForData(m_aiProvider, QStringLiteral("official"), en ? QStringLiteral("Official ChatGPT API") : QStringLiteral("Offizielle ChatGPT API"));
+    updateAiProviderUi();
 }
 
 void SettingsPage::updateAiProviderUi()
@@ -169,7 +221,7 @@ void SettingsPage::updateAiProviderUi()
         m_aiModel->addItem("gpt-5.5", "gpt-5.5");
         m_aiModel->addItem("gpt-5.4", "gpt-5.4");
         m_aiModel->addItem("gpt-4.1", "gpt-4.1");
-        m_aiBaseUrl->setPlaceholderText("https://api.openai.com/v1");
+        m_aiBaseUrl->setPlaceholderText(QStringLiteral("https://api.openai.com/v1"));
         if (m_aiBaseUrl->text().trimmed().isEmpty()
             || m_aiBaseUrl->text().trimmed() == "http://192.168.0.67:1234/v1") {
             m_aiBaseUrl->setText("https://api.openai.com/v1");
@@ -181,7 +233,7 @@ void SettingsPage::updateAiProviderUi()
         m_aiModel->addItem("openai/gpt-oss-20b", "openai/gpt-oss-20b");
         m_aiModel->addItem("openai/gpt-oss-120b", "openai/gpt-oss-120b");
         m_aiModel->addItem("google/gemma-4-26b-a4b-qat", "google/gemma-4-26b-a4b-qat");
-        m_aiBaseUrl->setPlaceholderText("http://192.168.0.67:1234/v1");
+        m_aiBaseUrl->setPlaceholderText(QStringLiteral("http://192.168.0.67:1234/v1"));
         if (m_aiBaseUrl->text().trimmed().isEmpty()
             || m_aiBaseUrl->text().trimmed() == "https://api.openai.com/v1") {
             m_aiBaseUrl->setText("http://192.168.0.67:1234/v1");
