@@ -3,6 +3,7 @@
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QListView>
 #include <QSignalBlocker>
 #include <QVBoxLayout>
 
@@ -47,6 +48,17 @@ SettingsPage::SettingsPage(ConfigManager& config, QWidget* parent)
     m_aiModel->addItem("openai/gpt-oss-120b", "openai/gpt-oss-120b");
     m_aiModel->addItem("google/gemma-4-26b-a4b-qat", "google/gemma-4-26b-a4b-qat");
 
+    const auto installComboPopup = [](QComboBox* combo) {
+        auto* view = new QListView(combo);
+        view->setObjectName("settingsComboPopup");
+        view->setUniformItemSizes(true);
+        combo->setView(view);
+    };
+    installComboPopup(m_theme);
+    installComboPopup(m_language);
+    installComboPopup(m_aiProvider);
+    installComboPopup(m_aiModel);
+
     m_aiApiKey = new QLineEdit(section);
     m_aiApiKey->setEchoMode(QLineEdit::Password);
     m_aiApiKey->setPlaceholderText("sk-...");
@@ -77,6 +89,7 @@ SettingsPage::SettingsPage(ConfigManager& config, QWidget* parent)
 
     auto* actionRow = new QHBoxLayout();
     actionRow->setContentsMargins(0, 8, 0, 0);
+    actionRow->setSpacing(14);
     actionRow->addWidget(m_saveButton);
     actionRow->addWidget(m_saveStatus, 1);
     form->addRow(QString(), actionRow);

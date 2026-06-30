@@ -2,7 +2,6 @@
   "schema": "barebone.agent.response.v2",
   "strictJsonObject": true,
   "preferred": true,
-  "legacyAcceptedOnlyForCompatibility": true,
   "topLevel": {
     "required": ["schema", "type", "message"],
     "schema": "barebone.agent.response.v2",

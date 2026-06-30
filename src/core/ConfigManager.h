@@ -18,7 +18,8 @@ public:
     QString aiModel() const;
     QString aiApiKey() const;
     QString aiReasoningEffort() const;
-    QString aiAssistantState() const;
+    QString unifiedAiAssistantState() const;
+    bool sidebarDropdownExpanded() const;
     QByteArray windowGeometry() const;
 
     void setTheme(const QString& theme);
@@ -28,7 +29,8 @@ public:
     void setAiModel(const QString& model);
     void setAiApiKey(const QString& apiKey);
     void setAiReasoningEffort(const QString& effort);
-    void setAiAssistantState(const QString& stateJson);
+    void setUnifiedAiAssistantState(const QString& stateJson);
+    void setSidebarDropdownExpanded(bool expanded);
     void setWindowGeometry(const QByteArray& geometry);
 
 Q_SIGNALS:

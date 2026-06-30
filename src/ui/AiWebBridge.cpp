@@ -23,6 +23,11 @@ void AiWebBridge::sendPromptWithContext(const QString& prompt, const QVariantMap
     Q_EMIT promptSubmittedWithContext(prompt, context);
 }
 
+void AiWebBridge::checkLocalAiStatus()
+{
+    Q_EMIT localAiStatusCheckRequested();
+}
+
 void AiWebBridge::confirmProposal()
 {
     Q_EMIT proposalConfirmed();
@@ -41,6 +46,11 @@ void AiWebBridge::cancelCurrentOperation()
 void AiWebBridge::confirmWorkflowTrainingSave()
 {
     Q_EMIT workflowTrainingSaveConfirmed();
+}
+
+void AiWebBridge::saveMessageAsWorkflow(const QString& messageId, const QString& messageText)
+{
+    Q_EMIT messageWorkflowSaveRequested(messageId, messageText);
 }
 
 void AiWebBridge::confirmWorkflowTrainingRun()
@@ -78,6 +88,11 @@ void AiWebBridge::setTrainingMode(bool enabled)
     Q_EMIT trainingModeChanged(enabled);
 }
 
+void AiWebBridge::setAssistantWorkspace(const QString& workspace)
+{
+    Q_EMIT assistantWorkspaceChanged(workspace);
+}
+
 void AiWebBridge::saveClientState(const QString& stateJson)
 {
     Q_EMIT clientStateSaved(stateJson);
@@ -93,9 +108,19 @@ void AiWebBridge::selectWorkflow(const QString& workflowId)
     Q_EMIT workflowSelected(workflowId);
 }
 
+void AiWebBridge::deleteWorkflow(const QString& workflowId)
+{
+    Q_EMIT workflowDeleteRequested(workflowId);
+}
+
 void AiWebBridge::clearSelectedWorkflow()
 {
     Q_EMIT workflowSelectionCleared();
+}
+
+void AiWebBridge::exportMessageToPdf(const QString& messageId, const QString& suggestedTitle)
+{
+    Q_EMIT messagePdfExportRequested(messageId, suggestedTitle);
 }
 
 bool AiWebBridge::copyText(const QString& text)

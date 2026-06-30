@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "../core/ConfigManager.h"
 #include "AiWebBridge.h"
@@ -85,6 +85,13 @@ private:
     void sendUnifiedAgentRequestWithPrefetchedContext(const QString& prompt, const QString& method, const QJsonObject& params, const QJsonObject& documentContext, const QJsonObject& route);
     void sendAgentEnvelope(const QJsonObject& envelope, const QString& userHistoryContent, bool storeUserMessage, const QString& logLabel);
     void sendWorkflowTrainingPrompt(const QString& prompt, bool compactContext = false);
+    void saveGeneralWorkflowFromTraining(
+        const QString& userInstruction = QString(),
+        int retryCount = 0,
+        const QString& validationError = {},
+        const QString& rejectedContent = {});
+    void saveGeneralWorkflowFromMessage(const QString& messageId, const QString& messageText);
+    bool saveGeneralWorkflowFinalDraft(QString* savedPath = nullptr, QString* errorMessage = nullptr);
     void handleWorkflowTrainingReply(const QString& content);
     QJsonObject workflowTrainingEnvelope(const QString& prompt, bool compactContext = false) const;
     QJsonObject workflowTrainingState() const;
@@ -93,10 +100,16 @@ private:
     QJsonArray unresolvedWorkflowTrainingMissing(const QJsonArray& missing) const;
     QJsonArray workflowTrainingIndex() const;
     QString workflowsDirectoryPath() const;
+    QString generalWorkflowsDirectoryPath() const;
+    QJsonArray generalWorkflowIndex() const;
+    QJsonObject loadGeneralWorkflowById(const QString& workflowId, QString* fileName = nullptr, QString* errorMessage = nullptr) const;
+    bool saveGeneralWorkflowFromObject(const QJsonObject& workflow, QString* savedPath = nullptr, QString* errorMessage = nullptr) const;
+    bool deleteGeneralWorkflowById(const QString& workflowId, QString* deletedPath = nullptr, QString* errorMessage = nullptr);
     void emitWorkflowListToWeb() const;
     QJsonObject loadWorkflowById(const QString& workflowId, QString* fileName = nullptr, QString* errorMessage = nullptr) const;
     void selectWorkflowForChat(const QString& workflowId);
     void clearSelectedWorkflowForChat();
+    void exportAgentMessageToPdf(const QString& messageId, const QString& suggestedTitle);
     bool handleSelectedWorkflowPrompt(const QString& prompt);
     bool prepareSelectedWorkflowRun(const QString& prompt);
     bool prepareTrainingDraftWorkflowRun(const QString& prompt);
@@ -130,6 +143,10 @@ private:
     bool validateWorkflowForTraining(QJsonObject& workflow, QString& errorMessage) const;
     bool validateWorkflowStepForTraining(const QJsonObject& step, int index, QString& errorMessage, const QString& pathPrefix = QString()) const;
     bool retryWorkflowTrainingAfterValidationFailure(const QString& rejectedContent, const QJsonObject& rejectedObject, const QString& errorMessage);
+    bool retryGeneralWorkflowSaveAfterValidationFailure(
+        const QJsonObject& saveContext,
+        const QString& rejectedContent,
+        const QString& errorMessage);
     void startWorkflowTrainingSaveReview(const QString& rejectedContent, const QJsonObject& reply, const QJsonObject& workflow);
     void confirmWorkflowTrainingSaveReview();
     void confirmWorkflowTrainingRun();
@@ -140,6 +157,7 @@ private:
     void clearWorkflowTrainingSavePrompt();
     void validateWorkflowWithBrxAndSave(const QString& rejectedContent, const QJsonObject& reply, const QJsonObject& workflow);
     void finishWorkflowTrainingSave(const QJsonObject& reply, const QJsonObject& workflow);
+    void scheduleLocalAiStatusPoll();
     void refreshLocalContextWindow(bool force = false);
     void handleLocalContextWindowResponse(const QJsonObject& response);
     void emitContextBudget(int estimatedTokens = -1, bool minimized = false, const QString& detail = QString()) const;
@@ -168,7 +186,7 @@ private:
     void executeAgentProposal();
     void executeAgentActionBatch(const QJsonObject& proposal, const QJsonArray& actions, int index, QJsonArray results);
     void requestAgentExecutionSummary(const QJsonObject& proposal, const QJsonArray& actions, const QJsonArray& results, const QJsonObject& batchResult, const QString& fallbackSummary);
-    void appendAgentChat(const QString& speaker, const QString& message);
+    void appendAgentChat(const QString& speaker, const QString& message, const QVariantMap& extra = {});
     void clearAgentProposal();
     void setAgentWaitingForUser(const QJsonObject& reply);
     void setAgentProposal(const QJsonObject& proposal);
@@ -218,14 +236,20 @@ private:
     void saveCurrentAgentSession();
     QJsonArray conversationFromWebHistory(const QVariantList& history) const;
     void setReasoningEffort(const QString& effort);
+    void setAssistantWorkspace(const QString& workspace);
     void setChatMode(const QString& mode);
     void setTrainingMode(bool enabled);
+    void emitUiThemeToWeb() const;
     bool isBricsCadMode() const;
+    bool isChatWorkspace() const;
+    QString unifiedAssistantState() const;
+    void setUnifiedAssistantState(const QString& stateJson);
 
     ConfigManager& m_config;
     QTcpServer* m_bridgeServer = nullptr;
     QTcpSocket* m_brxSocket = nullptr;
     QNetworkAccessManager* m_aiNetwork = nullptr;
+    QTimer* m_localAiPollTimer = nullptr;
     QByteArray m_brxReadBuffer;
     QByteArray m_brxJsonAccumulator;
     QString m_bridgeToken;
@@ -238,6 +262,7 @@ private:
     bool m_localAiReachable = false;
     bool m_trainingMode = false;
     QString m_chatMode = QStringLiteral("bricscad");
+    QString m_assistantWorkspace = QStringLiteral("bricscad");
     QString m_reasoningEffort = QStringLiteral("high");
     QString m_localAiStatusMessage = QStringLiteral("Lokale AI wird geprüft");
     QString m_contextWindowModel;
@@ -263,6 +288,9 @@ private:
     QJsonObject m_trainingWorkflowContext;
     QJsonObject m_trainingSlotValues;
     QJsonArray m_trainingMissing;
+    int m_generalWorkflowSaveRetries = 0;
+    QStringList m_generalWorkflowSaveRejectedSignatures;
+    QJsonObject m_lastGeneralWorkflowSaveContext;
     QString m_trainingPhase = QStringLiteral("idle");
     bool m_trainingSaveReviewPending = false;
     bool m_trainingReviewConfirmed = false;
@@ -281,6 +309,8 @@ private:
     WorkflowRunState m_workflowRunState;
     QJsonObject m_lastDocumentContext;
     QJsonObject m_lastAgentRoute;
+    bool m_nextAgentMessageContinuationAvailable = false;
+    QString m_nextAgentMessageContinuationReason;
     QJsonObject m_brxCapabilities;
     QJsonArray m_currentSelection;
     QWidget* m_agentWidget = nullptr;
@@ -291,3 +321,4 @@ private:
     QLabel* m_bridgeStatus = nullptr;
     QPlainTextEdit* m_bridgeLog = nullptr;
 };
+

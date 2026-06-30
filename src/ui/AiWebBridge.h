@@ -14,10 +14,12 @@ public Q_SLOTS:
     void ready();
     void sendPrompt(const QString& prompt);
     void sendPromptWithContext(const QString& prompt, const QVariantMap& context);
+    void checkLocalAiStatus();
     void confirmProposal();
     void clearProposal();
     void cancelCurrentOperation();
     void confirmWorkflowTrainingSave();
+    void saveMessageAsWorkflow(const QString& messageId, const QString& messageText);
     void confirmWorkflowTrainingRun();
     void confirmWorkflowTrainingFinalSave();
     void newChat();
@@ -25,20 +27,25 @@ public Q_SLOTS:
     void setReasoningEffort(const QString& effort);
     void setChatMode(const QString& mode);
     void setTrainingMode(bool enabled);
+    void setAssistantWorkspace(const QString& workspace);
     void saveClientState(const QString& stateJson);
     void requestWorkflowList();
     void selectWorkflow(const QString& workflowId);
+    void deleteWorkflow(const QString& workflowId);
     void clearSelectedWorkflow();
+    void exportMessageToPdf(const QString& messageId, const QString& suggestedTitle);
     bool copyText(const QString& text);
 
 Q_SIGNALS:
     void uiReady();
     void promptSubmitted(const QString& prompt);
     void promptSubmittedWithContext(const QString& prompt, const QVariantMap& context);
+    void localAiStatusCheckRequested();
     void proposalConfirmed();
     void proposalClearedByUser();
     void operationCancelledByUser();
     void workflowTrainingSaveConfirmed();
+    void messageWorkflowSaveRequested(const QString& messageId, const QString& messageText);
     void workflowTrainingRunConfirmed();
     void workflowTrainingFinalSaveConfirmed();
     void newChatRequested();
@@ -46,10 +53,13 @@ Q_SIGNALS:
     void reasoningEffortChanged(const QString& effort);
     void chatModeChanged(const QString& mode);
     void trainingModeChanged(bool enabled);
+    void assistantWorkspaceChanged(const QString& workspace);
     void clientStateSaved(const QString& stateJson);
     void workflowListRequested();
     void workflowSelected(const QString& workflowId);
+    void workflowDeleteRequested(const QString& workflowId);
     void workflowSelectionCleared();
+    void messagePdfExportRequested(const QString& messageId, const QString& suggestedTitle);
 
     void messageAdded(const QVariantMap& message);
     void statusChanged(const QString& status);
@@ -63,9 +73,11 @@ Q_SIGNALS:
     void workflowTrainingFinalSavePromptCleared();
     void reasoningEffortApplied(const QString& effort);
     void trainingModeApplied(bool enabled);
+    void assistantWorkspaceApplied(const QString& workspace);
     void clientStateLoaded(const QString& stateJson);
     void contextBudgetChanged(const QVariantMap& budget);
     void localAiStatusChanged(const QString& message, bool connected);
+    void uiThemeChanged(const QString& theme);
     void bridgeStatusChanged(const QString& message, bool connected);
     void bridgeLogAdded(const QString& message);
     void workflowListChanged(const QVariantList& workflows);

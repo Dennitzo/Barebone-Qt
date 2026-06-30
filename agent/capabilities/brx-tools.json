@@ -270,14 +270,18 @@
       "domain": "layers",
       "summary": "Creates one layer, optionally with ACI color.",
       "keywords": ["layer", "create layer", "new layer", "ebene", "layer anlegen", "tga", "heizung", "sanitaer", "lueftung", "elektro"],
-      "policy": "Use layers.create for one layer. Use layers.ensureMany for multiple known layers when available.",
+      "policy": "Use layers.create for one layer. Use layers.ensureMany for multiple known layers when available. Normalize layer names before proposing them: allowed characters are letters, digits, spaces, German umlauts (ä, ö, ü, Ä, Ö, Ü) and hyphen '-'. Replace slash '/', backslash '\\', underscores, punctuation and typographic dashes with '-'. Replace 'ß' with 'ss'.",
       "agentHints": [
         "colorIndex is ACI color: 1 red, 2 yellow, 3 green, 4 cyan, 5 blue, 6 magenta, 7 white/black.",
+        "Never send '/' or '\\' in layer names; BricsCAD can become unstable with those names. Use ' - ' instead.",
+        "Normalize examples: 'Sanitär/Abwasser' -> 'Sanitär - Abwasser', 'Fußbodenheizung' -> 'Fussbodenheizung', 'Haus – Wände' -> 'Haus - Wände'.",
         "Layer 0 must not be created.",
         "Existing layers are skipped by BRX with warnings."
       ],
       "semanticConstraints": [
         "name is mandatory and must be non-empty.",
+        "name must be normalized before use: only letters, digits, spaces, German umlauts and '-' are allowed.",
+        "Do not use '/', '\\', ':', '*', '?', quotes, '<', '>', '|', underscores, dots or commas in layer names.",
         "colorIndex must be 1..255 if present."
       ],
       "unsupportedOperations": ["batch layer creation via this single tool"],
@@ -293,14 +297,18 @@
       "domain": "layers",
       "summary": "Qt virtual tool for compact creation of multiple layers.",
       "keywords": ["multiple layers", "tga layers", "layer batch", "mehrere layer", "tga", "heizung", "sanitaer", "lueftung", "elektro"],
-      "policy": "Prefer layers.ensureMany when several layer names and optional colors are known.",
+      "policy": "Prefer layers.ensureMany when several layer names and optional colors are known. Normalize every item.name before proposing it: allowed characters are letters, digits, spaces, German umlauts (ä, ö, ü, Ä, Ö, Ü) and hyphen '-'. Replace slash '/', backslash '\\', underscores, punctuation and typographic dashes with '-'. Replace 'ß' with 'ss'.",
       "agentHints": [
         "Qt expands params.layers into individual layers.create actions.",
+        "Never send '/' or '\\' in any layer name; BricsCAD can become unstable with those names. Use ' - ' instead.",
+        "Normalize examples: 'Sanitär/Abwasser' -> 'Sanitär - Abwasser', 'Fußbodenheizung' -> 'Fussbodenheizung', 'Haus – Wände' -> 'Haus - Wände'.",
         "Use for independent layer creation, not for rename or color changes.",
         "Typical TGA colors: Heizung red=1, Sanitaer blue/cyan=5 or 4, Lueftung green=3, Elektro yellow=2."
       ],
       "semanticConstraints": [
         "Each item needs a non-empty name.",
+        "Each item.name must be normalized before use: only letters, digits, spaces, German umlauts and '-' are allowed.",
+        "Do not use '/', '\\', ':', '*', '?', quotes, '<', '>', '|', underscores, dots or commas in layer names.",
         "colorIndex is optional and must be 1..255 when present.",
         "Do not include more items than Qt maxBatchActions."
       ],

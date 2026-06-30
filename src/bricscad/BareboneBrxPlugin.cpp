@@ -3713,6 +3713,106 @@ int normalizedLayerColorIndex(int requestedColorIndex)
     return 7;
 }
 
+std::size_t utf8CodepointLength(unsigned char ch)
+{
+    if ((ch & 0x80) == 0) {
+        return 1;
+    }
+    if ((ch & 0xE0) == 0xC0) {
+        return 2;
+    }
+    if ((ch & 0xF0) == 0xE0) {
+        return 3;
+    }
+    if ((ch & 0xF8) == 0xF0) {
+        return 4;
+    }
+    return 1;
+}
+
+std::string normalizedBrxLayerName(const std::string& value)
+{
+    const std::string input = trim(value);
+    std::string out;
+    out.reserve(input.size());
+
+    for (std::size_t i = 0; i < input.size();) {
+        const unsigned char ch = static_cast<unsigned char>(input[i]);
+        if (ch < 128) {
+            if (std::isalnum(ch) != 0) {
+                out.push_back(static_cast<char>(ch));
+            } else if (std::isspace(ch) != 0) {
+                out.push_back(' ');
+            } else {
+                out.push_back('-');
+            }
+            ++i;
+            continue;
+        }
+
+        if (i + 1 < input.size() && ch == 0xC3) {
+            const unsigned char next = static_cast<unsigned char>(input[i + 1]);
+            if (next == 0xA4 || next == 0xB6 || next == 0xBC
+                || next == 0x84 || next == 0x96 || next == 0x9C) {
+                out.push_back(input[i]);
+                out.push_back(input[i + 1]);
+                i += 2;
+                continue;
+            }
+            if (next == 0x9F) {
+                out += "ss";
+                i += 2;
+                continue;
+            }
+        }
+
+        out.push_back('-');
+        i += std::min<std::size_t>(utf8CodepointLength(ch), input.size() - i);
+    }
+
+    std::string collapsed;
+    collapsed.reserve(out.size());
+    bool previousSpace = false;
+    bool previousHyphen = false;
+    for (char ch : out) {
+        if (std::isspace(static_cast<unsigned char>(ch)) != 0) {
+            if (!previousSpace && !previousHyphen) {
+                collapsed.push_back(' ');
+            }
+            previousSpace = true;
+            continue;
+        }
+        if (ch == '-') {
+            if (!previousHyphen) {
+                if (!collapsed.empty() && collapsed.back() == ' ') {
+                    collapsed.pop_back();
+                }
+                collapsed.push_back('-');
+            }
+            previousHyphen = true;
+            previousSpace = false;
+            continue;
+        }
+        if (previousHyphen) {
+            collapsed.push_back(' ');
+        }
+        collapsed.push_back(ch);
+        previousSpace = false;
+        previousHyphen = false;
+    }
+
+    std::string result = trim(collapsed);
+    while (!result.empty() && result.front() == '-') {
+        result.erase(result.begin());
+        result = trim(result);
+    }
+    while (!result.empty() && result.back() == '-') {
+        result.pop_back();
+        result = trim(result);
+    }
+    return result;
+}
+
 AcDbObjectId defaultLayerLinetypeId(AcDbDatabase* database, AcDbLayerTable* layerTable)
 {
     AcDbObjectId linetypeId;
@@ -4434,11 +4534,15 @@ bool validateActionObject(
     }
 
     if (result.tool == "layers.create") {
-        const std::string name = trim(jsonStringProperty(paramsJson, "name").value_or(""));
+        const std::string requestedName = trim(jsonStringProperty(paramsJson, "name").value_or(""));
+        const std::string name = normalizedBrxLayerName(requestedName);
         bool planCreatedLayer = false;
         if (name.empty()) {
             addUniqueMessage(result.missing, "layers.create.params.name");
         } else {
+            if (name != requestedName) {
+                addUniqueMessage(result.hints, "layers.create.params.name wird vor Ausfuehrung zu '" + name + "' normalisiert");
+            }
             if (validationLayerKey(name) == "0") {
                 addUniqueMessage(result.errors, "Layer 0 darf nicht neu angelegt werden");
             }
@@ -5281,10 +5385,14 @@ Acad::ErrorStatus applyLayerMutation(
     }
 
     if (operation == "create") {
-        const std::string name = trim(jsonStringProperty(paramsJson, "name").value_or(""));
+        const std::string requestedName = trim(jsonStringProperty(paramsJson, "name").value_or(""));
+        const std::string name = normalizedBrxLayerName(requestedName);
         if (name.empty()) {
             summary = "layers.create braucht name";
             return Acad::eInvalidInput;
+        }
+        if (name != requestedName) {
+            appendDebug(debugLines, "layers.create normalized name '" + requestedName + "' -> '" + name + "'");
         }
         if (layerExistsInDatabase(database, name)) {
             skipped = true;

@@ -13,7 +13,8 @@
         processEscapes: true
       },
       options: {
-        skipHtmlTags: ["script", "noscript", "style", "textarea", "pre", "code"]
+        skipHtmlTags: ["script", "noscript", "style", "textarea", "pre", "code"],
+        ignoreHtmlClass: "math-source-text"
       },
       startup: {
         pageReady: () => MathJax.startup.defaultPageReady().then(() => {
@@ -32,26 +33,29 @@
   <style>
     :root {
       --sidebar-width: 270px;
-      --bg: #ffffff;
-      --surface: #f9f9f9;
-      --surface-hover: #ececec;
-      --composer-bg: #f4f4f4;
-      --composer-border: #dedede;
-      --text: #171717;
-      --text-muted: #707070;
-      --border: #e5e5e5;
-      --user-bubble: #f4f4f4;
-      --button-bg: #111111;
+      --bg: #f7f7f4;
+      --surface: #f4f3f3;
+      --surface-hover: #e8eddf;
+      --composer-bg: #f6f6f1;
+      --composer-border: #d8d8d3;
+      --text: #242621;
+      --text-muted: #6e726a;
+      --border: #dcdcd5;
+      --sidebar-bg: #f4f3f3;
+      --sidebar-hover: #e8eddf;
+      --sidebar-border: #d8d8d3;
+      --user-bubble: #edf6e4;
+      --button-bg: #8fbd45;
       --button-text: #ffffff;
-      --warning-bg: #fff7ed;
-      --warning-border: #f7931a;
-      --success-bg: #ecfdf5;
-      --success-border: #10a37f;
+      --warning-bg: #edf6e4;
+      --warning-border: #73a22d;
+      --success-bg: #edf6e4;
+      --success-border: #73a22d;
       --danger-bg: #fef2f2;
       --danger-border: #ef4444;
       --table-bg: #ffffff;
-      --table-head: #eef4f1;
-      --table-stripe: #f7faf9;
+      --table-head: #edf6e4;
+      --table-stripe: #f6faf0;
       --radius-sm: 10px;
       --radius-md: 16px;
       --radius-lg: 26px;
@@ -61,26 +65,29 @@
 
     @media (prefers-color-scheme: dark) {
       :root {
-        --bg: #212121;
-        --surface: #171717;
-        --surface-hover: #2f2f2f;
-        --composer-bg: #303030;
-        --composer-border: #474747;
-        --text: #ececec;
-        --text-muted: #a6a6a6;
-        --border: #343434;
-        --user-bubble: #303030;
-        --button-bg: #ffffff;
-        --button-text: #111111;
-        --warning-bg: #2a2117;
-        --warning-border: #f7931a;
-        --success-bg: rgba(16, 163, 127, 0.14);
-        --success-border: #10a37f;
+        --bg: #171717;
+        --surface: #1a1a1a;
+        --surface-hover: #2a2a2a;
+        --composer-bg: #202020;
+        --composer-border: #3a3a3a;
+        --text: #f4f3f3;
+        --text-muted: #b0b0b0;
+        --border: #333333;
+        --sidebar-bg: #232323;
+        --sidebar-hover: #343434;
+        --sidebar-border: #565656;
+        --user-bubble: #2a2a2a;
+        --button-bg: #8fbd45;
+        --button-text: #101410;
+        --warning-bg: rgba(143, 189, 69, 0.14);
+        --warning-border: #8fbd45;
+        --success-bg: rgba(143, 189, 69, 0.14);
+        --success-border: #8fbd45;
         --danger-bg: rgba(239, 68, 68, 0.14);
         --danger-border: #ef4444;
-        --table-bg: #1f1f1f;
-        --table-head: #26322e;
-        --table-stripe: #262626;
+        --table-bg: #161616;
+        --table-head: #222222;
+        --table-stripe: #1e1e1e;
         --shadow-soft: 0 8px 30px rgba(0, 0, 0, 0.28);
       }
     }
@@ -134,8 +141,8 @@
     .sidebar {
       min-width: 0;
       height: 100vh;
-      background: var(--surface);
-      border-right: 1px solid var(--border);
+      background: var(--sidebar-bg);
+      border-right: 1px solid var(--sidebar-border);
       padding: 10px;
       display: flex;
       flex-direction: column;
@@ -198,6 +205,18 @@
       background: var(--surface-hover);
     }
 
+    .sidebar .icon-btn:hover {
+      background: var(--sidebar-hover);
+    }
+
+    .clear-history-btn {
+      color: var(--text-muted);
+    }
+
+    .clear-history-btn:hover {
+      color: var(--text);
+    }
+
     .new-chat-btn {
       width: 100%;
       border: 0;
@@ -215,7 +234,7 @@
     }
 
     .new-chat-btn:hover {
-      background: var(--surface-hover);
+      background: var(--sidebar-hover);
     }
 
     .app.sidebar-collapsed .new-chat-btn {
@@ -262,6 +281,29 @@
       font-size: 12px;
       font-weight: 600;
       padding: 6px 10px 2px;
+    }
+
+    .sidebar-section-title {
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 8px 10px 3px;
+    }
+
+    .sidebar-section-title.hidden {
+      display: none;
+    }
+
+    .sidebar-section-title.workflow-title {
+      margin-top: 4px;
+    }
+
+    .sidebar-section-title.sessions-title {
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid var(--sidebar-border);
     }
 
     .chat-list {
@@ -329,7 +371,7 @@
     .chat-item:hover,
     .chat-item:focus-within,
     .chat-link.active {
-      background: var(--surface-hover);
+      background: var(--sidebar-hover);
     }
 
     .chat-item:hover .chat-delete,
@@ -340,7 +382,7 @@
 
     .chat-delete:hover {
       color: var(--text);
-      background: var(--bg);
+      background: var(--surface);
     }
 
     .chat-item.hidden {
@@ -350,6 +392,10 @@
     .app.sidebar-collapsed .chat-list {
       align-items: center;
       padding-right: 0;
+    }
+
+    .app.sidebar-collapsed .sidebar-section-title {
+      display: none;
     }
 
     .app.sidebar-collapsed .chat-item {
@@ -409,6 +455,42 @@
       font-weight: 600;
     }
 
+    .workspace-switcher {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 3px;
+      border: 1px solid var(--success-border);
+      border-radius: 999px;
+      background: var(--surface);
+    }
+
+    .workspace-option {
+      height: 32px;
+      border: 1px solid transparent;
+      border-radius: 999px;
+      padding: 0 12px;
+      background: transparent;
+      color: var(--text-muted);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .workspace-option:hover {
+      color: var(--text);
+      border-color: var(--success-border);
+      background: var(--surface-hover);
+    }
+
+    .workspace-option.active {
+      color: var(--button-text);
+      border-color: var(--button-bg);
+      background: var(--button-bg);
+      box-shadow: none;
+    }
+
     .status-pill {
       border: 1px solid var(--border);
       background: var(--bg);
@@ -458,19 +540,19 @@
       scrollbar-gutter: stable;
       scrollbar-width: thin;
       scrollbar-color: var(--border) transparent;
-      padding: 18px 20px 28px;
+      padding: 18px 28px 28px;
       display: flex;
       flex-direction: column;
       gap: 24px;
     }
 
     .message {
-      width: min(820px, 100%);
+      width: 100%;
       margin: 0 auto;
       display: flex;
       gap: 14px;
       line-height: 1.55;
-      font-size: 15px;
+      font-size: 16px;
     }
 
     .message.user {
@@ -484,7 +566,7 @@
     }
 
     .message-content {
-      max-width: 72%;
+      max-width: min(900px, 86%);
       min-width: 0;
       display: flex;
       flex-direction: column;
@@ -541,7 +623,7 @@
 
     .message-heading {
       font-weight: 700;
-      font-size: 15px;
+      font-size: 16px;
       line-height: 1.45;
     }
 
@@ -559,7 +641,7 @@
       border-collapse: collapse;
       min-width: 560px;
       background: var(--table-bg);
-      font-size: 14px;
+      font-size: 15px;
       line-height: 1.45;
       white-space: normal;
     }
@@ -654,6 +736,15 @@
       transition: opacity 0.15s ease;
     }
 
+    .message-footer.has-workflow-actions {
+      opacity: 1;
+      pointer-events: auto;
+      gap: 12px;
+      margin-top: 8px;
+      padding-top: 6px;
+      border-top: 1px solid var(--border);
+    }
+
     .message:hover .message-footer,
     .message:focus-within .message-footer {
       opacity: 1;
@@ -682,10 +773,164 @@
       background: var(--success-bg);
     }
 
+    html.pdf-exporting-message,
+    body.pdf-exporting-message {
+      background: #fff !important;
+      color: #111 !important;
+      height: auto !important;
+      min-height: 100% !important;
+      overflow: visible !important;
+    }
+
+    html.pdf-exporting-message *,
+    body.pdf-exporting-message * {
+      visibility: hidden !important;
+    }
+
+    html.pdf-exporting-message .pdf-export-target,
+    html.pdf-exporting-message .pdf-export-target *,
+    body.pdf-exporting-message .pdf-export-target,
+    body.pdf-exporting-message .pdf-export-target * {
+      visibility: visible !important;
+    }
+
+    html.pdf-exporting-message .pdf-export-target,
+    body.pdf-exporting-message .pdf-export-target {
+      position: absolute !important;
+      inset: 0 auto auto 0 !important;
+      width: calc(100vw - 48px) !important;
+      margin: 24px !important;
+      background: #fff !important;
+      color: #111 !important;
+      box-shadow: none !important;
+    }
+
+    html.pdf-exporting-message .pdf-export-target,
+    html.pdf-exporting-message .pdf-export-target .message-content,
+    html.pdf-exporting-message .pdf-export-target .bubble,
+    html.pdf-exporting-message .pdf-export-target .message-body,
+    html.pdf-exporting-message .pdf-export-target .message-table,
+    html.pdf-exporting-message .pdf-export-target .message-table th,
+    html.pdf-exporting-message .pdf-export-target .message-table td,
+    body.pdf-exporting-message .pdf-export-target,
+    body.pdf-exporting-message .pdf-export-target .message-content,
+    body.pdf-exporting-message .pdf-export-target .bubble,
+    body.pdf-exporting-message .pdf-export-target .message-body,
+    body.pdf-exporting-message .pdf-export-target .message-table,
+    body.pdf-exporting-message .pdf-export-target .message-table th,
+    body.pdf-exporting-message .pdf-export-target .message-table td {
+      background: #fff !important;
+      color: #111 !important;
+      border-color: #d0d7de !important;
+    }
+
+    html.pdf-exporting-message .pdf-export-target mjx-container,
+    html.pdf-exporting-message .pdf-export-target mjx-container *,
+    body.pdf-exporting-message .pdf-export-target mjx-container,
+    body.pdf-exporting-message .pdf-export-target mjx-container * {
+      color: #111 !important;
+    }
+
+    html.pdf-exporting-message .pdf-export-target .math-source-text,
+    body.pdf-exporting-message .pdf-export-target .math-source-text {
+      color: transparent !important;
+    }
+
+    html.pdf-exporting-message .pdf-export-target .assistant-avatar,
+    html.pdf-exporting-message .pdf-export-target .meta,
+    body.pdf-exporting-message .pdf-export-target .assistant-avatar,
+    body.pdf-exporting-message .pdf-export-target .meta,
+    html.pdf-exporting-message .pdf-export-target .message-footer,
+    body.pdf-exporting-message .pdf-export-target .message-footer {
+      display: none !important;
+    }
+
+    .message-footer-link {
+      border: 0;
+      background: transparent;
+      color: var(--text-muted);
+      padding: 0;
+      font: inherit;
+      font-size: 13px;
+      line-height: 1.4;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      cursor: pointer;
+    }
+
+    .message-footer-link:hover {
+      color: var(--text);
+    }
+
     .bubble mjx-container[display="true"] {
       max-width: 100%;
       overflow-x: auto;
       overflow-y: hidden;
+    }
+
+    .bubble mjx-container,
+    .bubble mjx-container * {
+      user-select: text !important;
+      -webkit-user-select: text !important;
+    }
+
+    .math-selectable {
+      position: relative;
+      display: inline-block;
+      max-width: 100%;
+      vertical-align: baseline;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .math-selectable.display {
+      display: block;
+      overflow-x: auto;
+      overflow-y: hidden;
+      width: fit-content;
+      max-width: 100%;
+      margin: 12px auto;
+      padding: 6px 10px;
+      text-align: center;
+    }
+
+    .math-selectable.display .math-render {
+      font-size: 1.14em;
+    }
+
+    .message-table .math-render {
+      font-size: 1.08em;
+    }
+
+    .message-table .math-selectable.display .math-render {
+      font-size: 1.18em;
+    }
+
+    .math-render,
+    .math-render * {
+      pointer-events: none;
+    }
+
+    .math-source-text {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      overflow: hidden;
+      white-space: pre;
+      color: transparent;
+      user-select: text !important;
+      -webkit-user-select: text !important;
+      cursor: text;
+    }
+
+    .math-source-text::selection {
+      color: transparent;
+      background: var(--success-bg);
+    }
+
+    .math-selectable.copied {
+      outline: 1px solid var(--success-border);
+      background: var(--success-bg);
     }
 
     .user .bubble {
@@ -711,7 +956,7 @@
       align-items: center;
       gap: 10px;
       color: var(--text-muted);
-      font-size: 15px;
+      font-size: 16px;
       line-height: 1.55;
       padding-top: 2px;
     }
@@ -768,6 +1013,24 @@
       display: none;
     }
 
+    .message-continue {
+      margin-top: 10px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: transparent;
+      color: var(--text-muted);
+      padding: 6px 12px;
+      font-size: 13px;
+      line-height: 1.2;
+      transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+    }
+
+    .message-continue:hover {
+      border-color: var(--text-muted);
+      color: var(--text);
+      background: var(--surface-hover);
+    }
+
     .loading-spinner {
       width: 18px;
       height: 18px;
@@ -791,8 +1054,8 @@
     }
 
     .status-mark.done {
-      color: #0f7b55;
-      background: rgba(16, 163, 127, 0.12);
+      color: var(--button-bg);
+      background: var(--success-bg);
     }
 
     .status-mark.failed {
@@ -804,6 +1067,60 @@
       to {
         transform: rotate(360deg);
       }
+    }
+
+    body[data-theme="light"] {
+      --bg: #f7f7f4;
+      --surface: #f4f3f3;
+      --surface-hover: #e8eddf;
+      --composer-bg: #f6f6f1;
+      --composer-border: #d8d8d3;
+      --text: #242621;
+      --text-muted: #6e726a;
+      --border: #dcdcd5;
+      --sidebar-bg: #f4f3f3;
+      --sidebar-hover: #e8eddf;
+      --sidebar-border: #d8d8d3;
+      --user-bubble: #edf6e4;
+      --button-bg: #8fbd45;
+      --button-text: #ffffff;
+      --warning-bg: #edf6e4;
+      --warning-border: #73a22d;
+      --success-bg: #edf6e4;
+      --success-border: #73a22d;
+      --danger-bg: #fef2f2;
+      --danger-border: #ef4444;
+      --table-bg: #ffffff;
+      --table-head: #edf6e4;
+      --table-stripe: #f6faf0;
+      --shadow-soft: 0 8px 30px rgba(0, 0, 0, 0.08);
+    }
+
+    body[data-theme="dark"] {
+      --bg: #171717;
+      --surface: #1a1a1a;
+      --surface-hover: #2a2a2a;
+      --composer-bg: #202020;
+      --composer-border: #3a3a3a;
+      --text: #f4f3f3;
+      --text-muted: #b0b0b0;
+      --border: #333333;
+      --sidebar-bg: #232323;
+      --sidebar-hover: #343434;
+      --sidebar-border: #565656;
+      --user-bubble: #2a2a2a;
+      --button-bg: #8fbd45;
+      --button-text: #101410;
+      --warning-bg: rgba(143, 189, 69, 0.14);
+      --warning-border: #8fbd45;
+      --success-bg: rgba(143, 189, 69, 0.14);
+      --success-border: #8fbd45;
+      --danger-bg: rgba(239, 68, 68, 0.14);
+      --danger-border: #ef4444;
+      --table-bg: #161616;
+      --table-head: #222222;
+      --table-stripe: #1e1e1e;
+      --shadow-soft: 0 8px 30px rgba(0, 0, 0, 0.28);
     }
 
     .meta {
@@ -884,7 +1201,7 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      font-size: 14px;
+      font-size: 15px;
       line-height: 1.45;
     }
 
@@ -900,7 +1217,7 @@
       display: none;
       margin-top: 8px;
       padding-left: 12px;
-      border-left: 1px solid rgba(247, 147, 26, 0.5);
+      border-left: 1px solid var(--success-border);
       color: var(--text-muted);
       font-size: 13px;
       line-height: 1.45;
@@ -1195,7 +1512,7 @@
     }
 
     .active-workflow {
-      width: min(820px, 100%);
+      width: 100%;
       margin: 0 auto 8px;
       display: none;
       align-items: center;
@@ -1583,6 +1900,15 @@
             <path d="M4 17h16" />
           </svg>
         </button>
+        <button class="icon-btn clear-history-btn" id="clear-history-button" type="button" aria-label="Chatverlauf leeren" title="Chatverlauf leeren">
+          <svg viewBox="0 0 24 24">
+            <path d="M3 6h18" />
+            <path d="M8 6V4h8v2" />
+            <path d="M6 6l1 15h10l1-15" />
+            <path d="M10 11v6" />
+            <path d="M14 11v6" />
+          </svg>
+        </button>
       </div>
 
       <button class="new-chat-btn" id="new-chat-button">
@@ -1590,7 +1916,7 @@
           <path d="M12 20h9" />
           <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
         </svg>
-        Neue Sitzung
+        Neuer Chat
       </button>
 
       <label class="sidebar-search" for="chat-search">
@@ -1598,7 +1924,7 @@
           <circle cx="11" cy="11" r="7" />
           <path d="m20 20-3.5-3.5" />
         </svg>
-        <input id="chat-search" type="search" placeholder="Chats suchen" autocomplete="off" />
+        <input id="chat-search" type="search" placeholder="Sitzung suchen" autocomplete="off" />
       </label>
 
       <div class="sidebar-title">Sitzungen</div>
@@ -1617,7 +1943,10 @@
       <header class="topbar">
         <div class="topbar-left">
           <div class="model-title">AI Assistent</div>
-          <span class="status-pill" id="agent-status">Leerlauf</span>
+          <div class="workspace-switcher" id="workspace-switcher" aria-label="AI Arbeitsbereich wählen">
+            <button class="workspace-option active" type="button" data-workspace="bricscad">BricsCAD</button>
+            <button class="workspace-option" type="button" data-workspace="chat">Chat</button>
+          </div>
         </div>
 
         <div class="topbar-right">
@@ -1676,6 +2005,7 @@
                   </svg>
                   <span>Tools</span>
                 </button>
+                <button class="tool-btn mode-status-btn" id="training-base-mode-indicator" type="button" disabled hidden>BricsCAD Modus</button>
                 <button class="tool-btn mode-status-btn" id="mode-indicator" type="button" disabled>BricsCAD Modus</button>
                 <div class="context-meter unknown" id="context-meter" title="Kontext wird geladen">
                   <span class="context-ring" aria-hidden="true"></span>
@@ -1699,7 +2029,7 @@
                     <span>Hoch</span>
                     <span class="reasoning-check">✓</span>
                   </button>
-                  <div class="tools-menu-title">Modus</div>
+                  <div class="tools-menu-title" id="tools-mode-title">Modus</div>
                   <button class="reasoning-option mode-option" type="button" data-mode="bricscad">
                     <span>BricsCAD Modus</span>
                     <span class="reasoning-check">✓</span>
@@ -1726,7 +2056,7 @@
             </div>
           </form>
 
-          <div class="disclaimer">AI kann Fehler machen. BricsCAD-Aktionen werden erst nach Bestätigung ausgeführt.</div>
+          <div class="disclaimer" id="mode-disclaimer">AI kann Fehler machen. BricsCAD-Aktionen werden erst nach Bestätigung ausgeführt.</div>
         </div>
       </section>
     </main>
@@ -1764,12 +2094,26 @@
 
   <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
   <script>
+    let activeWorkspace = "bricscad";
+    const workspaceLabels = {
+      bricscad: "BricsCAD",
+      chat: "Chat"
+    };
+    const normalizeWorkspace = (value) => {
+      const normalized = String(value || "").trim().toLowerCase();
+      return normalized === "chat" ? normalized : "bricscad";
+    };
+    const isBricsCadWorkspace = () => activeWorkspace === "bricscad";
+    const isChatWorkspace = () => activeWorkspace === "chat";
+    const isGeneralWorkflowWorkspace = () => isChatWorkspace();
+
     const app = document.getElementById("app");
     const messages = document.getElementById("messages");
     const form = document.getElementById("composer");
     const input = document.getElementById("prompt-input");
     const sendButton = document.getElementById("send-button");
-    const agentStatus = document.getElementById("agent-status");
+    const workspaceSwitcher = document.getElementById("workspace-switcher");
+    const workspaceOptions = Array.from(document.querySelectorAll(".workspace-option"));
     const localAiStatus = document.getElementById("local-ai-status");
     const brxStatus = document.getElementById("brx-status");
     const proposalPanel = document.getElementById("proposal-panel");
@@ -1788,12 +2132,17 @@
     const activeWorkflowRemove = document.getElementById("active-workflow-remove");
     const chatSearch = document.getElementById("chat-search");
     const chatList = document.getElementById("chat-list");
+    const sidebarTitle = document.querySelector(".sidebar-title");
     const sidebarToggle = document.getElementById("sidebar-toggle");
+    const clearHistoryButton = document.getElementById("clear-history-button");
     const toolsButton = document.getElementById("tools-button");
+    const trainingBaseModeIndicator = document.getElementById("training-base-mode-indicator");
     const modeIndicator = document.getElementById("mode-indicator");
     const contextMeter = document.getElementById("context-meter");
     const contextLabel = document.getElementById("context-label");
+    const modeDisclaimer = document.getElementById("mode-disclaimer");
     const toolsMenu = document.getElementById("tools-menu");
+    const toolsModeTitle = document.getElementById("tools-mode-title");
     const reasoningOptions = Array.from(document.querySelectorAll(".reasoning-option[data-reasoning]"));
     const modeOptions = Array.from(document.querySelectorAll(".mode-option"));
     const workflowOverlay = document.getElementById("workflow-overlay");
@@ -1812,15 +2161,17 @@
         <rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor" stroke="none"></rect>
       </svg>`;
 
-    const storageKey = "bareboneQt.aiAssistant.sessions.v1";
-    const reasoningStorageKey = "bareboneQt.aiAssistant.reasoning.v1";
-    const chatModeStorageKey = "bareboneQt.aiAssistant.mode.v1";
-    const trainingModeStorageKey = "bareboneQt.aiAssistant.trainingMode.v1";
-    const sidebarCollapsedStorageKey = "bareboneQt.aiAssistant.sidebarCollapsed.v1";
+    const storageKey = "bareboneQt.aiAssistant.unified.v3";
+    const reasoningStorageKey = "bareboneQt.aiAssistant.reasoning.unified.v3";
+    const chatModeStorageKey = "bareboneQt.aiAssistant.mode.unified.v3";
+    const trainingModeStorageKey = "bareboneQt.aiAssistant.trainingMode.unified.v3";
+    const sidebarCollapsedStorageKey = "bareboneQt.aiAssistant.sidebarCollapsed.unified.v3";
     let bridge = null;
+    let localAiReachable = false;
+    let localAiStatusText = "";
+    let workspaceStates = {};
     let sessions = [];
     let activeSessionId = "";
-    let startupFreshSessionId = "";
     let chatCounter = 1;
     let sidebarCollapsed = false;
     let isBusy = false;
@@ -1835,18 +2186,69 @@
     let proposalInline = null;
     let workflowSavePromptInline = null;
     let workflowSavePromptSignature = "";
+    let pendingWorkflowDeleteId = "";
+    let pendingGeneralWorkflowOpenId = "";
     let reasoningEffort = "high";
     let chatMode = "bricscad";
     let trainingMode = false;
     let workflows = [];
     let selectedWorkflow = null;
     let applyingClientState = false;
+    let clientStateHydrated = false;
+    let bridgeReady = false;
     let clientStateSaveTimer = 0;
     let documentCounter = 0;
+    let messageCounter = 0;
     let documentsLoading = 0;
+    let pendingMessageScrollTarget = "bottom";
+    let pendingMessageScrollMessageId = "";
+    let queuedMathTypesetTimer = 0;
+    let mathVisibilityObserver = null;
     const sessionDocuments = new Map();
     const maxDocumentContextChars = 65000;
     const maxDocumentPageChars = 7000;
+
+    function nextMessageId(prefix = "msg") {
+      messageCounter += 1;
+      return `${prefix}-${Date.now()}-${messageCounter}-${Math.floor(Math.random() * 100000)}`;
+    }
+
+    function reportClientRuntimeError(error, context = "WebView") {
+      const message = error && error.message ? error.message : String(error || "Unbekannter Fehler");
+      const detail = `${context}: ${message}`;
+      try {
+        console.error(detail, error);
+      } catch (_consoleError) {
+        // Ignore console failures in embedded WebEngine.
+      }
+      try {
+        if (messages && typeof addMessage === "function") {
+          addMessage({
+            speaker: "Barebone-Qt",
+            message: `WebView-Fehler: ${detail}`,
+            time: nowTime()
+          }, { record: false });
+        }
+      } catch (_messageError) {
+        // Avoid recursive error handling if rendering itself failed.
+      }
+    }
+
+    function appendClientDebug(message) {
+      try {
+        console.debug(`Barebone-Qt WebView: ${message}`);
+      } catch (_error) {
+        // Embedded WebEngine console may be unavailable.
+      }
+    }
+
+    window.addEventListener("error", (event) => {
+      reportClientRuntimeError(event.error || event.message, "JavaScript");
+    });
+
+    window.addEventListener("unhandledrejection", (event) => {
+      reportClientRuntimeError(event.reason || "Promise wurde abgelehnt", "JavaScript Promise");
+    });
 
     function nowTime() {
       return `${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} Uhr`;
@@ -1868,9 +2270,30 @@
       return sessionDocuments.get(activeSessionId);
     }
 
+    function isHiddenWorkflowContextDocument(document) {
+      if (!document || typeof document !== "object") {
+        return false;
+      }
+      if (document.kind === "workflow_context" || document.workflowId || document.workflowContext) {
+        return true;
+      }
+      const name = String(document.name || "").trim().toLowerCase();
+      return isGeneralWorkflowSession()
+        && name.endsWith(".json")
+        && selectedWorkflow
+        && (
+          name === String(selectedWorkflow.fileName || "").trim().toLowerCase()
+          || name === `${String(selectedWorkflow.id || "").trim().toLowerCase()}.json`
+        );
+    }
+
+    function visibleDocumentChips() {
+      return activeDocuments().filter((document) => !isHiddenWorkflowContextDocument(document));
+    }
+
     function repairMojibakeText(text) {
       let value = String(text || "");
-      if (!/[ÃÂâ]/.test(value)) {
+      if (!/[ÃÂâÎÏ]/.test(value)) {
         return value;
       }
       const replacements = [
@@ -1884,6 +2307,14 @@
         [/â€¦/g, "…"],
         [/â€¯/g, " "],
         [/â€‘/g, "-"],
+        [/â»/g, "⁻"],
+        [/âº/g, "⁺"],
+        [/â‚‚/g, "₂"],
+        [/â‚ƒ/g, "₃"],
+        [/â‰ˆ/g, "≈"],
+        [/â‰¤/g, "≤"],
+        [/â‰¥/g, "≥"],
+        [/â†’/g, "→"],
         [/Ã¤/g, "ä"],
         [/Ã¶/g, "ö"],
         [/Ã¼/g, "ü"],
@@ -1897,9 +2328,16 @@
         [/Ã³/g, "ó"],
         [/Ã±/g, "ñ"],
         [/Ã§/g, "ç"],
+        [/Ã—/g, "×"],
         [/Â«/g, "«"],
         [/Â»/g, "»"],
         [/Â°/g, "°"],
+        [/Î”/g, "Δ"],
+        [/Î´/g, "δ"],
+        [/Îµ/g, "ε"],
+        [/Ï/g, "ρ"],
+        [/Ï/g, "φ"],
+        [/Ï€/g, "π"],
         [/Â/g, ""]
       ];
       replacements.forEach(([pattern, replacement]) => {
@@ -1931,7 +2369,7 @@
     }
 
     function renderDocumentContext() {
-      const docs = activeDocuments();
+      const docs = visibleDocumentChips();
       documentContext.hidden = docs.length === 0;
       documentContext.replaceChildren();
 
@@ -1973,7 +2411,11 @@
     }
 
     function updateSendButtonState() {
-      sendButton.disabled = documentsLoading > 0;
+      const activeDocumentsLoading = activeDocuments().some((document) => document.status === "loading");
+      if (!activeDocumentsLoading) {
+        documentsLoading = 0;
+      }
+      sendButton.disabled = activeDocumentsLoading;
       sendButton.classList.toggle("stop", isBusy);
       sendButton.setAttribute("aria-label", isBusy ? "Laufenden Prozess stoppen" : "Nachricht senden");
       sendButton.title = isBusy ? "Stoppen" : "Absenden";
@@ -2001,11 +2443,51 @@
         id,
         title,
         description: String(value.description || value.summary || "").trim(),
+        kind: String(value.kind || "").trim() || (isGeneralWorkflowWorkspace() ? "general" : ""),
         fileName: String(value.fileName || "").trim()
       };
     }
 
+    function normalizeWorkflowListEntry(workflow) {
+      const wrapper = workflow && typeof workflow === "object" ? workflow : {};
+      const nested = wrapper.workflow && typeof wrapper.workflow === "object" ? wrapper.workflow : {};
+      const id = String(wrapper.id || nested.id || wrapper.workflowId || nested.workflowId || wrapper.fileName || nested.fileName || "").trim();
+      const title = String(wrapper.title || nested.title || id || "Workflow").trim();
+      return {
+        id,
+        title,
+        description: String(wrapper.description || nested.description || wrapper.summary || nested.summary || "").trim(),
+        kind: String(wrapper.kind || nested.kind || "").trim() || (isGeneralWorkflowWorkspace() ? "general" : ""),
+        fileName: String(wrapper.fileName || nested.fileName || "").trim(),
+        blockCount: Number(wrapper.blockCount || 0) || 0,
+        tableCount: Number(wrapper.tableCount || 0) || 0,
+        formulaCount: Number(wrapper.formulaCount || 0) || 0,
+        verificationStatus: String(wrapper.verificationStatus || nested.verificationStatus || "").trim()
+      };
+    }
+
     function workflowMetaText(workflow) {
+      if (workflow.kind === "general") {
+        const parts = [];
+        if (workflow.domain) {
+          parts.push(workflow.domain);
+        }
+        if (workflow.verificationStatus) {
+          parts.push(workflow.verificationStatus);
+        }
+        const tableCount = Number(Array.isArray(workflow.tables) ? workflow.tables.length : (workflow.tableCount || 0));
+        const formulaCount = Number(Array.isArray(workflow.formulas) ? workflow.formulas.length : (workflow.formulaCount || 0));
+        if (tableCount > 0) {
+          parts.push(`${tableCount} Tabelle${tableCount === 1 ? "" : "n"}`);
+        }
+        if (formulaCount > 0) {
+          parts.push(`${formulaCount} Formel${formulaCount === 1 ? "" : "n"}`);
+        }
+        if (workflow.fileName) {
+          parts.push(workflow.fileName);
+        }
+        return parts.join(" · ") || "Workflow";
+      }
       const stepCount = Number(workflow.stepCount || (Array.isArray(workflow.steps) ? workflow.steps.length : 0)) || 0;
       const batchCount = Number(workflow.batchCount || (Array.isArray(workflow.executionBatches) ? workflow.executionBatches.length : 0)) || 0;
       const parts = [];
@@ -2019,6 +2501,241 @@
         parts.push(workflow.fileName);
       }
       return parts.join(" · ") || "Workflow";
+    }
+
+    function generalWorkflowList() {
+      return workflows.filter((workflow) => workflow && workflow.id && workflow.kind === "general");
+    }
+
+    function workflowHasLoadedContent(workflow) {
+      return !!(
+        workflow
+        && typeof workflow === "object"
+        && (
+          Array.isArray(workflow.display?.blocks)
+          || Array.isArray(workflow.tables)
+          || Array.isArray(workflow.formulas)
+          || Array.isArray(workflow.examples)
+          || Array.isArray(workflow.assumptions)
+          || Array.isArray(workflow.warnings)
+          || String(workflow.contextSummary || "").trim()
+        )
+      );
+    }
+
+    function isGeneralWorkflowSession(session = activeSession()) {
+      return isGeneralWorkflowWorkspace()
+        && session
+        && session.kind === "general_workflow"
+        && typeof session.workflowId === "string"
+        && session.workflowId.trim().length > 0;
+    }
+
+    function workflowSessionId(workflow) {
+      const id = String(workflow?.id || workflow?.fileName || "workflow").trim();
+      return `workflow-session-${id.replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "") || "workflow"}`;
+    }
+
+    function isLatexUnitSubscriptSegment(segment) {
+      const normalized = String(segment || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\\(?:mathrm|text)\{([^{}]+)\}/g, "$1")
+        .replace(/\s+/g, "")
+        .replace(/[{}]/g, "")
+        .replace(/\^/g, "")
+        .replace(/²/g, "2")
+        .replace(/³/g, "3");
+      if (!normalized) {
+        return false;
+      }
+      if (normalized.includes("/") || normalized.includes("per")) {
+        return /^(?:m2|m3|kg|g|j|kj|w|kw|wh|kwh|l|h|s|min|k|c|°c)(?:\/|per)(?:m2|m3|kg|g|j|kj|w|kw|wh|kwh|l|h|s|min|k|c|°c)(?:[a-z0-9\/]*)?$/.test(normalized);
+      }
+      return /^(?:w|kw|wh|kwh|j|kj|kg|g|m|m2|m3|l|s|h|min|k|c|°c|pa|bar|a|v)$/.test(normalized);
+    }
+
+    function normalizeLatexSubscriptLabel(label) {
+      let value = String(label || "")
+        .replace(/\\(?:mathrm|text)\{([^{}]+)\}/g, "$1")
+        .replace(/\s+/g, "")
+        .replace(/_/g, ",")
+        .replace(/,+/g, ",")
+        .replace(/^,+|,+$/g, "");
+      const segments = value.split(",").filter((segment) => segment && !isLatexUnitSubscriptSegment(segment));
+      if (segments.length !== value.split(",").filter(Boolean).length) {
+        value = segments.join(",");
+      }
+      if (!value) {
+        return "";
+      }
+      if (!/[A-Za-z]/.test(value) || !/^[A-Za-z0-9,.-]+$/.test(value)) {
+        return null;
+      }
+      return `\\mathrm{${value}}`;
+    }
+
+    function normalizeLatexSubscripts(text) {
+      return String(text || "")
+        .replace(/_\{((?:\\(?:mathrm|text)\{[^{}]+\}|[A-Za-z0-9_,\s./^°-])+)\}/g, (_match, subscript) => {
+          const normalized = normalizeLatexSubscriptLabel(subscript);
+          return normalized !== null ? (normalized ? `_{${normalized}}` : "") : _match;
+        })
+        .replace(/_\{([A-Za-z0-9_,\s.-]*?)\\(?:mathrm|text)\{([^{}]+)\}([A-Za-z0-9_,\s.-]*?)\}/g, (_match, before, inner, after) => {
+          const label = `${before || ""}${inner || ""}${after || ""}`;
+          const normalized = normalizeLatexSubscriptLabel(label);
+          return normalized !== null ? (normalized ? `_{${normalized}}` : "") : _match;
+        })
+        .replace(/_\{([A-Za-z0-9_,\s./^°-]+)\}/g, (_match, subscript) => {
+          const normalized = normalizeLatexSubscriptLabel(subscript);
+          return normalized !== null ? (normalized ? `_{${normalized}}` : "") : _match;
+        })
+        .replace(/_([A-Za-z][A-Za-z0-9_]*)(?=[\s=+\-*/^,;:.\\)}\]]|$)/g, (_match, subscript) => {
+          const normalized = normalizeLatexSubscriptLabel(subscript);
+          return normalized !== null ? (normalized ? `_{${normalized}}` : "") : _match;
+        });
+    }
+
+    function normalizeLatexSource(text) {
+      let value = repairMojibakeText(String(text || "")).trim();
+      if (!value) {
+        return "";
+      }
+      value = value
+        .replace(/\\\\(?=(?:Delta|rho|varepsilon|epsilon|pi|varphi|phi|cdot|times|frac|mathrm|text|sum|dot|left|right|approx)\b)/g, "\\")
+        .replace(/Δ\s*T/g, "\\Delta T")
+        .replace(/Δ/g, "\\Delta")
+        .replace(/ρ/g, "\\rho")
+        .replace(/ε/g, "\\varepsilon")
+        .replace(/π/g, "\\pi")
+        .replace(/φ/g, "\\varphi")
+        .replace(/×/g, "\\times")
+        .replace(/·/g, "\\cdot")
+        .replace(/⁻¹/g, "^{-1}")
+        .replace(/(^|[^\\])\bcdot\b/g, "$1\\cdot")
+        .replace(/(^|[^\\])\bDelta\s*T\b/g, "$1\\Delta T")
+        .replace(/(^|[^\\])\brho\b/g, "$1\\rho");
+      value = normalizeLatexSubscripts(value);
+      value = value
+        .replace(/\s*\\?,?\s*\[\s*\\(?:mathrm|text)\{[^{}]+\}\s*\]\s*(?==)/g, " ")
+        .replace(/\s*\\?,?\s*\[\s*[A-Za-z0-9/%^°\s.-]+\s*\]\s*(?==)/g, " ");
+      return value.replace(/\s+/g, " ").trim();
+    }
+
+    function markdownTableFromWorkflowTable(table) {
+      if (!table || typeof table !== "object") {
+        return "";
+      }
+      const columns = Array.isArray(table.columns) ? table.columns : [];
+      const rows = Array.isArray(table.rows) ? table.rows : [];
+      if (!columns.length || !rows.length) {
+        return "";
+      }
+      const labels = columns.map((column) => (
+        typeof column === "string" ? column : (column.label || column.name || column.key || String(column))
+      ));
+      const keys = columns.map((column, index) => (
+        typeof column === "string" ? column : (column.name || column.key || column.label || labels[index])
+      ));
+      const escapeCell = (value) => {
+        const text = repairMojibakeText(String(value ?? "")).replace(/\|/g, "\\|").replace(/\n+/g, " ").trim();
+        return text || "—";
+      };
+      const lines = [
+        `| ${labels.map(escapeCell).join(" | ")} |`,
+        `| ${labels.map(() => "---").join(" | ")} |`
+      ];
+      rows.forEach((row) => {
+        const cells = keys.map((key, index) => {
+          if (Array.isArray(row)) {
+            return escapeCell(row[index]);
+          }
+          if (row && typeof row === "object") {
+            return escapeCell(row[key]);
+          }
+          return escapeCell(row);
+        });
+        lines.push(`| ${cells.join(" | ")} |`);
+      });
+      return lines.join("\n");
+    }
+
+    function workflowMarkdownForChat(workflow) {
+      const lines = [];
+      const title = repairMojibakeText(workflow.title || workflow.id || "Workflow");
+      lines.push(`**Workflow: ${title}**`);
+      if (workflow.description) {
+        lines.push("", repairMojibakeText(workflow.description));
+      }
+
+      const blocks = Array.isArray(workflow.display?.blocks) ? workflow.display.blocks : [];
+      if (blocks.length) {
+        lines.push("", "## Inhalte");
+        blocks.forEach((block, index) => {
+          if (!block || typeof block !== "object") {
+            lines.push("", String(block || ""));
+            return;
+          }
+          lines.push("", `### ${repairMojibakeText(block.title || `Abschnitt ${index + 1}`)}`);
+          if (block.text || block.content) {
+            lines.push(repairMojibakeText(String(block.text || block.content)));
+          }
+        });
+      }
+
+      if (Array.isArray(workflow.tables) && workflow.tables.length) {
+        lines.push("", "## Tabellen");
+        workflow.tables.forEach((table) => {
+          const title = repairMojibakeText(table?.title || table?.name || "");
+          if (title) {
+            lines.push("", `### ${title}`);
+          }
+          const tableMarkdown = markdownTableFromWorkflowTable(table);
+          if (tableMarkdown) {
+            lines.push(tableMarkdown);
+          }
+        });
+      }
+
+      if (Array.isArray(workflow.formulas) && workflow.formulas.length) {
+        lines.push("", "## Formeln");
+        workflow.formulas.forEach((formula) => {
+          if (!formula || typeof formula !== "object") {
+            return;
+          }
+          const name = repairMojibakeText(formula.name || formula.id || "Formel");
+          const expression = latexForWorkflowFormula(formula) || formula.expression || "";
+          lines.push("", `### ${name}`);
+          if (expression) {
+            lines.push(`\\[${expression}\\]`);
+          }
+          if (formula.description) {
+            lines.push(repairMojibakeText(String(formula.description)));
+          }
+        });
+      }
+
+      if (Array.isArray(workflow.examples) && workflow.examples.length) {
+        lines.push("", "## Beispiele");
+        workflow.examples.forEach((example) => {
+          if (typeof example === "string") {
+            lines.push(`- ${repairMojibakeText(example)}`);
+          } else if (example && typeof example === "object") {
+            lines.push(`- ${repairMojibakeText(example.title || "Beispiel")}${example.result ? `: ${repairMojibakeText(example.result)}` : ""}${example.description ? ` - ${repairMojibakeText(example.description)}` : ""}`);
+          }
+        });
+      }
+
+      if (Array.isArray(workflow.assumptions) && workflow.assumptions.length) {
+        lines.push("", "## Annahmen", ...workflow.assumptions.map((entry) => `- ${repairMojibakeText(entry)}`));
+      }
+      if (Array.isArray(workflow.warnings) && workflow.warnings.length) {
+        lines.push("", "## Hinweise", ...workflow.warnings.map((entry) => `- ${repairMojibakeText(entry)}`));
+      }
+      if (workflow.contextSummary) {
+        lines.push("", "## Kontext", repairMojibakeText(String(workflow.contextSummary)));
+      }
+      return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
     }
 
     function openWorkflowOverlay() {
@@ -2037,6 +2754,23 @@
       workflowOverlay.setAttribute("aria-hidden", "true");
     }
 
+    function requestDeleteWorkflow(workflow) {
+      if (!workflow || !workflow.id || !isGeneralWorkflowWorkspace()) {
+        input.focus();
+        return;
+      }
+      if (bridge && typeof bridge.deleteWorkflow === "function") {
+        bridge.deleteWorkflow(workflow.id);
+      } else {
+        addMessage({
+          speaker: "Barebone-Qt",
+          message: "Workflow kann nicht gelöscht werden, weil die Qt Bridge nicht bereit ist.",
+          time: nowTime()
+        }, { record: false });
+      }
+      input.focus();
+    }
+
     function scrollWorkflowPane(element, deltaY) {
       if (!element) {
         return false;
@@ -2051,6 +2785,8 @@
         workflow.title,
         workflow.id,
         workflow.description,
+        workflow.domain,
+        Array.isArray(workflow.tags) ? workflow.tags.join(" ") : "",
         workflow.fileName,
         Array.isArray(workflow.triggerExamples) ? workflow.triggerExamples.join(" ") : "",
         Array.isArray(workflow.preferredTools) ? workflow.preferredTools.join(" ") : ""
@@ -2116,16 +2852,71 @@
         list.className = "workflow-section-list";
         content.filter(Boolean).forEach((entry) => {
           const item = document.createElement("li");
-          item.textContent = typeof entry === "string" ? entry : JSON.stringify(entry);
+          appendInlineMarkdown(item, typeof entry === "string" ? entry : JSON.stringify(entry));
           list.appendChild(item);
         });
         section.appendChild(list);
       } else {
         const text = document.createElement("div");
         text.className = "workflow-section-text";
-        text.textContent = String(content || "").trim();
+        appendInlineMarkdown(text, String(content || "").trim());
         section.appendChild(text);
       }
+      return section;
+    }
+
+    function createWorkflowTableSection(title, tables) {
+      const section = document.createElement("section");
+      section.className = "workflow-section";
+      const heading = document.createElement("div");
+      heading.className = "workflow-section-title";
+      heading.textContent = title;
+      section.appendChild(heading);
+      tables.filter(Boolean).forEach((table) => {
+        const caption = document.createElement("div");
+        caption.className = "workflow-section-text";
+        caption.textContent = table.title || table.name || "Tabelle";
+        section.appendChild(caption);
+        const columns = Array.isArray(table.columns) ? table.columns : [];
+        const rows = Array.isArray(table.rows) ? table.rows : [];
+        if (!columns.length || !rows.length) {
+          const fallback = document.createElement("pre");
+          fallback.className = "workflow-section-text";
+          fallback.textContent = JSON.stringify(table, null, 2);
+          section.appendChild(fallback);
+          return;
+        }
+        const element = document.createElement("table");
+        element.className = "markdown-table";
+        const thead = document.createElement("thead");
+        const headRow = document.createElement("tr");
+        columns.forEach((column) => {
+          const cell = document.createElement("th");
+          cell.textContent = typeof column === "string" ? column : (column.label || column.name || String(column));
+          headRow.appendChild(cell);
+        });
+        thead.appendChild(headRow);
+        element.appendChild(thead);
+        const tbody = document.createElement("tbody");
+        rows.forEach((row) => {
+          const tr = document.createElement("tr");
+          columns.forEach((column) => {
+            const key = typeof column === "string" ? column : (column.name || column.key || column.label);
+            const td = document.createElement("td");
+            if (Array.isArray(row)) {
+              td.textContent = String(row[columns.indexOf(column)] ?? "");
+            } else if (row && typeof row === "object") {
+              td.textContent = String(row[key] ?? "");
+            } else {
+              td.textContent = String(row ?? "");
+            }
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        });
+        element.appendChild(tbody);
+        section.appendChild(element);
+      });
       return section;
     }
 
@@ -2186,6 +2977,48 @@
       if (workflow.description) {
         workflowDetail.appendChild(createWorkflowSection("Beschreibung", workflow.description));
       }
+      if (workflow.kind === "general" && Array.isArray(workflow.display?.blocks) && workflow.display.blocks.length) {
+        workflowDetail.appendChild(createWorkflowSection("Aufbereitung", workflow.display.blocks.map((block) => {
+          if (!block || typeof block !== "object") {
+            return String(block || "");
+          }
+          const title = block.title || block.type || "Abschnitt";
+          const text = block.text || block.content || "";
+          return text ? `${title}: ${text}` : title;
+        })));
+      }
+      if (workflow.kind === "general" && Array.isArray(workflow.tables) && workflow.tables.length) {
+        workflowDetail.appendChild(createWorkflowTableSection("Tabellen", workflow.tables));
+      }
+      if (workflow.kind === "general" && Array.isArray(workflow.formulas) && workflow.formulas.length) {
+        workflowDetail.appendChild(createWorkflowSection("Formeln", workflow.formulas.map((formula) => {
+          if (!formula || typeof formula !== "object") {
+            return String(formula || "");
+          }
+          const name = formula.name || formula.id || "Formel";
+          const expression = latexForWorkflowFormula(formula) || formula.expression;
+          const rendered = expression ? `: \\[${expression}\\]` : "";
+          const unit = formula.unit ? ` [${formula.unit}]` : "";
+          return `${name}${unit}${rendered}`;
+        })));
+      }
+      if (workflow.kind === "general" && Array.isArray(workflow.examples) && workflow.examples.length) {
+        workflowDetail.appendChild(createWorkflowSection("Beispiele", workflow.examples.map((example) => {
+          if (typeof example === "string") {
+            return example;
+          }
+          if (!example || typeof example !== "object") {
+            return String(example || "");
+          }
+          return `${example.title || "Beispiel"}${example.result ? `: ${example.result}` : ""}${example.description ? ` - ${example.description}` : ""}`;
+        })));
+      }
+      if (workflow.kind === "general" && Array.isArray(workflow.assumptions) && workflow.assumptions.length) {
+        workflowDetail.appendChild(createWorkflowSection("Annahmen", workflow.assumptions));
+      }
+      if (workflow.kind === "general" && Array.isArray(workflow.warnings) && workflow.warnings.length) {
+        workflowDetail.appendChild(createWorkflowSection("Hinweise", workflow.warnings));
+      }
       const strategyLines = workflowStrategyWithTools(workflow);
       if (strategyLines.length) {
         workflowDetail.appendChild(createWorkflowSection("Strategie", strategyLines));
@@ -2199,7 +3032,7 @@
         })));
       }
       if (Array.isArray(workflow.derivedValues) && workflow.derivedValues.length) {
-        workflowDetail.appendChild(createWorkflowSection("Berechnungen", workflow.derivedValues.map((value) => {
+        workflowDetail.appendChild(createWorkflowSection("Berechnete Werte", workflow.derivedValues.map((value) => {
           if (!value || typeof value !== "object") {
             return String(value);
           }
@@ -2238,10 +3071,43 @@
       if (Array.isArray(workflow.validationWarnings) && workflow.validationWarnings.length) {
         workflowDetail.appendChild(createWorkflowSection("Validierungshinweise", workflow.validationWarnings));
       }
+      if (isGeneralWorkflowWorkspace() && workflow.kind === "general") {
+        const actions = document.createElement("section");
+        actions.className = "workflow-section";
+        const heading = document.createElement("div");
+        heading.className = "workflow-section-title";
+        heading.textContent = "Aktionen";
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button";
+        deleteButton.className = "message-footer-link";
+        deleteButton.textContent = "Workflow löschen";
+        deleteButton.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          requestDeleteWorkflow(workflow);
+        });
+        actions.appendChild(heading);
+        actions.appendChild(deleteButton);
+        workflowDetail.appendChild(actions);
+      }
+      if (workflowDetail.textContent.includes("\\[") || workflowDetail.textContent.includes("\\(") || workflowDetail.textContent.includes("$$")) {
+        typesetMath(workflowDetail);
+      }
     }
 
     function renderActiveWorkflow() {
-      if (!trainingMode || !selectedWorkflow || !selectedWorkflow.id) {
+      const session = activeSession();
+      if (isGeneralWorkflowWorkspace() && !session.workflowId) {
+        selectedWorkflow = null;
+      }
+      if ((!selectedWorkflow || !selectedWorkflow.id) && session && session.workflowId) {
+        const workflow = workflows.find((item) => item.id === session.workflowId);
+        if (workflow) {
+          selectedWorkflow = workflow;
+        }
+      }
+      const canShowWorkflow = trainingMode;
+      if (!canShowWorkflow || !selectedWorkflow || !selectedWorkflow.id) {
         activeWorkflow.classList.remove("visible");
         activeWorkflowName.textContent = "Workflow aktiv";
         activeWorkflowLabel.title = "";
@@ -2253,6 +3119,17 @@
     }
 
     function selectedWorkflowContext() {
+      const active = activeSession();
+      if (isGeneralWorkflowWorkspace() && !active.workflowId) {
+        selectedWorkflow = null;
+        return null;
+      }
+      if ((!selectedWorkflow || !selectedWorkflow.id) && active && active.workflowId) {
+        const workflow = workflows.find((item) => item.id === active.workflowId);
+        if (workflow) {
+          selectedWorkflow = workflow;
+        }
+      }
       if (!selectedWorkflow || !selectedWorkflow.id) {
         return null;
       }
@@ -2260,7 +3137,8 @@
         id: selectedWorkflow.id,
         title: selectedWorkflow.title,
         description: selectedWorkflow.description || "",
-        fileName: selectedWorkflow.fileName || ""
+        fileName: selectedWorkflow.fileName || "",
+        kind: selectedWorkflow.kind || (isGeneralWorkflowWorkspace() ? "general" : "bricscad")
       };
     }
 
@@ -2275,21 +3153,107 @@
     }
 
     function applyWorkflowListFromQt(list) {
-      workflows = Array.isArray(list) ? list.map(normalizeWorkflow).filter((workflow) => workflow.id) : [];
+      workflows = Array.isArray(list)
+        ? list
+          .map(isGeneralWorkflowWorkspace() ? normalizeWorkflowListEntry : normalizeWorkflow)
+          .filter((workflow) => workflow.id)
+        : [];
+      const session = activeSession();
+      if ((!selectedWorkflow || !selectedWorkflow.id) && session && session.workflowId) {
+        const workflow = workflows.find((item) => item.id === session.workflowId);
+        if (workflow) {
+          selectedWorkflow = workflow;
+        }
+      }
       renderWorkflowList();
       if (selectedWorkflow && !workflows.some((workflow) => workflow.id === selectedWorkflow.id)) {
         selectedWorkflow = null;
         renderActiveWorkflow();
         renderWorkflowDetail(null);
       }
+      renderSessionList();
+    }
+
+    function switchToNormalChatAfterWorkflowDelete(workflowId) {
+      const normalizedId = String(workflowId || "").trim();
+      if (!isGeneralWorkflowWorkspace() || !normalizedId) {
+        return;
+      }
+      sessions = sessions.filter((session) => !(session.kind === "general_workflow" && session.workflowId === normalizedId));
+      if (!sessions.some((session) => session.id === activeSessionId) || isGeneralWorkflowSession()) {
+        const next = sessions.find((session) => session.kind !== "general_workflow");
+        if (next) {
+          activeSessionId = next.id;
+        } else {
+          const session = createSession("Neuer Chat", "general", { includeGreeting: true, kind: "chat" });
+          sessions.unshift(session);
+          activeSessionId = session.id;
+        }
+      }
+      selectedWorkflow = null;
+      renderModeSelection();
+      renderSessionList();
+      prepareSessionOpenScroll();
+      renderActiveSession();
+      persistSessions({ rememberScroll: false });
+      syncActiveSessionToQt();
+      syncTrainingModeToQt();
     }
 
     function applySelectedWorkflowFromQt(workflow) {
       const normalized = normalizeWorkflow(workflow);
       selectedWorkflow = normalized.id ? normalized : null;
+      if (!selectedWorkflow && pendingGeneralWorkflowOpenId) {
+        pendingGeneralWorkflowOpenId = "";
+      }
+      if (!selectedWorkflow && pendingWorkflowDeleteId) {
+        const deletedId = pendingWorkflowDeleteId;
+        pendingWorkflowDeleteId = "";
+        switchToNormalChatAfterWorkflowDelete(deletedId);
+        return;
+      }
+      if (
+        selectedWorkflow
+        && pendingGeneralWorkflowOpenId
+        && isGeneralWorkflowWorkspace()
+        && selectedWorkflow.id === pendingGeneralWorkflowOpenId
+      ) {
+        pendingGeneralWorkflowOpenId = "";
+        openGeneralWorkflowSession(selectedWorkflow);
+        return;
+      }
+      const session = activeSession();
+      if (session) {
+        session.workflowId = selectedWorkflow ? selectedWorkflow.id : "";
+      }
       renderActiveWorkflow();
       renderWorkflowList();
       renderWorkflowDetail(selectedWorkflow);
+      renderSessionList();
+      updateLastAiWorkflowFooterActions();
+      persistSessions();
+    }
+
+    function latexForWorkflowFormula(formula) {
+      if (!formula || typeof formula !== "object") {
+        return "";
+      }
+      const explicit = normalizeLatexSource(formula.latex || formula.latexExpression || "");
+      if (explicit) {
+        return explicit;
+      }
+      let expression = repairMojibakeText(String(formula.expression || "")).trim();
+      if (!expression) {
+        return "";
+      }
+      expression = expression
+        .replaceAll("DeltaT", "\\Delta T")
+        .replaceAll("deltaT", "\\Delta T")
+        .replace(/\bQ_T\b/g, "Q_T")
+        .replace(/\bQ_V\b/g, "Q_V")
+        .replace(/\*/g, " \\cdot ")
+        .replace(/\s=\s/g, " = ");
+      return normalizeLatexSource(expression);
     }
 
     function ensurePdfParserReady() {
@@ -2542,11 +3506,25 @@
     }
 
     function normalizeChatMode(value) {
-      return value === "general" ? "general" : "bricscad";
+      if (!isBricsCadWorkspace()) {
+        return "general";
+      }
+      return "bricscad";
     }
 
     function normalizeTrainingMode(value) {
       return value === true || value === "true" || value === "workflow";
+    }
+
+    function activeModeKey() {
+      if (trainingMode) {
+        return "training";
+      }
+      return chatMode;
+    }
+
+    function isPlanningTopicSession(session = activeSession()) {
+      return false;
     }
 
     function syncReasoningToQt() {
@@ -2564,6 +3542,12 @@
     function syncTrainingModeToQt() {
       if (bridge && typeof bridge.setTrainingMode === "function") {
         bridge.setTrainingMode(trainingMode);
+      }
+    }
+
+    function syncWorkspaceToQt() {
+      if (bridge && typeof bridge.setAssistantWorkspace === "function") {
+        bridge.setAssistantWorkspace(activeWorkspace);
       }
     }
 
@@ -2602,33 +3586,163 @@
       });
     }
 
+    function updateModeDisclaimer() {
+      if (!modeDisclaimer) {
+        return;
+      }
+      if (isChatWorkspace()) {
+        modeDisclaimer.textContent = "AI kann Fehler machen. Im Chat Modus können keine BricsCAD-Aktionen ausgeführt werden.";
+        return;
+      }
+      modeDisclaimer.textContent = chatMode === "general" && !trainingMode
+        ? "AI kann Fehler machen. Im Allgemeinen Modus können keine BricsCAD-Aktionen ausgeführt werden."
+        : "AI kann Fehler machen. BricsCAD-Aktionen werden erst nach Bestätigung ausgeführt.";
+    }
+
+    function applyProfileChrome() {
+      document.body.dataset.workspace = activeWorkspace;
+      workspaceOptions.forEach((option) => {
+        option.classList.toggle("active", option.dataset.workspace === activeWorkspace);
+      });
+      document.querySelector(".model-title").textContent = "AI Assistent";
+      if (sidebarTitle) {
+        sidebarTitle.textContent = "Sitzungen";
+        sidebarTitle.hidden = isChatWorkspace();
+        sidebarTitle.style.display = isChatWorkspace() ? "none" : "";
+      }
+      chatSearch.placeholder = "Sitzung suchen";
+      newChatButton.lastChild.textContent = " Neuer Chat";
+      if (clearHistoryButton) {
+        clearHistoryButton.hidden = false;
+        clearHistoryButton.style.display = "";
+      }
+      if (brxStatus) {
+        const showBrx = isBricsCadWorkspace();
+        brxStatus.hidden = !showBrx;
+        brxStatus.style.display = showBrx ? "" : "none";
+      }
+      const showModeSection = isBricsCadWorkspace();
+      if (toolsModeTitle) {
+        toolsModeTitle.hidden = !showModeSection;
+        toolsModeTitle.style.display = showModeSection ? "" : "none";
+      }
+      modeOptions.forEach((option) => {
+        const mode = option.dataset.mode;
+        const visible = showModeSection && (mode === "bricscad" || mode === "training");
+        option.hidden = !visible;
+        option.style.display = visible ? "" : "none";
+      });
+    }
+
     function renderModeSelection() {
-      const activeMode = trainingMode ? "training" : chatMode;
+      applyProfileChrome();
+      const activeMode = activeModeKey();
       modeOptions.forEach((option) => {
         option.classList.toggle("active", option.dataset.mode === activeMode);
       });
-      modeIndicator.textContent = trainingMode ? "Trainingsmodus" : modeLabel(chatMode);
+      modeIndicator.textContent = trainingMode
+        ? "Trainingsmodus"
+        : (isChatWorkspace() ? "Chat Modus" : modeLabel(chatMode));
       modeIndicator.classList.toggle("training-active", trainingMode);
-      workflowsButton.hidden = !trainingMode;
-      workflowsButton.disabled = !trainingMode;
-      workflowsButton.style.display = trainingMode ? "" : "none";
-      if (!trainingMode && workflowOverlay.classList.contains("open")) {
+      if (trainingBaseModeIndicator) {
+        const showBaseMode = trainingMode;
+        trainingBaseModeIndicator.hidden = !showBaseMode;
+        trainingBaseModeIndicator.style.display = showBaseMode ? "" : "none";
+      }
+      const showWorkflowButton = trainingMode && isBricsCadWorkspace();
+      workflowsButton.hidden = !showWorkflowButton;
+      workflowsButton.disabled = !showWorkflowButton;
+      workflowsButton.style.display = showWorkflowButton ? "" : "none";
+      if (!showWorkflowButton && workflowOverlay.classList.contains("open")) {
         closeWorkflowOverlay();
       }
       renderActiveWorkflow();
       if (!shouldShowBrxCapabilitiesInChat()) {
         clearCapabilitiesIndicator();
       }
+      updateModeDisclaimer();
     }
 
-    function clientState() {
+    function defaultWorkspaceState(workspace) {
+      const normalizedWorkspace = normalizeWorkspace(workspace);
+      const previousWorkspace = activeWorkspace;
+      activeWorkspace = normalizedWorkspace;
+      const mode = normalizedWorkspace === "bricscad" ? "bricscad" : "general";
+      const session = createSession(modeTitle(mode), mode, { includeGreeting: true, kind: "chat" });
+      activeWorkspace = previousWorkspace;
       return {
-        version: 1,
-        sessions,
+        sessions: [session],
+        activeSessionId: session.id,
+        chatCounter: 1,
+        chatMode: mode,
+        trainingMode: false,
+        workflows: [],
+        selectedWorkflow: null
+      };
+    }
+
+    function cloneJson(value) {
+      return JSON.parse(JSON.stringify(value || null));
+    }
+
+    function snapshotCurrentWorkspace() {
+      workspaceStates[activeWorkspace] = {
+        sessions: cloneJson(sessions) || [],
         activeSessionId,
         chatCounter,
         chatMode,
         trainingMode,
+        workflows: cloneJson(workflows) || [],
+        selectedWorkflow: cloneJson(selectedWorkflow)
+      };
+    }
+
+    function workspaceStatesForStorage() {
+      const stored = cloneJson(workspaceStates) || {};
+      const chatState = stored.chat;
+      if (chatState && Array.isArray(chatState.sessions)) {
+        chatState.sessions = chatState.sessions.filter((session) => session.kind !== "general_workflow");
+        if (!chatState.sessions.some((session) => session.id === chatState.activeSessionId)) {
+          chatState.activeSessionId = chatState.sessions[0]?.id || "";
+        }
+        chatState.selectedWorkflow = null;
+      }
+      return stored;
+    }
+
+    function ensureWorkspaceState(workspace) {
+      const normalizedWorkspace = normalizeWorkspace(workspace);
+      if (!workspaceStates[normalizedWorkspace] || typeof workspaceStates[normalizedWorkspace] !== "object") {
+        workspaceStates[normalizedWorkspace] = defaultWorkspaceState(normalizedWorkspace);
+      }
+      return workspaceStates[normalizedWorkspace];
+    }
+
+    function restoreWorkspaceState(workspace) {
+      activeWorkspace = normalizeWorkspace(workspace);
+      const state = ensureWorkspaceState(activeWorkspace);
+      sessions = Array.isArray(state.sessions)
+        ? state.sessions.map(normalizeSession)
+        : [];
+      activeSessionId = typeof state.activeSessionId === "string" ? state.activeSessionId : "";
+      chatCounter = Number.isFinite(state.chatCounter) ? state.chatCounter : sessions.length;
+      chatMode = activeWorkspace === "bricscad" ? "bricscad" : "general";
+      trainingMode = activeWorkspace === "chat" ? false : normalizeTrainingMode(state.trainingMode || false);
+      workflows = Array.isArray(state.workflows)
+        ? state.workflows
+          .map(activeWorkspace === "chat" ? normalizeWorkflowListEntry : normalizeWorkflow)
+          .filter((workflow) => workflow.id)
+        : [];
+      selectedWorkflow = state.selectedWorkflow && state.selectedWorkflow.id ? normalizeWorkflow(state.selectedWorkflow) : null;
+      ensureStartupRestoredSession();
+    }
+
+    function clientState() {
+      snapshotCurrentWorkspace();
+      return {
+        version: 3,
+        activeWorkspace,
+        workspaces: workspaceStatesForStorage(),
         reasoningEffort,
         sidebarCollapsed
       };
@@ -2694,9 +3808,23 @@
       setStatusPillState(brxStatus, connected ? "connected" : "disconnected");
     }
 
+    function applyUiTheme(theme) {
+      const normalized = String(theme || "").trim().toLowerCase();
+      if (normalized === "light" || normalized === "dark") {
+        document.body.dataset.theme = normalized;
+      } else {
+        delete document.body.dataset.theme;
+      }
+    }
+
     function setLocalAiStatus(message, connected) {
       const label = message || (connected ? "Lokale AI erreichbar" : "Lokale AI nicht erreichbar");
       const checking = /prüf|pruef|wird|lade/i.test(label);
+      if (checking && localAiStatus.classList.contains("connected")) {
+        return;
+      }
+      localAiReachable = !!connected;
+      localAiStatusText = label;
       localAiStatus.textContent = label;
       setStatusPillState(localAiStatus, checking ? "checking" : (connected ? "connected" : "disconnected"));
     }
@@ -2749,7 +3877,7 @@
     }
 
     function setTrainingModeSelection(value) {
-      trainingMode = normalizeTrainingMode(value);
+      trainingMode = isChatWorkspace() ? false : normalizeTrainingMode(value);
       if (trainingMode) {
         chatMode = "bricscad";
         activeSession().mode = chatMode;
@@ -2761,9 +3889,13 @@
     }
 
     function applyTrainingModeFromQt(value) {
-      trainingMode = normalizeTrainingMode(value);
+      trainingMode = isChatWorkspace() ? false : normalizeTrainingMode(value);
       if (trainingMode) {
         chatMode = "bricscad";
+      }
+      if (sessions.length) {
+        activeSession().mode = chatMode;
+        activeSession().trainingMode = trainingMode;
       }
       try {
         localStorage.setItem(trainingModeStorageKey, trainingMode ? "true" : "false");
@@ -2776,27 +3908,84 @@
       renderModeSelection();
     }
 
+    function applyAssistantWorkspaceFromQt(value) {
+      const nextWorkspace = normalizeWorkspace(value);
+      if (clientStateHydrated && nextWorkspace !== activeWorkspace) {
+        appendClientDebug(`Qt meldete veralteten Arbeitsbereich "${nextWorkspace}", WebView bleibt bei "${activeWorkspace}".`);
+        syncWorkspaceToQt();
+        return;
+      }
+      activeWorkspace = nextWorkspace;
+      restoreWorkspaceState(activeWorkspace);
+      renderModeSelection();
+      renderSessionList();
+      renderActiveSession();
+    }
+
+    function switchWorkspace(workspace) {
+      const nextWorkspace = normalizeWorkspace(workspace);
+      if (nextWorkspace === activeWorkspace || isBusy) {
+        return;
+      }
+      snapshotCurrentWorkspace();
+      activeWorkspace = nextWorkspace;
+      restoreWorkspaceState(activeWorkspace);
+      renderModeSelection();
+      renderSessionList();
+      prepareSessionOpenScroll();
+      renderActiveSession();
+      syncWorkspaceToQt();
+      syncActiveSessionToQt();
+      syncTrainingModeToQt();
+      if (bridge && typeof bridge.requestWorkflowList === "function") {
+        bridge.requestWorkflowList();
+      }
+      if (activeSession().workflowId && bridge && typeof bridge.selectWorkflow === "function") {
+        const workflow = workflows.find((item) => item.id === activeSession().workflowId);
+        selectedWorkflow = workflow || selectedWorkflow;
+        bridge.selectWorkflow(activeSession().workflowId);
+        renderActiveWorkflow();
+      } else if (bridge && typeof bridge.clearSelectedWorkflow === "function") {
+        selectedWorkflow = null;
+        bridge.clearSelectedWorkflow();
+        renderActiveWorkflow();
+      }
+      persistSessions({ rememberScroll: false });
+      input.focus();
+    }
+
     function setChatModeSelection(value, { createFreshSession = false } = {}) {
-      const nextTrainingMode = value === "training";
-      const nextMode = nextTrainingMode ? "bricscad" : normalizeChatMode(value);
+      const nextTrainingMode = isBricsCadWorkspace() && value === "training";
+      const nextMode = isBricsCadWorkspace()
+        ? "bricscad"
+        : "general";
       const changed = nextMode !== chatMode || nextTrainingMode !== trainingMode;
+      if (!isBricsCadWorkspace()) {
+        createFreshSession = createFreshSession && !sessions.length;
+      }
 
       if (changed && createFreshSession) {
         chatMode = nextMode;
-        trainingMode = nextTrainingMode;
-        const nextSession = createSession(nextTrainingMode ? modeTitle("training") : modeTitle(chatMode), chatMode);
+        trainingMode = isChatWorkspace() ? false : nextTrainingMode;
+        const sessionKind = "chat";
+        const nextSession = createSession(
+          nextTrainingMode ? modeTitle("training") : modeTitle(chatMode),
+          chatMode,
+          { trainingMode: nextTrainingMode, includeGreeting: !nextTrainingMode, kind: sessionKind });
         sessions.unshift(nextSession);
         activeSessionId = nextSession.id;
         renderSessionList();
+        prepareSessionOpenScroll();
         renderActiveSession();
       } else {
         chatMode = nextMode;
-        trainingMode = nextTrainingMode;
+        trainingMode = isChatWorkspace() ? false : nextTrainingMode;
         activeSession().mode = chatMode;
+        activeSession().trainingMode = trainingMode;
       }
 
       renderModeSelection();
-      persistSessions();
+      persistSessions({ rememberScroll: false });
       syncActiveSessionToQt();
       syncTrainingModeToQt();
     }
@@ -2804,8 +3993,10 @@
     function applyClientStateFromQt(stateJson) {
       const raw = String(stateJson || "").trim();
       if (!raw) {
+        clientStateHydrated = true;
         saveClientStateToQt();
         syncReasoningToQt();
+        syncWorkspaceToQt();
         syncActiveSessionToQt();
         return;
       }
@@ -2814,44 +4005,53 @@
       try {
         stored = JSON.parse(raw);
       } catch (_error) {
+        clientStateHydrated = true;
+        saveClientStateToQt();
         return;
       }
 
       applyingClientState = true;
       try {
-        sessions = Array.isArray(stored.sessions)
-          ? stored.sessions.map(normalizeSession)
-          : [];
-        chatCounter = Number.isFinite(stored.chatCounter) ? stored.chatCounter : sessions.length;
+        if (stored.version === 3 && stored.workspaces && typeof stored.workspaces === "object") {
+          workspaceStates = stored.workspaces;
+          activeWorkspace = normalizeWorkspace(stored.activeWorkspace || "bricscad");
+        } else {
+          workspaceStates = {};
+          activeWorkspace = "bricscad";
+        }
+        ["bricscad", "chat"].forEach(ensureWorkspaceState);
         reasoningEffort = normalizeReasoningEffort(stored.reasoningEffort || reasoningEffort);
-        trainingMode = normalizeTrainingMode(
-          typeof stored.trainingMode !== "undefined" ? stored.trainingMode : storedTrainingMode()
-        );
         applySidebarCollapsed(
           typeof stored.sidebarCollapsed === "boolean" ? stored.sidebarCollapsed : storedSidebarCollapsed(),
           { persist: false }
         );
-
-        if (!sessions.length) {
-          sessions = [createSession("BricsCAD AI Assistent", "bricscad")];
-        }
-        chatMode = normalizeChatMode(stored.chatMode || storedChatMode() || "bricscad");
-        if (trainingMode) {
-          chatMode = "bricscad";
-        }
-        ensureStartupFreshSession();
+        restoreWorkspaceState(activeWorkspace);
 
         renderReasoningSelection();
         renderModeSelection();
-        persistSessions();
         persistSidebarState({ saveToQt: false });
         renderSessionList();
+        prepareSessionOpenScroll();
         renderActiveSession();
+        clientStateHydrated = true;
+      } catch (error) {
+        reportClientRuntimeError(error, "Qt State laden");
+        workspaceStates = {};
+        activeWorkspace = "bricscad";
+        ["bricscad", "chat"].forEach(ensureWorkspaceState);
+        restoreWorkspaceState(activeWorkspace);
+        renderReasoningSelection();
+        renderModeSelection();
+        renderSessionList();
+        prepareSessionOpenScroll();
+        renderActiveSession();
+        clientStateHydrated = true;
       } finally {
         applyingClientState = false;
       }
 
       syncReasoningToQt();
+      syncWorkspaceToQt();
       syncActiveSessionToQt();
       syncTrainingModeToQt();
       saveClientStateToQt();
@@ -2861,7 +4061,7 @@
       if (mode === "training") {
         return "Trainingsmodus";
       }
-      return mode === "general" ? "Allgemeiner Chat" : "BricsCAD AI Assistent";
+      return mode === "general" ? "Chat" : "BricsCAD AI Assistent";
     }
 
     function modeLabel(mode) {
@@ -2871,15 +4071,19 @@
     function defaultGreeting(mode = chatMode) {
       if (mode === "general") {
         return {
-          speaker: "AI",
-          message: "Worüber möchtest du sprechen?",
-          time: nowTime()
+        speaker: "AI",
+        messageId: nextMessageId("ai"),
+        message: "Worüber möchtest du sprechen?",
+        time: nowTime(),
+        kind: "greeting"
         };
       }
       return {
         speaker: "AI",
+        messageId: nextMessageId("ai"),
         message: "Was möchtest du mit BricsCAD tun?",
-        time: nowTime()
+        time: nowTime(),
+        kind: "greeting"
       };
     }
 
@@ -2993,36 +4197,46 @@
       return value;
     }
 
-    function createSession(title, mode = chatMode) {
+    function createSession(title, mode = chatMode, options = {}) {
       const normalizedMode = normalizeChatMode(mode);
+      const sessionTrainingMode = normalizeTrainingMode(options.trainingMode || false);
+      const includeGreeting = options.includeGreeting !== false;
       return {
         id: `session-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
         title,
         mode: normalizedMode,
+        trainingMode: sessionTrainingMode,
+        kind: options.kind || "chat",
+        workflowId: options.workflowId || "",
         userNamed: false,
-        messages: [defaultGreeting(normalizedMode)],
+        latestAiMessageId: "",
+        messages: includeGreeting ? [defaultGreeting(sessionTrainingMode ? "training" : normalizedMode)] : [],
         proposal: null
       };
     }
 
-    function ensureStartupFreshSession() {
-      if (startupFreshSessionId) {
-        const existing = sessions.find((session) => session.id === startupFreshSessionId);
-        if (existing) {
-          activeSessionId = existing.id;
-          chatMode = normalizeChatMode(existing.mode || chatMode || "bricscad");
-          existing.mode = chatMode;
-          return existing;
-        }
+    function ensureStartupRestoredSession() {
+      if (!sessions.length) {
+        sessions = [createSession(
+          modeTitle(chatMode || "bricscad"),
+          chatMode || "bricscad",
+          {}
+        )];
       }
 
-      const mode = normalizeChatMode(chatMode || storedChatMode());
-      const session = createSession(modeTitle(mode), mode);
-      sessions.unshift(session);
-      activeSessionId = session.id;
-      startupFreshSessionId = session.id;
-      chatMode = mode;
+      let session = sessions.find((item) => item.id === activeSessionId);
+      if (!session) {
+        session = sessions[0];
+        activeSessionId = session.id;
+      }
+
+      trainingMode = isChatWorkspace() ? false : normalizeTrainingMode(session.trainingMode || false);
+      chatMode = normalizeChatMode(session.mode || chatMode || storedChatMode() || "bricscad");
+      if (trainingMode) {
+        chatMode = "bricscad";
+      }
       session.mode = chatMode;
+      session.trainingMode = trainingMode;
       return session;
     }
 
@@ -3053,67 +4267,116 @@
 
     function normalizeMessage(message) {
       const speaker = message.speaker || "AI";
-      return {
+      const normalized = {
+        messageId: typeof message.messageId === "string" && message.messageId.trim()
+          ? message.messageId.trim()
+          : nextMessageId(speaker === "Du" ? "user" : "ai"),
         speaker,
         message: readableStoredMessageText(speaker, message.message || ""),
         time: formatMessageTime(message.time)
       };
+      if (message.kind && message.kind !== "thinking") {
+        normalized.kind = String(message.kind);
+      }
+      if (message.kind === "thinking") {
+        normalized.kind = "thinking";
+        normalized.thinkingDetails = Array.isArray(message.thinkingDetails)
+          ? message.thinkingDetails.map((item) => germanizeText(String(item || "")).trim()).filter(Boolean)
+          : [];
+        normalized.thinkingCollapsed = !!message.thinkingCollapsed;
+      }
+      if (message.continuationAvailable) {
+        normalized.continuationAvailable = true;
+        normalized.continuationReason = String(message.continuationReason || "");
+      }
+      return normalized;
+    }
+
+    function latestAiMessageIdFromMessages(messagesList) {
+      if (!Array.isArray(messagesList)) {
+        return "";
+      }
+      for (let index = messagesList.length - 1; index >= 0; index -= 1) {
+        const message = messagesList[index];
+        if (!message || message.speaker !== "AI" || message.kind === "thinking" || isInitialAssistantGreeting(message)) {
+          continue;
+        }
+        if (String(message.message || "").trim() && String(message.messageId || "").trim()) {
+          return String(message.messageId).trim();
+        }
+      }
+      return "";
+    }
+
+    function prepareSessionOpenScroll() {
+      pendingMessageScrollMessageId = "";
+      pendingMessageScrollTarget = "bottom";
     }
 
     function normalizeSession(session, index) {
-      const fallback = createSession(index === 0 ? "BricsCAD AI Assistent" : `Neue Sitzung ${index + 1}`);
+      const fallback = createSession(index === 0 ? "BricsCAD AI Assistent" : `Neuer Chat ${index + 1}`);
+      const sessionTrainingMode = normalizeTrainingMode(session.trainingMode || false);
+      const rawMessages = Array.isArray(session.messages) && session.messages.length
+        ? session.messages.map(normalizeMessage)
+        : fallback.messages;
+      const messages = sessionTrainingMode
+        ? rawMessages.filter((message) => !(
+            message.speaker === "AI"
+            && message.message === "Was möchtest du mit BricsCAD tun?"
+          ))
+        : rawMessages;
+      const explicitLatestId = typeof session.latestAiMessageId === "string" ? session.latestAiMessageId.trim() : "";
+      const latestAiMessageId = explicitLatestId && messages.some((message) => message.messageId === explicitLatestId)
+        ? explicitLatestId
+        : latestAiMessageIdFromMessages(messages);
       return {
         id: typeof session.id === "string" && session.id ? session.id : fallback.id,
         title: typeof session.title === "string" && session.title ? session.title : fallback.title,
         mode: normalizeChatMode(session.mode || "bricscad"),
+        trainingMode: sessionTrainingMode,
+        kind: typeof session.kind === "string" ? session.kind : "chat",
+        workflowId: typeof session.workflowId === "string" ? session.workflowId : "",
         userNamed: !!session.userNamed,
-        messages: Array.isArray(session.messages) && session.messages.length
-          ? session.messages.map(normalizeMessage)
-          : fallback.messages,
+        latestAiMessageId,
+        messages,
         proposal: session.proposal || null
       };
     }
 
     function loadSessions() {
+      let stored = null;
       try {
         const raw = localStorage.getItem(storageKey);
         if (!raw) {
           throw new Error("empty");
         }
-        const stored = JSON.parse(raw);
-        sessions = Array.isArray(stored.sessions)
-          ? stored.sessions.map(normalizeSession)
-          : [];
-        chatCounter = Number.isFinite(stored.chatCounter) ? stored.chatCounter : sessions.length;
+        stored = JSON.parse(raw);
+        if (!stored || stored.version !== 3 || !stored.workspaces || typeof stored.workspaces !== "object") {
+          stored = null;
+        }
       } catch {
-        sessions = [];
-        activeSessionId = "";
-        chatCounter = 0;
+        stored = null;
       }
 
-      if (!sessions.length) {
-        sessions = [createSession("BricsCAD AI Assistent")];
+      workspaceStates = stored ? stored.workspaces : {};
+      activeWorkspace = normalizeWorkspace(stored?.activeWorkspace || "bricscad");
+      ["bricscad", "chat"].forEach(ensureWorkspaceState);
+      if (stored?.reasoningEffort) {
+        reasoningEffort = normalizeReasoningEffort(stored.reasoningEffort);
       }
-      chatMode = storedChatMode();
-      trainingMode = storedTrainingMode();
-      if (trainingMode) {
-        chatMode = "bricscad";
-      }
-      ensureStartupFreshSession();
+      restoreWorkspaceState(activeWorkspace);
       renderModeSelection();
+      clientStateHydrated = true;
     }
 
-    function persistSessions() {
+    function persistSessions(options = {}) {
+      snapshotCurrentWorkspace();
       try {
         localStorage.setItem(chatModeStorageKey, chatMode);
         localStorage.setItem(reasoningStorageKey, reasoningEffort);
         localStorage.setItem(trainingModeStorageKey, trainingMode ? "true" : "false");
         localStorage.setItem(sidebarCollapsedStorageKey, sidebarCollapsed ? "true" : "false");
-        localStorage.setItem(storageKey, JSON.stringify({
-          sessions,
-          activeSessionId,
-          chatCounter
-        }));
+        localStorage.setItem(storageKey, JSON.stringify(clientState()));
       } catch {
         // WebEngine may deny storage for some local origins. The current runtime state still works.
       }
@@ -3121,6 +4384,16 @@
     }
 
     function activeSession() {
+      if (!sessions.length) {
+        const mode = isBricsCadWorkspace() ? "bricscad" : "general";
+        const session = createSession(modeTitle(mode), mode, {
+          includeGreeting: true,
+          kind: "chat"
+        });
+        sessions.unshift(session);
+        activeSessionId = session.id;
+        return session;
+      }
       let session = sessions.find((item) => item.id === activeSessionId);
       if (!session) {
         session = sessions[0];
@@ -3131,7 +4404,7 @@
 
     function backendHistory(session) {
       return session.messages
-        .filter((message) => message.speaker === "Du" || message.speaker === "AI")
+        .filter((message) => (message.speaker === "Du" || message.speaker === "AI") && message.kind !== "thinking")
         .map((message) => ({
           speaker: message.speaker,
           message: message.message
@@ -3254,11 +4527,248 @@
       return button;
     }
 
-    function createMessageFooter(text) {
+    function suggestedPdfTitleFromMessage(text) {
+      const firstLine = germanizeText(String(text || ""))
+        .replace(/[#*_`>\[\]()]/g, " ")
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .find(Boolean) || "AI Nachricht";
+      return firstLine.slice(0, 80);
+    }
+
+    function createMessageShareButton(messageId, text) {
+      const shareIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4" /><path d="m7 9 5-5 5 5" /><path d="M20 16v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3" /></svg>';
+      const doneIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>';
+      const button = document.createElement("button");
+      button.className = "message-action message-share";
+      button.type = "button";
+      button.title = "Als PDF teilen";
+      button.setAttribute("aria-label", "Nachricht als PDF exportieren");
+      button.innerHTML = shareIcon;
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!bridge || typeof bridge.exportMessageToPdf !== "function") {
+          button.title = "PDF-Export nicht verfügbar";
+          setTimeout(() => {
+            button.title = "Als PDF teilen";
+          }, 1400);
+          return;
+        }
+        button.classList.add("copied");
+        button.innerHTML = doneIcon;
+        button.title = "PDF-Export gestartet";
+        try {
+          bridge.exportMessageToPdf(String(messageId || ""), suggestedPdfTitleFromMessage(text));
+        } catch (_error) {
+          button.title = "PDF-Export fehlgeschlagen";
+        }
+        setTimeout(() => {
+          button.classList.remove("copied");
+          button.innerHTML = shareIcon;
+          button.title = "Als PDF teilen";
+          button.setAttribute("aria-label", "Nachricht als PDF exportieren");
+        }, 1400);
+      });
+      return button;
+    }
+
+    function createMessageFooter(text, messageId = "") {
       const footer = document.createElement("div");
       footer.className = "message-footer";
       footer.appendChild(createMessageCopyButton(text));
+      footer.appendChild(createMessageShareButton(messageId, text));
       return footer;
+    }
+
+    function activeGeneralWorkflow() {
+      const session = activeSession();
+      const workflowId = session?.workflowId || selectedWorkflow?.id || "";
+      if (!isGeneralWorkflowWorkspace() || !workflowId) {
+        return null;
+      }
+      return workflows.find((workflow) => workflow.id === workflowId && (workflow.kind === "general" || isGeneralWorkflowWorkspace()))
+        || (selectedWorkflow && selectedWorkflow.id === workflowId ? selectedWorkflow : null);
+    }
+
+    function renderWorkflowDeletePrompt(workflow) {
+      if (!workflow || !workflow.id) {
+        input.focus();
+        return;
+      }
+      pendingWorkflowDeleteId = workflow.id;
+      renderWorkflowSavePrompt({
+        action: "deleteWorkflow",
+        workflowId: workflow.id,
+        workflowTitle: workflow.title,
+        title: "Workflow löschen",
+        message: `Soll der Workflow „${workflow.title}“ dauerhaft vom PC gelöscht werden?`,
+        buttonText: "Löschen",
+        cancelText: "Abbrechen"
+      });
+    }
+
+    function messageTextById(messageId) {
+      const id = String(messageId || "").trim();
+      if (!id) {
+        return "";
+      }
+      const session = activeSession();
+      const message = session.messages.find((item) => String(item.messageId || "").trim() === id);
+      return message ? String(message.message || "") : "";
+    }
+
+    function sendFooterWorkflowCommand(command, messageId = "") {
+      if (isBusy) {
+        input.focus();
+        return;
+      }
+      removeWorkflowSavePrompt();
+      const normalizedCommand = germanizeText(String(command || "")).trim().toLowerCase();
+      if (isGeneralWorkflowWorkspace() && normalizedCommand === "als sitzung speichern") {
+        saveCurrentChatAsRegularSession();
+        input.focus();
+        return;
+      }
+      if (!bridge) {
+        input.focus();
+        return;
+      }
+      if (isGeneralWorkflowWorkspace() && normalizedCommand === "workflow speichern") {
+        showThinkingIndicator();
+        addThinkingDetail("Ich bereite die ausgewählte AI-Nachricht als Workflow vor.", { key: "general-workflow-save" });
+        const messageText = messageTextById(messageId);
+        if (typeof bridge.saveMessageAsWorkflow === "function") {
+          bridge.saveMessageAsWorkflow(String(messageId || ""), messageText);
+        } else {
+          addThinkingDetail("Workflow speichern ist in der Qt-Bridge noch nicht verfügbar.", { key: "general-workflow-save" });
+        }
+        input.focus();
+        return;
+      }
+      if (isGeneralWorkflowWorkspace() && normalizedCommand === "workflow löschen") {
+        renderWorkflowDeletePrompt(activeGeneralWorkflow());
+        input.focus();
+        return;
+      }
+      if (typeof bridge.sendPrompt === "function") {
+        bridge.sendPrompt(command);
+      }
+      input.focus();
+    }
+
+    function createWorkflowFooterLink(label, command, messageId = "") {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "message-footer-link";
+      button.textContent = label;
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (command === "Zum Anfang springen") {
+          pendingMessageScrollTarget = "message";
+          pendingMessageScrollMessageId = String(messageId || "").trim();
+          scrollMessagesAfterLayout();
+          input.focus();
+          return;
+        }
+        sendFooterWorkflowCommand(command, messageId);
+      });
+      return button;
+    }
+
+    function saveCurrentChatAsRegularSession() {
+      const source = activeSession();
+      if (!source || !Array.isArray(source.messages) || !source.messages.length) {
+        return;
+      }
+      const copiedMessages = source.messages
+        .map((message) => {
+          const copy = normalizeMessage({
+            ...cloneJson(message),
+            messageId: nextMessageId(message.speaker === "Du" ? "user" : "ai")
+          });
+          if (copy.kind === "workflow_context") {
+            delete copy.kind;
+          }
+          return copy;
+        });
+      if (!copiedMessages.length) {
+        return;
+      }
+      const baseTitle = source.title && !isDefaultSessionTitle(source.title)
+        ? source.title
+        : "Gespeicherte Sitzung";
+      const session = createSession(`${baseTitle} - Sitzung`, "general", {
+        includeGreeting: false,
+        kind: "chat",
+        trainingMode: false
+      });
+      session.userNamed = true;
+      session.workflowId = "";
+      session.latestAiMessageId = copiedMessages
+        .filter((message) => message.speaker === "AI" && !isInitialAssistantGreeting(message))
+        .at(-1)?.messageId || "";
+      session.messages = copiedMessages;
+      sessions.unshift(session);
+      activeSessionId = session.id;
+      selectedWorkflow = null;
+      chatMode = "general";
+      trainingMode = false;
+      prepareSessionOpenScroll();
+      renderModeSelection();
+      renderSessionList();
+      renderActiveSession();
+      persistSessions({ rememberScroll: false });
+      if (bridge && typeof bridge.clearSelectedWorkflow === "function") {
+        bridge.clearSelectedWorkflow();
+      }
+      syncActiveSessionToQt();
+      syncTrainingModeToQt();
+    }
+
+    function isInitialAssistantGreeting(message) {
+      const text = germanizeText(String(message?.message || "")).trim();
+      return message?.kind === "greeting"
+        || text === "Worüber möchtest du sprechen?"
+        || text === "Was möchtest du mit BricsCAD tun?";
+    }
+
+    function shouldShowWorkflowFooterForMessage(message, role) {
+      if (!isGeneralWorkflowWorkspace() || role !== "assistant") {
+        return false;
+      }
+      if (isInitialAssistantGreeting(message)) {
+        return false;
+      }
+      return germanizeText(String(message?.message || "")).trim().length > 0;
+    }
+
+    function updateLastAiWorkflowFooterActions() {
+      document.querySelectorAll(".message-footer-link").forEach((link) => link.remove());
+      document.querySelectorAll(".message-footer.has-workflow-actions").forEach((footer) => {
+        footer.classList.remove("has-workflow-actions");
+      });
+      if (!isGeneralWorkflowWorkspace()) {
+        return;
+      }
+      const candidates = Array.from(messages.querySelectorAll(".message.assistant[data-workflow-footer-eligible=\"true\"]:not(.thinking-indicator)"));
+      const lastAssistant = candidates[candidates.length - 1];
+      if (!lastAssistant) {
+        return;
+      }
+      const footer = lastAssistant.querySelector(".message-footer");
+      if (!footer) {
+        return;
+      }
+      footer.classList.add("has-workflow-actions");
+      const messageId = lastAssistant.dataset.messageId || "";
+      footer.appendChild(createWorkflowFooterLink("Workflow speichern", "Workflow speichern", messageId));
+      if (activeGeneralWorkflow()) {
+        footer.appendChild(createWorkflowFooterLink("Workflow löschen", "Workflow löschen", messageId));
+      }
+      footer.appendChild(createWorkflowFooterLink("Als Sitzung speichern", "Als Sitzung speichern", messageId));
+      footer.appendChild(createWorkflowFooterLink("Zum Anfang springen", "Zum Anfang springen", messageId));
     }
 
     function splitMarkdownTableRow(line) {
@@ -3278,6 +4788,64 @@
     function isMarkdownTableSeparator(line) {
       const cells = splitMarkdownTableRow(line);
       return !!cells && cells.length > 1 && cells.every((cell) => /^:?-{3,}:?$/.test(cell));
+    }
+
+    function escapeMarkdownTableCell(value) {
+      return String(value ?? "").replace(/\|/g, "\\|").replace(/\n+/g, " ").trim();
+    }
+
+    function splitLooseTableRow(line) {
+      const value = String(line || "").trim();
+      if (!value
+        || value.startsWith("|")
+        || /^\s*[-*•]\s+/.test(value)
+        || /^\s*\d+[.)]\s+/.test(value)
+        || isMarkdownTableSeparator(value)) {
+        return null;
+      }
+      const cells = value.includes("\t")
+        ? value.split(/\t+/)
+        : value.split(/\s{2,}/);
+      const normalized = cells.map((cell) => cell.trim()).filter(Boolean);
+      return normalized.length >= 2 ? normalized : null;
+    }
+
+    function normalizeLooseMarkdownTables(text) {
+      const lines = String(text || "").replace(/\r\n/g, "\n").split("\n");
+      const output = [];
+      for (let index = 0; index < lines.length;) {
+        const firstCells = splitLooseTableRow(lines[index]);
+        if (!firstCells) {
+          output.push(lines[index]);
+          index += 1;
+          continue;
+        }
+
+        const rows = [firstCells];
+        let nextIndex = index + 1;
+        while (nextIndex < lines.length) {
+          const cells = splitLooseTableRow(lines[nextIndex]);
+          if (!cells || cells.length !== firstCells.length) {
+            break;
+          }
+          rows.push(cells);
+          nextIndex += 1;
+        }
+
+        if (rows.length < 2) {
+          output.push(lines[index]);
+          index += 1;
+          continue;
+        }
+
+        output.push(`| ${rows[0].map(escapeMarkdownTableCell).join(" | ")} |`);
+        output.push(`| ${rows[0].map(() => "---").join(" | ")} |`);
+        rows.slice(1).forEach((row) => {
+          output.push(`| ${row.map(escapeMarkdownTableCell).join(" | ")} |`);
+        });
+        index = nextIndex;
+      }
+      return output.join("\n");
     }
 
     function normalizeMarkdownHeading(line) {
@@ -3338,9 +4906,55 @@
       };
     }
 
+    function createSelectableMathNode(rawMath) {
+      let math = String(rawMath || "").trim();
+      if (math.startsWith("\\[") && math.endsWith("\\]")) {
+        math = `\\[${normalizeLatexSource(math.slice(2, -2))}\\]`;
+      } else if (math.startsWith("\\(") && math.endsWith("\\)")) {
+        math = `\\(${normalizeLatexSource(math.slice(2, -2))}\\)`;
+      } else if (math.startsWith("$$") && math.endsWith("$$")) {
+        math = `$$${normalizeLatexSource(math.slice(2, -2))}$$`;
+      } else if (math.startsWith("$") && math.endsWith("$") && math.length > 2) {
+        math = `$${normalizeLatexSource(math.slice(1, -1))}$`;
+      } else {
+        math = normalizeLatexSource(math);
+      }
+      const wrapper = document.createElement("span");
+      wrapper.className = "math-selectable";
+      if (math.startsWith("\\[") || math.startsWith("$$")) {
+        wrapper.classList.add("display");
+      }
+
+      const render = document.createElement("span");
+      render.className = "math-render";
+      render.textContent = math;
+
+      const source = document.createElement("span");
+      source.className = "math-source-text";
+      source.textContent = math;
+
+      wrapper.appendChild(render);
+      wrapper.appendChild(source);
+      wrapper.title = "LaTeX kopieren";
+      wrapper.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        copyToClipboard(math).then(() => {
+          wrapper.classList.add("copied");
+          window.setTimeout(() => wrapper.classList.remove("copied"), 900);
+        }).catch(() => {
+          wrapper.title = "Kopieren fehlgeschlagen";
+          window.setTimeout(() => {
+            wrapper.title = "LaTeX kopieren";
+          }, 1200);
+        });
+      });
+      return wrapper;
+    }
+
     function appendInlineMarkdown(parent, text) {
       const source = String(text || "");
-      const pattern = /`([^`]+)`|\*\*(.+?)\*\*/g;
+      const pattern = /`([^`]+)`|\*\*(.+?)\*\*|(\\\[[\s\S]+?\\\])|(\\\([\s\S]+?\\\))|(\$\$[\s\S]+?\$\$)|(^|[^\\])(\$[^$\n]{1,240}\$)/g;
       let index = 0;
       let match = pattern.exec(source);
       while (match) {
@@ -3352,10 +4966,17 @@
           code.className = "message-inline-code";
           code.textContent = match[1];
           parent.appendChild(code);
-        } else {
+        } else if (match[2] !== undefined) {
           const strong = document.createElement("strong");
           strong.textContent = normalizeMarkdownHeading(match[2]);
           parent.appendChild(strong);
+        } else {
+          const prefix = match[6] || "";
+          const math = match[3] || match[4] || match[5] || match[7] || "";
+          if (prefix) {
+            parent.appendChild(document.createTextNode(prefix));
+          }
+          parent.appendChild(createSelectableMathNode(math));
         }
         index = match.index + match[0].length;
         match = pattern.exec(source);
@@ -3437,27 +5058,35 @@
       return wrapper;
     }
 
+    function displayMathLine(line) {
+      const value = String(line || "").trim();
+      if (/^\\\[[\s\S]+\\\]$/.test(value) || /^\$\$[\s\S]+\$\$$/.test(value)) {
+        return value;
+      }
+      return "";
+    }
+
     function orderedListMatch(line) {
       return String(line || "").match(/^\s*(\d+)[.)]\s+(.+)$/);
     }
 
     function normalizeInlineOrderedListBreaks(text) {
-      return String(text || "").replace(/([^\n])\s+(\d{1,2})[.)]\s+(?=\S)/g, "$1\n$2. ");
+      return String(text || "").replace(/([^\n#])\s+(\d{1,2})[.)]\s+(?=\S)/g, "$1\n$2. ");
     }
 
     function unorderedListMatch(line) {
-      return String(line || "").match(/^\s*[-*]\s+(.+)$/);
+      return String(line || "").match(/^\s*[-*•]\s+(.+)$/);
     }
 
     function normalizeInlineUnorderedListBreaks(text) {
       return String(text || "")
         .split("\n")
         .map((line) => {
-          if (/^\s*[-*]\s+/.test(line)) {
-            return line;
+          if (/^\s*[-*•]\s+/.test(line)) {
+            return line.replace(/^(\s*)•\s+/, "$1- ");
           }
 
-          const match = line.match(/^([\s\S]*?[.!?:])\s+-\s+([\s\S]+)$/);
+          const match = line.match(/^([\s\S]*?[.!?:])\s+[-•]\s+([\s\S]+)$/);
           if (!match) {
             return line;
           }
@@ -3503,7 +5132,15 @@
     }
 
     function renderMarkdownTextSegment(root, text) {
-      const normalizedText = normalizeInlineUnorderedListBreaks(normalizeInlineOrderedListBreaks(text));
+      const normalizedText = normalizeLooseMarkdownTables(
+        normalizeInlineUnorderedListBreaks(
+          normalizeInlineOrderedListBreaks(
+            String(text || "")
+              .replace(/<\s*br\s*\/?\s*>/gi, "\n")
+              .replace(/\\n/g, "\n")
+          )
+        )
+      );
       const lines = normalizedText.replace(/\r\n/g, "\n").split("\n");
       let index = 0;
       let paragraph = [];
@@ -3524,6 +5161,13 @@
       while (index < lines.length) {
         const line = lines[index];
         const next = lines[index + 1];
+        const displayMath = displayMathLine(line);
+        if (displayMath) {
+          flushParagraph();
+          root.appendChild(createSelectableMathNode(displayMath));
+          index += 1;
+          continue;
+        }
         if (isMarkdownHeadingLine(line)) {
           flushParagraph();
           root.appendChild(createMarkdownHeading(line));
@@ -3646,16 +5290,118 @@
       return /\\\(|\\\[|\$\$/.test(value) || /(^|[^\\])\$[^$\n]{1,240}\$/.test(value);
     }
 
-    function typesetMath(element) {
+    function scrollMessagesToBottomAfterLayout() {
+      const apply = () => {
+        messages.scrollTop = messages.scrollHeight;
+      };
+      window.requestAnimationFrame(() => {
+        apply();
+        [80, 240, 520].forEach((delay) => window.setTimeout(apply, delay));
+      });
+    }
+
+    function scrollMessagesToTopAfterLayout() {
+      window.requestAnimationFrame(() => {
+        messages.scrollTop = 0;
+        window.setTimeout(() => {
+          messages.scrollTop = 0;
+        }, 80);
+      });
+    }
+
+    function scrollMessageToTopAfterLayout(messageId) {
+      const id = String(messageId || "").trim();
+      if (!id) {
+        scrollMessagesToBottomAfterLayout();
+        return;
+      }
+      const apply = () => {
+        const target = messages.querySelector(`.message[data-message-id="${CSS.escape(id)}"]`);
+        if (!target) {
+          return;
+        }
+        messages.scrollTop = Math.max(0, target.offsetTop - 8);
+      };
+      window.requestAnimationFrame(() => {
+        apply();
+        window.setTimeout(apply, 80);
+      });
+    }
+
+    function scrollMessagesAfterLayout() {
+      const target = pendingMessageScrollTarget || "bottom";
+      const messageId = pendingMessageScrollMessageId;
+      pendingMessageScrollTarget = "";
+      pendingMessageScrollMessageId = "";
+
+      if (target === "top") {
+        scrollMessagesToTopAfterLayout();
+        return;
+      }
+      if (target === "message") {
+        scrollMessageToTopAfterLayout(messageId);
+        return;
+      }
+      scrollMessagesToBottomAfterLayout();
+    }
+
+    function ensureMathVisibilityObserver() {
+      if (mathVisibilityObserver || typeof IntersectionObserver !== "function") {
+        return mathVisibilityObserver;
+      }
+      mathVisibilityObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) {
+            return;
+          }
+          const element = entry.target;
+          mathVisibilityObserver.unobserve(element);
+          queueMathElement(element);
+        });
+        scheduleQueuedMathTypeset(40, { scroll: false });
+      }, {
+        root: messages,
+        rootMargin: "900px 0px",
+        threshold: 0.01
+      });
+      return mathVisibilityObserver;
+    }
+
+    function mathRenderTargets(element) {
+      if (!element) {
+        return [];
+      }
+      if (element.classList && element.classList.contains("math-render")) {
+        return [element];
+      }
+      return Array.from(element.querySelectorAll ? element.querySelectorAll(".math-render") : []);
+    }
+
+    function observeMathElement(element) {
+      if (!element || element.dataset.mathTypeset === "true") {
+        return;
+      }
+      const observer = ensureMathVisibilityObserver();
+      if (observer) {
+        observer.observe(element);
+        return;
+      }
+      queueMathElement(element);
+      scheduleQueuedMathTypeset(120, { scroll: false });
+    }
+
+    function resetMathVisibilityObserver() {
+      if (mathVisibilityObserver) {
+        mathVisibilityObserver.disconnect();
+      }
+      mathVisibilityObserver = null;
+    }
+
+    function queueMathElement(element) {
       if (!element || !element.isConnected) {
         return;
       }
-      if (window.MathJax && typeof window.MathJax.typesetPromise === "function") {
-        window.setTimeout(() => {
-          if (element && element.isConnected) {
-            window.MathJax.typesetPromise([element]).catch(() => {});
-          }
-        }, 0);
+      if (element.dataset.mathTypeset === "true") {
         return;
       }
       window.__bareboneQueuedMath = window.__bareboneQueuedMath || [];
@@ -3664,23 +5410,199 @@
       }
     }
 
-    window.__bareboneTypesetQueuedMath = function typesetQueuedMath() {
+    function flushQueuedMath(options = {}) {
       const queued = (window.__bareboneQueuedMath || []).filter((element) => element && element.isConnected);
       window.__bareboneQueuedMath = [];
       if (!queued.length || !window.MathJax || typeof window.MathJax.typesetPromise !== "function") {
+        if (queued.length) {
+          window.__bareboneQueuedMath = queued;
+        }
+        if (options.scroll !== false) {
+          scrollMessagesAfterLayout();
+        }
         return undefined;
       }
-      return window.setTimeout(() => window.MathJax.typesetPromise(queued).catch(() => {}), 0);
+      return window.MathJax.typesetPromise(queued)
+        .then(() => {
+          queued.forEach((element) => {
+            if (element && element.isConnected) {
+              element.dataset.mathTypeset = "true";
+              delete element.dataset.mathPending;
+            }
+          });
+          if (options.scroll !== false) {
+            scrollMessagesAfterLayout();
+          }
+        })
+        .catch(() => {});
+    }
+
+    function scheduleQueuedMathTypeset(delay = 0, options = {}) {
+      if (queuedMathTypesetTimer) {
+        window.clearTimeout(queuedMathTypesetTimer);
+      }
+      queuedMathTypesetTimer = window.setTimeout(() => {
+        queuedMathTypesetTimer = 0;
+        flushQueuedMath(options);
+      }, Math.max(0, delay));
+    }
+
+    function typesetMath(element, options = {}) {
+      const targets = mathRenderTargets(element);
+      if (!targets.length) {
+        if (!options.defer && options.scroll !== false) {
+          scrollMessagesAfterLayout();
+        }
+        return;
+      }
+      if (options.defer) {
+        targets.forEach((target) => observeMathElement(target));
+        return;
+      }
+      targets.forEach((target) => queueMathElement(target));
+      if (window.MathJax && typeof window.MathJax.typesetPromise === "function") {
+        scheduleQueuedMathTypeset(0, { scroll: options.scroll !== false });
+        return;
+      }
+      if (options.scroll !== false) {
+        scrollMessagesAfterLayout();
+      }
+    }
+
+    window.__bareboneTypesetQueuedMath = function typesetQueuedMath() {
+      return window.setTimeout(flushQueuedMath, 0);
     };
 
-    function renderMessage(message) {
+    window.__bareboneTypesetMessageMath = function typesetMessageMath(messageId) {
+      const id = String(messageId || "").trim();
+      const target = id
+        ? messages.querySelector(`.message[data-message-id="${CSS.escape(id)}"]`)
+        : null;
+      if (!target) {
+        return Promise.resolve(false);
+      }
+      if (mathVisibilityObserver) {
+        mathRenderTargets(target).forEach((element) => mathVisibilityObserver.unobserve(element));
+      }
+      mathRenderTargets(target).forEach((element) => queueMathElement(element));
+      return Promise.resolve(flushQueuedMath({ scroll: false })).then(() => true);
+    };
+
+    function renderThinkingMessage(message, options = {}) {
+      const details = Array.isArray(message.thinkingDetails) ? message.thinkingDetails.filter(Boolean) : [];
+      if (!details.length) {
+        return;
+      }
+
+      const article = document.createElement("article");
+      article.className = "message assistant";
+
+      const avatar = document.createElement("div");
+      avatar.className = "assistant-avatar";
+      avatar.textContent = "AI";
+      article.appendChild(avatar);
+
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+
+      const row = document.createElement("div");
+      row.className = "thinking-row";
+
+      const icon = document.createElement("span");
+      icon.className = "status-mark done";
+      icon.textContent = "✓";
+      row.appendChild(icon);
+
+      const toggle = document.createElement("button");
+      toggle.className = "thinking-toggle";
+      toggle.type = "button";
+      toggle.setAttribute("aria-expanded", message.thinkingCollapsed ? "false" : "true");
+      toggle.setAttribute("aria-label", "Denkschritte anzeigen");
+
+      const label = document.createElement("span");
+      label.textContent = "Gedacht";
+
+      const chevron = document.createElement("svg");
+      chevron.className = "thinking-chevron";
+      chevron.setAttribute("viewBox", "0 0 24 24");
+      chevron.setAttribute("aria-hidden", "true");
+      chevron.innerHTML = '<path d="m9 18 6-6-6-6" />';
+
+      toggle.appendChild(label);
+      toggle.appendChild(chevron);
+      row.appendChild(toggle);
+
+      const detailList = document.createElement("div");
+      detailList.className = "thinking-details";
+      detailList.classList.toggle("open", !message.thinkingCollapsed);
+      details.forEach((detail) => {
+        const item = document.createElement("div");
+        item.className = "thinking-detail-item";
+        item.textContent = detail;
+        detailList.appendChild(item);
+      });
+
+      toggle.addEventListener("click", () => {
+        const expanded = toggle.getAttribute("aria-expanded") === "true";
+        toggle.setAttribute("aria-expanded", String(!expanded));
+        detailList.classList.toggle("open", !expanded);
+      });
+
+      bubble.appendChild(row);
+      bubble.appendChild(detailList);
+      article.appendChild(bubble);
+      (options.parent || messages).appendChild(article);
+      if (!options.deferScroll) {
+        scrollMessagesAfterLayout();
+      }
+    }
+
+    function createContinueButton(messageText) {
+      const button = document.createElement("button");
+      button.className = "message-continue";
+      button.type = "button";
+      button.textContent = "Weiterführen";
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (isBusy || !bridge) {
+          return;
+        }
+        button.disabled = true;
+        button.textContent = "Wird fortgeführt";
+        const prompt = [
+          "Bitte führe deine letzte Antwort direkt fort.",
+          "Wiederhole nichts, sondern setze ab dem letzten unvollständigen Gedanken sinnvoll fort.",
+          "",
+          "Letzte abgeschnittene Antwort:",
+          String(messageText || "").slice(-3000)
+        ].join("\n");
+        bridge.sendPrompt(prompt);
+      });
+      return button;
+    }
+
+    function renderMessage(message, options = {}) {
+      if (message.kind === "thinking") {
+        renderThinkingMessage(message, options);
+        return;
+      }
+
       const speaker = message.speaker;
       const text = message.message;
       const time = message.time;
       const role = roleForSpeaker(speaker);
+      const messageId = message.messageId || nextMessageId(role === "user" ? "user" : "ai");
 
       const article = document.createElement("article");
       article.className = "message " + role;
+      article.dataset.messageId = messageId;
+      if (messageNeedsMath(text)) {
+        article.dataset.mathPending = "true";
+      }
+      if (shouldShowWorkflowFooterForMessage(message, role)) {
+        article.dataset.workflowFooterEligible = "true";
+      }
 
       if (role !== "user") {
         const avatar = document.createElement("div");
@@ -3700,6 +5622,9 @@
       meta.textContent = time ? `${speaker} - ${time}` : speaker;
 
       const body = renderMarkdownMessageText(text);
+      if (message.continuationAvailable && role !== "user") {
+        body.appendChild(createContinueButton(text));
+      }
 
       if (role === "user") {
         bubble.appendChild(body);
@@ -3709,13 +5634,16 @@
       }
 
       content.appendChild(bubble);
-      content.appendChild(createMessageFooter(text));
+      content.appendChild(createMessageFooter(text, messageId));
       article.appendChild(content);
-      messages.appendChild(article);
+      (options.parent || messages).appendChild(article);
       if (messageNeedsMath(text)) {
-        typesetMath(article);
+        typesetMath(article, { defer: !!options.deferMath });
       }
-      messages.scrollTop = messages.scrollHeight;
+      updateLastAiWorkflowFooterActions();
+      if (!options.deferScroll && !messageNeedsMath(text)) {
+        scrollMessagesAfterLayout();
+      }
     }
 
     function removeTransientIndicator(indicator) {
@@ -3858,6 +5786,9 @@
 
       const indicator = thinkingIndicator;
       const detailCount = thinkingDetailCount;
+      const persistedDetails = Array.from(indicator.querySelectorAll(".thinking-detail-item"))
+        .map((item) => item.textContent.trim())
+        .filter(Boolean);
       thinkingIndicator = null;
       thinkingDetailsList = null;
       thinkingDetailCount = 0;
@@ -3894,6 +5825,17 @@
         }
 
         indicator.classList.remove("thinking-indicator");
+        if (persistedDetails.length) {
+          activeSession().messages.push({
+            speaker: "AI",
+            message: "Gedacht",
+            time: nowTime(),
+            kind: "thinking",
+            thinkingDetails: persistedDetails,
+            thinkingCollapsed: !!collapseDetails
+          });
+          persistSessions();
+        }
       } finally {
         completingThinkingIndicator = false;
       }
@@ -3938,20 +5880,98 @@
       capabilitiesIndicator = null;
     }
 
+    function compactSessionTitleText(text, maxLength = 56) {
+      let value = String(text || "")
+        .replace(/```[\s\S]*?```/g, " Code ")
+        .replace(/\s+/g, " ")
+        .trim();
+      value = value
+        .replace(/^bitte\s+/i, "")
+        .replace(/^(erstelle|erstellen)\s+(einen\s+)?(neuen\s+)?workflow\s*[:\-]?\s*/i, "")
+        .replace(/^workflow\s+(erstellen|bearbeiten|erweitern)\s*[:\-]?\s*/i, "")
+        .replace(/^(kannst du bitte|kannst du|bitte)\s+/i, "")
+        .trim();
+      if (!value) {
+        return "";
+      }
+      return value.length > maxLength ? `${value.slice(0, maxLength - 3).trim()}...` : value;
+    }
+
+    function isLowSignalTitlePrompt(text) {
+      const value = String(text || "").trim().toLowerCase();
+      if (!value) {
+        return true;
+      }
+      if (value.length <= 3) {
+        return true;
+      }
+      if (value.startsWith("bitte führe deine letzte antwort direkt fort")
+        || value.startsWith("bitte fuehre deine letzte antwort direkt fort")) {
+        return true;
+      }
+      return [
+        /^ja[.!]?$/,
+        /^nein[.!]?$/,
+        /^ok(?:ay)?[.!]?$/,
+        /^passt[.!]?$/,
+        /^weiter[.!]?$/,
+        /^erneut senden[.!]?$/,
+        /^ausführen[.!]?$/,
+        /^ausfuehren[.!]?$/,
+        /^speichern[.!]?$/,
+        /^workflow\s+(speichern|ausführen|ausfuehren|starten|testen|bearbeiten|abwählen|abwaehlen)[.!]?$/,
+        /^fortfahren[.!]?$/,
+        /^abbrechen[.!]?$/
+      ].some((pattern) => pattern.test(value));
+    }
+
+    function isDefaultSessionTitle(title) {
+      const value = String(title || "").trim();
+      return !value
+        || value === "BricsCAD AI Assistent"
+        || value === "Allgemeiner Chat"
+        || value === "Trainingsmodus"
+        || /^Neue Sitzung \d+$/.test(value)
+        || /^Neuer Chat \d+$/.test(value);
+    }
+
     function updateSessionTitle(session, message) {
-      if (message.speaker !== "Du" || session.userNamed) {
+      if (isPlanningTopicSession(session)) {
+        return;
+      }
+      if (message.speaker !== "Du") {
         return;
       }
       const text = message.message.trim();
-      if (!text) {
+      if (isLowSignalTitlePrompt(text)) {
+        if (isDefaultSessionTitle(session.title) && selectedWorkflow && selectedWorkflow.title) {
+          session.title = compactSessionTitleText(selectedWorkflow.title);
+        }
         return;
       }
-      session.title = text.length > 42 ? `${text.slice(0, 42)}...` : text;
+      const title = compactSessionTitleText(text);
+      if (!title) {
+        return;
+      }
+      session.title = title;
       session.userNamed = true;
+    }
+
+    function isDuplicateTrainingIntro(normalized) {
+      const trainingIntro = "Trainingsmodus aktiv. Beschreibe den neuen BricsCAD Workflow, den wir erstellen wollen.";
+      return normalized.speaker === "Barebone-Qt"
+        && normalized.message === trainingIntro
+        && activeSession().messages.some((message) => (
+          message.speaker === "Barebone-Qt"
+          && message.message === trainingIntro
+        ));
     }
 
     function addMessage(message, options = {}) {
       const normalized = normalizeMessage(message);
+      if (isDuplicateTrainingIntro(normalized)) {
+        return;
+      }
       const collapseThinking = pendingExecutionSummary && normalized.speaker === "AI";
       completeThinkingIndicator({ collapseDetails: collapseThinking });
       if (collapseThinking) {
@@ -3962,6 +5982,11 @@
       if (record) {
         const session = activeSession();
         session.messages.push(normalized);
+        if (normalized.speaker === "AI" && !isInitialAssistantGreeting(normalized)) {
+          session.latestAiMessageId = normalized.messageId;
+          pendingMessageScrollTarget = "bottom";
+          pendingMessageScrollMessageId = "";
+        }
         updateSessionTitle(session, normalized);
         persistSessions();
         renderSessionList();
@@ -3977,8 +6002,6 @@
 
     function setBusy(status) {
       isBusy = status === "thinking";
-      agentStatus.textContent = isBusy ? "AI arbeitet" : "Leerlauf";
-      agentStatus.classList.toggle("thinking", isBusy);
       input.disabled = isBusy;
       updateSendButtonState();
       attachButton.disabled = isBusy;
@@ -4159,11 +6182,29 @@
           bridge.confirmWorkflowTrainingRun();
         } else if (action === "finalSave" && bridge && typeof bridge.confirmWorkflowTrainingFinalSave === "function") {
           bridge.confirmWorkflowTrainingFinalSave();
+        } else if (action === "deleteWorkflow" && bridge && typeof bridge.deleteWorkflow === "function") {
+          pendingWorkflowDeleteId = String(prompt.workflowId || pendingWorkflowDeleteId || "").trim();
+          if (pendingWorkflowDeleteId) {
+            bridge.deleteWorkflow(pendingWorkflowDeleteId);
+          }
         } else if (bridge && typeof bridge.confirmWorkflowTrainingSave === "function") {
           bridge.confirmWorkflowTrainingSave();
         }
       });
       actions.appendChild(save);
+
+      if (prompt.cancelText || String(prompt.action || "") === "deleteWorkflow") {
+        const cancel = document.createElement("button");
+        cancel.className = "cancel-btn";
+        cancel.type = "button";
+        cancel.textContent = prompt.cancelText || "Abbrechen";
+        cancel.addEventListener("click", () => {
+          pendingWorkflowDeleteId = "";
+          removeWorkflowSavePrompt();
+          input.focus();
+        });
+        actions.appendChild(cancel);
+      }
 
       card.appendChild(actions);
       bubble.appendChild(card);
@@ -4191,16 +6232,29 @@
 
     function renderActiveSession() {
       clearThinkingIndicator();
+      resetMathVisibilityObserver();
       workflowSavePromptInline = null;
       workflowSavePromptSignature = "";
       messages.replaceChildren();
       const session = activeSession();
       renderDocumentContext();
-      session.messages.forEach((message) => renderMessage(normalizeMessage(message)));
+      window.__bareboneQueuedMath = [];
+      const fragment = document.createDocumentFragment();
+      session.messages.forEach((message) => renderMessage(normalizeMessage(message), {
+        parent: fragment,
+        deferMath: true,
+        deferScroll: true
+      }));
+      messages.appendChild(fragment);
+      messages.querySelectorAll(".message[data-math-pending=\"true\"]").forEach((element) => {
+        typesetMath(element, { defer: true });
+      });
       renderProposal(session.proposal);
       if (isBusy) {
         showThinkingIndicator();
       }
+      updateLastAiWorkflowFooterActions();
+      scrollMessagesAfterLayout();
     }
 
     function sessionShortLabel(title) {
@@ -4236,61 +6290,192 @@
       }
       if (deletedActive || !sessions.some((session) => session.id === activeSessionId)) {
         activeSessionId = sessions[Math.min(index, sessions.length - 1)].id;
-        chatMode = normalizeChatMode(activeSession().mode || "bricscad");
+        const session = activeSession();
+        chatMode = normalizeChatMode(session.mode || "bricscad");
+        trainingMode = isChatWorkspace() ? false : normalizeTrainingMode(session.trainingMode || false);
+        if (trainingMode) {
+          chatMode = "bricscad";
+          session.mode = chatMode;
+        }
         renderModeSelection();
         renderActiveSession();
         syncActiveSessionToQt();
+        syncTrainingModeToQt();
       }
 
-      persistSessions();
+      persistSessions({ rememberScroll: false });
       renderSessionList();
+      input.focus();
+    }
+
+    function clearHistoricalSessions() {
+      if (isBusy || sessions.length <= 1) {
+        input.focus();
+        return;
+      }
+      const current = activeSession();
+      sessions
+        .filter((session) => session.id !== current.id)
+        .forEach((session) => sessionDocuments.delete(session.id));
+      sessions = [current];
+      activeSessionId = current.id;
+      persistSessions({ rememberScroll: false });
+      renderSessionList();
+      renderActiveSession();
+      syncActiveSessionToQt();
+      syncTrainingModeToQt();
+      input.focus();
+    }
+
+    function createSidebarEntry({ title, active = false, deletable = false, shortLabel = "" }, onOpen, onDelete) {
+      const item = document.createElement("div");
+      item.className = "chat-item";
+
+      const link = document.createElement("button");
+      link.type = "button";
+      link.className = "chat-link";
+      link.classList.toggle("active", active);
+      link.title = title;
+
+      const short = document.createElement("span");
+      short.className = "chat-short";
+      short.textContent = shortLabel || sessionShortLabel(title);
+
+      const label = document.createElement("span");
+      label.className = "chat-title";
+      label.textContent = title;
+
+      link.appendChild(short);
+      link.appendChild(label);
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        onOpen();
+      });
+      item.appendChild(link);
+
+      if (deletable) {
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button";
+        deleteButton.className = "chat-delete";
+        deleteButton.textContent = "X";
+        deleteButton.setAttribute("aria-label", `Sitzung ${title} löschen`);
+        deleteButton.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onDelete();
+        });
+        item.appendChild(deleteButton);
+      }
+
+      return item;
+    }
+
+    function openGeneralWorkflowSession(workflow) {
+      if (isBusy || !workflow || !workflow.id) {
+        input.focus();
+        return;
+      }
+      if (!isGeneralWorkflowWorkspace()) {
+        switchWorkspace("chat");
+      }
+      chatMode = "general";
+      trainingMode = false;
+      selectedWorkflow = normalizeWorkflow(workflow);
+      if (!workflowHasLoadedContent(selectedWorkflow)) {
+        pendingGeneralWorkflowOpenId = selectedWorkflow.id;
+        if (bridge && typeof bridge.selectWorkflow === "function") {
+          bridge.selectWorkflow(selectedWorkflow.id);
+        } else {
+          addMessage({
+            speaker: "Barebone-Qt",
+            message: "Workflow kann nicht geladen werden, weil die Qt Bridge nicht bereit ist.",
+            time: nowTime()
+          }, { record: false });
+        }
+        input.focus();
+        return;
+      }
+      const id = workflowSessionId(selectedWorkflow);
+      const existingSession = sessions.find((session) => session.id === id);
+      if (existingSession) {
+        switchSession(existingSession.id);
+        input.focus();
+        return;
+      }
+      const session = createSession(selectedWorkflow.title, "general", {
+        includeGreeting: false,
+        kind: "general_workflow",
+        workflowId: selectedWorkflow.id
+      });
+      session.id = id;
+      session.userNamed = true;
+      const messageId = nextMessageId("ai");
+      session.messages = [{
+        speaker: "AI",
+        messageId,
+        message: workflowMarkdownForChat(selectedWorkflow),
+        time: nowTime(),
+        kind: "workflow_context"
+      }];
+      session.latestAiMessageId = messageId;
+      sessions.unshift(session);
+      activeSessionId = session.id;
+      prepareSessionOpenScroll();
+      renderModeSelection();
+      renderSessionList();
+      renderActiveSession();
+      persistSessions({ rememberScroll: false });
+      if (bridge && typeof bridge.selectWorkflow === "function") {
+        bridge.selectWorkflow(selectedWorkflow.id);
+      }
+      syncActiveSessionToQt();
+      syncTrainingModeToQt();
       input.focus();
     }
 
     function renderSessionList() {
       const query = chatSearch.value.trim().toLowerCase();
       chatList.replaceChildren();
-      sessions.forEach((session) => {
-        const item = document.createElement("div");
-        item.className = "chat-item";
-        item.classList.toggle("hidden", query.length > 0 && !session.title.toLowerCase().includes(query));
+      if (isGeneralWorkflowWorkspace()) {
+        const workflowMatches = generalWorkflowList()
+          .filter((workflow) => !query || workflow.title.toLowerCase().includes(query) || workflow.id.toLowerCase().includes(query));
+        if (workflowMatches.length) {
+          const title = document.createElement("div");
+          title.className = "sidebar-section-title workflow-title";
+          title.textContent = "Workflows";
+          chatList.appendChild(title);
+          workflowMatches.forEach((workflow) => {
+            const active = isGeneralWorkflowSession() && activeSession().workflowId === workflow.id;
+            chatList.appendChild(createSidebarEntry({
+              title: workflow.title,
+              active,
+              deletable: false,
+              shortLabel: "WF"
+            }, () => openGeneralWorkflowSession(workflow)));
+          });
+        }
+      }
 
-        const link = document.createElement("button");
-        link.type = "button";
-        link.className = "chat-link";
-        link.classList.toggle("active", session.id === activeSessionId);
-        link.dataset.sessionId = session.id;
-        link.title = session.title;
-
-        const shortLabel = document.createElement("span");
-        shortLabel.className = "chat-short";
-        shortLabel.textContent = sessionShortLabel(session.title);
-
-        const title = document.createElement("span");
-        title.className = "chat-title";
-        title.textContent = session.title;
-
-        link.appendChild(shortLabel);
-        link.appendChild(title);
-        link.addEventListener("click", (event) => {
-          event.preventDefault();
-          switchSession(session.id);
-        });
-
-        const deleteButton = document.createElement("button");
-        deleteButton.type = "button";
-        deleteButton.className = "chat-delete";
-        deleteButton.textContent = "X";
-        deleteButton.setAttribute("aria-label", `Sitzung ${session.title} löschen`);
-        deleteButton.addEventListener("click", (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          deleteSession(session.id);
-        });
-
-        item.appendChild(link);
-        item.appendChild(deleteButton);
-        chatList.appendChild(item);
+      const visibleSessions = sessions.filter((session) => !isGeneralWorkflowWorkspace() || session.kind !== "general_workflow");
+      const sessionMatches = visibleSessions.filter((session) => !query || session.title.toLowerCase().includes(query));
+      if (isGeneralWorkflowWorkspace() && sessionMatches.length) {
+        const title = document.createElement("div");
+        title.className = "sidebar-section-title sessions-title";
+        title.textContent = "Sitzungen";
+        chatList.appendChild(title);
+      }
+      sessionMatches.forEach((session) => {
+        chatList.appendChild(createSidebarEntry({
+          title: session.title,
+          active: session.id === activeSessionId,
+          deletable: true
+        }, () => {
+          try {
+            switchSession(session.id);
+          } catch (error) {
+            reportClientRuntimeError(error, "Sitzung wechseln");
+          }
+        }, () => deleteSession(session.id)));
       });
     }
 
@@ -4302,57 +6487,147 @@
         return;
       }
       activeSessionId = sessionId;
-      chatMode = normalizeChatMode(sessions.find((session) => session.id === sessionId)?.mode || "bricscad");
+      const session = sessions.find((item) => item.id === sessionId);
+      prepareSessionOpenScroll();
+      chatMode = normalizeChatMode(session?.mode || "bricscad");
+      trainingMode = isChatWorkspace() ? false : normalizeTrainingMode(session?.trainingMode || false);
+      if (trainingMode) {
+        chatMode = "bricscad";
+        session.mode = chatMode;
+      }
       renderModeSelection();
-      persistSessions();
+      persistSessions({ rememberScroll: false });
       renderSessionList();
       renderActiveSession();
+      if ((isGeneralWorkflowWorkspace() || !isChatWorkspace()) && session.workflowId && bridge && typeof bridge.selectWorkflow === "function") {
+        const workflow = workflows.find((item) => item.id === session.workflowId);
+        selectedWorkflow = workflow || selectedWorkflow;
+        renderActiveWorkflow();
+        bridge.selectWorkflow(session.workflowId);
+      } else {
+        selectedWorkflow = null;
+        renderActiveWorkflow();
+        if (bridge && typeof bridge.clearSelectedWorkflow === "function") {
+          bridge.clearSelectedWorkflow();
+        }
+      }
       syncActiveSessionToQt();
+      syncTrainingModeToQt();
       input.focus();
     }
 
-    function submitPrompt() {
-      if (isBusy) {
-        if (bridge && typeof bridge.cancelCurrentOperation === "function") {
-          bridge.cancelCurrentOperation();
+    function shouldBlockPromptForLocalAiStatus() {
+      if (localAiReachable) {
+        return false;
+      }
+      const label = String(localAiStatusText || (localAiStatus ? localAiStatus.textContent : "") || "").trim().toLowerCase();
+      if (!label.includes("lokale ai")) {
+        return false;
+      }
+      if (label.includes("nicht aktiv")) {
+        return false;
+      }
+      return /nicht erreichbar|ungültig|ungueltig|nicht prüfbar|nicht pruefbar|wird geprüft|wird gepr/.test(label);
+    }
+
+    function requestLocalAiRecheck() {
+      try {
+        if (bridge && typeof bridge.checkLocalAiStatus === "function") {
+          bridge.checkLocalAiStatus();
         }
-        return;
+      } catch (_error) {
+        // The regular background poll will retry as well.
       }
-      const text = input.value.trim();
-      if (!text) {
+    }
+
+    function submitPrompt() {
+      try {
+        if (isBusy) {
+          if (bridge && typeof bridge.cancelCurrentOperation === "function") {
+            bridge.cancelCurrentOperation();
+          }
+          return;
+        }
+        const text = input.value.trim();
+        if (!text) {
+          input.focus();
+          return;
+        }
+        pendingMessageScrollTarget = "bottom";
+        if (!bridge) {
+          addMessage({ speaker: "Barebone-Qt", message: "Qt WebChannel ist noch nicht verbunden.", time: nowTime() });
+          input.focus();
+          return;
+        }
+        if (shouldBlockPromptForLocalAiStatus()) {
+          requestLocalAiRecheck();
+          addMessage({
+            speaker: "Barebone-Qt",
+            message: "Die lokale AI ist derzeit nicht erreichbar. Ich prüfe die Verbindung noch einmal; bitte sende den Prompt erneut, sobald „Lokale AI erreichbar“ angezeigt wird.",
+            time: nowTime()
+          }, { record: false });
+          input.focus();
+          return;
+        }
+        if (documentsLoading > 0 && !activeDocuments().some((document) => document.status === "loading")) {
+          documentsLoading = 0;
+          updateSendButtonState();
+        }
+        if (documentsLoading > 0) {
+          addMessage({ speaker: "Barebone-Qt", message: "Dateien werden noch gelesen. Bitte sende die Anfrage gleich erneut.", time: nowTime() }, { record: false });
+          return;
+        }
+        const documentPromptContext = promptContextForSubmit(text);
+        input.value = "";
+        removeWorkflowSavePrompt();
+        const useContextPrompt = documentPromptContext.hasDocuments
+          || documentPromptContext.hasWorkflow;
+        try {
+          if (useContextPrompt && typeof bridge.sendPromptWithContext === "function") {
+            bridge.sendPromptWithContext(text, documentPromptContext);
+          } else {
+            bridge.sendPrompt(text);
+          }
+        } catch (_error) {
+          try {
+            bridge.sendPrompt(text);
+          } catch (fallbackError) {
+            input.value = text;
+            addMessage({
+              speaker: "Barebone-Qt",
+              message: `Prompt konnte nicht an Qt gesendet werden: ${fallbackError && fallbackError.message ? fallbackError.message : fallbackError}`,
+              time: nowTime()
+            }, { record: false });
+          }
+        }
+        requestAnimationFrame(() => input.focus());
+      } catch (error) {
+        reportClientRuntimeError(error, "Prompt senden");
         input.focus();
-        return;
       }
-      if (!bridge) {
-        addMessage({ speaker: "Barebone-Qt", message: "Qt WebChannel ist noch nicht verbunden.", time: nowTime() });
-        return;
-      }
-      if (documentsLoading > 0) {
-        addMessage({ speaker: "Barebone-Qt", message: "Dateien werden noch gelesen. Bitte sende die Anfrage gleich erneut.", time: nowTime() }, { record: false });
-        return;
-      }
-      const documentPromptContext = promptContextForSubmit(text);
-      input.value = "";
-      removeWorkflowSavePrompt();
-      if ((documentPromptContext.hasDocuments || documentPromptContext.hasWorkflow) && typeof bridge.sendPromptWithContext === "function") {
-        bridge.sendPromptWithContext(text, documentPromptContext);
-      } else {
-        bridge.sendPrompt(text);
-      }
-      requestAnimationFrame(() => input.focus());
     }
 
     function requestNewChat() {
       if (isBusy) {
         return;
       }
-      const session = createSession(`Neue Sitzung ${++chatCounter}`, chatMode);
+      trainingMode = false;
+      const session = createSession(`Neuer Chat ${++chatCounter}`, chatMode, { trainingMode: false });
       sessions.unshift(session);
       activeSessionId = session.id;
-      persistSessions();
+      if (isGeneralWorkflowWorkspace()) {
+        selectedWorkflow = null;
+        if (bridge && typeof bridge.clearSelectedWorkflow === "function") {
+          bridge.clearSelectedWorkflow();
+        }
+      }
+      persistSessions({ rememberScroll: false });
       renderSessionList();
+      prepareSessionOpenScroll();
       renderActiveSession();
+      renderModeSelection();
       syncActiveSessionToQt();
+      syncTrainingModeToQt();
       input.focus();
     }
 
@@ -4910,12 +7185,16 @@
 
     newChatButton.addEventListener("click", requestNewChat);
     attachButton.addEventListener("click", () => {
-      if (!isBusy) {
-        documentFileInput.click();
+      try {
+        if (!isBusy && documentFileInput) {
+          documentFileInput.click();
+        }
+      } catch (error) {
+        reportClientRuntimeError(error, "Datei anhängen");
       }
     });
     workflowsButton.addEventListener("click", () => {
-      if (trainingMode) {
+      if (trainingMode && isBricsCadWorkspace()) {
         openWorkflowOverlay();
       }
     });
@@ -4959,6 +7238,7 @@
     });
     sidebarToggle.addEventListener("click", toggleSidebar);
     chatSearch.addEventListener("input", filterChats);
+    clearHistoryButton.addEventListener("click", clearHistoricalSessions);
     toolsButton.addEventListener("click", (event) => {
       event.stopPropagation();
       toggleToolsMenu();
@@ -4975,75 +7255,113 @@
     });
     modeOptions.forEach((option) => {
       option.addEventListener("click", () => {
-        setChatModeSelection(option.dataset.mode, { createFreshSession: true });
+        setChatModeSelection(option.dataset.mode, { createFreshSession: isBricsCadWorkspace() });
         closeToolsMenu();
         input.focus();
       });
     });
+    workspaceOptions.forEach((option) => {
+      option.addEventListener("click", () => {
+        try {
+          switchWorkspace(option.dataset.workspace);
+        } catch (error) {
+          reportClientRuntimeError(error, "Arbeitsbereich wechseln");
+        }
+      });
+    });
     document.addEventListener("click", closeToolsMenu);
 
-    applySidebarCollapsed(storedSidebarCollapsed(), { persist: false });
-    loadReasoningSelection();
-    loadSessions();
-    renderSessionList();
-    renderActiveSession();
-    updateSendButtonState();
-
-    if (window.qt && window.qt.webChannelTransport && window.QWebChannel) {
-      new QWebChannel(window.qt.webChannelTransport, (channel) => {
-        bridge = channel.objects.bareboneBridge;
-        setBrxStatus("BRX Plugin nicht verbunden", false);
-        bridge.reasoningEffortApplied.connect(applyReasoningSelectionFromQt);
-        if (bridge.trainingModeApplied) {
-          bridge.trainingModeApplied.connect(applyTrainingModeFromQt);
-        }
-        bridge.clientStateLoaded.connect(applyClientStateFromQt);
-        bridge.contextBudgetChanged.connect(applyContextBudget);
-        if (bridge.localAiStatusChanged) {
-          bridge.localAiStatusChanged.connect(setLocalAiStatus);
-        }
-        bridge.messageAdded.connect(addMessage);
-        bridge.statusChanged.connect(setBusy);
-        bridge.proposalChanged.connect(setProposal);
-        bridge.proposalCleared.connect(clearProposal);
-        if (bridge.workflowTrainingSavePromptChanged) {
-          bridge.workflowTrainingSavePromptChanged.connect(renderWorkflowSavePrompt);
-        }
-        if (bridge.workflowTrainingSavePromptCleared) {
-          bridge.workflowTrainingSavePromptCleared.connect(removeWorkflowSavePrompt);
-        }
-        if (bridge.workflowTrainingRunPromptChanged) {
-          bridge.workflowTrainingRunPromptChanged.connect(renderWorkflowSavePrompt);
-        }
-        if (bridge.workflowTrainingRunPromptCleared) {
-          bridge.workflowTrainingRunPromptCleared.connect(removeWorkflowSavePrompt);
-        }
-        if (bridge.workflowTrainingFinalSavePromptChanged) {
-          bridge.workflowTrainingFinalSavePromptChanged.connect(renderWorkflowSavePrompt);
-        }
-        if (bridge.workflowTrainingFinalSavePromptCleared) {
-          bridge.workflowTrainingFinalSavePromptCleared.connect(removeWorkflowSavePrompt);
-        }
-        bridge.bridgeStatusChanged.connect(setBrxStatus);
-        bridge.bridgeLogAdded.connect(handleBridgeLogLine);
-        if (bridge.workflowListChanged) {
-          bridge.workflowListChanged.connect(applyWorkflowListFromQt);
-        }
-        if (bridge.selectedWorkflowChanged) {
-          bridge.selectedWorkflowChanged.connect(applySelectedWorkflowFromQt);
-        }
-        bridge.ready();
-        if (typeof bridge.requestWorkflowList === "function") {
-          bridge.requestWorkflowList();
-        }
-        syncTrainingModeToQt();
-      });
-    } else {
-      setLocalAiStatus("Lokale AI nicht prüfbar", false);
-      setBrxStatus("Qt Bridge nicht bereit", false);
+    function initializeAssistantUi() {
+      applySidebarCollapsed(storedSidebarCollapsed(), { persist: false });
+      loadReasoningSelection();
+      loadSessions();
+      renderSessionList();
+      renderActiveSession();
+      updateSendButtonState();
     }
 
-    input.focus();
+    function connectQtBridge() {
+      if (!(window.qt && window.qt.webChannelTransport && window.QWebChannel)) {
+        setLocalAiStatus("Lokale AI nicht prüfbar", false);
+        setBrxStatus("Qt Bridge nicht bereit", false);
+        return;
+      }
+      new QWebChannel(window.qt.webChannelTransport, (channel) => {
+        try {
+          bridge = channel.objects.bareboneBridge;
+          if (!bridge) {
+            throw new Error("bareboneBridge wurde nicht im Qt WebChannel registriert.");
+          }
+          bridgeReady = true;
+          setBrxStatus("BRX Plugin nicht verbunden", false);
+          bridge.reasoningEffortApplied.connect(applyReasoningSelectionFromQt);
+          if (bridge.trainingModeApplied) {
+            bridge.trainingModeApplied.connect(applyTrainingModeFromQt);
+          }
+          if (bridge.assistantWorkspaceApplied) {
+            bridge.assistantWorkspaceApplied.connect(applyAssistantWorkspaceFromQt);
+          }
+          bridge.clientStateLoaded.connect(applyClientStateFromQt);
+          bridge.contextBudgetChanged.connect(applyContextBudget);
+          if (bridge.uiThemeChanged) {
+            bridge.uiThemeChanged.connect(applyUiTheme);
+          }
+          if (bridge.localAiStatusChanged) {
+            bridge.localAiStatusChanged.connect(setLocalAiStatus);
+          }
+          bridge.messageAdded.connect(addMessage);
+          bridge.statusChanged.connect(setBusy);
+          bridge.proposalChanged.connect(setProposal);
+          bridge.proposalCleared.connect(clearProposal);
+          if (bridge.workflowTrainingSavePromptChanged) {
+            bridge.workflowTrainingSavePromptChanged.connect(renderWorkflowSavePrompt);
+          }
+          if (bridge.workflowTrainingSavePromptCleared) {
+            bridge.workflowTrainingSavePromptCleared.connect(removeWorkflowSavePrompt);
+          }
+          if (bridge.workflowTrainingRunPromptChanged) {
+            bridge.workflowTrainingRunPromptChanged.connect(renderWorkflowSavePrompt);
+          }
+          if (bridge.workflowTrainingRunPromptCleared) {
+            bridge.workflowTrainingRunPromptCleared.connect(removeWorkflowSavePrompt);
+          }
+          if (bridge.workflowTrainingFinalSavePromptChanged) {
+            bridge.workflowTrainingFinalSavePromptChanged.connect(renderWorkflowSavePrompt);
+          }
+          if (bridge.workflowTrainingFinalSavePromptCleared) {
+            bridge.workflowTrainingFinalSavePromptCleared.connect(removeWorkflowSavePrompt);
+          }
+          bridge.bridgeStatusChanged.connect(setBrxStatus);
+          bridge.bridgeLogAdded.connect(handleBridgeLogLine);
+          if (bridge.workflowListChanged) {
+            bridge.workflowListChanged.connect(applyWorkflowListFromQt);
+          }
+          if (bridge.selectedWorkflowChanged) {
+            bridge.selectedWorkflowChanged.connect(applySelectedWorkflowFromQt);
+          }
+          bridge.ready();
+          syncWorkspaceToQt();
+          if (typeof bridge.requestWorkflowList === "function") {
+            bridge.requestWorkflowList();
+          }
+          syncTrainingModeToQt();
+        } catch (error) {
+          bridgeReady = false;
+          bridge = null;
+          reportClientRuntimeError(error, "Qt WebChannel");
+          setBrxStatus("Qt Bridge nicht bereit", false);
+        }
+      });
+    }
+
+    try {
+      initializeAssistantUi();
+      connectQtBridge();
+    } catch (error) {
+      reportClientRuntimeError(error, "Initialisierung");
+    }
+
+    requestAnimationFrame(() => input.focus());
   </script>
 </body>
 </html>

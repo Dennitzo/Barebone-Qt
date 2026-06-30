@@ -79,9 +79,14 @@ QString ConfigManager::aiReasoningEffort() const
     return normalizedReasoningEffort(m_settings.value("ai/reasoningEffort", "high").toString());
 }
 
-QString ConfigManager::aiAssistantState() const
+QString ConfigManager::unifiedAiAssistantState() const
 {
-    return m_settings.value("ai/assistantState").toString();
+    return m_settings.value("ai/unifiedAssistantState").toString();
+}
+
+bool ConfigManager::sidebarDropdownExpanded() const
+{
+    return m_settings.value("app/sidebarDropdownExpanded", true).toBool();
 }
 
 QByteArray ConfigManager::windowGeometry() const
@@ -146,9 +151,14 @@ void ConfigManager::setAiReasoningEffort(const QString& effort)
     Q_EMIT changed();
 }
 
-void ConfigManager::setAiAssistantState(const QString& stateJson)
+void ConfigManager::setUnifiedAiAssistantState(const QString& stateJson)
 {
-    m_settings.setValue("ai/assistantState", stateJson);
+    m_settings.setValue("ai/unifiedAssistantState", stateJson);
+}
+
+void ConfigManager::setSidebarDropdownExpanded(bool expanded)
+{
+    m_settings.setValue("app/sidebarDropdownExpanded", expanded);
 }
 
 void ConfigManager::setWindowGeometry(const QByteArray& geometry)
