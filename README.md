@@ -1,6 +1,6 @@
 # Barebone-Qt
 
-Windows-only Qt6 application shell.
+Qt6 application shell.
 
 ## Build on Windows
 
@@ -23,6 +23,30 @@ To create a zip artifact:
 
 ```powershell
 .\windows\package-artifact.ps1 -Configuration Release
+```
+
+## Build on macOS
+
+```bash
+./macos/check-environment.sh
+```
+
+To build the `.app` bundle:
+
+```bash
+./macos/build-app.sh --configuration Release
+```
+
+The macOS app build output is standardized to:
+
+```text
+build/macos-6.11.1-arm64/Barebone-Qt.app
+```
+
+To build, deploy Qt with `macdeployqt`, and create a zip artifact in one step:
+
+```bash
+./macos/package-artifact.sh --configuration Release
 ```
 
 ## Optional BricsCAD BRX plugin

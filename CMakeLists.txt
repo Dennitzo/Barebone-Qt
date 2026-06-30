@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.21)
 
 project(BareboneQt
     VERSION 0.1.0
-    DESCRIPTION "Windows-only Qt6 application shell inspired by Bitcoin-Qt"
+    DESCRIPTION "Qt6 application shell inspired by Bitcoin-Qt"
     LANGUAGES CXX
 )
 
@@ -33,11 +33,13 @@ qt_add_executable(BareboneQtApp
     src/ui/SettingsPage.h
     src/ui/TemplatePage.cpp
     src/ui/TemplatePage.h
-    resources/app.manifest
 )
 
 if(WIN32)
-    target_sources(BareboneQtApp PRIVATE resources/windows.rc)
+    target_sources(BareboneQtApp PRIVATE
+        resources/app.manifest
+        resources/windows.rc
+    )
 endif()
 
 target_link_libraries(BareboneQtApp PRIVATE Qt6::Network Qt6::WebChannel Qt6::WebEngineWidgets Qt6::Widgets)
@@ -49,6 +51,7 @@ target_compile_definitions(BareboneQtApp PRIVATE
 
 set_target_properties(BareboneQtApp PROPERTIES
     OUTPUT_NAME "Barebone-Qt"
+    QT_QML_MODULE_NO_IMPORT_SCAN TRUE
 )
 
 if(WIN32)
@@ -75,8 +78,48 @@ if(WIN32)
     else()
         message(WARNING "windeployqt was not found. The Windows executable will need Qt DLLs deployed manually.")
     endif()
-else()
-    message(FATAL_ERROR "Barebone-Qt is configured as a Windows-only template.")
+endif()
+
+if(APPLE)
+    find_program(SIPS_EXECUTABLE NAMES sips REQUIRED)
+    find_program(ICONUTIL_EXECUTABLE NAMES iconutil REQUIRED)
+
+    set(BAREBONE_MACOS_ICONSET_DIR "${CMAKE_CURRENT_BINARY_DIR}/BareboneQtApp.iconset")
+    set(BAREBONE_MACOS_ICON_FILE "${CMAKE_CURRENT_BINARY_DIR}/AppLogo.icns")
+
+    add_custom_command(
+        OUTPUT "${BAREBONE_MACOS_ICON_FILE}"
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${BAREBONE_MACOS_ICONSET_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${BAREBONE_MACOS_ICONSET_DIR}"
+        COMMAND "${SIPS_EXECUTABLE}" -z 16 16 "${CMAKE_SOURCE_DIR}/AppLogo.png" --out "${BAREBONE_MACOS_ICONSET_DIR}/icon_16x16.png"
+        COMMAND "${SIPS_EXECUTABLE}" -z 32 32 "${CMAKE_SOURCE_DIR}/AppLogo.png" --out "${BAREBONE_MACOS_ICONSET_DIR}/icon_16x16@2x.png"
+        COMMAND "${SIPS_EXECUTABLE}" -z 32 32 "${CMAKE_SOURCE_DIR}/AppLogo.png" --out "${BAREBONE_MACOS_ICONSET_DIR}/icon_32x32.png"
+        COMMAND "${SIPS_EXECUTABLE}" -z 64 64 "${CMAKE_SOURCE_DIR}/AppLogo.png" --out "${BAREBONE_MACOS_ICONSET_DIR}/icon_32x32@2x.png"
+        COMMAND "${SIPS_EXECUTABLE}" -z 128 128 "${CMAKE_SOURCE_DIR}/AppLogo.png" --out "${BAREBONE_MACOS_ICONSET_DIR}/icon_128x128.png"
+        COMMAND "${SIPS_EXECUTABLE}" -z 256 256 "${CMAKE_SOURCE_DIR}/AppLogo.png" --out "${BAREBONE_MACOS_ICONSET_DIR}/icon_128x128@2x.png"
+        COMMAND "${SIPS_EXECUTABLE}" -z 256 256 "${CMAKE_SOURCE_DIR}/AppLogo.png" --out "${BAREBONE_MACOS_ICONSET_DIR}/icon_256x256.png"
+        COMMAND "${SIPS_EXECUTABLE}" -z 512 512 "${CMAKE_SOURCE_DIR}/AppLogo.png" --out "${BAREBONE_MACOS_ICONSET_DIR}/icon_256x256@2x.png"
+        COMMAND "${SIPS_EXECUTABLE}" -z 512 512 "${CMAKE_SOURCE_DIR}/AppLogo.png" --out "${BAREBONE_MACOS_ICONSET_DIR}/icon_512x512.png"
+        COMMAND "${SIPS_EXECUTABLE}" -z 1024 1024 "${CMAKE_SOURCE_DIR}/AppLogo.png" --out "${BAREBONE_MACOS_ICONSET_DIR}/icon_512x512@2x.png"
+        COMMAND "${ICONUTIL_EXECUTABLE}" -c icns "${BAREBONE_MACOS_ICONSET_DIR}" -o "${BAREBONE_MACOS_ICON_FILE}"
+        DEPENDS "${CMAKE_SOURCE_DIR}/AppLogo.png"
+        VERBATIM
+    )
+
+    set_source_files_properties("${BAREBONE_MACOS_ICON_FILE}" PROPERTIES
+        GENERATED TRUE
+        MACOSX_PACKAGE_LOCATION "Resources"
+    )
+    target_sources(BareboneQtApp PRIVATE "${BAREBONE_MACOS_ICON_FILE}")
+
+    set_target_properties(BareboneQtApp PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_BUNDLE_NAME "Barebone-Qt"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "org.barebone.qt"
+        MACOSX_BUNDLE_ICON_FILE "AppLogo.icns"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+    )
 endif()
 
 set(BAREBONE_BRX_SDK_PATH "C:/Program Files/Bricsys/BRXSDK/BRX26.1.05.0" CACHE PATH "Path to the BricsCAD BRX SDK")
@@ -128,4 +171,7 @@ if(BAREBONE_BUILD_BRX_PLUGIN)
     )
 endif()
 
-install(TARGETS BareboneQtApp RUNTIME DESTINATION bin)
+install(TARGETS BareboneQtApp
+    BUNDLE DESTINATION .
+    RUNTIME DESTINATION bin
+)

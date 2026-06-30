@@ -15,5 +15,13 @@
         <file alias="contracts/router-v1.json">../agent/contracts/router-v1.json</file>
         <file alias="contracts/router-general-v1.json">../agent/contracts/router-general-v1.json</file>
         <file alias="contracts/router-bricscad-v1.json">../agent/contracts/router-bricscad-v1.json</file>
+        <file alias="general-workflows/heizlastberechnung_din_en_12831_detail.json">../agent/general-workflows/heizlastberechnung_din_en_12831_detail.json</file>
+        <file alias="workflows/create_four_walls_and_extrude.json">../agent/workflows/create_four_walls_and_extrude.json</file>
+        <file alias="workflows/create_layer_and_rectangle.json">../agent/workflows/create_layer_and_rectangle.json</file>
+        <file alias="workflows/create_tga_layers_heizung_sanitaer_lueftung.json">../agent/workflows/create_tga_layers_heizung_sanitaer_lueftung.json</file>
+        <file alias="workflows/move_and_rotate_solids_layer_0.json">../agent/workflows/move_and_rotate_solids_layer_0.json</file>
+        <file alias="workflows/rotate_solids_layer_0.json">../agent/workflows/rotate_solids_layer_0.json</file>
+        <file alias="workflows/select_and_move_solids_layer0.json">../agent/workflows/select_and_move_solids_layer0.json</file>
+        <file alias="workflows/select_rectangles_and_extrude_bimwall.json">../agent/workflows/select_rectangles_and_extrude_bimwall.json</file>
     </qresource>
 </RCC>
