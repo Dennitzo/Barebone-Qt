@@ -7191,21 +7191,13 @@ QJsonArray BricsCadPage::generalWorkflowIndex() const
         }
 
         const QFileInfo info(source.fileName);
-        const QString id = workflow.value(QStringLiteral("id")).toString(info.baseName()).trimmed();
+        const QString id = info.baseName();
         const QString slug = workflowSlug(id);
         if (seen.contains(slug)) {
             continue;
         }
+        seen.insert(slug);
 
-        QJsonObject workflow;
-        QJsonParseError parseError;
-        const QJsonDocument document = QJsonDocument::fromJson(file.readAll(), &parseError);
-        if (parseError.error == QJsonParseError::NoError && document.isObject()) {
-            workflow = document.object();
-        }
-
-        const QFileInfo info(file);
-        const QString id = info.baseName();
         QString title = repairMojibakeText(workflow.value(QStringLiteral("title")).toString()).trimmed();
         if (title.trimmed().isEmpty()) {
             title = repairMojibakeText(id).replace(QLatin1Char('_'), QLatin1Char(' '));
@@ -7215,8 +7207,8 @@ QJsonArray BricsCadPage::generalWorkflowIndex() const
             {"id", id},
             {"title", title},
             {"description", repairMojibakeText(workflow.value(QStringLiteral("description")).toString()).trimmed()},
-            {"description", repairMojibakeText(workflow.value(QStringLiteral("description")).toString()).trimmed()},
             {"kind", "general"},
+            {"readOnly", source.bundled},
             {"verificationStatus", repairMojibakeText(workflow.value(QStringLiteral("verificationStatus")).toString()).trimmed()},
         });
     }
@@ -7393,13 +7385,8 @@ QJsonObject BricsCadPage::loadGeneralWorkflowById(const QString& workflowId, QSt
         if (!readAgentWorkflowJson(source.path, &workflow)) {
             continue;
         }
-        QJsonParseError parseError;
-        const QJsonDocument document = QJsonDocument::fromJson(file.readAll(), &parseError);
-        if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
-            continue;
-        }
-        QJsonObject workflow = document.object();
-        const QString fileBaseName = QFileInfo(candidate).baseName();
+
+        const QString fileBaseName = QFileInfo(source.fileName).baseName();
         const QString id = workflow.value("id").toString(fileBaseName);
         if (workflowSlug(id) == normalizedId || workflowSlug(fileBaseName) == normalizedId) {
             if (fileName) {
@@ -7409,7 +7396,7 @@ QJsonObject BricsCadPage::loadGeneralWorkflowById(const QString& workflowId, QSt
                 workflow.insert(QStringLiteral("sourceId"), id);
             }
             workflow.insert(QStringLiteral("id"), fileBaseName);
-            workflow.insert(QStringLiteral("fileName"), candidate);
+            workflow.insert(QStringLiteral("fileName"), source.fileName);
             workflow.insert(QStringLiteral("kind"), QStringLiteral("general"));
             workflow.insert(QStringLiteral("readOnly"), source.bundled);
             return workflow;
@@ -7417,7 +7404,7 @@ QJsonObject BricsCadPage::loadGeneralWorkflowById(const QString& workflowId, QSt
     }
 
     if (errorMessage) {
-            *errorMessage = QStringLiteral("Workflow \"%1\" wurde nicht gefunden.").arg(workflowId);
+        *errorMessage = QStringLiteral("Workflow \"%1\" wurde nicht gefunden.").arg(workflowId);
     }
     return {};
 }

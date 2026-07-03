@@ -15,7 +15,8 @@
         <file alias="contracts/router-v1.json">../agent/contracts/router-v1.json</file>
         <file alias="contracts/router-general-v1.json">../agent/contracts/router-general-v1.json</file>
         <file alias="contracts/router-bricscad-v1.json">../agent/contracts/router-bricscad-v1.json</file>
-        <file alias="general-workflows/heizlastberechnung_din_en_12831_detail.json">../agent/general-workflows/heizlastberechnung_din_en_12831_detail.json</file>
+        <file alias="general-workflows/formelsammlung_heizlastberechnung.json">../agent/general-workflows/formelsammlung_heizlastberechnung.json</file>
+        <file alias="general-workflows/heizlastberechnung.json">../agent/general-workflows/heizlastberechnung.json</file>
         <file alias="workflows/create_four_walls_and_extrude.json">../agent/workflows/create_four_walls_and_extrude.json</file>
         <file alias="workflows/create_layer_and_rectangle.json">../agent/workflows/create_layer_and_rectangle.json</file>
         <file alias="workflows/create_tga_layers_heizung_sanitaer_lueftung.json">../agent/workflows/create_tga_layers_heizung_sanitaer_lueftung.json</file>
