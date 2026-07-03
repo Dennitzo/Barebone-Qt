@@ -304,7 +304,7 @@ QString MainWindow::lightStyle() const
         }
         QWidget#metricCard {
             background: #ffffff;
-            border: none;
+            border: 1px solid #8fbd45;
             border-radius: 18px;
         }
         QWidget#metricCard QLabel, QWidget#metricCard QWidget {
@@ -621,7 +621,7 @@ QString MainWindow::darkStyle() const
         }
         QWidget#metricCard {
             background: #1e1e1e;
-            border: none;
+            border: 1px solid #8fbd45;
             border-radius: 18px;
         }
         QWidget#metricCard QLabel, QWidget#metricCard QWidget {

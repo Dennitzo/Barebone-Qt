@@ -66,9 +66,13 @@
       --success-border: #73a22d;
       --danger-bg: #fef2f2;
       --danger-border: #ef4444;
-      --table-bg: #ffffff;
-      --table-head: #edf6e4;
-      --table-stripe: #f6faf0;
+      --table-bg: #e8eddf;
+      --table-head: #8fbd45;
+      --table-head-text: #ffffff;
+      --table-row-odd: #e8eddf;
+      --table-row-even: #f4f3f3;
+      --table-stripe: #f4f3f3;
+      --table-border: #8fbd45;
       --radius-sm: 10px;
       --radius-md: 16px;
       --radius-lg: 26px;
@@ -98,9 +102,13 @@
         --success-border: #8fbd45;
         --danger-bg: rgba(239, 68, 68, 0.14);
         --danger-border: #ef4444;
-        --table-bg: #161616;
-        --table-head: #222222;
-        --table-stripe: #1e1e1e;
+        --table-bg: #232323;
+        --table-head: #8fbd45;
+        --table-head-text: #101410;
+        --table-row-odd: #232323;
+        --table-row-even: #171717;
+        --table-stripe: #171717;
+        --table-border: #8fbd45;
         --shadow-soft: 0 8px 30px rgba(0, 0, 0, 0.28);
       }
     }
@@ -643,13 +651,14 @@
     .message-table-wrap {
       max-width: 100%;
       overflow-x: auto;
-      border: 1px solid var(--composer-border);
+      border: 1px solid var(--table-border);
       border-radius: 8px;
       background: var(--table-bg);
       box-shadow: 0 1px 0 rgba(0, 0, 0, 0.03);
     }
 
-    .message-table {
+    .message-table,
+    .markdown-table {
       width: 100%;
       border-collapse: collapse;
       min-width: 560px;
@@ -660,27 +669,39 @@
     }
 
     .message-table th,
-    .message-table td {
+    .message-table td,
+    .markdown-table th,
+    .markdown-table td {
       padding: 9px 11px;
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px solid var(--table-border);
       vertical-align: top;
       text-align: left;
     }
 
-    .message-table th {
+    .message-table th,
+    .markdown-table th {
       background: var(--table-head);
+      color: var(--table-head-text);
       font-weight: 700;
     }
 
-    .message-table tbody tr:nth-child(even) td {
-      background: var(--table-stripe);
+    .message-table tbody tr:nth-child(odd) td,
+    .markdown-table tbody tr:nth-child(odd) td {
+      background: var(--table-row-odd);
     }
 
-    .message-table tr:last-child td {
+    .message-table tbody tr:nth-child(even) td,
+    .markdown-table tbody tr:nth-child(even) td {
+      background: var(--table-row-even);
+    }
+
+    .message-table tr:last-child td,
+    .markdown-table tr:last-child td {
       border-bottom: 0;
     }
 
-    .message-table strong {
+    .message-table strong,
+    .markdown-table strong {
       font-weight: 700;
     }
 
@@ -825,13 +846,19 @@
     html.pdf-exporting-message .pdf-export-target .message-table,
     html.pdf-exporting-message .pdf-export-target .message-table th,
     html.pdf-exporting-message .pdf-export-target .message-table td,
+    html.pdf-exporting-message .pdf-export-target .markdown-table,
+    html.pdf-exporting-message .pdf-export-target .markdown-table th,
+    html.pdf-exporting-message .pdf-export-target .markdown-table td,
     body.pdf-exporting-message .pdf-export-target,
     body.pdf-exporting-message .pdf-export-target .message-content,
     body.pdf-exporting-message .pdf-export-target .bubble,
     body.pdf-exporting-message .pdf-export-target .message-body,
     body.pdf-exporting-message .pdf-export-target .message-table,
     body.pdf-exporting-message .pdf-export-target .message-table th,
-    body.pdf-exporting-message .pdf-export-target .message-table td {
+    body.pdf-exporting-message .pdf-export-target .message-table td,
+    body.pdf-exporting-message .pdf-export-target .markdown-table,
+    body.pdf-exporting-message .pdf-export-target .markdown-table th,
+    body.pdf-exporting-message .pdf-export-target .markdown-table td {
       background: #fff !important;
       color: #111 !important;
       border-color: #d0d7de !important;
@@ -1104,9 +1131,13 @@
       --success-border: #73a22d;
       --danger-bg: #fef2f2;
       --danger-border: #ef4444;
-      --table-bg: #ffffff;
-      --table-head: #edf6e4;
-      --table-stripe: #f6faf0;
+      --table-bg: #e8eddf;
+      --table-head: #8fbd45;
+      --table-head-text: #ffffff;
+      --table-row-odd: #e8eddf;
+      --table-row-even: #f4f3f3;
+      --table-stripe: #f4f3f3;
+      --table-border: #8fbd45;
       --shadow-soft: 0 8px 30px rgba(0, 0, 0, 0.08);
     }
 
@@ -1132,9 +1163,13 @@
       --success-border: #8fbd45;
       --danger-bg: rgba(239, 68, 68, 0.14);
       --danger-border: #ef4444;
-      --table-bg: #161616;
-      --table-head: #222222;
-      --table-stripe: #1e1e1e;
+      --table-bg: #232323;
+      --table-head: #8fbd45;
+      --table-head-text: #101410;
+      --table-row-odd: #232323;
+      --table-row-even: #171717;
+      --table-stripe: #171717;
+      --table-border: #8fbd45;
       --shadow-soft: 0 8px 30px rgba(0, 0, 0, 0.28);
     }
 
@@ -2174,6 +2209,7 @@
         pdfStarted: "PDF-Export gestartet",
         pdfFailed: "PDF-Export fehlgeschlagen",
         saveWorkflow: "Workflow speichern",
+        overwriteWorkflow: "Workflow überschreiben",
         deleteWorkflow: "Workflow löschen",
         saveAsSession: "Als Sitzung speichern",
         jumpToStart: "Zum Anfang springen",
@@ -2271,6 +2307,7 @@
         pdfStarted: "PDF export started",
         pdfFailed: "PDF export failed",
         saveWorkflow: "Save workflow",
+        overwriteWorkflow: "Overwrite workflow",
         deleteWorkflow: "Delete workflow",
         saveAsSession: "Save as session",
         jumpToStart: "Jump to start",
@@ -2701,9 +2738,16 @@
         [/Â«/g, "«"],
         [/Â»/g, "»"],
         [/Â°/g, "°"],
+        [/Î˜/g, "Θ"],
         [/Î”/g, "Δ"],
         [/Î´/g, "δ"],
         [/Îµ/g, "ε"],
+        [/Î¸/g, "θ"],
+        [/Î¦/g, "Φ"],
+        [/Î£/g, "Σ"],
+        [/Î¨/g, "Ψ"],
+        [/Ï‡/g, "χ"],
+        [/Ï/g, "χ"],
         [/Ï/g, "ρ"],
         [/Ï/g, "φ"],
         [/Ï€/g, "π"],
@@ -2927,6 +2971,13 @@
     function normalizeLatexSubscriptLabel(label) {
       let value = String(label || "")
         .replace(/\\(?:mathrm|text)\{([^{}]+)\}/g, "$1")
+        .replace(/ä/g, "ae")
+        .replace(/ö/g, "oe")
+        .replace(/ü/g, "ue")
+        .replace(/Ä/g, "Ae")
+        .replace(/Ö/g, "Oe")
+        .replace(/Ü/g, "Ue")
+        .replace(/ß/g, "ss")
         .replace(/\s+/g, "")
         .replace(/_/g, ",")
         .replace(/,+/g, ",")
@@ -2946,16 +2997,20 @@
 
     function normalizeLatexSubscripts(text) {
       return String(text || "")
-        .replace(/_\{((?:\\(?:mathrm|text)\{[^{}]+\}|[A-Za-z0-9_,\s./^°-])+)\}/g, (_match, subscript) => {
+        .replace(/_\{((?:\\(?:mathrm|text)\{[^{}]+\}|[A-Za-z0-9ÄÖÜäöüß_,\s./^°-])+)\}/g, (_match, subscript) => {
           const normalized = normalizeLatexSubscriptLabel(subscript);
           return normalized !== null ? (normalized ? `_{${normalized}}` : "") : _match;
         })
-        .replace(/_\{([A-Za-z0-9_,\s.-]*?)\\(?:mathrm|text)\{([^{}]+)\}([A-Za-z0-9_,\s.-]*?)\}/g, (_match, before, inner, after) => {
+        .replace(/_\{([A-Za-z0-9ÄÖÜäöüß_,\s.-]*?)\\(?:mathrm|text)\{([^{}]+)\}([A-Za-z0-9ÄÖÜäöüß_,\s.-]*?)\}/g, (_match, before, inner, after) => {
           const label = `${before || ""}${inner || ""}${after || ""}`;
           const normalized = normalizeLatexSubscriptLabel(label);
           return normalized !== null ? (normalized ? `_{${normalized}}` : "") : _match;
         })
-        .replace(/_\{([A-Za-z0-9_,\s./^°-]+)\}/g, (_match, subscript) => {
+        .replace(/_\{([A-Za-z0-9ÄÖÜäöüß_,\s./^°-]+)\}/g, (_match, subscript) => {
+          const normalized = normalizeLatexSubscriptLabel(subscript);
+          return normalized !== null ? (normalized ? `_{${normalized}}` : "") : _match;
+        })
+        .replace(/_([A-Za-zÄÖÜäöüß][A-Za-z0-9ÄÖÜäöüß.-]*(?:,[A-Za-z0-9ÄÖÜäöüß.-]+)+)(?=[\s=+\-*/^;:.\\)}\]]|$)/g, (_match, subscript) => {
           const normalized = normalizeLatexSubscriptLabel(subscript);
           return normalized !== null ? (normalized ? `_{${normalized}}` : "") : _match;
         })
@@ -2971,9 +3026,15 @@
         return "";
       }
       value = value
-        .replace(/\\\\(?=(?:Delta|rho|varepsilon|epsilon|pi|varphi|phi|cdot|times|frac|mathrm|text|sum|dot|left|right|approx)\b)/g, "\\")
+        .replace(/\\\\(?=(?:Delta|rho|varepsilon|epsilon|pi|varphi|phi|Psi|chi|cdot|times|frac|mathrm|text|sum|dot|left|right|approx)\b)/g, "\\")
         .replace(/Δ\s*T/g, "\\Delta T")
         .replace(/Δ/g, "\\Delta")
+        .replace(/Φ/g, "\\Phi")
+        .replace(/Σ/g, "\\sum")
+        .replace(/Ψ/g, "\\Psi")
+        .replace(/χ/g, "\\chi")
+        .replace(/θ/g, "\\theta")
+        .replace(/Θ/g, "\\Theta")
         .replace(/ρ/g, "\\rho")
         .replace(/ε/g, "\\varepsilon")
         .replace(/π/g, "\\pi")
@@ -3620,7 +3681,6 @@
         .replaceAll("deltaT", "\\Delta T")
         .replace(/\bQ_T\b/g, "Q_T")
         .replace(/\bQ_V\b/g, "Q_V")
-        .replace(/\*/g, " \\cdot ")
         .replace(/\s=\s/g, " = ");
       return normalizeLatexSource(expression);
     }
@@ -5138,8 +5198,9 @@
       }
       footer.classList.add("has-workflow-actions");
       const messageId = lastAssistant.dataset.messageId || "";
-      footer.appendChild(createWorkflowFooterLink(t("saveWorkflow"), "Workflow speichern", messageId));
-      if (activeGeneralWorkflow()) {
+      const activeWorkflow = activeGeneralWorkflow();
+      footer.appendChild(createWorkflowFooterLink(activeWorkflow ? t("overwriteWorkflow") : t("saveWorkflow"), "Workflow speichern", messageId));
+      if (activeWorkflow) {
         footer.appendChild(createWorkflowFooterLink(t("deleteWorkflow"), "Workflow löschen", messageId));
       }
       footer.appendChild(createWorkflowFooterLink(t("saveAsSession"), "Als Sitzung speichern", messageId));
@@ -5327,14 +5388,98 @@
       return wrapper;
     }
 
+    function isTechnicalFormulaText(text) {
+      const value = String(text || "")
+        .replace(/^\*+|\*+$/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!value || value.length > 240) {
+        return false;
+      }
+      if (/[{}<>]/.test(value)) {
+        return false;
+      }
+      const hasMathSymbol = /[ΦΣθΘΔρπφϑ]|\\(?:Phi|sum|theta|Theta|Delta|rho|pi|varphi|phi)\b/.test(value);
+      const hasSubscript = /[A-Za-zΑ-Ωα-ωÄÖÜäöüß]_[A-Za-z0-9ÄÖÜäöüß]/.test(value);
+      const hasEquationOperator = /[=≈+\-*/×·]/.test(value);
+      const proseRemainder = value
+        .replace(/[A-Za-zΑ-Ωα-ωÄÖÜäöüß]+_[A-Za-z0-9ÄÖÜäöüß,.-]+/g, " ")
+        .replace(/\\(?:Phi|sum|theta|Theta|Delta|rho|pi|varphi|phi|mathrm|text|cdot|times)\b/g, " ")
+        .replace(/[ΦΣθΘΔρπφϑ=≈+\-*\/×·(),.;:\[\]\s0-9_°]/g, " ")
+        .replace(/\b(?:W|kW|Wh|kWh|J|kg|m|s|h|K|C|HL|TWW|WW|KW|WEZ|DIN|EN)\b/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (/[A-Za-zÄÖÜäöüß]{3,}/.test(proseRemainder)) {
+        return false;
+      }
+      return (hasMathSymbol || hasSubscript) && (hasEquationOperator || hasSubscript);
+    }
+
+    function stripLatexDelimiters(text) {
+      let value = String(text || "").trim();
+      let changed = true;
+      while (changed) {
+        changed = false;
+        if ((value.startsWith("\\(") && value.endsWith("\\)"))
+          || (value.startsWith("\\[") && value.endsWith("\\]"))) {
+          value = value.slice(2, -2).trim();
+          changed = true;
+        } else if (value.startsWith("$$") && value.endsWith("$$") && value.length > 4) {
+          value = value.slice(2, -2).trim();
+          changed = true;
+        } else if (value.startsWith("$") && value.endsWith("$") && value.length > 2) {
+          value = value.slice(1, -1).trim();
+          changed = true;
+        }
+      }
+      return value;
+    }
+
+    function inlineLatexFromTechnicalText(text) {
+      const value = normalizeLatexSource(stripLatexDelimiters(String(text || "")
+        .replace(/^\*+|\*+$/g, "")
+        .replace(/\s+/g, " ")
+        .trim()));
+      return value ? `\\(${value}\\)` : "";
+    }
+
+    function appendTextWithAutoMath(parent, text) {
+      const source = repairMojibakeText(String(text || ""));
+      const pattern = /(^|[^A-Za-z0-9_\\])((?:Δθ|[ΦΣΨχθΘΔρπφϑ]|\\(?:Phi|sum|Psi|chi|theta|Theta|Delta|rho|pi|varphi|phi)\b|[A-Za-z])_[A-Za-z0-9ÄÖÜäöüß,.-]+)/g;
+      let index = 0;
+      let match = pattern.exec(source);
+      while (match) {
+        const prefix = match[1] || "";
+        const token = match[2] || "";
+        const tokenStart = match.index + prefix.length;
+        if (tokenStart > index) {
+          parent.appendChild(document.createTextNode(source.slice(index, tokenStart)));
+        }
+        parent.appendChild(createSelectableMathNode(inlineLatexFromTechnicalText(token)));
+        index = tokenStart + token.length;
+        match = pattern.exec(source);
+      }
+      if (index < source.length) {
+        parent.appendChild(document.createTextNode(source.slice(index)));
+      }
+    }
+
     function appendInlineMarkdown(parent, text) {
       const source = String(text || "");
-      const pattern = /`([^`]+)`|\*\*(.+?)\*\*|(\\\[[\s\S]+?\\\])|(\\\([\s\S]+?\\\))|(\$\$[\s\S]+?\$\$)|(^|[^\\])(\$[^$\n]{1,240}\$)/g;
+      if (isTechnicalFormulaText(source)) {
+        const latex = inlineLatexFromTechnicalText(source);
+        if (latex) {
+          parent.appendChild(createSelectableMathNode(latex));
+          return;
+        }
+      }
+
+      const pattern = /`([^`]+)`|\*\*(.+?)\*\*|\*([^*\n]{1,180})\*|(\\\[[\s\S]+?\\\])|(\\\([\s\S]+?\\\))|(\$\$[\s\S]+?\$\$)|(^|[^\\])(\$[^$\n]{1,240}\$)/g;
       let index = 0;
       let match = pattern.exec(source);
       while (match) {
         if (match.index > index) {
-          parent.appendChild(document.createTextNode(source.slice(index, match.index)));
+          appendTextWithAutoMath(parent, source.slice(index, match.index));
         }
         if (match[1] !== undefined) {
           const code = document.createElement("code");
@@ -5343,13 +5488,21 @@
           parent.appendChild(code);
         } else if (match[2] !== undefined) {
           const strong = document.createElement("strong");
-          strong.textContent = normalizeMarkdownHeading(match[2]);
+          appendTextWithAutoMath(strong, normalizeMarkdownHeading(match[2]));
           parent.appendChild(strong);
+        } else if (match[3] !== undefined) {
+          if (stripLatexDelimiters(match[3]) !== String(match[3]).trim() || isTechnicalFormulaText(match[3])) {
+            parent.appendChild(createSelectableMathNode(inlineLatexFromTechnicalText(match[3])));
+          } else {
+            const emphasis = document.createElement("em");
+            emphasis.textContent = match[3];
+            parent.appendChild(emphasis);
+          }
         } else {
-          const prefix = match[6] || "";
-          const math = match[3] || match[4] || match[5] || match[7] || "";
+          const prefix = match[7] || "";
+          const math = match[4] || match[5] || match[6] || match[8] || "";
           if (prefix) {
-            parent.appendChild(document.createTextNode(prefix));
+            appendTextWithAutoMath(parent, prefix);
           }
           parent.appendChild(createSelectableMathNode(math));
         }
@@ -5357,7 +5510,7 @@
         match = pattern.exec(source);
       }
       if (index < source.length) {
-        parent.appendChild(document.createTextNode(source.slice(index)));
+        appendTextWithAutoMath(parent, source.slice(index));
       }
     }
 

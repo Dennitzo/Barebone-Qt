@@ -1143,6 +1143,12 @@ QString normalizedGeneralWorkflowLatex(QString text)
     text.replace(QStringLiteral("deltaT"), QStringLiteral("\\Delta T"));
     text.replace(QStringLiteral("Delta T"), QStringLiteral("\\Delta T"));
     text.replace(QStringLiteral("delta T"), QStringLiteral("\\Delta T"));
+    text.replace(QStringLiteral("Φ"), QStringLiteral("\\Phi"));
+    text.replace(QStringLiteral("Σ"), QStringLiteral("\\sum"));
+    text.replace(QStringLiteral("Ψ"), QStringLiteral("\\Psi"));
+    text.replace(QStringLiteral("χ"), QStringLiteral("\\chi"));
+    text.replace(QStringLiteral("θ"), QStringLiteral("\\theta"));
+    text.replace(QStringLiteral("Θ"), QStringLiteral("\\Theta"));
     text.replace(QStringLiteral("ΔT"), QStringLiteral("\\Delta T"));
     text.replace(QStringLiteral("Δ T"), QStringLiteral("\\Delta T"));
     text.replace(QStringLiteral("Δ"), QStringLiteral("\\Delta"));
@@ -1159,7 +1165,6 @@ QString normalizedGeneralWorkflowLatex(QString text)
     text.replace(QStringLiteral("?"), QStringLiteral("\\dot{V}"));
     text.replace(QStringLiteral("·"), QStringLiteral("\\cdot"));
     text.replace(QStringLiteral("×"), QStringLiteral("\\cdot"));
-    text.replace(QStringLiteral("*"), QStringLiteral(" \\cdot "));
     text.replace(QStringLiteral("˜"), QStringLiteral("\\approx"));
     text.replace(QStringLiteral("²"), QStringLiteral("^2"));
     text.replace(QStringLiteral("³"), QStringLiteral("^3"));
@@ -1195,6 +1200,7 @@ QString normalizedGeneralWorkflowLatex(QString text)
     text.replace(QRegularExpression(QStringLiteral(R"(\bW\s*/\s*\(?\s*m\s*\^\s*\{?2\}?\s*(?:\\cdot|\*)\s*K\s*\)?)")),
         QStringLiteral("\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}"));
     text = normalizeLatexUprightSubscripts(text);
+    text.replace(QRegularExpression(QStringLiteral("\\s*\\\\cdot\\s*")), QStringLiteral(" \\\\cdot "));
     return text.trimmed();
 }
 
@@ -1914,9 +1920,73 @@ QString stripMarkdownCodeFence(QString text)
     return text;
 }
 
-QString titleCandidateFromText(QString text)
+bool isGeneralWorkflowSaveMetaInstruction(const QString& text)
+{
+    const QString slug = workflowSlug(text);
+    return slug == QStringLiteral("workflow_speichern")
+        || slug == QStringLiteral("save_workflow")
+        || slug == QStringLiteral("speichern")
+        || slug == QStringLiteral("so_speichern")
+        || slug.startsWith(QStringLiteral("speichere_ausschliesslich_diese_ai_nachricht"))
+        || slug.startsWith(QStringLiteral("speichere_diese_ai_nachricht"))
+        || slug.startsWith(QStringLiteral("speichere_ausgewaehlte_ai_nachricht"));
+}
+
+bool isGeneralWorkflowBoilerplateLine(const QString& line)
+{
+    QString value = repairMojibakeText(line).trimmed();
+    if (value.isEmpty()) {
+        return false;
+    }
+
+    QString plain = value;
+    plain.replace(QRegularExpression(QStringLiteral(R"(\*\*([^*]+)\*\*)")), QStringLiteral("\\1"));
+    plain.replace(QRegularExpression(QStringLiteral(R"(__([^_]+)__)")), QStringLiteral("\\1"));
+    plain = cleanedGeneralWorkflowHeading(plain);
+
+    const QString plainSlug = workflowSlug(plain);
+    const QString fullSlug = workflowSlug(value);
+    return isGeneralWorkflowSaveMetaInstruction(plain)
+        || fullSlug.startsWith(QStringLiteral("workflow_entwurf_speichere_ausschliesslich_diese_ai_nachricht"))
+        || fullSlug.startsWith(QStringLiteral("workflow_entwurf_speichere_diese_ai_nachricht"))
+        || fullSlug.startsWith(QStringLiteral("workflow_speichere_ausschliesslich_diese_ai_nachricht"))
+        || plainSlug.startsWith(QStringLiteral("speichere_ausschliesslich_diese_ai_nachricht"));
+}
+
+bool isOnlyMarkdownRuleText(const QString& text)
+{
+    const QStringList lines = repairMojibakeText(text).split(QLatin1Char('\n'));
+    bool sawContent = false;
+    for (QString line : lines) {
+        line = line.trimmed();
+        if (line.isEmpty()) {
+            continue;
+        }
+        sawContent = true;
+        if (!QRegularExpression(QStringLiteral(R"(^(-{3,}|_{3,}|\*{3,})$)")).match(line).hasMatch()) {
+            return false;
+        }
+    }
+    return sawContent;
+}
+
+QString sanitizedGeneralWorkflowSourceText(QString text)
 {
     text = stripMarkdownCodeFence(text);
+    QStringList keptLines;
+    const QStringList lines = text.split(QLatin1Char('\n'));
+    for (const QString& line : lines) {
+        if (isGeneralWorkflowBoilerplateLine(line)) {
+            continue;
+        }
+        keptLines << line;
+    }
+    return keptLines.join(QLatin1Char('\n')).trimmed();
+}
+
+QString titleCandidateFromText(QString text)
+{
+    text = sanitizedGeneralWorkflowSourceText(text);
     const QStringList lines = text.split(QLatin1Char('\n'));
     for (const QString& rawLine : lines) {
         QString line = cleanedGeneralWorkflowHeading(rawLine);
@@ -1949,7 +2019,9 @@ QString titleCandidateFromSaveContext(const QJsonObject& saveContext)
     }
 
     const QString instruction = cleanedGeneralWorkflowHeading(saveContext.value(QStringLiteral("userInstruction")).toString());
-    if (!instruction.isEmpty() && !isGenericGeneralWorkflowName(instruction)) {
+    if (!instruction.isEmpty()
+        && !isGenericGeneralWorkflowName(instruction)
+        && !isGeneralWorkflowSaveMetaInstruction(instruction)) {
         return instruction.left(90).trimmed();
     }
 
@@ -1978,7 +2050,7 @@ QString titleCandidateFromSaveContext(const QJsonObject& saveContext)
 QString descriptionFromGeneralWorkflowText(const QString& text, const QString& title)
 {
     const QString normalizedTitle = cleanedGeneralWorkflowHeading(title);
-    const QStringList paragraphs = stripMarkdownCodeFence(text).split(QRegularExpression(QStringLiteral("\\n\\s*\\n")));
+    const QStringList paragraphs = sanitizedGeneralWorkflowSourceText(text).split(QRegularExpression(QStringLiteral("\\n\\s*\\n")));
     for (QString paragraph : paragraphs) {
         paragraph = repairMojibakeText(paragraph).trimmed();
         if (paragraph.isEmpty()) {
@@ -1996,7 +2068,7 @@ QString descriptionFromGeneralWorkflowText(const QString& text, const QString& t
 
 QJsonArray generalWorkflowBlocksFromMarkdown(QString text, const QString& title)
 {
-    text = stripMarkdownCodeFence(text);
+    text = sanitizedGeneralWorkflowSourceText(text);
     QJsonArray blocks;
     QString currentTitle = QStringLiteral("Inhalt");
     QStringList currentLines;
@@ -2007,7 +2079,8 @@ QJsonArray generalWorkflowBlocksFromMarkdown(QString text, const QString& title)
 
     auto flushBlock = [&]() {
         QString body = currentLines.join(QLatin1Char('\n')).trimmed();
-        if (body.isEmpty()) {
+        if (body.isEmpty() || isOnlyMarkdownRuleText(body)) {
+            currentLines.clear();
             return;
         }
         QString blockTitle = cleanedGeneralWorkflowHeading(currentTitle);
@@ -2067,7 +2140,7 @@ QJsonArray generalWorkflowBlocksFromMarkdown(QString text, const QString& title)
 
 QJsonObject generalWorkflowFromAiText(const QString& content, const QJsonObject& saveContext)
 {
-    QString text = stripMarkdownCodeFence(content);
+    QString text = sanitizedGeneralWorkflowSourceText(content);
     if (text.trimmed().isEmpty()) {
         return {};
     }
@@ -5746,7 +5819,7 @@ BricsCadPage::ContextBuildResult BricsCadPage::buildGeneralMessagesForBudget(
             "Wenn die Nutzeranfrage einen Dokumentkontext enthaelt, nutze diesen als primaere Quelle und verweise bei PDFs nach Moeglichkeit auf Seiten. "
             "Bei Berechnungen nenne immer zuerst die Grundgleichung, erklaere danach kurz alle in der Grundgleichung verwendeten Symbole, danach die Werte mit SI-Einheiten und erst dann das Ergebnis. "
             "Fuehre Einheiten in jeder eingesetzten Zahl und in jedem Zwischenschritt mit; schreibe Summen nicht als reine Zahlenkette mit Einheit nur am Ende. "
-            "Wenn Werte nicht in SI-Einheiten vorliegen, zeige zuerst die Umrechnung in SI-Einheiten. Schreibe Einheiten nie in LaTeX-Indizes; erklaere Einheiten im Text, in Tabellen oder in Rechenschritten. Pro Index darf maximal ein \\mathrm{...} vorkommen, z.B. \\Phi_{\\mathrm{HL,Gebaeude}} statt \\Phi_{\\mathrm{HL},\\mathrm{Gebaeude}}. "
+            "Wenn Werte nicht in SI-Einheiten vorliegen, zeige zuerst die Umrechnung in SI-Einheiten. "
             "Wenn der Nutzer nach Rechtschreibfehlern, Tippfehlern oder Korrektur fragt, liste gefundene Stellen mit Original und Korrektur; wenn du keine offensichtlichen Fehler findest, sage das ausdruecklich.");
 
     const int maxHistoryMessages = static_cast<int>(m_agentConversation.size());
@@ -6721,7 +6794,7 @@ void BricsCadPage::sendAgentEnvelope(const QJsonObject& envelope, const QString&
         "Der Nutzer befindet sich im Allgemeinen Modus. Der eingehende User-Content ist ein JSON-Envelope, aber deine Antwort soll eine normale direkte Chatantwort sein.\n"
         "Nutze aus dem Envelope vor allem userPrompt, documentContext, selectedWorkflow, selectedWorkflows, workflowCapsules, compactState und conversation. Ignoriere JSON-responseContract-Vorgaben, solange keine CAD-Aktion freigegeben ist.\n"
         "Wenn selectedWorkflow oder workflowCapsules einen allgemeinen Workflow enthalten, behandle dessen Tabellen, Formeln, Beispiele, Annahmen und contextSummary als primaeren Kontext fuer die Antwort.\n"
-        "Bei Berechnungen gilt: erst die Grundgleichung, dann alle verwendeten Symbole kurz erklaeren, dann Werte mit SI-Einheiten einsetzen, dann Zwischenergebnisse und Endergebnis. Jede eingesetzte Zahl und jeder Summand muss seine Einheit tragen; keine reinen Zahlenketten mit Einheit nur am Ende. Wenn Eingaben nicht in SI-Einheiten vorliegen, zeige zuerst die SI-Umrechnung. Keine Einheiten in LaTeX-Indizes schreiben. Pro Index darf maximal ein \\mathrm{...} vorkommen, z.B. \\Phi_{\\mathrm{HL,Gebaeude}} statt \\Phi_{\\mathrm{HL},\\mathrm{Gebaeude}}.\n"
+        "Bei Berechnungen gilt: erst die Grundgleichung, dann alle verwendeten Symbole kurz erklaeren, dann Werte mit SI-Einheiten einsetzen, dann Zwischenergebnisse und Endergebnis. Jede eingesetzte Zahl und jeder Summand muss seine Einheit tragen; keine reinen Zahlenketten mit Einheit nur am Ende. Wenn Eingaben nicht in SI-Einheiten vorliegen, zeige zuerst die SI-Umrechnung.\n"
         "Antworte nicht als JSON-Objekt und verwende keinen Barebone-Agent-Antworttyp. Markdown fuer Listen, Tabellen und Codebloecke ist erlaubt.\n"
         "Schlage keine CAD-Tools, keine BRX-Ausfuehrung und keine Aktionen vor. Wenn Live-BricsCAD-Daten noetig waeren, erklaere knapp, dass dafuer der BricsCAD-Modus/BRX-Kontext erforderlich ist.")
         .arg(aiLanguageInstruction(m_config));
@@ -7063,12 +7136,16 @@ QJsonArray BricsCadPage::generalWorkflowIndex() const
             continue;
         }
 
-        const QByteArray prefix = file.read(64 * 1024);
-        const qsizetype nestedStart = prefix.indexOf("\"display\"");
-        const QByteArray metadataPrefix = nestedStart > 0 ? prefix.left(nestedStart) : prefix;
+        QJsonObject workflow;
+        QJsonParseError parseError;
+        const QJsonDocument document = QJsonDocument::fromJson(file.readAll(), &parseError);
+        if (parseError.error == QJsonParseError::NoError && document.isObject()) {
+            workflow = document.object();
+        }
+
         const QFileInfo info(file);
         const QString id = info.baseName();
-        QString title = jsonStringFieldFromPrefix(metadataPrefix, QStringLiteral("title"));
+        QString title = repairMojibakeText(workflow.value(QStringLiteral("title")).toString()).trimmed();
         if (title.trimmed().isEmpty()) {
             title = repairMojibakeText(info.baseName()).replace(QLatin1Char('_'), QLatin1Char(' '));
         }
@@ -7076,9 +7153,9 @@ QJsonArray BricsCadPage::generalWorkflowIndex() const
             {"fileName", fileName},
             {"id", id},
             {"title", title},
-            {"description", jsonStringFieldFromPrefix(metadataPrefix, QStringLiteral("description"))},
+            {"description", repairMojibakeText(workflow.value(QStringLiteral("description")).toString()).trimmed()},
             {"kind", "general"},
-            {"verificationStatus", jsonStringFieldFromPrefix(metadataPrefix, QStringLiteral("verificationStatus"))},
+            {"verificationStatus", repairMojibakeText(workflow.value(QStringLiteral("verificationStatus")).toString()).trimmed()},
         });
     }
     return workflows;
@@ -7272,11 +7349,16 @@ QJsonObject BricsCadPage::loadGeneralWorkflowById(const QString& workflowId, QSt
             continue;
         }
         QJsonObject workflow = document.object();
-        const QString id = workflow.value("id").toString(QFileInfo(candidate).baseName());
-        if (workflowSlug(id) == normalizedId || workflowSlug(QFileInfo(candidate).baseName()) == normalizedId) {
+        const QString fileBaseName = QFileInfo(candidate).baseName();
+        const QString id = workflow.value("id").toString(fileBaseName);
+        if (workflowSlug(id) == normalizedId || workflowSlug(fileBaseName) == normalizedId) {
             if (fileName) {
                 *fileName = candidate;
             }
+            if (workflowSlug(id) != workflowSlug(fileBaseName)) {
+                workflow.insert(QStringLiteral("sourceId"), id);
+            }
+            workflow.insert(QStringLiteral("id"), fileBaseName);
             workflow.insert(QStringLiteral("fileName"), candidate);
             workflow.insert(QStringLiteral("kind"), QStringLiteral("general"));
             return workflow;
@@ -8961,7 +9043,9 @@ bool BricsCadPage::retryGeneralWorkflowSaveAfterValidationFailure(
         "Keine Markdown-Antwort, kein Codeblock, keine Erklaerung ausserhalb von JSON. "
         "Pflichtfelder: schema, id, title, description, blocks[]. Jeder block braucht id, title und text. "
         "Nutze blocks[] als grobe Absatzstruktur und schreibe die fachliche Tiefe in blocks[].text. "
-        "title und id duerfen nicht Workflow, Neuer Workflow, Chat Workflow, General Workflow oder aehnlich generisch heissen. "
+        "Wenn selectedWorkflow leer ist, muss title ein kurzer, passender Anzeigename fuer das konkrete Thema sein und id muss daraus als stabiler snake_case Dateiname abgeleitet werden. "
+        "title und id duerfen nicht Workflow, Neuer Workflow, Chat Workflow, General Workflow, Workflow speichern oder aehnlich generisch heissen. "
+        "Wenn selectedWorkflow vorhanden ist, behalte dessen id exakt bei und aendere title nur bei ausdruecklichem Umbenennungswunsch des Nutzers. "
         "Keine BricsCAD-Workflow-Felder wie steps, executionBatches, validationExamples oder tools. "
         "Wenn Formeln vorkommen, nutze formulas[] mit expression und latex oder schreibe Display-Formeln als \\\\[...\\\\] in block.text. "
         "LaTeX darf nicht als zerstoerte Einzelbuchstaben-Formel ausgegeben werden. "
@@ -9767,6 +9851,11 @@ void BricsCadPage::saveGeneralWorkflowFromTraining(
             {"messagesIncluded", compactConversation.size()},
             {"messagesTotal", m_agentConversation.size()},
         }},
+        {"namingPolicy", QJsonObject{
+            {"newWorkflowTitle", QStringLiteral("Wenn selectedWorkflow leer ist, erzeuge einen kurzen, treffenden Titel direkt aus dem konkreten Thema des Inhalts. Dieser Titel wird in der Sidebar angezeigt.")},
+            {"idPolicy", QStringLiteral("Wenn selectedWorkflow leer ist, leite id als stabilen snake_case Dateinamen aus title ab. Keine generischen IDs wie workflow oder neuer_workflow.")},
+            {"overwritePolicy", QStringLiteral("Wenn selectedWorkflow vorhanden ist, behalte dessen id bei und aktualisiere den title nur, wenn der Nutzer eine Umbenennung verlangt.")},
+        }},
         {"requiredSchema", QJsonObject{
             {"schema", "barebone.general.workflow.save.response.v1"},
             {"fields", QJsonArray{"schema", "id", "title", "description", "blocks", "tables", "inputs", "formulas", "examples", "assumptions", "warnings", "sourceRefs", "verificationStatus", "tags"}},
@@ -9790,15 +9879,13 @@ void BricsCadPage::saveGeneralWorkflowFromTraining(
                 "Bei Berechnungen muss nach jeder Grundgleichung eine kurze Symbolerklaerung der verwendeten Groessen folgen. "
                 "Rechenschritte muessen Einheiten an jeder eingesetzten Zahl und jedem Summanden fuehren; keine reine Zahlenkette mit Einheit nur am Ende. "
                 "Wenn Eingabewerte nicht in SI-Einheiten vorliegen, zeige zuerst die Umrechnung in SI-Einheiten. "
-                "Schreibe Einheiten nie in LaTeX-Indizes; verwende Indizes nur fuer fachliche Bezeichnungen und erklaere Einheiten im Text oder in Tabellen. Pro Index darf maximal ein \\mathrm{...} vorkommen; nutze z.B. \\Phi_{\\mathrm{HL,Gebaeude}} statt \\Phi_{\\mathrm{HL},\\mathrm{Gebaeude}}. "
-                "Gib Einheiten und Brueche in LaTeX sauber aus, z.B. \\\\frac{m^3}{s}, \\\\frac{J}{kg\\\\cdot K}. "
-                "Vermeide zerstoerte Unicode-Formeln oder einzelne Buchstabenketten wie c d o t; nutze stattdessen LaTeX-Befehle wie \\\\cdot, \\\\rho, \\\\Delta T. "
                 "Tabellen muessen entweder als tables[] mit columns und rows oder als gueltige Markdown-Pipe-Tabelle mit Header, |---|---|-Trennzeile und Datenzeilen ausgegeben werden; keine tabulatorgetrennten Tabellen. "
                 "Aufzaehlungen muessen echte Markdown-Listen sein, je ein Punkt pro Zeile mit '- ' oder '1. '; keine zusammengeklebten Listen in einer Zeile. "
                 "Nutze keine HTML-Tags wie <br>; verwende echte Zeilenumbrueche. "
-                "Wenn du eine Formel als Klartext oder Code zeigen willst, nutze stattdessen Display-LaTeX \\\\[...\\\\] oder einen vollstaendigen Markdown-Codeblock, aber kein loses Wort 'text' vor der Formel. "
                 "Bei Korrektur-Retries wegen Formatierung darfst du fachliche Inhalte nicht kuerzen oder neu zusammenfassen; korrigiere nur die betroffenen Formatierungen und erhalte alle Details. "
-                "title und id duerfen nicht Workflow, Neuer Workflow, Chat Workflow, General Workflow oder aehnlich generisch heissen. Benenne direkt das konkrete Thema. "
+                "Wenn selectedWorkflow leer ist, musst du selbst einen kurzen, passenden title fuer das konkrete Thema erstellen; dieser title wird in der Sidebar angezeigt. "
+                "Leite id daraus als stabilen snake_case Dateinamen ab. title und id duerfen nicht Workflow, Neuer Workflow, Chat Workflow, General Workflow oder aehnlich generisch heissen. "
+                "Wenn selectedWorkflow vorhanden ist, behalte dessen id exakt bei und aendere title nur bei ausdruecklichem Umbenennungswunsch des Nutzers. "
                 "Nutze keine BricsCAD-Workflow-Felder wie steps, executionBatches, validationExamples oder tools. "
                 "Wenn pendingWorkflow vorhanden ist, ueberarbeite diesen anhand userInstruction. "
                 "Wenn selectedWorkflow vorhanden ist, ueberarbeite und ueberschreibe ihn statt eine neue ID zu erfinden. "
@@ -14497,7 +14584,7 @@ QJsonObject BricsCadPage::agentRequestEnvelope(const QString& prompt, const QJso
         responseContract = QJsonObject{
             {"schema", "barebone.general.response.v1"},
             {"format", "plain_text"},
-            {"policy", QStringLiteral("%1 Antworte direkt als normale Chatantwort. Kein JSON-Objekt, kein Barebone-Agent-Antworttyp. Markdown ist erlaubt. Bei Berechnungen: zuerst Grundgleichung, dann Symbolerklärung, dann SI-Umrechnung, dann Rechenschritte mit Einheit an jeder Zahl und jedem Summanden, dann Ergebnis. Keine Einheiten in LaTeX-Indizes. Pro Index maximal ein \\mathrm{...}, z.B. \\Phi_{\\mathrm{HL,Gebaeude}} statt \\Phi_{\\mathrm{HL},\\mathrm{Gebaeude}}.")
+            {"policy", QStringLiteral("%1 Antworte direkt als normale Chatantwort. Kein JSON-Objekt, kein Barebone-Agent-Antworttyp. Markdown ist erlaubt. Bei Berechnungen: zuerst Grundgleichung, dann Symbolerklärung, dann SI-Umrechnung, dann Rechenschritte mit Einheit an jeder Zahl und jedem Summanden, dann Ergebnis.")
                 .arg(aiLanguageInstruction(m_config))},
         };
     }

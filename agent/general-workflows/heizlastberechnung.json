@@ -1,5 +1,5 @@
 ﻿{
-    "title":  "Heizlastberechnung_DIN_EN_12831",
+    "title":  "Heizlastberechnung",
     "contextSummary":  "Detailliertes Arbeitsdokument zur Norm-Heizlast nach DIN EN 12831-1 und DIN/TS 12831-1 mit raumweiser Heizlast, Gebäudeheizlast, Transmissionswärmeverlusten, U-Wert-Prüftabelle, Lüftungswärmeverlusten, n-Kennzahlen, Aufheizzuschlag, Heizflächen-/Volumenstromauslegung, TWW-Abgrenzung nach DIN EN 12831-3 und TGA-Dokumentationscheckliste. Die Zahlen sind didaktische Beispiel- und Plausibilitätswerte und ersetzen keine projektbezogene Normberechnung mit nationalem Anhang.",
     "description":  "Didaktisches Arbeitsdokument zur Heizlastberechnung nach DIN EN 12831. Es trennt die raumweise Norm-Heizlast von der Gebäudeheizlast und von der Trinkwarmwasserleistung. Es zeigt die wichtigsten Rechengrößen, U-Wert- und n-Kennzahl-Prüftabellen, Formeln, TGA-Prüfschritte und eine korrigierte Beispielrechnung für Transmission und Lüftung. Normative Randwerte müssen projektbezogen aus DIN EN 12831-1, DIN/TS 12831-1 und nationalen Anhängen geprüft werden.",
     "display":  {
@@ -32,7 +32,7 @@
                                    {
                                        "id":  "transmission",
                                        "title":  "Transmissionswärmeverluste",
-                                       "text":  "Transmissionswärmeverluste beschreiben den Wärmeverlust über Bauteile der Gebäudehülle, zum Beispiel Außenwände, Fenster, Dach, Bodenplatte oder Türen.\n\nJe Bauteil:\n\n\\[\\Phi_{\\mathrm{T,k}} = U_{\\mathrm{k}} \\cdot A_{\\mathrm{k}} \\cdot (\\theta_{\\mathrm{int,i}} - \\theta_{\\mathrm{x}})\\]\n\n- \\(U_{\\mathrm{k}}\\): Wärmedurchgangskoeffizient des Bauteils in \\(\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\)\n- \\(A_{\\mathrm{k}}\\): Fläche des Bauteils in \\(\\mathrm{m^2}\\)\n- \\(\\theta_{\\mathrm{int,i}}\\): Norm-Innentemperatur des Raumes\n- \\(\\theta_{\\mathrm{x}}\\): Temperatur auf der anderen Seite des Bauteils, z. B. Außenluft, unbeheizter Raum, Erdreich oder Nachbarraum\n\nRaumweiser Transmissionswärmeverlust inklusive Wärmebrücken:\n\n\\[\\Phi_{\\mathrm{T,i}} = \\sum_{\\mathrm{k}} U_{\\mathrm{k}} \\cdot A_{\\mathrm{k}} \\cdot \\Delta \\theta_k + \\sum_{\\mathrm{l}} \\Psi_{\\mathrm{l}} \\cdot l_{\\mathrm{l}} \\cdot \\Delta \\theta_l + \\sum_{\\mathrm{m}} \\chi_{\\mathrm{m}} \\cdot \\Delta \\theta_m\\]\n\nKompakt über den Transmissionswärmeverlustkoeffizienten:\n\n\\[\\Phi_{\\mathrm{T,i}} = H_{\\mathrm{T,i}} \\cdot \\Delta \\theta\\]\n\n\\[H_{\\mathrm{T,i}} = \\sum_{\\mathrm{k}} U_{\\mathrm{k}} A_{\\mathrm{k}} + \\sum_{\\mathrm{l}} \\Psi_{\\mathrm{l}} l_{\\mathrm{l}} + \\sum_{\\mathrm{m}} \\chi_{\\mathrm{m}}\\]\n\nBeispielhafte U-Werte dürfen nicht ungeprüft als Normwerte verwendet werden. Für reale Projekte müssen U-Werte aus Planung, Bestand, Nachweis oder nationalem Anhang übernommen werden."
+                                       "text":  "Transmissionswärmeverluste beschreiben den Wärmeverlust über Bauteile der Gebäudehülle, zum Beispiel Außenwände, Fenster, Dach, Bodenplatte oder Türen.\n\nJe Bauteil:\n\n\\[\\Phi_{\\mathrm{T,k}} = U_{\\mathrm{k}} \\cdot A_{\\mathrm{k}} \\cdot (\\theta_{\\mathrm{int,i}} - \\theta_{\\mathrm{x}})\\]\n\n- \\(U_{\\mathrm{k}}\\): Wärmedurchgangskoeffizient des Bauteils in \\(\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\)\n- \\(A_{\\mathrm{k}}\\): Fläche des Bauteils in \\(\\mathrm{m^2}\\)\n- \\(\\theta_{\\mathrm{int,i}}\\): Norm-Innentemperatur des Raumes\n- \\(\\theta_{\\mathrm{x}}\\): Temperatur auf der anderen Seite des Bauteils, z. B. Außenluft, unbeheizter Raum, Erdreich oder Nachbarraum\n\nRaumweiser Transmissionswärmeverlust inklusive Wärmebrücken:\n\n\\[\\Phi_{\\mathrm{T,i}} = \\sum_{\\mathrm{k}} U_{\\mathrm{k}} \\cdot A_{\\mathrm{k}} \\cdot \\Delta \\theta_k + \\sum_{\\mathrm{l}} \\Psi_{\\mathrm{l}} \\cdot l_{\\mathrm{l}} \\cdot \\Delta \\theta_l + \\sum_{\\mathrm{m}} \\chi_{\\mathrm{m}} \\cdot \\Delta \\theta_m\\]\n\nKompakt über den Transmissionswärmeverlustkoeffizienten:\n\n\\[\\Phi_{\\mathrm{T,i}} = H_{\\mathrm{T,i}} \\cdot \\Delta \\theta\\]\n\n\\[H_{\\mathrm{T,i}} = \\sum_{\\mathrm{k}} U_{\\mathrm{k}} \\cdot A_{\\mathrm{k}} + \\sum_{\\mathrm{l}} \\Psi_{\\mathrm{l}} \\cdot l_{\\mathrm{l}} + \\sum_{\\mathrm{m}} \\chi_{\\mathrm{m}}\\]\n\nBeispielhafte U-Werte dürfen nicht ungeprüft als Normwerte verwendet werden. Für reale Projekte müssen U-Werte aus Planung, Bestand, Nachweis oder nationalem Anhang übernommen werden."
                                    },
                                    {
                                        "id":  "lueftung",
@@ -92,7 +92,7 @@
                                    {
                                        "id":  "kontrollformel_kette",
                                        "title":  "Kompakte Kontrollformel-Kette",
-                                       "text":  "Für jeden Raum:\n\n\\[V_{\\mathrm{i}} = A_{\\mathrm{i}} \\cdot h_{\\mathrm{i}}\\]\n\n\\[\\dot{V}_{\\mathrm{i}} = n_{\\mathrm{i}} \\cdot V_{\\mathrm{i}}\\]\n\n\\[\\Phi_{\\mathrm{T,i}} = \\sum U A \\Delta \\theta + \\sum \\Psi l \\Delta \\theta + \\sum \\chi \\Delta \\theta\\]\n\n\\[\\Phi_{\\mathrm{V,i}} = 0{,}34 \\cdot \\dot{V}_{\\mathrm{i}} \\cdot \\Delta \\theta\\]\n\n\\[\\Phi_{\\mathrm{HL,i}} = \\Phi_{\\mathrm{T,i}} + \\Phi_{\\mathrm{V,i}} + \\Phi_{\\mathrm{RH,i}}\\]\n\nFür das Gebäude:\n\n\\[\\Phi_{\\mathrm{HL,Gebaeude}} = \\sum_{\\mathrm{i}} \\Phi_{\\mathrm{HL,i}}\\]\n\nFür die Heizungs-Hydraulik:\n\n\\[\\dot{V}_{\\mathrm{w,i}} = \\frac{\\Phi_{\\mathrm{HL,i}}}{1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l}\\cdot\\mathrm{K}} \\cdot \\Delta T}\\]\n\nDer Faktor \\(1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l}\\cdot\\mathrm{K}}\\) wird für Wasser in der Praxisformel verwendet, wenn Leistung in \\(\\mathrm{W}\\), Spreizung in \\(\\mathrm{K}\\) und Volumenstrom in \\(\\mathrm{l/h}\\) gerechnet werden.\n\nDamit ist die Checkliste direkt als Grundlage für eine TGA-Planungsstruktur verwendbar: zuerst Raumdaten und Gebäudehülle, dann Lüftung, dann raumweise Heizflächen, anschließend Wärmeerzeuger und Sanitär-Warmwasser getrennt bewerten."
+                                       "text":  "Für jeden Raum:\n\n\\[V_{\\mathrm{i}} = A_{\\mathrm{i}} \\cdot h_{\\mathrm{i}}\\]\n\n\\[\\dot{V}_{\\mathrm{i}} = n_{\\mathrm{i}} \\cdot V_{\\mathrm{i}}\\]\n\n\\[\\Phi_{\\mathrm{T,i}} = \\sum U \\cdot A \\cdot \\Delta \\theta + \\sum \\Psi \\cdot l \\cdot \\Delta \\theta + \\sum \\chi \\cdot \\Delta \\theta\\]\n\n\\[\\Phi_{\\mathrm{V,i}} = 0{,}34 \\cdot \\dot{V}_{\\mathrm{i}} \\cdot \\Delta \\theta\\]\n\n\\[\\Phi_{\\mathrm{HL,i}} = \\Phi_{\\mathrm{T,i}} + \\Phi_{\\mathrm{V,i}} + \\Phi_{\\mathrm{RH,i}}\\]\n\nFür das Gebäude:\n\n\\[\\Phi_{\\mathrm{HL,Gebaeude}} = \\sum_{\\mathrm{i}} \\Phi_{\\mathrm{HL,i}}\\]\n\nFür die Heizungs-Hydraulik:\n\n\\[\\dot{V}_{\\mathrm{w,i}} = \\frac{\\Phi_{\\mathrm{HL,i}}}{1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l}\\cdot\\mathrm{K}} \\cdot \\Delta T}\\]\n\nDer Faktor \\(1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l}\\cdot\\mathrm{K}}\\) wird für Wasser in der Praxisformel verwendet, wenn Leistung in \\(\\mathrm{W}\\), Spreizung in \\(\\mathrm{K}\\) und Volumenstrom in \\(\\mathrm{l/h}\\) gerechnet werden.\n\nDamit ist die Checkliste direkt als Grundlage für eine TGA-Planungsstruktur verwendbar: zuerst Raumdaten und Gebäudehülle, dann Lüftung, dann raumweise Heizflächen, anschließend Wärmeerzeuger und Sanitär-Warmwasser getrennt bewerten."
                                    },
                                    {
                                        "id":  "neubau_zweiraum_wohnzimmer_bad_beispiel",
@@ -140,7 +140,7 @@
                          "id":  "transmissionsverlust_raum",
                          "name":  "Raumweiser Transmissionswärmeverlust",
                          "expression":  "Phi_T_i = sum(U*A*DeltaTheta) + sum(Psi*l*DeltaTheta) + sum(chi*DeltaTheta)",
-                         "latex":  "\\Phi_{\\mathrm{T,i}} = \\sum_{\\mathrm{k}} U_{\\mathrm{k}} A_{\\mathrm{k}} \\Delta\\theta_k + \\sum_{\\mathrm{l}} \\Psi_{\\mathrm{l}} l_{\\mathrm{l}} \\Delta\\theta_l + \\sum_{\\mathrm{m}} \\chi_{\\mathrm{m}} \\Delta\\theta_m",
+                         "latex":  "\\Phi_{\\mathrm{T,i}} = \\sum_{\\mathrm{k}} U_{\\mathrm{k}} \\cdot A_{\\mathrm{k}} \\cdot \\Delta\\theta_k + \\sum_{\\mathrm{l}} \\Psi_{\\mathrm{l}} \\cdot l_{\\mathrm{l}} \\cdot \\Delta\\theta_l + \\sum_{\\mathrm{m}} \\chi_{\\mathrm{m}} \\cdot \\Delta\\theta_m",
                          "description":  "Transmissionswärmeverlust eines Raumes inklusive Wärmebrücken."
                      },
                      {
@@ -179,7 +179,7 @@
                          "description":  "Praxisformel für Trinkwarmwasserleistung in W; der Volumenstrom wird in l/h eingesetzt und der Faktor 1,163 Wh/(l·K) beschreibt die volumetrische Wärmekapazität von Wasser."
                      }
                  ],
-    "id":  "heizlastberechnung_din_en_12831_detail",
+    "id":  "Heizlastberechnung_detail",
     "kind":  "general",
     "schema":  "barebone.general.workflow.v1",
     "sourceRefs":  [
@@ -559,3 +559,4 @@
                      "Ein pauschaler Sicherheitszuschlag ist projektbezogen zu begründen und nicht automatisch als DIN-Standard anzusetzen."
                  ]
 }
+

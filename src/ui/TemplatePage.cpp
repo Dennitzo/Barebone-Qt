@@ -26,9 +26,9 @@ QWidget* wrapCard(QWidget* content, QWidget* parent, int height = 138)
     card->setObjectName("metricCard");
     card->setFixedHeight(height);
     auto* shadow = new QGraphicsDropShadowEffect(card);
-    shadow->setBlurRadius(28);
-    shadow->setColor(QColor(16, 24, 40, 24));
-    shadow->setOffset(0, 10);
+    shadow->setBlurRadius(34);
+    shadow->setColor(QColor(16, 24, 40, 36));
+    shadow->setOffset(0, 12);
     card->setGraphicsEffect(shadow);
     auto* layout = new QVBoxLayout(card);
     layout->setContentsMargins(20, 18, 20, 18);
