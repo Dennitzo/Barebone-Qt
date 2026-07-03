@@ -385,6 +385,60 @@ QJsonObject agentResourceJsonObject(const QString& path)
     return document.object();
 }
 
+struct AgentWorkflowFile {
+    QString directoryPath;
+    QString fileName;
+    QString path;
+    bool bundled = false;
+};
+
+QVector<AgentWorkflowFile> agentWorkflowFiles(const QStringList& directoryPaths)
+{
+    QVector<AgentWorkflowFile> files;
+    for (const QString& directoryPath : directoryPaths) {
+        QDir dir(directoryPath);
+        if (!dir.exists()) {
+            continue;
+        }
+
+        const QStringList entries = dir.entryList(QStringList{QStringLiteral("*.json")}, QDir::Files, QDir::Name);
+        for (const QString& fileName : entries) {
+            files.append(AgentWorkflowFile{
+                directoryPath,
+                fileName,
+                dir.filePath(fileName),
+                directoryPath.startsWith(QStringLiteral(":/")),
+            });
+        }
+    }
+    return files;
+}
+
+bool readAgentWorkflowJson(const QString& path, QJsonObject* workflow, QString* errorMessage = nullptr)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        if (errorMessage) {
+            *errorMessage = file.errorString();
+        }
+        return false;
+    }
+
+    QJsonParseError parseError;
+    const QJsonDocument document = QJsonDocument::fromJson(file.readAll(), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+        if (errorMessage) {
+            *errorMessage = parseError.errorString();
+        }
+        return false;
+    }
+
+    if (workflow) {
+        *workflow = document.object();
+    }
+    return true;
+}
+
 QJsonObject brxToolCatalog()
 {
     return agentResourceJsonObject(QStringLiteral(":/agent/capabilities/brx-tools.json"));
@@ -7123,16 +7177,23 @@ QString BricsCadPage::generalWorkflowsDirectoryPath() const
 
 QJsonArray BricsCadPage::generalWorkflowIndex() const
 {
-    QDir dir(generalWorkflowsDirectoryPath());
     QJsonArray workflows;
-    if (!dir.exists()) {
-        return workflows;
-    }
+    QSet<QString> seen;
 
-    const QStringList files = dir.entryList(QStringList{QStringLiteral("*.json")}, QDir::Files, QDir::Name);
-    for (const QString& fileName : files) {
-        QFile file(dir.filePath(fileName));
-        if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    const QVector<AgentWorkflowFile> files = agentWorkflowFiles(QStringList{
+        generalWorkflowsDirectoryPath(),
+        QStringLiteral(":/agent/general-workflows"),
+    });
+    for (const AgentWorkflowFile& source : files) {
+        QJsonObject workflow;
+        if (!readAgentWorkflowJson(source.path, &workflow)) {
+            continue;
+        }
+
+        const QFileInfo info(source.fileName);
+        const QString id = workflow.value(QStringLiteral("id")).toString(info.baseName()).trimmed();
+        const QString slug = workflowSlug(id);
+        if (seen.contains(slug)) {
             continue;
         }
 
@@ -7147,12 +7208,13 @@ QJsonArray BricsCadPage::generalWorkflowIndex() const
         const QString id = info.baseName();
         QString title = repairMojibakeText(workflow.value(QStringLiteral("title")).toString()).trimmed();
         if (title.trimmed().isEmpty()) {
-            title = repairMojibakeText(info.baseName()).replace(QLatin1Char('_'), QLatin1Char(' '));
+            title = repairMojibakeText(id).replace(QLatin1Char('_'), QLatin1Char(' '));
         }
         workflows.append(QJsonObject{
-            {"fileName", fileName},
+            {"fileName", source.fileName},
             {"id", id},
             {"title", title},
+            {"description", repairMojibakeText(workflow.value(QStringLiteral("description")).toString()).trimmed()},
             {"description", repairMojibakeText(workflow.value(QStringLiteral("description")).toString()).trimmed()},
             {"kind", "general"},
             {"verificationStatus", repairMojibakeText(workflow.value(QStringLiteral("verificationStatus")).toString()).trimmed()},
@@ -7170,30 +7232,31 @@ QJsonArray BricsCadPage::workflowTrainingIndex() const
         return {};
     }
 
-    QDir dir(workflowsDirectoryPath());
     QJsonArray workflows;
-    if (!dir.exists()) {
-        return workflows;
-    }
+    QSet<QString> seen;
 
-    const QStringList files = dir.entryList(QStringList{QStringLiteral("*.json")}, QDir::Files, QDir::Name);
-    for (const QString& fileName : files) {
-        QFile file(dir.filePath(fileName));
-        if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            continue;
-        }
-
-        QJsonParseError parseError;
-        const QJsonDocument document = QJsonDocument::fromJson(file.readAll(), &parseError);
-        if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+    const QVector<AgentWorkflowFile> files = agentWorkflowFiles(QStringList{
+        workflowsDirectoryPath(),
+        QStringLiteral(":/agent/workflows"),
+    });
+    for (const AgentWorkflowFile& source : files) {
+        QJsonObject workflow;
+        QString parseError;
+        if (!readAgentWorkflowJson(source.path, &workflow, &parseError)) {
             workflows.append(QJsonObject{
-                {"fileName", fileName},
-                {"error", parseError.errorString()},
+                {"fileName", source.fileName},
+                {"error", parseError},
             });
             continue;
         }
 
-        QJsonObject workflow = document.object();
+        const QString id = workflow.value("id").toString(QFileInfo(source.fileName).baseName());
+        const QString slug = workflowSlug(id);
+        if (seen.contains(slug)) {
+            continue;
+        }
+        seen.insert(slug);
+
         const QByteArray compact = QJsonDocument(workflow).toJson(QJsonDocument::Compact);
         if (compact.size() > 12000) {
             workflow = QJsonObject{
@@ -7208,9 +7271,10 @@ QJsonArray BricsCadPage::workflowTrainingIndex() const
         }
 
         workflows.append(QJsonObject{
-            {"fileName", fileName},
-            {"id", workflow.value("id").toString(QFileInfo(fileName).baseName())},
-            {"title", workflow.value("title").toString(QFileInfo(fileName).baseName())},
+            {"fileName", source.fileName},
+            {"id", workflow.value("id").toString(QFileInfo(source.fileName).baseName())},
+            {"title", workflow.value("title").toString(QFileInfo(source.fileName).baseName())},
+            {"readOnly", source.bundled},
             {"workflow", workflow},
         });
     }
@@ -7290,32 +7354,23 @@ QJsonObject BricsCadPage::loadWorkflowById(const QString& workflowId, QString* f
     }
 
     const QString normalizedId = workflowSlug(workflowId);
-    QDir dir(workflowsDirectoryPath());
-    if (!dir.exists()) {
-        if (errorMessage) {
-            *errorMessage = QStringLiteral("Workflow-Verzeichnis fehlt: %1").arg(dir.absolutePath());
-        }
-        return {};
-    }
-
-    const QStringList files = dir.entryList(QStringList{QStringLiteral("*.json")}, QDir::Files, QDir::Name);
-    for (const QString& candidate : files) {
-        QFile file(dir.filePath(candidate));
-        if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    const QVector<AgentWorkflowFile> files = agentWorkflowFiles(QStringList{
+        workflowsDirectoryPath(),
+        QStringLiteral(":/agent/workflows"),
+    });
+    for (const AgentWorkflowFile& source : files) {
+        QJsonObject parsed;
+        if (!readAgentWorkflowJson(source.path, &parsed)) {
             continue;
         }
-        QJsonParseError parseError;
-        const QJsonDocument document = QJsonDocument::fromJson(file.readAll(), &parseError);
-        if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
-            continue;
-        }
-        QJsonObject workflow = normalizedGeneralWorkflowDraft(document.object());
-        const QString id = workflow.value("id").toString(QFileInfo(candidate).baseName());
-        if (workflowSlug(id) == normalizedId || workflowSlug(QFileInfo(candidate).baseName()) == normalizedId) {
+        QJsonObject workflow = normalizedGeneralWorkflowDraft(parsed);
+        const QString id = workflow.value("id").toString(QFileInfo(source.fileName).baseName());
+        if (workflowSlug(id) == normalizedId || workflowSlug(QFileInfo(source.fileName).baseName()) == normalizedId) {
             if (fileName) {
-                *fileName = candidate;
+                *fileName = source.fileName;
             }
-            workflow.insert(QStringLiteral("fileName"), candidate);
+            workflow.insert(QStringLiteral("fileName"), source.fileName);
+            workflow.insert(QStringLiteral("readOnly"), source.bundled);
             return workflow;
         }
     }
@@ -7329,18 +7384,13 @@ QJsonObject BricsCadPage::loadWorkflowById(const QString& workflowId, QString* f
 QJsonObject BricsCadPage::loadGeneralWorkflowById(const QString& workflowId, QString* fileName, QString* errorMessage) const
 {
     const QString normalizedId = workflowSlug(workflowId);
-    QDir dir(generalWorkflowsDirectoryPath());
-    if (!dir.exists()) {
-        if (errorMessage) {
-            *errorMessage = QStringLiteral("Allgemeines Workflow-Verzeichnis fehlt: %1").arg(dir.absolutePath());
-        }
-        return {};
-    }
-
-    const QStringList files = dir.entryList(QStringList{QStringLiteral("*.json")}, QDir::Files, QDir::Name);
-    for (const QString& candidate : files) {
-        QFile file(dir.filePath(candidate));
-        if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    const QVector<AgentWorkflowFile> files = agentWorkflowFiles(QStringList{
+        generalWorkflowsDirectoryPath(),
+        QStringLiteral(":/agent/general-workflows"),
+    });
+    for (const AgentWorkflowFile& source : files) {
+        QJsonObject workflow;
+        if (!readAgentWorkflowJson(source.path, &workflow)) {
             continue;
         }
         QJsonParseError parseError;
@@ -7353,7 +7403,7 @@ QJsonObject BricsCadPage::loadGeneralWorkflowById(const QString& workflowId, QSt
         const QString id = workflow.value("id").toString(fileBaseName);
         if (workflowSlug(id) == normalizedId || workflowSlug(fileBaseName) == normalizedId) {
             if (fileName) {
-                *fileName = candidate;
+                *fileName = source.fileName;
             }
             if (workflowSlug(id) != workflowSlug(fileBaseName)) {
                 workflow.insert(QStringLiteral("sourceId"), id);
@@ -7361,6 +7411,7 @@ QJsonObject BricsCadPage::loadGeneralWorkflowById(const QString& workflowId, QSt
             workflow.insert(QStringLiteral("id"), fileBaseName);
             workflow.insert(QStringLiteral("fileName"), candidate);
             workflow.insert(QStringLiteral("kind"), QStringLiteral("general"));
+            workflow.insert(QStringLiteral("readOnly"), source.bundled);
             return workflow;
         }
     }
@@ -7419,6 +7470,12 @@ bool BricsCadPage::deleteGeneralWorkflowById(const QString& workflowId, QString*
     if (workflow.isEmpty() || fileName.trimmed().isEmpty()) {
         if (errorMessage && errorMessage->trimmed().isEmpty()) {
             *errorMessage = QStringLiteral("Workflow wurde nicht gefunden.");
+        }
+        return false;
+    }
+    if (workflow.value(QStringLiteral("readOnly")).toBool(false)) {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("Mitgelieferte Workflows aus dem App-Bundle koennen nicht geloescht werden.");
         }
         return false;
     }
@@ -15259,5 +15316,3 @@ void BricsCadPage::openAgentSession(const QString& sessionId, const QVariantList
     emitContextBudget();
     emitCapabilitiesStatusToWeb();
 }
-
-

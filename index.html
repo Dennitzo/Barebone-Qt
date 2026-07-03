@@ -3536,7 +3536,7 @@
           selectedWorkflow = workflow;
         }
       }
-      const canShowWorkflow = trainingMode;
+      const canShowWorkflow = isBricsCadWorkspace();
       if (!canShowWorkflow || !selectedWorkflow || !selectedWorkflow.id) {
         activeWorkflow.classList.remove("visible");
         activeWorkflowName.textContent = t("workflowActive");
@@ -4078,7 +4078,7 @@
         trainingBaseModeIndicator.hidden = !showBaseMode;
         trainingBaseModeIndicator.style.display = showBaseMode ? "" : "none";
       }
-      const showWorkflowButton = trainingMode && isBricsCadWorkspace();
+      const showWorkflowButton = isBricsCadWorkspace();
       workflowsButton.hidden = !showWorkflowButton;
       workflowsButton.disabled = !showWorkflowButton;
       workflowsButton.style.display = showWorkflowButton ? "" : "none";
@@ -7730,7 +7730,7 @@
       }
     });
     workflowsButton.addEventListener("click", () => {
-      if (trainingMode && isBricsCadWorkspace()) {
+      if (isBricsCadWorkspace()) {
         openWorkflowOverlay();
       }
     });
