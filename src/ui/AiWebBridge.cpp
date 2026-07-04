@@ -48,9 +48,9 @@ void AiWebBridge::confirmWorkflowTrainingSave()
     Q_EMIT workflowTrainingSaveConfirmed();
 }
 
-void AiWebBridge::saveMessageAsWorkflow(const QString& messageId, const QString& messageText)
+void AiWebBridge::saveMessageAsWorkflow(const QString& messageId, const QString& messageText, const QString& sessionTitle)
 {
-    Q_EMIT messageWorkflowSaveRequested(messageId, messageText);
+    Q_EMIT messageWorkflowSaveRequested(messageId, messageText, sessionTitle);
 }
 
 void AiWebBridge::confirmWorkflowTrainingRun()

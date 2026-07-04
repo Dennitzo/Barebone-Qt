@@ -19,7 +19,7 @@ public Q_SLOTS:
     void clearProposal();
     void cancelCurrentOperation();
     void confirmWorkflowTrainingSave();
-    void saveMessageAsWorkflow(const QString& messageId, const QString& messageText);
+    void saveMessageAsWorkflow(const QString& messageId, const QString& messageText, const QString& sessionTitle);
     void confirmWorkflowTrainingRun();
     void confirmWorkflowTrainingFinalSave();
     void newChat();
@@ -45,7 +45,7 @@ Q_SIGNALS:
     void proposalClearedByUser();
     void operationCancelledByUser();
     void workflowTrainingSaveConfirmed();
-    void messageWorkflowSaveRequested(const QString& messageId, const QString& messageText);
+    void messageWorkflowSaveRequested(const QString& messageId, const QString& messageText, const QString& sessionTitle);
     void workflowTrainingRunConfirmed();
     void workflowTrainingFinalSaveConfirmed();
     void newChatRequested();

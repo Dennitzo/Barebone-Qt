@@ -271,7 +271,7 @@ QString promptWithDocumentContext(const QString& prompt, const QJsonObject& cont
         "%1\n\n"
         "[Dokumentkontext]\n"
         "Nutze ausschliesslich die folgenden extrahierten Auszuege fuer dokumentbezogene Fragen. "
-        "Wenn der gewuenschte Seitenbereich oder Inhalt nicht enthalten ist, sage das klar und fordere einen engeren/anderen Bereich an.\n"
+        "Wenn der gewünschte Seitenbereich oder Inhalt nicht enthalten ist, sage das klar und fordere einen engeren/anderen Bereich an.\n"
         "Dokumente:\n%2\n\n"
         "%3")
         .arg(prompt,
@@ -412,6 +412,31 @@ QVector<AgentWorkflowFile> agentWorkflowFiles(const QStringList& directoryPaths)
         }
     }
     return files;
+}
+
+QString workflowTimestampIso(const AgentWorkflowFile& source, const QJsonObject& workflow, const QString& fieldName)
+{
+    const QString direct = workflow.value(fieldName).toString().trimmed();
+    if (!direct.isEmpty()) {
+        return direct;
+    }
+
+    const QString alternate = fieldName == QStringLiteral("modifiedAt")
+        ? workflow.value(QStringLiteral("updatedAt")).toString().trimmed()
+        : workflow.value(QStringLiteral("createdAt")).toString().trimmed();
+    if (!alternate.isEmpty()) {
+        return alternate;
+    }
+
+    if (source.bundled) {
+        return {};
+    }
+
+    const QFileInfo info(source.path);
+    const QDateTime timestamp = fieldName == QStringLiteral("createdAt")
+        ? info.birthTime()
+        : info.lastModified();
+    return timestamp.isValid() ? timestamp.toUTC().toString(Qt::ISODateWithMs) : QString{};
 }
 
 bool readAgentWorkflowJson(const QString& path, QJsonObject* workflow, QString* errorMessage = nullptr)
@@ -1671,7 +1696,9 @@ QString cleanedGeneralWorkflowHeading(QString text)
     text.remove(QRegularExpression(QStringLiteral("^\\d+[.)]\\s*")));
     text.replace(QRegularExpression(QStringLiteral("^\\*\\*(.+?)\\*\\*$")), QStringLiteral("\\1"));
     text.replace(QRegularExpression(QStringLiteral("^__(.+?)__$")), QStringLiteral("\\1"));
-    text.replace(QRegularExpression(QStringLiteral("^(workflow|workflow-entwurf|planungsthema|thema|titel|name)\\s*[:\\-]\\s*"),
+    text.remove(QRegularExpression(QStringLiteral("^\\*+\\s*")));
+    text.remove(QRegularExpression(QStringLiteral("\\*+\\s*$")));
+    text.replace(QRegularExpression(QStringLiteral("^(workflow|workflow-entwurf|entwurf|planungsthema|thema|titel|name)\\s*[:\\-*]+\\s*"),
         QRegularExpression::CaseInsensitiveOption), QString());
     text.replace(QRegularExpression(QStringLiteral("\\s+")), QStringLiteral(" "));
     return text.trimmed();
@@ -1783,17 +1810,22 @@ QString titleCandidateFromText(QString text)
 
 QString titleCandidateFromSaveContext(const QJsonObject& saveContext)
 {
-    const QJsonObject selectedWorkflow = saveContext.value(QStringLiteral("selectedWorkflow")).toObject();
-    const QString selectedTitle = repairMojibakeText(selectedWorkflow.value(QStringLiteral("title")).toString()).trimmed();
-    if (!selectedTitle.isEmpty() && !isGenericGeneralWorkflowName(selectedTitle)) {
-        return selectedTitle;
-    }
-
     const QString instruction = cleanedGeneralWorkflowHeading(saveContext.value(QStringLiteral("userInstruction")).toString());
     if (!instruction.isEmpty()
         && !isGenericGeneralWorkflowName(instruction)
         && !isGeneralWorkflowSaveMetaInstruction(instruction)) {
         return instruction.left(90).trimmed();
+    }
+
+    const QString sessionTitle = cleanedGeneralWorkflowHeading(saveContext.value(QStringLiteral("sessionTitle")).toString());
+    if (!sessionTitle.isEmpty() && !isGenericGeneralWorkflowName(sessionTitle)) {
+        return sessionTitle.left(90).trimmed();
+    }
+
+    const QJsonObject selectedWorkflow = saveContext.value(QStringLiteral("selectedWorkflow")).toObject();
+    const QString selectedTitle = repairMojibakeText(selectedWorkflow.value(QStringLiteral("title")).toString()).trimmed();
+    if (!selectedTitle.isEmpty() && !isGenericGeneralWorkflowName(selectedTitle)) {
+        return selectedTitle;
     }
 
     const QJsonArray conversation = saveContext.value(QStringLiteral("conversation")).toArray();
@@ -5204,13 +5236,9 @@ BricsCadPage::BricsCadPage(ConfigManager& config, QWidget* parent)
         selectWorkflowForChat(workflowId);
     });
     QObject::connect(m_agentBridge, &AiWebBridge::workflowDeleteRequested, this, [this](const QString& workflowId) {
-        if (!isChatWorkspace()) {
-            appendAgentChat("Barebone-Qt", "Workflows koennen nur im Chat ueber das Overlay geloescht werden.");
-            return;
-        }
         QString deletedPath;
         QString errorMessage;
-        if (!deleteGeneralWorkflowById(workflowId, &deletedPath, &errorMessage)) {
+        if (!deleteWorkflowById(workflowId, &deletedPath, &errorMessage)) {
             appendAgentChat("Barebone-Qt", errorMessage.isEmpty()
                 ? QStringLiteral("Workflow konnte nicht geloescht werden.")
                 : errorMessage);
@@ -5224,8 +5252,8 @@ BricsCadPage::BricsCadPage(ConfigManager& config, QWidget* parent)
     QObject::connect(m_agentBridge, &AiWebBridge::messagePdfExportRequested, this, [this](const QString& messageId, const QString& suggestedTitle) {
         exportAgentMessageToPdf(messageId, suggestedTitle);
     });
-    QObject::connect(m_agentBridge, &AiWebBridge::messageWorkflowSaveRequested, this, [this](const QString& messageId, const QString& messageText) {
-        saveGeneralWorkflowFromMessage(messageId, messageText);
+    QObject::connect(m_agentBridge, &AiWebBridge::messageWorkflowSaveRequested, this, [this](const QString& messageId, const QString& messageText, const QString& sessionTitle) {
+        saveGeneralWorkflowFromMessage(messageId, messageText, sessionTitle);
     });
     QObject::connect(m_agentBridge, &AiWebBridge::uiReady, this, [this]() {
         emitToWebAsync(m_agentBridge, [state = unifiedAssistantState()](AiWebBridge* target) {
@@ -6927,6 +6955,8 @@ QJsonArray BricsCadPage::generalWorkflowIndex() const
             {"description", repairMojibakeText(workflow.value(QStringLiteral("description")).toString()).trimmed()},
             {"kind", "general"},
             {"readOnly", source.bundled},
+            {"createdAt", workflowTimestampIso(source, workflow, QStringLiteral("createdAt"))},
+            {"modifiedAt", workflowTimestampIso(source, workflow, QStringLiteral("modifiedAt"))},
             {"verificationStatus", repairMojibakeText(workflow.value(QStringLiteral("verificationStatus")).toString()).trimmed()},
         });
     }
@@ -6956,6 +6986,8 @@ QJsonArray BricsCadPage::workflowTrainingIndex() const
             workflows.append(QJsonObject{
                 {"fileName", source.fileName},
                 {"error", parseError},
+                {"createdAt", workflowTimestampIso(source, workflow, QStringLiteral("createdAt"))},
+                {"modifiedAt", workflowTimestampIso(source, workflow, QStringLiteral("modifiedAt"))},
             });
             continue;
         }
@@ -6969,15 +7001,8 @@ QJsonArray BricsCadPage::workflowTrainingIndex() const
 
         const QByteArray compact = QJsonDocument(workflow).toJson(QJsonDocument::Compact);
         if (compact.size() > 12000) {
-            workflow = QJsonObject{
-                {"schema", workflow.value("schema")},
-                {"id", workflow.value("id")},
-                {"title", workflow.value("title")},
-                {"triggerExamples", workflow.value("triggerExamples")},
-                {"requiredSlots", workflow.value("requiredSlots")},
-                {"preferredTools", workflow.value("preferredTools")},
-                {"note", "Workflow wurde fuer den Trainingskontext gekuerzt; Datei ist groesser als 12k."},
-            };
+            workflow = workflowCapsuleForAgent(workflow, true);
+            workflow.insert(QStringLiteral("note"), QStringLiteral("Workflow wurde für die Overlay-Vorschau komprimiert; die Datei ist größer als 12k."));
         }
 
         workflows.append(QJsonObject{
@@ -6985,6 +7010,8 @@ QJsonArray BricsCadPage::workflowTrainingIndex() const
             {"id", workflow.value("id").toString(QFileInfo(source.fileName).baseName())},
             {"title", workflow.value("title").toString(QFileInfo(source.fileName).baseName())},
             {"readOnly", source.bundled},
+            {"createdAt", workflowTimestampIso(source, workflow, QStringLiteral("createdAt"))},
+            {"modifiedAt", workflowTimestampIso(source, workflow, QStringLiteral("modifiedAt"))},
             {"workflow", workflow},
         });
     }
@@ -7168,6 +7195,27 @@ bool BricsCadPage::saveGeneralWorkflowFromObject(const QJsonObject& workflow, QS
     return true;
 }
 
+QJsonObject generalWorkflowWithUniqueId(QJsonObject workflow, const QString& directoryPath)
+{
+    workflow = normalizedGeneralWorkflowDraft(workflow);
+    QString baseId = workflowSlug(workflow.value(QStringLiteral("id")).toString());
+    if (baseId.isEmpty()) {
+        baseId = workflowSlug(workflow.value(QStringLiteral("title")).toString(QStringLiteral("workflow")));
+    }
+    if (baseId.isEmpty()) {
+        baseId = QStringLiteral("workflow");
+    }
+
+    QDir dir(directoryPath);
+    QString id = baseId;
+    int suffix = 2;
+    while (QFileInfo::exists(dir.filePath(id + QStringLiteral(".json")))) {
+        id = QStringLiteral("%1-%2").arg(baseId).arg(suffix++);
+    }
+    workflow.insert(QStringLiteral("id"), id);
+    return workflow;
+}
+
 bool BricsCadPage::deleteGeneralWorkflowById(const QString& workflowId, QString* deletedPath, QString* errorMessage)
 {
     QString fileName;
@@ -7217,6 +7265,79 @@ bool BricsCadPage::deleteGeneralWorkflowById(const QString& workflowId, QString*
         });
     }
     return true;
+}
+
+bool BricsCadPage::deleteWorkflowById(const QString& workflowId, QString* deletedPath, QString* errorMessage)
+{
+    if (isChatWorkspace()) {
+        return deleteGeneralWorkflowById(workflowId, deletedPath, errorMessage);
+    }
+
+    const QString normalizedId = workflowSlug(workflowId);
+    if (normalizedId.isEmpty()) {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("Workflow-ID fehlt.");
+        }
+        return false;
+    }
+
+    const QVector<AgentWorkflowFile> files = agentWorkflowFiles(QStringList{
+        workflowsDirectoryPath(),
+        QStringLiteral(":/agent/workflows"),
+    });
+    for (const AgentWorkflowFile& source : files) {
+        QJsonObject workflow;
+        if (!readAgentWorkflowJson(source.path, &workflow)) {
+            continue;
+        }
+        const QString id = workflow.value(QStringLiteral("id")).toString(QFileInfo(source.fileName).baseName());
+        if (workflowSlug(id) != normalizedId && workflowSlug(QFileInfo(source.fileName).baseName()) != normalizedId) {
+            continue;
+        }
+        if (source.bundled) {
+            if (errorMessage) {
+                *errorMessage = QStringLiteral("Mitgelieferte Workflows aus dem App-Bundle koennen nicht geloescht werden.");
+            }
+            return false;
+        }
+
+        QFile file(source.path);
+        const QString absolutePath = QFileInfo(file).absoluteFilePath();
+        if (!file.exists()) {
+            if (errorMessage) {
+                *errorMessage = QStringLiteral("Workflow-Datei fehlt: %1").arg(absolutePath);
+            }
+            return false;
+        }
+        if (!file.remove()) {
+            if (errorMessage) {
+                *errorMessage = QStringLiteral("Workflow konnte nicht geloescht werden: %1").arg(file.errorString());
+            }
+            return false;
+        }
+
+        if (deletedPath) {
+            *deletedPath = absolutePath;
+        }
+        if (workflowSlug(m_selectedWorkflowId) == normalizedId
+            || workflowSlug(m_selectedWorkflow.value(QStringLiteral("id")).toString()) == normalizedId) {
+            m_selectedWorkflowId.clear();
+            m_selectedWorkflow = {};
+            m_selectedWorkflowSlotValues = {};
+        }
+        emitWorkflowListToWeb();
+        if (m_agentBridge) {
+            emitToWebAsync(m_agentBridge, [](AiWebBridge* target) {
+                Q_EMIT target->selectedWorkflowChanged(QVariantMap{});
+            });
+        }
+        return true;
+    }
+
+    if (errorMessage) {
+        *errorMessage = QStringLiteral("Workflow wurde nicht gefunden.");
+    }
+    return false;
 }
 
 QJsonObject BricsCadPage::selectedWorkflowSummary() const
@@ -9022,7 +9143,13 @@ void BricsCadPage::emitWorkflowTrainingFinalSavePrompt()
         return;
     }
 
-    const QString title = repairMojibakeText(m_trainingFinalSaveWorkflow.value("title").toString()).trimmed();
+    QString title = repairMojibakeText(m_trainingFinalSaveWorkflow.value("title").toString()).trimmed();
+    if (isChatWorkspace()) {
+        const QString sessionTitle = titleCandidateFromSaveContext(m_lastGeneralWorkflowSaveContext);
+        if (!sessionTitle.isEmpty()) {
+            title = sessionTitle;
+        }
+    }
     const QJsonObject signatureObject{
         {"kind", isChatWorkspace() ? QStringLiteral("general_workflow_final_save") : QStringLiteral("training_final_save")},
         {"id", workflowSlug(m_trainingFinalSaveWorkflow.value("id").toString())},
@@ -9040,8 +9167,8 @@ void BricsCadPage::emitWorkflowTrainingFinalSavePrompt()
     payload.insert(QStringLiteral("title"), QStringLiteral("Workflow speichern"));
     payload.insert(QStringLiteral("message"), isChatWorkspace()
         ? (title.isEmpty()
-            ? QStringLiteral("Mit Speichern wird der Workflow ueberschrieben oder angelegt.")
-            : QStringLiteral("Mit Speichern wird \"%1\" als Workflow ueberschrieben oder angelegt.").arg(title))
+            ? QStringLiteral("Mit Speichern wird ein neuer Workflow angelegt. Wenn der Titel anders lauten soll, antworte vor dem Speichern mit dem gewünschten Titel.")
+            : QStringLiteral("Titelvorschlag: \"%1\". Mit Speichern wird immer ein neuer Workflow angelegt. Wenn der Titel anders lauten soll, antworte vor dem Speichern mit dem gewünschten Titel.").arg(title))
         : (title.isEmpty()
             ? QStringLiteral("Der Workflow wurde erfolgreich getestet. Mit Speichern wird daraus eine Workflow-Datei.")
             : QStringLiteral("Der Workflow \"%1\" wurde erfolgreich getestet. Mit Speichern wird daraus eine Workflow-Datei.").arg(title)));
@@ -9480,9 +9607,7 @@ bool BricsCadPage::saveGeneralWorkflowFinalDraft(QString* savedPath, QString* er
         }
         return false;
     }
-    if (!m_selectedWorkflow.isEmpty()) {
-        workflow.insert(QStringLiteral("id"), m_selectedWorkflow.value(QStringLiteral("id")).toString(m_selectedWorkflowId));
-    }
+    workflow = generalWorkflowWithUniqueId(workflow, generalWorkflowsDirectoryPath());
 
     if (!saveGeneralWorkflowFromObject(workflow, savedPath, errorMessage)) {
         return false;
@@ -9501,7 +9626,7 @@ bool BricsCadPage::saveGeneralWorkflowFinalDraft(QString* savedPath, QString* er
     return true;
 }
 
-void BricsCadPage::saveGeneralWorkflowFromMessage(const QString& messageId, const QString& messageText)
+void BricsCadPage::saveGeneralWorkflowFromMessage(const QString& messageId, const QString& messageText, const QString& sessionTitle)
 {
     if (!isChatWorkspace()) {
         appendAgentChat("Barebone-Qt", "Allgemeine Workflows koennen nur im Chat gespeichert werden.");
@@ -9517,6 +9642,7 @@ void BricsCadPage::saveGeneralWorkflowFromMessage(const QString& messageId, cons
     QJsonObject saveContext{
         {QStringLiteral("schema"), QStringLiteral("barebone.general.workflow.save.message.v1")},
         {QStringLiteral("messageId"), messageId.trimmed()},
+        {QStringLiteral("sessionTitle"), repairMojibakeText(sessionTitle).trimmed()},
         {QStringLiteral("selectedWorkflow"), m_selectedWorkflow},
         {QStringLiteral("conversation"), QJsonArray{
             QJsonObject{
@@ -9528,11 +9654,12 @@ void BricsCadPage::saveGeneralWorkflowFromMessage(const QString& messageId, cons
     };
 
     QJsonObject workflow = generalWorkflowFromAiText(cleanText, saveContext);
-    if (!m_selectedWorkflow.isEmpty()) {
-        workflow.insert(QStringLiteral("id"), m_selectedWorkflow.value(QStringLiteral("id")).toString(m_selectedWorkflowId));
+    const QString preferredTitle = titleCandidateFromSaveContext(saveContext);
+    if (!preferredTitle.isEmpty()) {
+        workflow.insert(QStringLiteral("title"), preferredTitle);
+        workflow.insert(QStringLiteral("id"), workflowSlug(preferredTitle));
         workflow = normalizedGeneralWorkflowDraft(workflow);
     }
-
     const QString validationError = generalWorkflowDraftValidationError(workflow);
     if (!validationError.isEmpty()) {
         appendAgentChat("Barebone-Qt", QString("Workflow ist noch nicht speicherbereit: %1").arg(validationError));
@@ -9746,11 +9873,12 @@ void BricsCadPage::saveGeneralWorkflowFromTraining(
         }
 
         workflow = generalWorkflowFromSaveResponse(workflow);
-        if (!m_selectedWorkflow.isEmpty()) {
-            workflow.insert(QStringLiteral("id"), m_selectedWorkflow.value(QStringLiteral("id")).toString(m_selectedWorkflowId));
+        const QString preferredTitle = titleCandidateFromSaveContext(saveContext);
+        if (!preferredTitle.isEmpty()) {
+            workflow.insert(QStringLiteral("title"), preferredTitle);
+            workflow.insert(QStringLiteral("id"), workflowSlug(preferredTitle));
             workflow = normalizedGeneralWorkflowDraft(workflow);
         }
-
         const QString validationError = generalWorkflowDraftValidationError(workflow);
         if (!validationError.isEmpty()) {
             const QString rejectedJson = QString::fromUtf8(QJsonDocument(workflow).toJson(QJsonDocument::Compact));
@@ -11780,7 +11908,7 @@ void BricsCadPage::requestWorkflowStepRepair(const QString& userFeedback, const 
                 "Antworte ausschliesslich mit JSON gemaess barebone.workflow.step_repair.response.v1. "
                 "Nutze ask_user nur fuer fehlende fachliche Informationen und formuliere dann eine konkrete Frage mit Kontext. "
                 "Schreibe niemals nur 'Kurze Rueckfrage', 'Rueckfrage' oder Platzhaltertexte. "
-                "Wiederhole keine Rueckfrage, die in repairDialog bereits beantwortet wurde; nutze dann step_update oder erklaere in step_update/message, dass das Tool die gewuenschte Variante nicht unterstuetzt. "
+                "Wiederhole keine Rueckfrage, die in repairDialog bereits beantwortet wurde; nutze dann step_update oder erklaere in step_update/message, dass das Tool die gewünschte Variante nicht unterstuetzt. "
                 "Wenn der Nutzer dich auffordert, eine geeignete Funktion oder Tool-Alternative zu suchen, liefere step_update statt ask_user, sofern die Tooldaten dafuer reichen. "
                 "Nutze step_update fuer eine konkrete korrigierte Version des aktuellen Schritts. "
                 "Nutze step_insert mit position=before_current oder after_current, wenn der Nutzer einen zusaetzlichen Schritt verlangt; ersetze dann nicht den bestehenden Schritt. "
@@ -11904,7 +12032,7 @@ void BricsCadPage::handleWorkflowStepRepairReply(const QString& content, const Q
                 .arg(repeatedQuestion ? QStringLiteral("wiederholt") : QStringLiteral("bereits beantwortet")));
             requestWorkflowStepRepair(
                 userFeedback,
-                QStringLiteral("type=ask_user ist unzureichend: Diese Rueckfrage wurde bereits gestellt oder durch den Nutzer beantwortet. Nutze den repairDialog verbindlich und liefere jetzt step_update. Wenn die gewuenschte Rotation um den jeweiligen Solid-Mittelpunkt mit den vorhandenen Tools nicht abbildbar ist, liefere keine weitere Rueckfrage, sondern einen korrigierten unterstuetzten Schritt oder eine klare technische Begruendung im step_update-Kontext."));
+                QStringLiteral("type=ask_user ist unzureichend: Diese Rueckfrage wurde bereits gestellt oder durch den Nutzer beantwortet. Nutze den repairDialog verbindlich und liefere jetzt step_update. Wenn die gewünschte Rotation um den jeweiligen Solid-Mittelpunkt mit den vorhandenen Tools nicht abbildbar ist, liefere keine weitere Rueckfrage, sondern einen korrigierten unterstuetzten Schritt oder eine klare technische Begruendung im step_update-Kontext."));
             return;
         }
 

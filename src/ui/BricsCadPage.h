@@ -90,7 +90,7 @@ private:
         int retryCount = 0,
         const QString& validationError = {},
         const QString& rejectedContent = {});
-    void saveGeneralWorkflowFromMessage(const QString& messageId, const QString& messageText);
+    void saveGeneralWorkflowFromMessage(const QString& messageId, const QString& messageText, const QString& sessionTitle);
     bool saveGeneralWorkflowFinalDraft(QString* savedPath = nullptr, QString* errorMessage = nullptr);
     void handleWorkflowTrainingReply(const QString& content);
     QJsonObject workflowTrainingEnvelope(const QString& prompt, bool compactContext = false) const;
@@ -105,6 +105,7 @@ private:
     QJsonObject loadGeneralWorkflowById(const QString& workflowId, QString* fileName = nullptr, QString* errorMessage = nullptr) const;
     bool saveGeneralWorkflowFromObject(const QJsonObject& workflow, QString* savedPath = nullptr, QString* errorMessage = nullptr) const;
     bool deleteGeneralWorkflowById(const QString& workflowId, QString* deletedPath = nullptr, QString* errorMessage = nullptr);
+    bool deleteWorkflowById(const QString& workflowId, QString* deletedPath = nullptr, QString* errorMessage = nullptr);
     void emitWorkflowListToWeb() const;
     QJsonObject loadWorkflowById(const QString& workflowId, QString* fileName = nullptr, QString* errorMessage = nullptr) const;
     void selectWorkflowForChat(const QString& workflowId);
