@@ -133,6 +133,20 @@ void emitWebBridgeLog(AiWebBridge* bridge, QString line)
     });
 }
 
+void emitWebMathFormattingRepairCompleted(AiWebBridge* bridge, QString messageId, int revision, QString markdown)
+{
+    emitToWebAsync(bridge, [messageId = std::move(messageId), revision, markdown = std::move(markdown)](AiWebBridge* target) {
+        Q_EMIT target->mathFormattingRepairCompleted(messageId, revision, markdown);
+    });
+}
+
+void emitWebMathFormattingRepairFailed(AiWebBridge* bridge, QString messageId, int revision, QString errorMessage)
+{
+    emitToWebAsync(bridge, [messageId = std::move(messageId), revision, errorMessage = std::move(errorMessage)](AiWebBridge* target) {
+        Q_EMIT target->mathFormattingRepairFailed(messageId, revision, errorMessage);
+    });
+}
+
 constexpr const char* kBrxSdkRoot = "C:/Program Files/Bricsys/BRXSDK/BRX26.1.05.0";
 constexpr const char* kBrxPluginName = "BareboneBrx.brx";
 constexpr const char* kBridgeHost = "127.0.0.1";
@@ -149,6 +163,51 @@ constexpr int kWorkflowTrainingAiTimeoutMs = kAiModelResponseTimeoutMs;
 constexpr int kWorkflowTrainingOutputTokens = 16384;
 constexpr int kWorkflowTrainingCompactOutputTokens = 8192;
 constexpr qsizetype kMaxDocumentContextChars = 90000;
+constexpr int kMaxMathFormattingRepairAttempts = 2;
+
+QJsonObject katexFormattingContract()
+{
+    return QJsonObject{
+        {"schema", "barebone.katex.formatting-contract.v1"},
+        {"katexVersion", "0.16.10"},
+        {"sourceOfTruth", "The WebView KaTeX runtime validates every candidate with renderToString(..., {throwOnError:true, strict:'error'})."},
+        {"styleContract", QJsonArray{
+            "Use \\(...\\) for inline math and \\[...\\] for display math.",
+            "Do not emit raw LaTeX outside math delimiters.",
+            "Group multi-character subscripts and superscripts with braces.",
+            "Use \\mathrm{...} for units and descriptive indices inside formulas.",
+            "Render units upright, never italic; wrap unit tokens and compound units such as m, s, Pa, kW or m^{3}/s with \\mathrm{...}.",
+            "Use KaTeX-compatible operators and commands; rewrite unsupported LaTeX to supported KaTeX syntax.",
+            "Use \\cdot for multiplication in formulas.",
+            "Use \\dot{V} for volumetric flow rate or time derivatives with a dot above the symbol; never write V. or V\\.",
+            "Keep table cell formulas as valid inline math and keep display formulas out of table cells.",
+            "Keep list item formulas contiguous; do not split formulas into PDF-extracted symbol lines.",
+            "Use valid KaTeX syntax for fractions, roots, sums, integrals, matrices, delimiters, cases and aligned multi-line formulas.",
+            "Preserve all numbers, units, calculations and factual statements; repair formatting only.",
+        }},
+        {"diagnosticsPolicy", QJsonArray{
+            "Use katexDiagnostics from the WebView as concrete repair targets.",
+            "If diagnostics mention a parse error, rewrite the whole affected formula, not only the failing token.",
+            "Return complete Markdown, not a fragment.",
+        }},
+        {"references", QJsonArray{
+            "https://katex.org/docs/supported.html",
+            "https://katex.org/docs/api",
+            "https://katex.org/docs/options",
+        }},
+    };
+}
+
+QString katexFormattingInstructionText()
+{
+    return QStringLiteral(
+        "Wenn du Markdown mit Formeln ausgibst, folge dem katexFormattingContract aus dem Envelope. "
+        "Die Zielsyntax ist KaTeX 0.16.10: Inline-Formeln in \\(...\\), Display-Formeln in \\[...\\], "
+        "mehrteilige Indizes/Exponenten geklammert, beschreibende Indizes und Einheiten mit \\mathrm{...}, "
+        "Einheiten in Formeln immer aufrecht und nicht kursiv schreiben, also z.B. \\mathrm{m}, \\mathrm{s}, \\mathrm{kW} oder \\mathrm{m^{3}/s}; "
+        "Multiplikation mit \\cdot, Volumenstrom und zeitliche Ableitungen mit Punkt oben als \\dot{V} statt V. oder V\\., keine rohe LaTeX-Ausgabe ausserhalb von Math-Delimitern. "
+        "Aendere bei Formatierungsreparaturen keine fachlichen Inhalte, Zahlen oder Berechnungen.");
+}
 
 bool useResponsesApiForModel(const QString& model)
 {
@@ -1576,8 +1635,29 @@ QString structuredTablesValidationError(const QJsonArray& tables)
 
 QString latexFormattingValidationError(const QString& text, const QString& location)
 {
-    Q_UNUSED(text);
-    Q_UNUSED(location);
+    const int inlineOpen = text.count(QStringLiteral("\\("));
+    const int inlineClose = text.count(QStringLiteral("\\)"));
+    const int displayOpen = text.count(QStringLiteral("\\["));
+    const int displayClose = text.count(QStringLiteral("\\]"));
+    if (inlineOpen != inlineClose || displayOpen != displayClose) {
+        return QStringLiteral("Formatierungsfehler: %1 enthaelt unvollstaendige Math-Delimiter; nutze vollstaendige Inline- oder Display-Formeln.").arg(location);
+    }
+
+    const QStringList lines = text.split(QLatin1Char('\n'));
+    int formulaFragmentLines = 0;
+    for (const QString& rawLine : lines) {
+        const QString line = rawLine.trimmed();
+        if (line.isEmpty()) {
+            continue;
+        }
+        if (line.size() <= 6
+            && line.contains(QRegularExpression(QStringLiteral(R"(^([=+\-*/()[\]{}]|\p{Greek}|[A-Za-z]|\d+|[∘°])+$)")))) {
+            ++formulaFragmentLines;
+        }
+    }
+    if (formulaFragmentLines >= 4) {
+        return QStringLiteral("Formatierungsfehler: %1 enthaelt wahrscheinlich zeilenweise zerlegte mathematische Fragmente; rekonstruiere sie als zusammenhaengende KaTeX-kompatible Formeln.").arg(location);
+    }
     return {};
 }
 
@@ -1593,6 +1673,10 @@ QString blockFormattingValidationError(const QString& text, int blockIndex)
 
     if (text.contains(QLatin1Char('\t'))) {
         return QStringLiteral("Formatierungsfehler: %1 enthaelt tabulatorgetrennte Tabellen; nutze tables[] oder eine Markdown-Pipe-Tabelle").arg(location);
+    }
+    const QString latexError = latexFormattingValidationError(text, location);
+    if (!latexError.isEmpty()) {
+        return latexError;
     }
     if (textContainsLooseTable(text)) {
         return QStringLiteral("Formatierungsfehler: %1 enthaelt eine spaltenartige Klartext-Tabelle; nutze tables[] oder eine Markdown-Pipe-Tabelle").arg(location);
@@ -1643,6 +1727,8 @@ QString generalWorkflowFormattingValidationError(const QJsonObject& workflow)
     return {};
 }
 
+QString publicWorkflowSummaryText(QString text);
+
 QJsonObject generalWorkflowFromSaveResponse(QJsonObject response)
 {
     if (response.contains(QStringLiteral("workflow")) && response.value(QStringLiteral("workflow")).isObject()) {
@@ -1671,13 +1757,35 @@ QJsonObject generalWorkflowFromSaveResponse(QJsonObject response)
     if (!workflow.contains(QStringLiteral("domain"))) {
         workflow.insert(QStringLiteral("domain"), QStringLiteral("Allgemein"));
     }
+    QString description = repairMojibakeText(workflow.value(QStringLiteral("description")).toString()).trimmed();
+    if (description.isEmpty()) {
+        description = repairMojibakeText(workflow.value(QStringLiteral("contextSummary")).toString()).trimmed();
+    }
+    if (description.isEmpty()) {
+        for (const QJsonValue& value : generalWorkflowBlocks(workflow)) {
+            const QString text = repairMojibakeText(value.toObject().value(QStringLiteral("text")).toString()).trimmed();
+            if (!text.isEmpty()) {
+                description = publicWorkflowSummaryText(text);
+                if (description.isEmpty()) {
+                    description = text;
+                }
+                break;
+            }
+        }
+    }
+    if (!description.isEmpty()) {
+        description = publicWorkflowSummaryText(description);
+        description.replace(QRegularExpression(QStringLiteral("\\s+")), QStringLiteral(" "));
+        workflow.insert(QStringLiteral("description"), description.left(420).trimmed());
+    }
     if (!workflow.contains(QStringLiteral("tags"))) {
         workflow.insert(QStringLiteral("tags"), QJsonArray{QStringLiteral("Chat"), QStringLiteral("AI-Entwurf")});
     }
     if (!workflow.contains(QStringLiteral("verificationStatus"))) {
         workflow.insert(QStringLiteral("verificationStatus"), QStringLiteral("AI-Entwurf"));
     }
-    if (!workflow.contains(QStringLiteral("contextSummary"))) {
+    if (!workflow.contains(QStringLiteral("contextSummary"))
+        || workflow.value(QStringLiteral("contextSummary")).toString().trimmed().isEmpty()) {
         workflow.insert(QStringLiteral("contextSummary"), workflow.value(QStringLiteral("description")).toString());
     }
     if (!workflow.contains(QStringLiteral("triggerExamples"))
@@ -1848,6 +1956,32 @@ QString titleCandidateFromSaveContext(const QJsonObject& saveContext)
         return candidate;
     }
     return {};
+}
+
+QString sessionTitleSuggestionFromAgentReply(const QJsonObject& reply)
+{
+    QString title = repairMojibakeText(reply.value(QStringLiteral("sessionTitle")).toString(
+        reply.value(QStringLiteral("conversationTitle")).toString(
+            reply.value(QStringLiteral("chatTitle")).toString()))).trimmed();
+    if (title.isEmpty()) {
+        const QJsonObject meta = reply.value(QStringLiteral("meta")).toObject();
+        title = repairMojibakeText(meta.value(QStringLiteral("sessionTitle")).toString(
+            meta.value(QStringLiteral("conversationTitle")).toString())).trimmed();
+    }
+    title = cleanedGeneralWorkflowHeading(title);
+    title.remove(QRegularExpression(QStringLiteral(R"([.!?;:,]+$)")));
+    title.replace(QRegularExpression(QStringLiteral("\\s+")), QStringLiteral(" "));
+    if (title.size() > 64) {
+        title = title.left(64).trimmed();
+        const int lastSpace = title.lastIndexOf(QLatin1Char(' '));
+        if (lastSpace > 24) {
+            title = title.left(lastSpace).trimmed();
+        }
+    }
+    if (title.isEmpty() || isGenericGeneralWorkflowName(title)) {
+        return {};
+    }
+    return title;
 }
 
 QString descriptionFromGeneralWorkflowText(const QString& text, const QString& title)
@@ -2067,19 +2201,35 @@ QString generalWorkflowTablesMarkdown(const QJsonArray& tables)
 
 QString generalWorkflowFormulasMarkdown(const QJsonArray& formulas)
 {
-    QStringList lines;
+    QStringList blocks;
     for (const QJsonValue& value : formulas) {
         const QJsonObject formula = value.toObject();
-        const QString name = repairMojibakeText(formula.value(QStringLiteral("name")).toString(formula.value(QStringLiteral("id")).toString())).trimmed();
+        QString name = formula.value(QStringLiteral("title")).toString().trimmed();
+        if (name.isEmpty()) {
+            name = formula.value(QStringLiteral("name")).toString().trimmed();
+        }
+        if (name.isEmpty()) {
+            name = formula.value(QStringLiteral("label")).toString().trimmed();
+        }
+        if (name.isEmpty()) {
+            name = formula.value(QStringLiteral("id")).toString().trimmed();
+        }
+        name = repairMojibakeText(name).trimmed();
+        const QString description = repairMojibakeText(formula.value(QStringLiteral("description")).toString()).trimmed();
         const QString latex = latexFromGeneralWorkflowFormula(formula);
         if (!latex.isEmpty()) {
+            QStringList lines;
             if (!name.isEmpty()) {
                 lines << QStringLiteral("**%1**").arg(name);
             }
             lines << QStringLiteral("\\[%1\\]").arg(latex);
+            if (!description.isEmpty()) {
+                lines << description;
+            }
+            blocks << lines.join(QLatin1Char('\n')).trimmed();
         }
     }
-    return lines.join(QLatin1Char('\n')).trimmed();
+    return blocks.join(QStringLiteral("\n\n")).trimmed();
 }
 
 QString generalWorkflowDraftMessageForChat(const QJsonObject& workflow)
@@ -2842,11 +2992,40 @@ QString workflowValidationContextForStep(const QJsonObject& workflow, const QJso
     return lines.join(QLatin1Char('\n')).left(2200);
 }
 
+QString publicWorkflowSummaryText(QString text)
+{
+    text = repairMojibakeText(text).trimmed();
+    if (text.isEmpty()) {
+        return {};
+    }
+    text.replace(QRegularExpression(QStringLiteral(R"(^\s*\*{0,2}Workflow-Entwurf:\*{0,2}[^\n]*(?:\n{1,2})?)"),
+        QRegularExpression::CaseInsensitiveOption), QString());
+    text.replace(QRegularExpression(QStringLiteral(R"(^\s*Workflow-Entwurf:[^\n]*(?:\n{1,2})?)"),
+        QRegularExpression::CaseInsensitiveOption), QString());
+    text.replace(QRegularExpression(QStringLiteral(R"(^\s*(Workflow speichern|Titelvorschlag|Speichere|Wandle|Kombiniere|Nutze selectedMessageText|Erstelle title selbst)\b[^\n]*(?:\n{1,2})?)"),
+        QRegularExpression::CaseInsensitiveOption), QString());
+    text.replace(QRegularExpression(QStringLiteral("\\s+")), QStringLiteral(" "));
+    return text.trimmed();
+}
+
 QString workflowCompactSummaryForSelector(const QJsonObject& workflow)
 {
     QString summary = repairMojibakeText(workflow.value("compactSummary").toString()).trimmed();
     if (summary.isEmpty()) {
         summary = repairMojibakeText(workflow.value("description").toString()).trimmed();
+    }
+    if (summary.isEmpty()) {
+        summary = repairMojibakeText(workflow.value("contextSummary").toString()).trimmed();
+    }
+    if (summary.isEmpty()) {
+        const QJsonArray blocks = generalWorkflowBlocks(workflow);
+        for (const QJsonValue& value : blocks) {
+            const QString text = repairMojibakeText(value.toObject().value(QStringLiteral("text")).toString()).trimmed();
+            if (!text.isEmpty()) {
+                summary = text;
+                break;
+            }
+        }
     }
     if (summary.isEmpty()) {
         const QStringList strategy = workflowObjectArraySummaries(workflow.value("constructionStrategy").toArray(), 2);
@@ -2859,7 +3038,8 @@ QString workflowCompactSummaryForSelector(const QJsonObject& workflow)
     if (summary.isEmpty()) {
         summary = repairMojibakeText(workflow.value("title").toString()).trimmed();
     }
-    return summary.left(420);
+    const QString publicSummary = publicWorkflowSummaryText(summary);
+    return (publicSummary.isEmpty() ? summary : publicSummary).left(420);
 }
 
 QStringList workflowToolNamesForSelector(const QJsonObject& workflow, int maxCount = 12)
@@ -3352,9 +3532,15 @@ QJsonObject agentResponseContractObject()
         {"strictJsonObject", true},
         {"preferred", true},
         {"topLevel", QJsonObject{
-            {"required", QJsonArray{"schema", "type", "message"}},
+            {"required", QJsonArray{"schema", "type", "message", "sessionTitle"}},
             {"schema", "barebone.agent.response.v2"},
             {"allowedTypes", QJsonArray{"message", "ask_user", "context_request", "action_proposal", "workflow_run_proposal", "plan"}},
+            {"sessionTitlePolicy", "Set sessionTitle on every response. Derive a short, specific German session title from compactState, userPrompt and the conversation focus; max 6 words; avoid generic titles."},
+        }},
+        {"sessionTitle", QJsonObject{
+            {"recommended", true},
+            {"maxWords", 6},
+            {"policy", "Kurzer Sitzungsname aus komprimiertem Kontext; keine generischen Titel wie Neuer Chat, Allgemeiner Chat, Workflow oder Frage."},
         }},
         {"actionProposal", QJsonObject{
             {"required", QJsonArray{"type", "message", "proposal"}},
@@ -5255,6 +5441,12 @@ BricsCadPage::BricsCadPage(ConfigManager& config, QWidget* parent)
     QObject::connect(m_agentBridge, &AiWebBridge::messageWorkflowSaveRequested, this, [this](const QString& messageId, const QString& messageText, const QString& sessionTitle) {
         saveGeneralWorkflowFromMessage(messageId, messageText, sessionTitle);
     });
+    QObject::connect(m_agentBridge, &AiWebBridge::mathFormattingRepairRequested, this, [this](const QString& messageId, int revision, const QString& markdown, const QString& diagnosticsJson) {
+        requestMathFormattingRepair(messageId, revision, markdown, diagnosticsJson);
+    });
+    QObject::connect(m_agentBridge, &AiWebBridge::mathFormattingRepairAccepted, this, [this](const QString& messageId, int revision, const QString& markdown) {
+        acceptMathFormattingRepair(messageId, revision, markdown);
+    });
     QObject::connect(m_agentBridge, &AiWebBridge::uiReady, this, [this]() {
         emitToWebAsync(m_agentBridge, [state = unifiedAssistantState()](AiWebBridge* target) {
             Q_EMIT target->clientStateLoaded(state);
@@ -6590,14 +6782,16 @@ void BricsCadPage::sendAgentEnvelope(const QJsonObject& envelope, const QString&
     const QString corePrompt = agentResourceText(QStringLiteral(":/agent/policies/core.md"));
     const QString generalPlainPrompt = QStringLiteral(
         "Du bist der AI Assistent fuer Barebone-Qt. %1\n\n"
-        "Der Nutzer befindet sich im Allgemeinen Modus. Der eingehende User-Content ist ein JSON-Envelope, aber deine Antwort soll eine normale direkte Chatantwort sein.\n"
-        "Nutze aus dem Envelope vor allem userPrompt, documentContext, selectedWorkflow, selectedWorkflows, workflowCapsules, compactState und conversation. Ignoriere JSON-responseContract-Vorgaben, solange keine CAD-Aktion freigegeben ist.\n"
+        "Der Nutzer befindet sich im Allgemeinen Modus. Der eingehende User-Content ist ein JSON-Envelope. Antworte ausschliesslich mit genau einem JSON-Objekt nach schema barebone.agent.response.v2.\n"
+        "Pflichtfelder: schema, type=\"message\", message, sessionTitle. message enthaelt die normale direkte Chatantwort und wird im Chat angezeigt; sessionTitle ist nur Metadatum fuer den Sitzungsnamen.\n"
+        "Erzeuge sessionTitle bei jeder Antwort selbst aus userPrompt, compactState und dem fachlichen Schwerpunkt der bisherigen Unterhaltung. Nutze einen kurzen, konkreten deutschen Titel mit hoechstens 6 Woertern; keine generischen Titel wie Neuer Chat, Allgemeiner Chat, Workflow oder Frage.\n"
+        "Nutze aus dem Envelope vor allem userPrompt, documentContext, selectedWorkflow, selectedWorkflows, workflowCapsules, compactState und conversation.\n"
         "Wenn selectedWorkflow oder workflowCapsules einen allgemeinen Workflow enthalten, behandle dessen Tabellen, Formeln, Beispiele, Annahmen und contextSummary als primaeren Kontext fuer die Antwort.\n"
         "Bei Berechnungen gilt: erst die Grundgleichung, dann alle verwendeten Symbole kurz erklaeren, dann Werte mit SI-Einheiten einsetzen, dann Zwischenergebnisse und Endergebnis. Jede eingesetzte Zahl und jeder Summand muss seine Einheit tragen; keine reinen Zahlenketten mit Einheit nur am Ende. Wenn Eingaben nicht in SI-Einheiten vorliegen, zeige zuerst die SI-Umrechnung.\n"
-        "Wenn du LaTeX schreibst, formatiere beschreibende Indizes nicht kursiv; nutze z. B. _{\\\\mathrm{...}} statt _{...}. Schreibe Grad Celsius KaTeX-kompatibel als {}^\\\\circ\\\\mathrm{C}, z. B. 20\\\\,{}^\\\\circ\\\\mathrm{C} statt 20\\\\,^\\\\circ\\\\mathrm{C}.\n"
-        "Antworte nicht als JSON-Objekt und verwende keinen Barebone-Agent-Antworttyp. Markdown fuer Listen, Tabellen und Codebloecke ist erlaubt.\n"
+        "%2\n"
+        "Markdown fuer Listen, Tabellen und Codebloecke ist innerhalb von message erlaubt. Keine Markdown-Antwort ausserhalb des JSON-Objekts.\n"
         "Schlage keine CAD-Tools, keine BRX-Ausfuehrung und keine Aktionen vor. Wenn Live-BricsCAD-Daten noetig waeren, erklaere knapp, dass dafuer der BricsCAD-Modus/BRX-Kontext erforderlich ist.")
-        .arg(aiLanguageInstruction(m_config));
+        .arg(aiLanguageInstruction(m_config), katexFormattingInstructionText());
     const QJsonObject systemMessage{
         {"role", "system"},
         {"content", plainGeneralResponse
@@ -6948,11 +7142,16 @@ QJsonArray BricsCadPage::generalWorkflowIndex() const
         if (title.trimmed().isEmpty()) {
             title = repairMojibakeText(id).replace(QLatin1Char('_'), QLatin1Char(' '));
         }
+        QString description = repairMojibakeText(workflow.value(QStringLiteral("description")).toString()).trimmed();
+        if (description.isEmpty()) {
+            description = workflowCompactSummaryForSelector(workflow);
+        }
+
         workflows.append(QJsonObject{
             {"fileName", source.fileName},
             {"id", id},
             {"title", title},
-            {"description", repairMojibakeText(workflow.value(QStringLiteral("description")).toString()).trimmed()},
+            {"description", description},
             {"kind", "general"},
             {"readOnly", source.bundled},
             {"createdAt", workflowTimestampIso(source, workflow, QStringLiteral("createdAt"))},
@@ -8287,6 +8486,7 @@ QJsonObject BricsCadPage::workflowTrainingEnvelope(const QString& prompt, bool c
         {"knownToolNames", toolNames},
         {"effectiveTools", effectiveTools},
         {"existingWorkflows", existingWorkflows},
+        {"katexFormattingContract", katexFormattingContract()},
         {"trainingState", workflowTrainingState()},
         {"activeWorkflow", activeWorkflow},
         {"selectedWorkflow", selectedWorkflowSummary()},
@@ -8926,22 +9126,26 @@ bool BricsCadPage::retryGeneralWorkflowSaveAfterValidationFailure(
         "Keine Markdown-Antwort, kein Codeblock, keine Erklaerung ausserhalb von JSON. "
         "Pflichtfelder: schema, id, title, description, blocks[]. Jeder block braucht id, title und text. "
         "Nutze blocks[] als grobe Absatzstruktur und schreibe die fachliche Tiefe in blocks[].text. "
-        "Wenn selectedWorkflow leer ist, muss title ein kurzer, passender Anzeigename fuer das konkrete Thema sein und id muss daraus als stabiler snake_case Dateiname abgeleitet werden. "
+        "title muss ein kurzer, passender Anzeigename sein, den du aus compressedTitleContext.summary, selectedMessageText und dem fachlichen Schwerpunkt ableitest. "
+        "Uebernimm sessionTitle nicht automatisch als title. "
+        "id muss daraus als stabiler snake_case Dateiname abgeleitet werden. "
         "title und id duerfen nicht Workflow, Neuer Workflow, Chat Workflow, General Workflow, Workflow speichern oder aehnlich generisch heissen. "
-        "Wenn selectedWorkflow vorhanden ist, behalte dessen id exakt bei und aendere title nur bei ausdruecklichem Umbenennungswunsch des Nutzers. "
+        "Chat-Speichern legt immer einen neuen Workflow an; uebernimm keine vorhandene id und ueberschreibe keinen gespeicherten Workflow. "
         "Keine BricsCAD-Workflow-Felder wie steps, executionBatches, validationExamples oder tools. "
-        "Wenn LaTeX vorkommt, schreibe beschreibende Indizes nicht kursiv, z. B. _{\\\\mathrm{...}} statt _{...}. Schreibe Grad Celsius KaTeX-kompatibel als {}^\\\\circ\\\\mathrm{C}, z. B. 20\\\\,{}^\\\\circ\\\\mathrm{C} statt 20\\\\,^\\\\circ\\\\mathrm{C}. "
+        "%4 "
         "Korrigiere bei Formatierungsfehlern nur die Formatierung; erhalte alle fachlichen Details, Tabellenwerte, Beispiele und Nutzerkorrekturen vollstaendig. "
         "Tabellen muessen als tables[] mit columns/rows oder als gueltige Markdown-Pipe-Tabelle mit |---|---|-Trennzeile ausgegeben werden. "
         "Listen muessen echte Markdown-Listen mit je einem Punkt pro Zeile sein. "
         "Nutze keine HTML-Tags wie <br>, keine tabulatorgetrennten Klartexttabellen und kein loses Sprachlabel 'text' vor Formeln.")
-        .arg(errorMessage, rejectedSample, repeatedInstruction);
+        .arg(errorMessage, rejectedSample, repeatedInstruction, katexFormattingInstructionText());
 
     saveGeneralWorkflowFromTraining(
         saveContext.value(QStringLiteral("userInstruction")).toString(),
         m_generalWorkflowSaveRetries,
         retryInstruction,
-        rejectedSample);
+        rejectedSample,
+        saveContext.value(QStringLiteral("selectedMessageText")).toString(),
+        saveContext.value(QStringLiteral("sessionTitle")).toString());
     return true;
 }
 
@@ -9365,7 +9569,7 @@ void BricsCadPage::sendWorkflowTrainingPrompt(const QString& prompt, bool compac
     QJsonArray messages;
     messages.append(QJsonObject{
         {"role", "system"},
-        {"content",
+        {"content", QStringLiteral(
             "Du bist der Barebone-Qt Workflow-Autorenagent im Trainingsmodus. "
             "Du erstellst neue agent/workflows JSON-Dateien. "
             "Bearbeite oder erweitere bestehende Workflows nur, wenn trainingState.activeWorkflow explizit gesetzt ist; ohne activeWorkflow ist jede Nutzeranfrage eine Neuerstellung. "
@@ -9381,9 +9585,10 @@ void BricsCadPage::sendWorkflowTrainingPrompt(const QString& prompt, bool compac
             "Bei type=workflow_draft darfst du workflowDraft mit description, derivedValues, executionBatches, constructionStrategy, authoringNotes und questions liefern; dieser Draft wird noch nicht gespeichert. "
             "Bei type=workflow_update muss workflow.steps flach ausfuehrbar sein, auch wenn executionBatches zusaetzlich gespeichert werden. "
             "Speichere Formeln als derivedValues mit expression und example; schreibe konkrete Beispielwerte in validationExamples. "
+            "%1 "
             "Wenn Geometrie in einem bestimmten Layer entstehen soll, setze in geometry.create.paramsTemplate.layer den exakten Layernamen; ein vorheriges layers.create reicht nicht aus, um den Zeichenlayer implizit umzuschalten. "
             "Speichere keine starren Prompt-zu-Command-Regeln, sondern Slots, Defaults, Strategien, Constraints, Beispiele und bevorzugte Tools. "
-            "Falls compactContext=true ist, konzentriere dich auf eine kurze gueltige JSON-Antwort und vermeide lange Erklaerungen."},
+            "Falls compactContext=true ist, konzentriere dich auf eine kurze gueltige JSON-Antwort und vermeide lange Erklaerungen.").arg(katexFormattingInstructionText())},
     });
     const int trainingHistoryLimit = compactContext ? 4 : 16;
     const int trainingConversationSize = static_cast<int>(m_trainingConversation.size());
@@ -9626,6 +9831,88 @@ bool BricsCadPage::saveGeneralWorkflowFinalDraft(QString* savedPath, QString* er
     return true;
 }
 
+QJsonObject BricsCadPage::workflowSaveCompressedTitleContext(const QString& selectedMessageText, const QString& sessionTitle) const
+{
+    auto previewText = [](QString text, int maxChars) {
+        text = repairMojibakeText(text).trimmed();
+        bool parsed = false;
+        const QJsonObject parsedObject = jsonObjectFromAiContent(text, &parsed);
+        if (parsed) {
+            QString message = repairMojibakeText(parsedObject.value(QStringLiteral("message")).toString()).trimmed();
+            if (message.isEmpty()) {
+                const QJsonObject workflow = parsedObject.value(QStringLiteral("workflow")).toObject();
+                const QString title = repairMojibakeText(workflow.value(QStringLiteral("title")).toString(
+                    parsedObject.value(QStringLiteral("title")).toString())).trimmed();
+                const QString description = repairMojibakeText(workflow.value(QStringLiteral("description")).toString(
+                    parsedObject.value(QStringLiteral("description")).toString())).trimmed();
+                message = QStringList{title, description}.join(QStringLiteral(" ")).trimmed();
+            }
+            if (message.isEmpty()) {
+                const QString type = repairMojibakeText(parsedObject.value(QStringLiteral("type")).toString()).trimmed();
+                message = type.isEmpty()
+                    ? QString::fromUtf8(QJsonDocument(parsedObject).toJson(QJsonDocument::Compact))
+                    : QStringLiteral("AI-Antworttyp: %1").arg(type);
+            }
+            text = message;
+        }
+        text = removeReasoningLeak(text)
+            .replace(QStringLiteral("\r\n"), QStringLiteral("\n"))
+            .replace(QRegularExpression(QStringLiteral("\\s+")), QStringLiteral(" "))
+            .trimmed();
+        if (maxChars > 0 && text.size() > maxChars) {
+            text = text.left(std::max(12, maxChars - 3)).trimmed() + QStringLiteral("...");
+        }
+        return text;
+    };
+
+    QJsonArray recentMessages;
+    const qsizetype totalMessages = m_agentConversation.size();
+    const qsizetype start = std::max<qsizetype>(0, totalMessages - 10);
+    for (qsizetype i = start; i < totalMessages; ++i) {
+        const QJsonObject message = m_agentConversation.at(i).toObject();
+        const QString preview = previewText(message.value(QStringLiteral("content")).toString(), 700);
+        if (preview.isEmpty()) {
+            continue;
+        }
+        recentMessages.append(QJsonObject{
+            {QStringLiteral("role"), message.value(QStringLiteral("role")).toString()},
+            {QStringLiteral("preview"), preview},
+        });
+    }
+
+    const QString selectedPreview = previewText(selectedMessageText, 2000);
+    const QString sessionPreview = previewText(sessionTitle, 160);
+    QStringList summaryLines{
+        QStringLiteral("Komprimierter Kontext fuer die automatische Workflow-Titelerzeugung."),
+        QStringLiteral("Der Titel soll aus fachlichem Schwerpunkt, markierter AI-Nachricht und Verlaufsvorschau abgeleitet werden."),
+    };
+    if (!selectedPreview.isEmpty()) {
+        summaryLines << QStringLiteral("Markierte AI-Nachricht: %1").arg(selectedPreview);
+    }
+    if (!sessionPreview.isEmpty()) {
+        summaryLines << QStringLiteral("Sitzungsname nur als schwacher Kontext, nicht als Titelvorgabe: %1").arg(sessionPreview);
+    }
+    for (const QJsonValue& value : recentMessages) {
+        const QJsonObject message = value.toObject();
+        const QString role = message.value(QStringLiteral("role")).toString() == QStringLiteral("user")
+            ? QStringLiteral("Nutzer")
+            : QStringLiteral("AI");
+        summaryLines << QStringLiteral("%1: %2").arg(role, message.value(QStringLiteral("preview")).toString());
+    }
+
+    return QJsonObject{
+        {QStringLiteral("schema"), QStringLiteral("barebone.general.workflow.title-context.v1")},
+        {QStringLiteral("mode"), QStringLiteral("compressed-recent-message-previews")},
+        {QStringLiteral("messagesIncluded"), recentMessages.size()},
+        {QStringLiteral("messagesTotal"), static_cast<int>(totalMessages)},
+        {QStringLiteral("selectedMessagePreview"), selectedPreview},
+        {QStringLiteral("sessionTitlePreview"), sessionPreview},
+        {QStringLiteral("recentMessages"), recentMessages},
+        {QStringLiteral("summary"), summaryLines.join(QLatin1Char('\n')).left(7000)},
+        {QStringLiteral("titlePolicy"), QStringLiteral("AI erstellt title selbst aus dieser komprimierten Kontextlage; keinen Sitzungsnamen automatisch uebernehmen.")},
+    };
+}
+
 void BricsCadPage::saveGeneralWorkflowFromMessage(const QString& messageId, const QString& messageText, const QString& sessionTitle)
 {
     if (!isChatWorkspace()) {
@@ -9639,63 +9926,306 @@ void BricsCadPage::saveGeneralWorkflowFromMessage(const QString& messageId, cons
         return;
     }
 
-    QJsonObject saveContext{
-        {QStringLiteral("schema"), QStringLiteral("barebone.general.workflow.save.message.v1")},
-        {QStringLiteral("messageId"), messageId.trimmed()},
-        {QStringLiteral("sessionTitle"), repairMojibakeText(sessionTitle).trimmed()},
-        {QStringLiteral("selectedWorkflow"), m_selectedWorkflow},
-        {QStringLiteral("conversation"), QJsonArray{
-            QJsonObject{
-                {QStringLiteral("speaker"), QStringLiteral("AI")},
-                {QStringLiteral("message"), cleanText},
-            },
-        }},
-        {QStringLiteral("userInstruction"), QStringLiteral("Speichere ausschliesslich diese AI-Nachricht als allgemeinen Workflow.")},
+    appendBridgeLog(QString("General Workflow Save From Message: messageId=%1 chars=%2")
+        .arg(messageId.trimmed())
+        .arg(cleanText.size()));
+    const QString instruction = QStringLiteral(
+        "Speichere die geklickte AI-Nachricht als neuen allgemeinen Workflow. "
+        "Nutze selectedMessageText als primaeren fachlichen Inhalt. "
+        "Erstelle title selbst aus compressedTitleContext und dem fachlichen Schwerpunkt; uebernimm keinen Sitzungsnamen als Titelvorgabe.");
+    saveGeneralWorkflowFromTraining(
+        instruction,
+        0,
+        {},
+        {},
+        cleanText,
+        repairMojibakeText(sessionTitle).trimmed());
+}
+
+void BricsCadPage::requestMathFormattingRepair(const QString& messageId, int revision, const QString& markdown, const QString& diagnosticsJson)
+{
+    const QString normalizedMessageId = messageId.trimmed();
+    const QString cleanMarkdown = repairMojibakeText(markdown).trimmed();
+    if (normalizedMessageId.isEmpty() || cleanMarkdown.isEmpty()) {
+        if (m_agentBridge) {
+            emitWebMathFormattingRepairFailed(m_agentBridge, normalizedMessageId, revision, QStringLiteral("Math-Reparatur braucht messageId und Markdown."));
+        }
+        return;
+    }
+
+    PendingMathFormattingRepair pending = m_pendingMathFormattingRepairs.value(normalizedMessageId);
+    if (pending.originalMarkdown.trimmed().isEmpty()) {
+        pending.originalMarkdown = cleanMarkdown;
+    }
+    if (pending.sessionId.trimmed().isEmpty()) {
+        pending.sessionId = m_agentSessionId;
+    }
+    pending.diagnosticsJson = diagnosticsJson;
+    pending.revision = revision;
+    ++pending.attempts;
+    if (pending.attempts > kMaxMathFormattingRepairAttempts) {
+        m_pendingMathFormattingRepairs.insert(normalizedMessageId, pending);
+        if (m_agentBridge) {
+            emitWebMathFormattingRepairFailed(m_agentBridge, normalizedMessageId, revision, QStringLiteral("Math-Reparatur nach zwei Versuchen abgebrochen."));
+        }
+        return;
+    }
+    m_pendingMathFormattingRepairs.insert(normalizedMessageId, pending);
+
+    const QString provider = m_config.aiProvider();
+    const bool officialProvider = provider == "official";
+    const QString baseUrl = normalizedAiBaseUrl(m_config.aiBaseUrl(), provider);
+    const QString model = m_config.aiModel().trimmed().isEmpty()
+        ? (officialProvider ? QStringLiteral("gpt-5.5") : QStringLiteral("openai/gpt-oss-20b"))
+        : m_config.aiModel().trimmed();
+    const bool useResponsesApi = useResponsesApiForProvider(provider, model);
+    const QUrl url(baseUrl + (useResponsesApi ? QStringLiteral("/responses") : QStringLiteral("/chat/completions")));
+    if (!url.isValid()) {
+        if (m_agentBridge) {
+            emitWebMathFormattingRepairFailed(m_agentBridge, normalizedMessageId, revision, QStringLiteral("Ungueltige AI Server URL: %1").arg(baseUrl));
+        }
+        return;
+    }
+    if (officialProvider && m_config.aiApiKey().trimmed().isEmpty()) {
+        if (m_agentBridge) {
+            emitWebMathFormattingRepairFailed(m_agentBridge, normalizedMessageId, revision, QStringLiteral("Offizielle ChatGPT API ist aktiv, aber es ist kein Secret Key gespeichert."));
+        }
+        return;
+    }
+
+    QJsonParseError diagnosticsParseError;
+    const QJsonDocument diagnosticsDocument = QJsonDocument::fromJson(diagnosticsJson.toUtf8(), &diagnosticsParseError);
+    QJsonValue diagnosticsValue;
+    if (diagnosticsParseError.error == QJsonParseError::NoError) {
+        if (diagnosticsDocument.isArray()) {
+            diagnosticsValue = diagnosticsDocument.array();
+        } else if (diagnosticsDocument.isObject()) {
+            diagnosticsValue = diagnosticsDocument.object();
+        }
+    }
+    if (diagnosticsValue.isUndefined()) {
+        diagnosticsValue = diagnosticsJson.left(8000);
+    }
+
+    QJsonObject repairRequest{
+        {"schema", "barebone.katex.repair.request.v1"},
+        {"messageId", normalizedMessageId},
+        {"revision", revision},
+        {"attempt", pending.attempts},
+        {"markdown", cleanMarkdown},
+        {"katexDiagnostics", diagnosticsValue},
+        {"katexFormattingContract", katexFormattingContract()},
+    };
+    QJsonArray messages{
+        QJsonObject{
+            {"role", "system"},
+            {"content", QStringLiteral(
+                "Du bist ein reiner KaTeX-/Markdown-Formatierungsreparaturdienst fuer Barebone-Qt. "
+                "Antworte ausschliesslich mit genau einem JSON-Objekt nach schema barebone.katex.repair.response.v1: "
+                "{\"schema\":\"barebone.katex.repair.response.v1\",\"markdown\":\"...\"}. "
+                "Gib keine Erklaerung, keinen Markdown-Codeblock und keine Felder ausserhalb dieses JSON aus. "
+                "Repariere die komplette Nachricht gemaess katexFormattingContract und katexDiagnostics. "
+                "Aendere keine fachlichen Inhalte, Zahlen, Einheiten, Berechnungen oder Aussagen. "
+                "Wenn eine Formel fehlerhaft ist, rekonstruiere nur ihre KaTeX-kompatible Schreibweise. "
+                "Der Rueckgabewert markdown muss die vollstaendige reparierte Nachricht enthalten.")},
+        },
+        QJsonObject{
+            {"role", "user"},
+            {"content", QString::fromUtf8(QJsonDocument(repairRequest).toJson(QJsonDocument::Compact))},
+        },
     };
 
-    QJsonObject workflow = generalWorkflowFromAiText(cleanText, saveContext);
-    const QString preferredTitle = titleCandidateFromSaveContext(saveContext);
-    if (!preferredTitle.isEmpty()) {
-        workflow.insert(QStringLiteral("title"), preferredTitle);
-        workflow.insert(QStringLiteral("id"), workflowSlug(preferredTitle));
-        workflow = normalizedGeneralWorkflowDraft(workflow);
+    QJsonObject payload;
+    payload.insert("model", model);
+    if (useResponsesApi) {
+        payload.insert("input", messages);
+        payload.insert("max_output_tokens", adjustedOutputTokenLimitForMessages(messages, 16384));
+        const QString reasoningEffort = normalizedReasoningEffort(m_reasoningEffort);
+        if (reasoningEffort != "none") {
+            payload.insert("reasoning", QJsonObject{{"effort", reasoningEffort == "high" ? QStringLiteral("low") : reasoningEffort}});
+        }
+        if (!officialProvider) {
+            payload.insert("temperature", 0.0);
+        }
+    } else {
+        payload.insert("messages", messages);
+        payload.insert("max_tokens", adjustedOutputTokenLimitForMessages(messages, 16384));
+        payload.insert("temperature", 0.0);
     }
-    const QString validationError = generalWorkflowDraftValidationError(workflow);
-    if (!validationError.isEmpty()) {
-        appendAgentChat("Barebone-Qt", QString("Workflow ist noch nicht speicherbereit: %1").arg(validationError));
+
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    if (officialProvider) {
+        request.setRawHeader("Authorization", QString("Bearer %1").arg(m_config.aiApiKey().trimmed()).toUtf8());
+    }
+    request.setTransferTimeout(kAiModelResponseTimeoutMs);
+
+    appendBridgeLog(QString("Qt -> AI KaTeX Repair: message=%1 revision=%2 attempt=%3 diagnostics=%4")
+        .arg(normalizedMessageId)
+        .arg(revision)
+        .arg(pending.attempts)
+        .arg(diagnosticsJson.left(500)));
+
+    QNetworkReply* reply = m_aiNetwork->post(request, QJsonDocument(payload).toJson(QJsonDocument::Compact));
+    QObject::connect(reply, &QNetworkReply::finished, this, [this, reply, normalizedMessageId, revision]() {
+        const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        const QByteArray body = reply->readAll();
+        if (reply->error() != QNetworkReply::NoError) {
+            const QString error = QStringLiteral("KaTeX-Reparatur fehlgeschlagen: http=%1 %2")
+                .arg(httpStatus)
+                .arg(reply->errorString());
+            appendBridgeLog(error);
+            if (m_agentBridge) {
+                emitWebMathFormattingRepairFailed(m_agentBridge, normalizedMessageId, revision, error);
+            }
+            reply->deleteLater();
+            return;
+        }
+
+        QJsonParseError parseError;
+        const QJsonDocument responseDocument = QJsonDocument::fromJson(body, &parseError);
+        if (parseError.error != QJsonParseError::NoError || !responseDocument.isObject()) {
+            const QString error = QStringLiteral("KaTeX-Reparaturantwort ist kein gueltiges OpenAI JSON: %1").arg(parseError.errorString());
+            appendBridgeLog(error);
+            if (m_agentBridge) {
+                emitWebMathFormattingRepairFailed(m_agentBridge, normalizedMessageId, revision, error);
+            }
+            reply->deleteLater();
+            return;
+        }
+
+        QString reasoningText;
+        QString content = removeReasoningLeak(aiChatCompletionContent(responseDocument.object(), &reasoningText)).trimmed();
+        bool parsed = false;
+        QJsonObject repairObject = jsonObjectFromAiContent(content, &parsed);
+        QString repairedMarkdown = parsed
+            ? repairObject.value(QStringLiteral("markdown")).toString().trimmed()
+            : QString();
+        if (repairedMarkdown.isEmpty()) {
+            content.remove(QRegularExpression(QStringLiteral(R"(^```(?:json|markdown|md|text)?\s*)"), QRegularExpression::CaseInsensitiveOption));
+            content.remove(QRegularExpression(QStringLiteral(R"(\s*```$)")));
+            repairedMarkdown = content.trimmed();
+        }
+        repairedMarkdown = repairMojibakeText(repairedMarkdown).trimmed();
+        if (repairedMarkdown.isEmpty()) {
+            const QString error = QStringLiteral("KaTeX-Reparaturantwort enthaelt keinen Markdown.");
+            appendBridgeLog(error);
+            if (m_agentBridge) {
+                emitWebMathFormattingRepairFailed(m_agentBridge, normalizedMessageId, revision, error);
+            }
+            reply->deleteLater();
+            return;
+        }
+
+        appendBridgeLog(QString("AI KaTeX Repair: Kandidat fuer message=%1 revision=%2 chars=%3")
+            .arg(normalizedMessageId)
+            .arg(revision)
+            .arg(repairedMarkdown.size()));
+        if (m_agentBridge) {
+            emitWebMathFormattingRepairCompleted(m_agentBridge, normalizedMessageId, revision, repairedMarkdown);
+        }
+        reply->deleteLater();
+    });
+}
+
+void BricsCadPage::acceptMathFormattingRepair(const QString& messageId, int revision, const QString& markdown)
+{
+    const QString normalizedMessageId = messageId.trimmed();
+    auto it = m_pendingMathFormattingRepairs.find(normalizedMessageId);
+    if (it == m_pendingMathFormattingRepairs.end()) {
+        appendBridgeLog(QString("KaTeX Repair: keine ausstehende Reparatur fuer message=%1").arg(normalizedMessageId));
         return;
     }
-    const QString formattingError = generalWorkflowFormattingValidationError(workflow);
-    if (!formattingError.isEmpty()) {
-        appendAgentChat("Barebone-Qt", QString("Workflow ist noch nicht speicherbereit: %1").arg(formattingError));
+    if (it->revision != revision) {
+        appendBridgeLog(QString("KaTeX Repair: veraltete Bestaetigung ignoriert message=%1 revision=%2 expected=%3")
+            .arg(normalizedMessageId)
+            .arg(revision)
+            .arg(it->revision));
         return;
     }
 
-    m_generalWorkflowSaveRetries = 0;
-    m_generalWorkflowSaveRejectedSignatures.clear();
-    m_lastGeneralWorkflowSaveContext = saveContext;
-    m_trainingFinalSavePending = true;
-    m_trainingFinalSaveWorkflow = workflow;
-    m_trainingFinalSaveActions = {};
-    m_trainingWorkflowContext = workflow;
-    m_trainingPhase = QStringLiteral("general_ready_to_save");
-    clearWorkflowTrainingPrompts();
-    appendAgentChat("AI", generalWorkflowDraftMessageForChat(workflow));
-    emitWorkflowTrainingFinalSavePrompt();
+    const QString repairedMarkdown = repairMojibakeText(markdown).trimmed();
+    if (!repairedMarkdown.isEmpty()) {
+        const bool replaced = replaceAssistantConversationMessage(it->sessionId, it->originalMarkdown, repairedMarkdown);
+        appendBridgeLog(QString("KaTeX Repair: message=%1 uebernommen conversationUpdated=%2")
+            .arg(normalizedMessageId)
+            .arg(replaced ? QStringLiteral("true") : QStringLiteral("false")));
+        if (it->sessionId == m_agentSessionId) {
+            saveCurrentAgentSession();
+        }
+        emitContextBudget();
+    }
+    m_pendingMathFormattingRepairs.erase(it);
+}
+
+bool BricsCadPage::replaceAssistantConversationMessage(const QString& sessionId, const QString& originalMarkdown, const QString& repairedMarkdown)
+{
+    if (sessionId == m_agentSessionId || sessionId.trimmed().isEmpty()) {
+        return replaceAssistantConversationMessageIn(m_agentConversation, originalMarkdown, repairedMarkdown);
+    }
+    if (!m_agentSessions.contains(sessionId)) {
+        return false;
+    }
+    AgentSessionState state = m_agentSessions.value(sessionId);
+    const bool replaced = replaceAssistantConversationMessageIn(state.conversation, originalMarkdown, repairedMarkdown);
+    if (replaced) {
+        m_agentSessions.insert(sessionId, state);
+    }
+    return replaced;
+}
+
+bool BricsCadPage::replaceAssistantConversationMessageIn(QJsonArray& conversation, const QString& originalMarkdown, const QString& repairedMarkdown) const
+{
+    const QString original = repairMojibakeText(originalMarkdown).trimmed();
+    const QString repaired = repairMojibakeText(repairedMarkdown).trimmed();
+    if (original.isEmpty() || repaired.isEmpty()) {
+        return false;
+    }
+
+    for (int i = conversation.size() - 1; i >= 0; --i) {
+        QJsonObject item = conversation.at(i).toObject();
+        if (item.value(QStringLiteral("role")).toString() != QStringLiteral("assistant")) {
+            continue;
+        }
+
+        const QString content = item.value(QStringLiteral("content")).toString();
+        if (repairMojibakeText(removeReasoningLeak(content)).trimmed() == original) {
+            item.insert(QStringLiteral("content"), repaired);
+            conversation.replace(i, item);
+            return true;
+        }
+
+        bool parsed = false;
+        QJsonObject parsedObject = jsonObjectFromAiContent(content, &parsed);
+        if (parsed && repairMojibakeText(parsedObject.value(QStringLiteral("message")).toString()).trimmed() == original) {
+            parsedObject.insert(QStringLiteral("message"), repaired);
+            item.insert(QStringLiteral("content"), QString::fromUtf8(QJsonDocument(parsedObject).toJson(QJsonDocument::Compact)));
+            conversation.replace(i, item);
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void BricsCadPage::saveGeneralWorkflowFromTraining(
     const QString& userInstruction,
     int retryCount,
     const QString& validationError,
-    const QString& rejectedContent)
+    const QString& rejectedContent,
+    const QString& selectedMessageText,
+    const QString& sessionTitle)
 {
     if (!isChatWorkspace()) {
         appendAgentChat("Barebone-Qt", "Allgemeine Workflows koennen nur im Chat gespeichert werden.");
         return;
     }
 
-    if (m_agentConversation.isEmpty() && m_selectedWorkflow.isEmpty() && m_trainingFinalSaveWorkflow.isEmpty()) {
+    const QString cleanSelectedMessageText = repairMojibakeText(selectedMessageText).trimmed();
+    const QString cleanSessionTitle = repairMojibakeText(sessionTitle).trimmed();
+    const bool saveFromMessageFooter = !cleanSelectedMessageText.isEmpty();
+
+    if (m_agentConversation.isEmpty() && m_trainingFinalSaveWorkflow.isEmpty() && cleanSelectedMessageText.isEmpty()) {
         appendAgentChat("Barebone-Qt", "Es gibt noch keinen Kontext, aus dem ein Workflow erstellt werden kann.");
         return;
     }
@@ -9704,6 +10234,11 @@ void BricsCadPage::saveGeneralWorkflowFromTraining(
         m_generalWorkflowSaveRetries = 0;
         m_generalWorkflowSaveRejectedSignatures.clear();
         m_lastGeneralWorkflowSaveContext = {};
+        if (saveFromMessageFooter) {
+            m_trainingFinalSavePending = false;
+            m_trainingFinalSaveWorkflow = {};
+            m_trainingFinalSaveActions = {};
+        }
     }
 
     const QString provider = m_config.aiProvider();
@@ -9727,22 +10262,31 @@ void BricsCadPage::saveGeneralWorkflowFromTraining(
     for (int i = 0; i < m_agentConversation.size(); ++i) {
         compactConversation.append(m_agentConversation.at(i));
     }
+    const QJsonObject compressedTitleContext = workflowSaveCompressedTitleContext(cleanSelectedMessageText, cleanSessionTitle);
+    const QJsonObject pendingWorkflowForSave = saveFromMessageFooter ? QJsonObject{} : m_trainingFinalSaveWorkflow;
 
     QJsonObject saveContext{
         {"schema", "barebone.general.workflow.save.request.v1"},
-        {"selectedWorkflow", m_selectedWorkflow},
-        {"pendingWorkflow", m_trainingFinalSaveWorkflow},
+        {"source", saveFromMessageFooter ? QStringLiteral("message_footer") : QStringLiteral("chat_prompt")},
+        {"forceNewWorkflow", true},
+        {"selectedWorkflow", QJsonObject{}},
+        {"pendingWorkflow", pendingWorkflowForSave},
         {"userInstruction", repairMojibakeText(userInstruction).trimmed()},
+        {"selectedMessageText", cleanSelectedMessageText},
+        {"sessionTitle", cleanSessionTitle},
+        {"compressedTitleContext", compressedTitleContext},
         {"conversation", compactConversation},
         {"conversationCompression", QJsonObject{
             {"mode", QStringLiteral("full")},
             {"messagesIncluded", compactConversation.size()},
             {"messagesTotal", m_agentConversation.size()},
         }},
+        {"katexFormattingContract", katexFormattingContract()},
         {"namingPolicy", QJsonObject{
-            {"newWorkflowTitle", QStringLiteral("Wenn selectedWorkflow leer ist, erzeuge einen kurzen, treffenden Titel direkt aus dem konkreten Thema des Inhalts. Dieser Titel wird in der Sidebar angezeigt.")},
-            {"idPolicy", QStringLiteral("Wenn selectedWorkflow leer ist, leite id als stabilen snake_case Dateinamen aus title ab. Keine generischen IDs wie workflow oder neuer_workflow.")},
-            {"overwritePolicy", QStringLiteral("Wenn selectedWorkflow vorhanden ist, behalte dessen id bei und aktualisiere den title nur, wenn der Nutzer eine Umbenennung verlangt.")},
+            {"newWorkflowTitle", QStringLiteral("Erzeuge title selbst aus compressedTitleContext.summary, selectedMessageText und dem fachlichen Schwerpunkt des Workflows. Der title wird in der Sidebar angezeigt.")},
+            {"sessionTitlePolicy", QStringLiteral("sessionTitle ist hoechstens schwacher Kontext und darf nicht automatisch als title uebernommen werden.")},
+            {"idPolicy", QStringLiteral("Leite id als stabilen snake_case Dateinamen aus title ab. Keine generischen IDs wie workflow oder neuer_workflow.")},
+            {"overwritePolicy", QStringLiteral("Chat-Speichern legt immer einen neuen Workflow an. Keine vorhandene id uebernehmen und keinen bestehenden Workflow ueberschreiben.")},
         }},
         {"requiredSchema", QJsonObject{
             {"schema", "barebone.general.workflow.save.response.v1"},
@@ -9754,16 +10298,17 @@ void BricsCadPage::saveGeneralWorkflowFromTraining(
     QJsonArray messages{
         QJsonObject{
             {"role", "system"},
-            {"content",
+            {"content", QStringLiteral(
                 "Du erstellst aus dem gesamten Chatkontext einen detaillierten allgemeinen Barebone-Qt Workflow. "
                 "Antworte ausschliesslich mit genau einem JSON-Objekt. Keine Markdown-Antwort, kein Codeblock, keine Erklaerung ausserhalb von JSON. "
                 "Das JSON muss schema='barebone.general.workflow.save.response.v1' verwenden. "
                 "Pflichtfelder: schema, id, title, description, blocks. blocks ist ein Array aus Objekten mit id, title, text. "
                 "Optionale Felder: tables, inputs, formulas, examples, assumptions, warnings, sourceRefs, verificationStatus, tags. "
-                "Erstelle keine knappe Kurzfassung. Kombiniere detailreich alle fachlichen Informationen aus conversation, selectedWorkflow, pendingWorkflow und userInstruction. "
+                "Erstelle keine knappe Kurzfassung. Wenn selectedMessageText vorhanden ist, nutze diese markierte AI-Nachricht als primaeren fachlichen Workflow-Inhalt; conversation und compressedTitleContext dienen dann zur Einordnung und Titelwahl, nicht zum Einmischen fremder Themen. "
+                "Wenn selectedMessageText leer ist, kombiniere detailreich alle fachlichen Informationen aus conversation, pendingWorkflow und userInstruction. "
                 "Bewahre Tabellen, Formeln, Beispiele, Rechenschritte, Annahmen, Hinweise, Nutzerkorrekturen und offene Unsicherheiten. "
                 "Unterteile nur grob nach Absätzen; fachliche Tiefe gehoert in blocks[].text, nicht in eine komplexe JSON-Verschachtelung. "
-                "Wenn LaTeX vorkommt, schreibe beschreibende Indizes nicht kursiv, z. B. _{\\\\mathrm{...}} statt _{...}. Schreibe Grad Celsius KaTeX-kompatibel als {}^\\\\circ\\\\mathrm{C}, z. B. 20\\\\,{}^\\\\circ\\\\mathrm{C} statt 20\\\\,^\\\\circ\\\\mathrm{C}. "
+                "%1 "
                 "Bei Berechnungen muss nach jeder Grundgleichung eine kurze Symbolerklaerung der verwendeten Groessen folgen. "
                 "Rechenschritte muessen Einheiten an jeder eingesetzten Zahl und jedem Summanden fuehren; keine reine Zahlenkette mit Einheit nur am Ende. "
                 "Wenn Eingabewerte nicht in SI-Einheiten vorliegen, zeige zuerst die Umrechnung in SI-Einheiten. "
@@ -9771,13 +10316,13 @@ void BricsCadPage::saveGeneralWorkflowFromTraining(
                 "Aufzaehlungen muessen echte Markdown-Listen sein, je ein Punkt pro Zeile mit '- ' oder '1. '; keine zusammengeklebten Listen in einer Zeile. "
                 "Nutze keine HTML-Tags wie <br>; verwende echte Zeilenumbrueche. "
                 "Bei Korrektur-Retries wegen Formatierung darfst du fachliche Inhalte nicht kuerzen oder neu zusammenfassen; korrigiere nur die betroffenen Formatierungen und erhalte alle Details. "
-                "Wenn selectedWorkflow leer ist, musst du selbst einen kurzen, passenden title fuer das konkrete Thema erstellen; dieser title wird in der Sidebar angezeigt. "
+                "Du musst selbst einen kurzen, passenden title fuer das konkrete Thema erstellen; nutze dafuer compressedTitleContext.summary, selectedMessageText und den fachlichen Schwerpunkt. "
+                "Uebernimm sessionTitle nicht automatisch als title. "
                 "Leite id daraus als stabilen snake_case Dateinamen ab. title und id duerfen nicht Workflow, Neuer Workflow, Chat Workflow, General Workflow oder aehnlich generisch heissen. "
-                "Wenn selectedWorkflow vorhanden ist, behalte dessen id exakt bei und aendere title nur bei ausdruecklichem Umbenennungswunsch des Nutzers. "
+                "Chat-Speichern legt immer einen neuen Workflow an; uebernimm keine vorhandene id und ueberschreibe keinen gespeicherten Workflow. "
                 "Nutze keine BricsCAD-Workflow-Felder wie steps, executionBatches, validationExamples oder tools. "
                 "Wenn pendingWorkflow vorhanden ist, ueberarbeite diesen anhand userInstruction. "
-                "Wenn selectedWorkflow vorhanden ist, ueberarbeite und ueberschreibe ihn statt eine neue ID zu erfinden. "
-                "Wenn Werte AI-Entwurf sind, setze verificationStatus='AI-Entwurf'."},
+                "Wenn Werte AI-Entwurf sind, setze verificationStatus='AI-Entwurf'.").arg(katexFormattingInstructionText())},
         },
         QJsonObject{
             {"role", "user"},
@@ -9873,12 +10418,6 @@ void BricsCadPage::saveGeneralWorkflowFromTraining(
         }
 
         workflow = generalWorkflowFromSaveResponse(workflow);
-        const QString preferredTitle = titleCandidateFromSaveContext(saveContext);
-        if (!preferredTitle.isEmpty()) {
-            workflow.insert(QStringLiteral("title"), preferredTitle);
-            workflow.insert(QStringLiteral("id"), workflowSlug(preferredTitle));
-            workflow = normalizedGeneralWorkflowDraft(workflow);
-        }
         const QString validationError = generalWorkflowDraftValidationError(workflow);
         if (!validationError.isEmpty()) {
             const QString rejectedJson = QString::fromUtf8(QJsonDocument(workflow).toJson(QJsonDocument::Compact));
@@ -10157,7 +10696,9 @@ void BricsCadPage::handleAgentReply(const QString& content)
     bool parsed = false;
     const QJsonObject reply = jsonObjectFromAiContent(content, &parsed);
     if (!parsed) {
-        if (m_chatMode == QStringLiteral("general") && !routeAllowsCadActions(m_lastAgentRoute)) {
+        if (m_chatMode == QStringLiteral("general")
+            && !routeAllowsCadActions(m_lastAgentRoute)
+            && !content.trimmed().startsWith(QLatin1Char('{'))) {
             const QString plainMessage = removeReasoningLeak(repairMojibakeText(content)).trimmed();
             if (!plainMessage.isEmpty()) {
                 appendBridgeLog("AI Agent: Allgemeiner Modus akzeptiert Plain-Text-Antwort als message");
@@ -10177,6 +10718,10 @@ void BricsCadPage::handleAgentReply(const QString& content)
         return;
     }
 
+    const QString sessionTitleSuggestion = sessionTitleSuggestionFromAgentReply(reply);
+    const QVariantMap sessionTitleExtra = sessionTitleSuggestion.isEmpty()
+        ? QVariantMap{}
+        : QVariantMap{{QStringLiteral("sessionTitleSuggestion"), sessionTitleSuggestion}};
     const QString rawType = reply.value("type").toString();
     QString type = rawType;
     if (type.trimmed().isEmpty()
@@ -10188,7 +10733,10 @@ void BricsCadPage::handleAgentReply(const QString& content)
                     reply.value(QStringLiteral("content")).toString()))).trimmed();
         if (!fallbackMessage.isEmpty()) {
             appendBridgeLog("AI Agent: Allgemeiner Modus akzeptiert JSON ohne type als message");
-            appendAgentChat("AI", fallbackMessage);
+            if (!sessionTitleSuggestion.isEmpty()) {
+                emitSessionTitleSuggestion(sessionTitleSuggestion);
+            }
+            appendAgentChat("AI", fallbackMessage, sessionTitleExtra);
             m_agentValidationRetries = 0;
             return;
         }
@@ -10300,6 +10848,9 @@ void BricsCadPage::handleAgentReply(const QString& content)
         } else {
             proposal = normalizedRectangularRoomWallProposal(proposal, m_lastAgentUserPrompt);
         }
+        if (!sessionTitleSuggestion.isEmpty()) {
+            proposal.insert(QStringLiteral("sessionTitleSuggestion"), sessionTitleSuggestion);
+        }
         QString errorMessage;
         if (!validateAgentProposal(proposal, errorMessage)) {
             clearAgentProposal();
@@ -10327,11 +10878,17 @@ void BricsCadPage::handleAgentReply(const QString& content)
                 .arg(action.value("tool").toString(proposal.value("tool").toString()),
                     QString::fromUtf8(QJsonDocument(action.value("params").toObject(proposal.value("params").toObject())).toJson(QJsonDocument::Compact))));
         }
+        if (!sessionTitleSuggestion.isEmpty()) {
+            emitSessionTitleSuggestion(sessionTitleSuggestion);
+        }
         preflightAgentProposal(content, proposal, proposal);
         return;
     }
 
     if (type == "context_request") {
+        if (!sessionTitleSuggestion.isEmpty()) {
+            emitSessionTitleSuggestion(sessionTitleSuggestion);
+        }
         handleAgentContextRequest(reply);
         return;
     }
@@ -10397,6 +10954,9 @@ void BricsCadPage::handleAgentReply(const QString& content)
             m_pendingAgentDraft.insert("_sourcePrompt", m_lastAgentUserPrompt);
         }
         clearAgentProposal();
+        if (!sessionTitleSuggestion.isEmpty()) {
+            emitSessionTitleSuggestion(sessionTitleSuggestion);
+        }
         setAgentWaitingForUser(reply);
         if (m_pendingAgentDraft.isEmpty()) {
             appendBridgeLog("AI Agent: Rueckfrage ohne Draft");
@@ -10416,7 +10976,10 @@ void BricsCadPage::handleAgentReply(const QString& content)
             }
         }
         if (!message.isEmpty()) {
-            appendAgentChat("AI", message);
+            if (!sessionTitleSuggestion.isEmpty()) {
+                emitSessionTitleSuggestion(sessionTitleSuggestion);
+            }
+            appendAgentChat("AI", message, sessionTitleExtra);
         }
         if (!m_pendingAgentProposal.isEmpty()) {
             appendBridgeLog("AI Agent: offener Vorschlag verworfen, AI hat keinen aktualisierten Vorschlag geliefert");
@@ -10444,7 +11007,10 @@ void BricsCadPage::handleAgentReply(const QString& content)
         appendBridgeLog(QString("AI Agent: Plan missing=%1")
             .arg(QString::fromUtf8(QJsonDocument(reply.value("missingCapabilities").toArray()).toJson(QJsonDocument::Compact))));
         if (!message.isEmpty()) {
-            appendAgentChat("AI", message);
+            if (!sessionTitleSuggestion.isEmpty()) {
+                emitSessionTitleSuggestion(sessionTitleSuggestion);
+            }
+            appendAgentChat("AI", message, sessionTitleExtra);
         }
         return;
     }
@@ -13230,6 +13796,20 @@ void BricsCadPage::appendAgentChat(const QString& speaker, const QString& messag
     emitWebMessage(m_agentBridge, payload);
 }
 
+void BricsCadPage::emitSessionTitleSuggestion(const QString& title) const
+{
+    if (!m_agentBridge) {
+        return;
+    }
+    const QString cleanTitle = cleanedGeneralWorkflowHeading(title).left(64).trimmed();
+    if (cleanTitle.isEmpty() || isGenericGeneralWorkflowName(cleanTitle)) {
+        return;
+    }
+    emitToWebAsync(m_agentBridge, [sessionId = m_agentSessionId, cleanTitle](AiWebBridge* target) {
+        Q_EMIT target->sessionTitleSuggested(sessionId, cleanTitle);
+    });
+}
+
 void BricsCadPage::clearAgentProposal()
 {
     m_pendingAgentProposal = {};
@@ -14472,9 +15052,10 @@ QJsonObject BricsCadPage::agentRequestEnvelope(const QString& prompt, const QJso
     if (m_chatMode == QStringLiteral("general") && !routeAllowsCadActions(normalizedRoute)) {
         responseContract = QJsonObject{
             {"schema", "barebone.general.response.v1"},
-            {"format", "plain_text"},
-            {"policy", QStringLiteral("%1 Antworte direkt als normale Chatantwort. Kein JSON-Objekt, kein Barebone-Agent-Antworttyp. Markdown ist erlaubt. Bei Berechnungen: zuerst Grundgleichung, dann Symbolerklärung, dann SI-Umrechnung, dann Rechenschritte mit Einheit an jeder Zahl und jedem Summanden, dann Ergebnis.")
-                .arg(aiLanguageInstruction(m_config))},
+            {"format", "barebone-agent-json-message-with-session-title"},
+            {"required", QJsonArray{"schema", "type", "message", "sessionTitle"}},
+            {"policy", QStringLiteral("%1 Antworte mit genau einem JSON-Objekt: schema='barebone.agent.response.v2', type='message', message='direkte Chatantwort', sessionTitle='kurzer Titel aus komprimiertem Kontext'. Markdown ist nur in message erlaubt. Bei Berechnungen: zuerst Grundgleichung, dann Symbolerklärung, dann SI-Umrechnung, dann Rechenschritte mit Einheit an jeder Zahl und jedem Summanden, dann Ergebnis. %2")
+                .arg(aiLanguageInstruction(m_config), katexFormattingInstructionText())},
         };
     }
 
@@ -14505,6 +15086,7 @@ QJsonObject BricsCadPage::agentRequestEnvelope(const QString& prompt, const QJso
         });
     envelope.insert("policyRefs", stringsToJsonArray(policyRefs));
     envelope.insert("policyText", policyTextForRefs(policyRefs));
+    envelope.insert("katexFormattingContract", katexFormattingContract());
     envelope.insert("responseContract", responseContract);
     envelope.insert("documentContext", (!sanitizedContext.isEmpty() && routeAllowsDocumentContext(normalizedRoute))
         ? sanitizedContext
@@ -14567,7 +15149,7 @@ QJsonObject BricsCadPage::agentRequestEnvelope(const QString& prompt, const QJso
     });
     envelope.insert("conversationMode", "unified-agent-envelope");
     envelope.insert("expectedResponse", (m_chatMode == QStringLiteral("general") && !routeAllowsCadActions(normalizedRoute))
-        ? QStringLiteral("plain-text-chat-message")
+        ? QStringLiteral("barebone-agent-json-message-with-session-title")
         : QStringLiteral("barebone-agent-json-v2-strict-object"));
     return envelope;
 }

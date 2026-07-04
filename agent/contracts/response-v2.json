@@ -3,9 +3,15 @@
   "strictJsonObject": true,
   "preferred": true,
   "topLevel": {
-    "required": ["schema", "type", "message"],
+    "required": ["schema", "type", "message", "sessionTitle"],
     "schema": "barebone.agent.response.v2",
-    "allowedTypes": ["message", "ask_user", "context_request", "action_proposal", "workflow_run_proposal", "plan"]
+    "allowedTypes": ["message", "ask_user", "context_request", "action_proposal", "workflow_run_proposal", "plan"],
+    "sessionTitlePolicy": "Set sessionTitle on every response. Derive a short, specific German session title from compactState, userPrompt and the conversation focus; max 6 words; avoid generic titles."
+  },
+  "sessionTitle": {
+    "recommended": true,
+    "maxWords": 6,
+    "policy": "Kurzer Sitzungsname aus komprimiertem Kontext; keine generischen Titel wie Neuer Chat, Allgemeiner Chat, Workflow oder Frage."
   },
   "message": {
     "required": ["type", "message"]

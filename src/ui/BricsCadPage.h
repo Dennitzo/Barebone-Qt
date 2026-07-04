@@ -74,6 +74,14 @@ private:
         QStringList repairAskSignatures;
     };
 
+    struct PendingMathFormattingRepair {
+        QString originalMarkdown;
+        QString diagnosticsJson;
+        QString sessionId;
+        int attempts = 0;
+        int revision = 0;
+    };
+
     void startBridgeServer();
     void appendBridgeLog(const QString& message);
     void emitCapabilitiesStatusToWeb() const;
@@ -89,8 +97,15 @@ private:
         const QString& userInstruction = QString(),
         int retryCount = 0,
         const QString& validationError = {},
-        const QString& rejectedContent = {});
+        const QString& rejectedContent = {},
+        const QString& selectedMessageText = QString(),
+        const QString& sessionTitle = QString());
     void saveGeneralWorkflowFromMessage(const QString& messageId, const QString& messageText, const QString& sessionTitle);
+    QJsonObject workflowSaveCompressedTitleContext(const QString& selectedMessageText, const QString& sessionTitle) const;
+    void requestMathFormattingRepair(const QString& messageId, int revision, const QString& markdown, const QString& diagnosticsJson);
+    void acceptMathFormattingRepair(const QString& messageId, int revision, const QString& markdown);
+    bool replaceAssistantConversationMessage(const QString& sessionId, const QString& originalMarkdown, const QString& repairedMarkdown);
+    bool replaceAssistantConversationMessageIn(QJsonArray& conversation, const QString& originalMarkdown, const QString& repairedMarkdown) const;
     bool saveGeneralWorkflowFinalDraft(QString* savedPath = nullptr, QString* errorMessage = nullptr);
     void handleWorkflowTrainingReply(const QString& content);
     QJsonObject workflowTrainingEnvelope(const QString& prompt, bool compactContext = false) const;
@@ -162,6 +177,7 @@ private:
     void refreshLocalContextWindow(bool force = false);
     void handleLocalContextWindowResponse(const QJsonObject& response);
     void emitContextBudget(int estimatedTokens = -1, bool minimized = false, const QString& detail = QString()) const;
+    void emitSessionTitleSuggestion(const QString& title) const;
     int effectiveContextWindowTokens() const;
     int inputBudgetTokens(int requestedOutputTokens) const;
     int adjustedOutputTokenLimit(int requestedOutputTokens) const;
@@ -293,6 +309,7 @@ private:
     int m_generalWorkflowSaveRetries = 0;
     QStringList m_generalWorkflowSaveRejectedSignatures;
     QJsonObject m_lastGeneralWorkflowSaveContext;
+    QHash<QString, PendingMathFormattingRepair> m_pendingMathFormattingRepairs;
     QString m_trainingPhase = QStringLiteral("idle");
     bool m_trainingSaveReviewPending = false;
     bool m_trainingReviewConfirmed = false;

@@ -123,6 +123,16 @@ void AiWebBridge::exportMessageToPdf(const QString& messageId, const QString& su
     Q_EMIT messagePdfExportRequested(messageId, suggestedTitle);
 }
 
+void AiWebBridge::requestMathFormattingRepair(const QString& messageId, int revision, const QString& markdown, const QString& diagnosticsJson)
+{
+    Q_EMIT mathFormattingRepairRequested(messageId, revision, markdown, diagnosticsJson);
+}
+
+void AiWebBridge::acceptMathFormattingRepair(const QString& messageId, int revision, const QString& markdown)
+{
+    Q_EMIT mathFormattingRepairAccepted(messageId, revision, markdown);
+}
+
 bool AiWebBridge::copyText(const QString& text)
 {
     QClipboard* clipboard = QGuiApplication::clipboard();

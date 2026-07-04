@@ -34,6 +34,8 @@ public Q_SLOTS:
     void deleteWorkflow(const QString& workflowId);
     void clearSelectedWorkflow();
     void exportMessageToPdf(const QString& messageId, const QString& suggestedTitle);
+    void requestMathFormattingRepair(const QString& messageId, int revision, const QString& markdown, const QString& diagnosticsJson);
+    void acceptMathFormattingRepair(const QString& messageId, int revision, const QString& markdown);
     bool copyText(const QString& text);
 
 Q_SIGNALS:
@@ -60,6 +62,8 @@ Q_SIGNALS:
     void workflowDeleteRequested(const QString& workflowId);
     void workflowSelectionCleared();
     void messagePdfExportRequested(const QString& messageId, const QString& suggestedTitle);
+    void mathFormattingRepairRequested(const QString& messageId, int revision, const QString& markdown, const QString& diagnosticsJson);
+    void mathFormattingRepairAccepted(const QString& messageId, int revision, const QString& markdown);
 
     void messageAdded(const QVariantMap& message);
     void statusChanged(const QString& status);
@@ -85,4 +89,7 @@ Q_SIGNALS:
     void selectedWorkflowChanged(const QVariantMap& workflow);
     void workflowRunProgress(const QVariantMap& progress);
     void workflowRunFinished(const QVariantMap& result);
+    void mathFormattingRepairCompleted(const QString& messageId, int revision, const QString& markdown);
+    void mathFormattingRepairFailed(const QString& messageId, int revision, const QString& errorMessage);
+    void sessionTitleSuggested(const QString& sessionId, const QString& title);
 };

@@ -16,4 +16,8 @@ Bei action_proposal nutze bevorzugt Barebone-Agent-JSON v2:
 Bei normalen Antworten nutze:
 {"schema":"barebone.agent.response.v2","type":"message","message":"..."}
 
-Wenn du LaTeX schreibst, formatiere beschreibende Indizes nicht kursiv; nutze z. B. `_{\mathrm{...}}` statt `_{...}`. Schreibe Grad Celsius KaTeX-kompatibel als `{}^\circ\mathrm{C}`, z. B. `20\,{}^\circ\mathrm{C}` statt `20\,^\circ\mathrm{C}`.
+Setze bei jeder Antwort zusätzlich `sessionTitle` als kurzen deutschen Sitzungsnamen aus `compactState`, Nutzerprompt und fachlichem Schwerpunkt. Der Titel soll höchstens 6 Wörter haben und darf nicht generisch sein, z.B. nicht "Neuer Chat", "Allgemeiner Chat", "Workflow" oder "Frage".
+
+Wenn du LaTeX oder Markdown-Formeln schreibst, folge dem `katexFormattingContract` aus dem Envelope. Die konkrete Gültigkeit wird durch die KaTeX-Runtime im WebView geprüft; ändere bei Formatierungsreparaturen keine fachlichen Inhalte, Zahlen oder Berechnungen.
+
+Schreibe Einheiten in KaTeX-Formeln immer aufrecht und nicht kursiv; nutze dafür `\mathrm{...}`, z.B. `\mathrm{m}`, `\mathrm{s}`, `\mathrm{kW}` oder `\mathrm{m^{3}/s}`.
