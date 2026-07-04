@@ -1062,110 +1062,6 @@ QString jsonStringFieldFromPrefix(const QByteArray& data, const QString& key)
     return match.captured(1).trimmed();
 }
 
-QString normalizedLatexSubscriptLabel(QString label)
-{
-    label = label.trimmed();
-    label.replace(QRegularExpression(QStringLiteral(R"(\\(?:mathrm|text)\{([^{}]+)\})")), QStringLiteral("\\1"));
-    label.replace(QRegularExpression(QStringLiteral("\\s+")), QString());
-    label.replace(QLatin1Char('_'), QLatin1Char(','));
-    label.replace(QRegularExpression(QStringLiteral(",+")), QStringLiteral(","));
-    while (label.startsWith(QLatin1Char(','))) {
-        label.remove(0, 1);
-    }
-    while (label.endsWith(QLatin1Char(','))) {
-        label.chop(1);
-    }
-
-    auto isUnitSegment = [](QString segment) {
-        segment = segment.trimmed().toLower();
-        segment.replace(QRegularExpression(QStringLiteral(R"(\\(?:mathrm|text)\{([^{}]+)\})")), QStringLiteral("\\1"));
-        segment.replace(QRegularExpression(QStringLiteral("\\s+")), QString());
-        segment.replace(QRegularExpression(QStringLiteral("[{}]")), QString());
-        segment.replace(QChar(0x00B2), QLatin1Char('2'));
-        segment.replace(QChar(0x00B3), QLatin1Char('3'));
-        segment.replace(QLatin1Char('^'), QString());
-        if (segment.isEmpty()) {
-            return false;
-        }
-        if (segment.contains(QLatin1Char('/')) || segment.contains(QStringLiteral("per"))) {
-            return QRegularExpression(QStringLiteral(R"(^(?:m2|m3|kg|g|j|kj|w|kw|wh|kwh|l|h|s|min|k|c|°c)(?:/|per)(?:m2|m3|kg|g|j|kj|w|kw|wh|kwh|l|h|s|min|k|c|°c)(?:[a-z0-9/]*)?$)"))
-                .match(segment)
-                .hasMatch();
-        }
-        return QRegularExpression(QStringLiteral(R"(^(?:w|kw|wh|kwh|j|kj|kg|g|m|m2|m3|l|s|h|min|k|c|°c|pa|bar|a|v)$)"))
-            .match(segment)
-            .hasMatch();
-    };
-
-    const QStringList originalSegments = label.split(QLatin1Char(','), Qt::SkipEmptyParts);
-    QStringList keptSegments;
-    keptSegments.reserve(originalSegments.size());
-    for (const QString& segment : originalSegments) {
-        if (!isUnitSegment(segment)) {
-            keptSegments.append(segment);
-        }
-    }
-    if (keptSegments.size() != originalSegments.size()) {
-        label = keptSegments.join(QLatin1Char(','));
-    }
-    if (label.isEmpty() && !originalSegments.isEmpty()) {
-        return QStringLiteral("__BAREBONE_REMOVE_SUBSCRIPT__");
-    }
-
-    if (label.isEmpty()
-        || !QRegularExpression(QStringLiteral("[A-Za-z]")).match(label).hasMatch()
-        || !QRegularExpression(QStringLiteral(R"(^[A-Za-z0-9,.\-]+$)")).match(label).hasMatch()) {
-        return {};
-    }
-
-    return QStringLiteral("\\mathrm{%1}").arg(label);
-}
-
-QString normalizeLatexUprightSubscripts(QString text)
-{
-    auto replaceMatches = [&text](const QRegularExpression& expression, auto labelFromMatch) {
-        qsizetype offset = 0;
-        QRegularExpressionMatch match = expression.match(text, offset);
-        while (match.hasMatch()) {
-            const QString label = normalizedLatexSubscriptLabel(labelFromMatch(match));
-            if (label == QStringLiteral("__BAREBONE_REMOVE_SUBSCRIPT__")) {
-                text.remove(match.capturedStart(0), match.capturedLength(0));
-                offset = match.capturedStart(0);
-            } else if (label.isEmpty()) {
-                offset = match.capturedEnd(0);
-            } else {
-                const QString replacement = QStringLiteral("_{%1}").arg(label);
-                text.replace(match.capturedStart(0), match.capturedLength(0), replacement);
-                offset = match.capturedStart(0) + replacement.size();
-            }
-            match = expression.match(text, offset);
-        }
-    };
-
-    replaceMatches(
-        QRegularExpression(QStringLiteral(R"(_\{((?:\\(?:mathrm|text)\{[^{}]+\}|[A-Za-z0-9_,\s./^°\-])+)\})")),
-        [](const QRegularExpressionMatch& match) {
-            return match.captured(1);
-        });
-    replaceMatches(
-        QRegularExpression(QStringLiteral(R"(_\{([A-Za-z0-9_,\s.\-]*?)\\(?:mathrm|text)\{([^{}]+)\}([A-Za-z0-9_,\s.\-]*?)\})")),
-        [](const QRegularExpressionMatch& match) {
-            return match.captured(1) + match.captured(2) + match.captured(3);
-        });
-    replaceMatches(
-        QRegularExpression(QStringLiteral(R"(_\{([A-Za-z0-9_,\s./^°\-]+)\})")),
-        [](const QRegularExpressionMatch& match) {
-            return match.captured(1);
-        });
-    replaceMatches(
-        QRegularExpression(QStringLiteral(R"(_([A-Za-z][A-Za-z0-9_]*)(?=[\s=+\-*/^,;:.\\)\}\]]|$))")),
-        [](const QRegularExpressionMatch& match) {
-            return match.captured(1);
-        });
-
-    return text;
-}
-
 QString normalizedGeneralWorkflowLatex(QString text)
 {
     text = repairMojibakeText(text).trimmed();
@@ -1182,79 +1078,6 @@ QString normalizedGeneralWorkflowLatex(QString text)
         text = text.mid(1, text.size() - 2).trimmed();
     }
 
-    // Local models sometimes emit LaTeX inside JSON with unescaped backslashes.
-    // JSON then turns "\rho" into a carriage return followed by "ho", or drops
-    // the backslash from tokens such as cdot/dot/Delta. Repair the common TGA
-    // formula cases before whitespace normalization destroys the signal.
-    text.replace(QRegularExpression(QStringLiteral("[\\x00-\\x1F]+\\s*ho\\b")), QStringLiteral("\\rho"));
-    text.replace(QRegularExpression(QStringLiteral(R"(\\+\s+\\+(?=(?:rho|cdot|dot|Delta|frac|mathrm|approx|times|text|left|right|sqrt|sum|int)\b))")),
-        QStringLiteral("\\"));
-    text.replace(QRegularExpression(QStringLiteral(R"(\\{2,}(?=(?:rho|cdot|dot|Delta|frac|mathrm|approx|times|text|left|right|sqrt|sum|int)\b))")),
-        QStringLiteral("\\"));
-    text.replace(QStringLiteral("?T"), QStringLiteral("\\Delta T"));
-    text.replace(QStringLiteral("? T"), QStringLiteral("\\Delta T"));
-    text.replace(QStringLiteral("DeltaT"), QStringLiteral("\\Delta T"));
-    text.replace(QStringLiteral("deltaT"), QStringLiteral("\\Delta T"));
-    text.replace(QStringLiteral("Delta T"), QStringLiteral("\\Delta T"));
-    text.replace(QStringLiteral("delta T"), QStringLiteral("\\Delta T"));
-    text.replace(QStringLiteral("Φ"), QStringLiteral("\\Phi"));
-    text.replace(QStringLiteral("Σ"), QStringLiteral("\\sum"));
-    text.replace(QStringLiteral("Ψ"), QStringLiteral("\\Psi"));
-    text.replace(QStringLiteral("χ"), QStringLiteral("\\chi"));
-    text.replace(QStringLiteral("θ"), QStringLiteral("\\theta"));
-    text.replace(QStringLiteral("Θ"), QStringLiteral("\\Theta"));
-    text.replace(QStringLiteral("ΔT"), QStringLiteral("\\Delta T"));
-    text.replace(QStringLiteral("Δ T"), QStringLiteral("\\Delta T"));
-    text.replace(QStringLiteral("Δ"), QStringLiteral("\\Delta"));
-    text.replace(QStringLiteral("ρ"), QStringLiteral("\\rho"));
-    text.replace(QStringLiteral("ε"), QStringLiteral("\\varepsilon"));
-    text.replace(QStringLiteral("π"), QStringLiteral("\\pi"));
-    text.replace(QStringLiteral("φ"), QStringLiteral("\\varphi"));
-    text.replace(QStringLiteral("?"), QStringLiteral("\\rho"));
-    text.replace(QRegularExpression(QStringLiteral("(?<!\\\\)\\brho\\b")), QStringLiteral("\\rho"));
-    text.replace(QRegularExpression(QStringLiteral("(?<!\\\\)\\bho\\b")), QStringLiteral("\\rho"));
-    text.replace(QStringLiteral("cp"), QStringLiteral("c_p"));
-    text.replace(QStringLiteral("c?"), QStringLiteral("c_p"));
-    text.replace(QStringLiteral("V?"), QStringLiteral("\\dot{V}"));
-    text.replace(QStringLiteral("?"), QStringLiteral("\\dot{V}"));
-    text.replace(QStringLiteral("·"), QStringLiteral("\\cdot"));
-    text.replace(QStringLiteral("×"), QStringLiteral("\\cdot"));
-    text.replace(QStringLiteral("˜"), QStringLiteral("\\approx"));
-    text.replace(QStringLiteral("²"), QStringLiteral("^2"));
-    text.replace(QStringLiteral("³"), QStringLiteral("^3"));
-    text.replace(QStringLiteral("⁻¹"), QStringLiteral("^{-1}"));
-    text.replace(QRegularExpression(QStringLiteral("(?<!\\\\)\\bcdot\\b")), QStringLiteral("\\cdot"));
-    text.replace(QRegularExpression(QStringLiteral("(?<!\\\\)\\bdot\\s*\\{\\s*([A-Za-z])\\s*\\}")), QStringLiteral("\\dot{\\1}"));
-    text.replace(QRegularExpression(QStringLiteral("(?<!\\\\)\\bDelta\\s*T\\b")), QStringLiteral("\\Delta T"));
-    text.replace(QRegularExpression(QStringLiteral("(?<!\\\\)\\bmathrm\\s*\\{")), QStringLiteral("\\mathrm{"));
-    text.replace(QRegularExpression(QStringLiteral("(?<!\\\\)\\bfrac\\s*\\{")), QStringLiteral("\\frac{"));
-    text.replace(QRegularExpression(QStringLiteral("(?<!\\\\)\\btimes\\b")), QStringLiteral("\\times"));
-    text.replace(QRegularExpression(QStringLiteral("\\s+")), QStringLiteral(" "));
-    text.replace(QRegularExpression(QStringLiteral("\\s*\\\\cdot\\s*")), QStringLiteral(" \\\\cdot "));
-    text.replace(QRegularExpression(QStringLiteral("\\s*\\\\times\\s*")), QStringLiteral(" \\\\times "));
-    text.replace(QRegularExpression(QStringLiteral("\\\\dot\\s+([A-Za-z])")), QStringLiteral("\\dot{\\1}"));
-    text.replace(QRegularExpression(QStringLiteral("\\s*=\\s*")), QStringLiteral(" = "));
-    text.replace(QRegularExpression(QStringLiteral(R"(\s*\\?,?\s*\[\s*\\(?:mathrm|text)\{[^{}]+\}\s*\]\s*(?==))")), QStringLiteral(" "));
-    text.replace(QRegularExpression(QStringLiteral(R"(\s*\\?,?\s*\[\s*[A-Za-z0-9/%^°\s.\-]+\s*\]\s*(?==))")), QStringLiteral(" "));
-    text.replace(QRegularExpression(QStringLiteral("\\bbestimmt\\b\\.?"), QRegularExpression::CaseInsensitiveOption), QString());
-    text.replace(QRegularExpression(QStringLiteral("\\s+")), QStringLiteral(" "));
-
-    text.replace(QRegularExpression(QStringLiteral(R"(\\mathrm\{\s*kg\s*/\s*m\s*\^\s*\{?3\}?\s*\})")),
-        QStringLiteral("\\frac{\\mathrm{kg}}{\\mathrm{m^3}}"));
-    text.replace(QRegularExpression(QStringLiteral(R"(\\mathrm\{\s*m\s*\^\s*\{?3\}?\s*/\s*s\s*\})")),
-        QStringLiteral("\\frac{\\mathrm{m^3}}{\\mathrm{s}}"));
-    text.replace(QRegularExpression(QStringLiteral(R"(\\mathrm\{\s*J\s*/\s*\(?\s*kg\s*(?:\\cdot|\*)\s*K\s*\)?\s*\})")),
-        QStringLiteral("\\frac{\\mathrm{J}}{\\mathrm{kg}\\cdot\\mathrm{K}}"));
-    text.replace(QRegularExpression(QStringLiteral(R"(\bkg\s*/\s*m\s*\^\s*\{?3\}?\b)")),
-        QStringLiteral("\\frac{\\mathrm{kg}}{\\mathrm{m^3}}"));
-    text.replace(QRegularExpression(QStringLiteral(R"(\bm\s*\^\s*\{?3\}?\s*/\s*s\b)")),
-        QStringLiteral("\\frac{\\mathrm{m^3}}{\\mathrm{s}}"));
-    text.replace(QRegularExpression(QStringLiteral(R"(\bJ\s*/\s*\(?\s*kg\s*(?:\\cdot|\*)\s*K\s*\)?)")),
-        QStringLiteral("\\frac{\\mathrm{J}}{\\mathrm{kg}\\cdot\\mathrm{K}}"));
-    text.replace(QRegularExpression(QStringLiteral(R"(\bW\s*/\s*\(?\s*m\s*\^\s*\{?2\}?\s*(?:\\cdot|\*)\s*K\s*\)?)")),
-        QStringLiteral("\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}"));
-    text = normalizeLatexUprightSubscripts(text);
-    text.replace(QRegularExpression(QStringLiteral("\\s*\\\\cdot\\s*")), QStringLiteral(" \\\\cdot "));
     return text.trimmed();
 }
 
@@ -1355,45 +1178,6 @@ QString normalizedGeneralWorkflowBlockText(QString text)
 
 QJsonObject normalizedGeneralWorkflowForSave(QJsonObject workflow)
 {
-    const QJsonArray formulas = workflow.value(QStringLiteral("formulas")).toArray();
-    if (formulas.isEmpty()) {
-        return workflow;
-    }
-
-    bool missingLatex = false;
-    QJsonArray normalizedFormulas;
-    for (const QJsonValue& value : formulas) {
-        if (!value.isObject()) {
-            normalizedFormulas.append(value);
-            continue;
-        }
-        QJsonObject formula = value.toObject();
-        const QString latex = latexFromGeneralWorkflowFormula(formula);
-        if (latex.isEmpty()) {
-            missingLatex = true;
-        } else {
-            formula.insert(QStringLiteral("latex"), latex);
-        }
-        normalizedFormulas.append(formula);
-    }
-    workflow.insert(QStringLiteral("formulas"), normalizedFormulas);
-
-    if (missingLatex) {
-        QJsonArray warnings = workflow.value(QStringLiteral("warnings")).toArray();
-        const QString warning = QStringLiteral("Mindestens eine Formel konnte nicht automatisch als LaTeX normalisiert werden.");
-        bool alreadyPresent = false;
-        for (const QJsonValue& value : warnings) {
-            if (value.toString() == warning) {
-                alreadyPresent = true;
-                break;
-            }
-        }
-        if (!alreadyPresent) {
-            warnings.append(warning);
-            workflow.insert(QStringLiteral("warnings"), warnings);
-        }
-    }
-
     return workflow;
 }
 
@@ -1563,20 +1347,6 @@ QString generalWorkflowDraftValidationError(const QJsonObject& workflow)
         }
         if (text.isEmpty()) {
             return QStringLiteral("display.blocks[%1].text fehlt").arg(i);
-        }
-    }
-
-    const QJsonArray formulas = workflow.value(QStringLiteral("formulas")).toArray();
-    for (int i = 0; i < formulas.size(); ++i) {
-        if (!formulas.at(i).isObject()) {
-            return QStringLiteral("formulas[%1] ist kein Objekt").arg(i);
-        }
-        const QJsonObject formula = formulas.at(i).toObject();
-        if (formula.value(QStringLiteral("expression")).toString().trimmed().isEmpty()) {
-            return QStringLiteral("formulas[%1].expression fehlt").arg(i);
-        }
-        if (latexFromGeneralWorkflowFormula(formula).isEmpty()) {
-            return QStringLiteral("formulas[%1].latex fehlt").arg(i);
         }
     }
 
@@ -1781,38 +1551,8 @@ QString structuredTablesValidationError(const QJsonArray& tables)
 
 QString latexFormattingValidationError(const QString& text, const QString& location)
 {
-    if (substringCount(text, QStringLiteral("\\[")) != substringCount(text, QStringLiteral("\\]"))) {
-        return QStringLiteral("Formatierungsfehler: %1 enthaelt unausgeglichene Display-LaTeX-Klammern \\[...\\]").arg(location);
-    }
-    if (substringCount(text, QStringLiteral("\\(")) != substringCount(text, QStringLiteral("\\)"))) {
-        return QStringLiteral("Formatierungsfehler: %1 enthaelt unausgeglichene Inline-LaTeX-Klammern \\(...\\)").arg(location);
-    }
-    if (substringCount(text, QStringLiteral("$$")) % 2 != 0) {
-        return QStringLiteral("Formatierungsfehler: %1 enthaelt unausgeglichene $$ Display-Formeln").arg(location);
-    }
-
-    const QRegularExpression brokenFormulaWords(
-        QStringLiteral(R"(\b(?:c\s+d\s+o\s+t|d\s+e\s+l\s+t\s+a|D\s+e\s+l\s+t\s+a|r\s+h\s+o|h\s+o|d\s+o\s+t|m\s+a\s+t\s+h\s+r\s+m)\b)"),
-        QRegularExpression::CaseInsensitiveOption);
-    if (brokenFormulaWords.match(text).hasMatch()) {
-        return QStringLiteral("Formatierungsfehler: %1 enthaelt zerstoerte LaTeX-Woerter wie c d o t oder Delta").arg(location);
-    }
-
-    const QStringList lines = text.split(QLatin1Char('\n'));
-    int shortFormulaLineRun = 0;
-    const QRegularExpression formulaOnlyLine(QStringLiteral(R"(^\s*(?:[A-Za-zΑ-ωρΔₚ˙.=+\-*/(),{}_^0-9]|\\[A-Za-z]+|\s){1,4}\s*$)"));
-    for (const QString& line : lines) {
-        const QString trimmed = line.trimmed();
-        if (!trimmed.isEmpty() && formulaOnlyLine.match(trimmed).hasMatch()) {
-            ++shortFormulaLineRun;
-            if (shortFormulaLineRun >= 5) {
-                return QStringLiteral("Formatierungsfehler: %1 enthaelt eine zerlegte Formel ueber mehrere Einzelzeichen-Zeilen").arg(location);
-            }
-        } else {
-            shortFormulaLineRun = 0;
-        }
-    }
-
+    Q_UNUSED(text);
+    Q_UNUSED(location);
     return {};
 }
 
@@ -1824,11 +1564,6 @@ QString blockFormattingValidationError(const QString& text, int blockIndex)
     }
     if (text.contains(QRegularExpression(QStringLiteral(R"(<\s*br\s*/?\s*>)"), QRegularExpression::CaseInsensitiveOption))) {
         return QStringLiteral("Formatierungsfehler: %1 enthaelt HTML-<br>; nutze echte Zeilenumbrueche und Markdown-Listen").arg(location);
-    }
-
-    const QString latexError = latexFormattingValidationError(text, location);
-    if (!latexError.isEmpty()) {
-        return latexError;
     }
 
     if (text.contains(QLatin1Char('\t'))) {
@@ -1857,11 +1592,6 @@ QString blockFormattingValidationError(const QString& text, int blockIndex)
         if (QRegularExpression(QStringLiteral(R"(^\d+[.)]\s+.+\s+\d+[.)]\s+\S)")).match(trimmed).hasMatch()) {
             return QStringLiteral("Formatierungsfehler: %1 enthaelt mehrere nummerierte Punkte in einer Zeile").arg(location);
         }
-        if (trimmed.compare(QStringLiteral("text"), Qt::CaseInsensitive) == 0
-            && i + 1 < lines.size()
-            && QRegularExpression(QStringLiteral(R"([=+\-*/×·]|\\cdot|\\Delta|\\rho|\\dot|\bQ\b)")).match(lines.at(i + 1)).hasMatch()) {
-            return QStringLiteral("Formatierungsfehler: %1 enthaelt ein loses Code-Sprachlabel 'text' vor einer Formel; nutze Display-LaTeX oder einen echten Codeblock").arg(location);
-        }
     }
     if (tableLikeRows >= 2 && hasPipeRowWithoutSeparator && !textContainsValidMarkdownTable(text)) {
         return QStringLiteral("Formatierungsfehler: %1 enthaelt eine Pipe-Tabelle ohne Markdown-Trennzeile |---|---|").arg(location);
@@ -1882,19 +1612,6 @@ QString generalWorkflowFormattingValidationError(const QJsonObject& workflow)
         const QString error = blockFormattingValidationError(blocks.at(i).toObject().value(QStringLiteral("text")).toString(), i);
         if (!error.isEmpty()) {
             return error;
-        }
-    }
-
-    const QJsonArray formulas = workflow.value(QStringLiteral("formulas")).toArray();
-    for (int i = 0; i < formulas.size(); ++i) {
-        const QJsonObject formula = formulas.at(i).toObject();
-        const QString latex = latexFromGeneralWorkflowFormula(formula);
-        const QString latexError = latexFormattingValidationError(latex, QStringLiteral("formulas[%1].latex").arg(i));
-        if (!latexError.isEmpty()) {
-            return latexError;
-        }
-        if (latex.contains(QRegularExpression(QStringLiteral(R"((?<!\\)\b(?:cdot|Delta|rho|dot|frac)\b)")))) {
-            return QStringLiteral("Formatierungsfehler: formulas[%1].latex enthaelt LaTeX-Befehle ohne Backslash").arg(i);
         }
     }
 
@@ -6849,6 +6566,7 @@ void BricsCadPage::sendAgentEnvelope(const QJsonObject& envelope, const QString&
         "Nutze aus dem Envelope vor allem userPrompt, documentContext, selectedWorkflow, selectedWorkflows, workflowCapsules, compactState und conversation. Ignoriere JSON-responseContract-Vorgaben, solange keine CAD-Aktion freigegeben ist.\n"
         "Wenn selectedWorkflow oder workflowCapsules einen allgemeinen Workflow enthalten, behandle dessen Tabellen, Formeln, Beispiele, Annahmen und contextSummary als primaeren Kontext fuer die Antwort.\n"
         "Bei Berechnungen gilt: erst die Grundgleichung, dann alle verwendeten Symbole kurz erklaeren, dann Werte mit SI-Einheiten einsetzen, dann Zwischenergebnisse und Endergebnis. Jede eingesetzte Zahl und jeder Summand muss seine Einheit tragen; keine reinen Zahlenketten mit Einheit nur am Ende. Wenn Eingaben nicht in SI-Einheiten vorliegen, zeige zuerst die SI-Umrechnung.\n"
+        "Wenn du LaTeX schreibst, formatiere beschreibende Indizes nicht kursiv; nutze z. B. _{\\\\mathrm{...}} statt _{...}. Schreibe Grad Celsius KaTeX-kompatibel als {}^\\\\circ\\\\mathrm{C}, z. B. 20\\\\,{}^\\\\circ\\\\mathrm{C} statt 20\\\\,^\\\\circ\\\\mathrm{C}.\n"
         "Antworte nicht als JSON-Objekt und verwende keinen Barebone-Agent-Antworttyp. Markdown fuer Listen, Tabellen und Codebloecke ist erlaubt.\n"
         "Schlage keine CAD-Tools, keine BRX-Ausfuehrung und keine Aktionen vor. Wenn Live-BricsCAD-Daten noetig waeren, erklaere knapp, dass dafuer der BricsCAD-Modus/BRX-Kontext erforderlich ist.")
         .arg(aiLanguageInstruction(m_config));
@@ -9091,8 +8809,7 @@ bool BricsCadPage::retryGeneralWorkflowSaveAfterValidationFailure(
         "title und id duerfen nicht Workflow, Neuer Workflow, Chat Workflow, General Workflow, Workflow speichern oder aehnlich generisch heissen. "
         "Wenn selectedWorkflow vorhanden ist, behalte dessen id exakt bei und aendere title nur bei ausdruecklichem Umbenennungswunsch des Nutzers. "
         "Keine BricsCAD-Workflow-Felder wie steps, executionBatches, validationExamples oder tools. "
-        "Wenn Formeln vorkommen, nutze formulas[] mit expression und latex oder schreibe Display-Formeln als \\\\[...\\\\] in block.text. "
-        "LaTeX darf nicht als zerstoerte Einzelbuchstaben-Formel ausgegeben werden. "
+        "Wenn LaTeX vorkommt, schreibe beschreibende Indizes nicht kursiv, z. B. _{\\\\mathrm{...}} statt _{...}. Schreibe Grad Celsius KaTeX-kompatibel als {}^\\\\circ\\\\mathrm{C}, z. B. 20\\\\,{}^\\\\circ\\\\mathrm{C} statt 20\\\\,^\\\\circ\\\\mathrm{C}. "
         "Korrigiere bei Formatierungsfehlern nur die Formatierung; erhalte alle fachlichen Details, Tabellenwerte, Beispiele und Nutzerkorrekturen vollstaendig. "
         "Tabellen muessen als tables[] mit columns/rows oder als gueltige Markdown-Pipe-Tabelle mit |---|---|-Trennzeile ausgegeben werden. "
         "Listen muessen echte Markdown-Listen mit je einem Punkt pro Zeile sein. "
@@ -9919,7 +9636,7 @@ void BricsCadPage::saveGeneralWorkflowFromTraining(
                 "Erstelle keine knappe Kurzfassung. Kombiniere detailreich alle fachlichen Informationen aus conversation, selectedWorkflow, pendingWorkflow und userInstruction. "
                 "Bewahre Tabellen, Formeln, Beispiele, Rechenschritte, Annahmen, Hinweise, Nutzerkorrekturen und offene Unsicherheiten. "
                 "Unterteile nur grob nach Absätzen; fachliche Tiefe gehoert in blocks[].text, nicht in eine komplexe JSON-Verschachtelung. "
-                "Formeln duerfen in formulas[] mit expression und latex stehen oder als Display-LaTeX \\\\[...\\\\] in blocks[].text. "
+                "Wenn LaTeX vorkommt, schreibe beschreibende Indizes nicht kursiv, z. B. _{\\\\mathrm{...}} statt _{...}. Schreibe Grad Celsius KaTeX-kompatibel als {}^\\\\circ\\\\mathrm{C}, z. B. 20\\\\,{}^\\\\circ\\\\mathrm{C} statt 20\\\\,^\\\\circ\\\\mathrm{C}. "
                 "Bei Berechnungen muss nach jeder Grundgleichung eine kurze Symbolerklaerung der verwendeten Groessen folgen. "
                 "Rechenschritte muessen Einheiten an jeder eingesetzten Zahl und jedem Summanden fuehren; keine reine Zahlenkette mit Einheit nur am Ende. "
                 "Wenn Eingabewerte nicht in SI-Einheiten vorliegen, zeige zuerst die Umrechnung in SI-Einheiten. "
@@ -15303,3 +15020,4 @@ void BricsCadPage::openAgentSession(const QString& sessionId, const QVariantList
     emitContextBudget();
     emitCapabilitiesStatusToWeb();
 }
+

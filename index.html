@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="de">
 <head>
   <meta charset="UTF-8" />
@@ -18,28 +18,8 @@
     })();
   </script>
 
-  <script>
-    window.MathJax = {
-      tex: {
-        inlineMath: [["\\(", "\\)"], ["$", "$"]],
-        displayMath: [["\\[", "\\]"], ["$$", "$$"]],
-        processEscapes: true
-      },
-      options: {
-        skipHtmlTags: ["script", "noscript", "style", "textarea", "pre", "code"],
-        ignoreHtmlClass: "math-source-text"
-      },
-      startup: {
-        pageReady: () => MathJax.startup.defaultPageReady().then(() => {
-          if (typeof window.__bareboneTypesetQueuedMath === "function") {
-            return window.__bareboneTypesetQueuedMath();
-          }
-          return undefined;
-        })
-      }
-    };
-  </script>
-  <script async src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
 
@@ -2610,6 +2590,8 @@
     let pendingMessageScrollMessageId = "";
     let queuedMathTypesetTimer = 0;
     let mathVisibilityObserver = null;
+    const mathRenderCache = new Map();
+    const maxMathRenderCacheEntries = 600;
     const sessionDocuments = new Map();
     const maxDocumentContextChars = 65000;
     const maxDocumentPageChars = 7000;
@@ -2949,107 +2931,8 @@
       return `workflow-session-${id.replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "") || "workflow"}`;
     }
 
-    function isLatexUnitSubscriptSegment(segment) {
-      const normalized = String(segment || "")
-        .trim()
-        .toLowerCase()
-        .replace(/\\(?:mathrm|text)\{([^{}]+)\}/g, "$1")
-        .replace(/\s+/g, "")
-        .replace(/[{}]/g, "")
-        .replace(/\^/g, "")
-        .replace(/²/g, "2")
-        .replace(/³/g, "3");
-      if (!normalized) {
-        return false;
-      }
-      if (normalized.includes("/") || normalized.includes("per")) {
-        return /^(?:m2|m3|kg|g|j|kj|w|kw|wh|kwh|l|h|s|min|k|c|°c)(?:\/|per)(?:m2|m3|kg|g|j|kj|w|kw|wh|kwh|l|h|s|min|k|c|°c)(?:[a-z0-9\/]*)?$/.test(normalized);
-      }
-      return /^(?:w|kw|wh|kwh|j|kj|kg|g|m|m2|m3|l|s|h|min|k|c|°c|pa|bar|a|v)$/.test(normalized);
-    }
-
-    function normalizeLatexSubscriptLabel(label) {
-      let value = String(label || "")
-        .replace(/\\(?:mathrm|text)\{([^{}]+)\}/g, "$1")
-        .replace(/ä/g, "ae")
-        .replace(/ö/g, "oe")
-        .replace(/ü/g, "ue")
-        .replace(/Ä/g, "Ae")
-        .replace(/Ö/g, "Oe")
-        .replace(/Ü/g, "Ue")
-        .replace(/ß/g, "ss")
-        .replace(/\s+/g, "")
-        .replace(/_/g, ",")
-        .replace(/,+/g, ",")
-        .replace(/^,+|,+$/g, "");
-      const segments = value.split(",").filter((segment) => segment && !isLatexUnitSubscriptSegment(segment));
-      if (segments.length !== value.split(",").filter(Boolean).length) {
-        value = segments.join(",");
-      }
-      if (!value) {
-        return "";
-      }
-      if (!/[A-Za-z]/.test(value) || !/^[A-Za-z0-9,.-]+$/.test(value)) {
-        return null;
-      }
-      return `\\mathrm{${value}}`;
-    }
-
-    function normalizeLatexSubscripts(text) {
-      return String(text || "")
-        .replace(/_\{((?:\\(?:mathrm|text)\{[^{}]+\}|[A-Za-z0-9ÄÖÜäöüß_,\s./^°-])+)\}/g, (_match, subscript) => {
-          const normalized = normalizeLatexSubscriptLabel(subscript);
-          return normalized !== null ? (normalized ? `_{${normalized}}` : "") : _match;
-        })
-        .replace(/_\{([A-Za-z0-9ÄÖÜäöüß_,\s.-]*?)\\(?:mathrm|text)\{([^{}]+)\}([A-Za-z0-9ÄÖÜäöüß_,\s.-]*?)\}/g, (_match, before, inner, after) => {
-          const label = `${before || ""}${inner || ""}${after || ""}`;
-          const normalized = normalizeLatexSubscriptLabel(label);
-          return normalized !== null ? (normalized ? `_{${normalized}}` : "") : _match;
-        })
-        .replace(/_\{([A-Za-z0-9ÄÖÜäöüß_,\s./^°-]+)\}/g, (_match, subscript) => {
-          const normalized = normalizeLatexSubscriptLabel(subscript);
-          return normalized !== null ? (normalized ? `_{${normalized}}` : "") : _match;
-        })
-        .replace(/_([A-Za-zÄÖÜäöüß][A-Za-z0-9ÄÖÜäöüß.-]*(?:,[A-Za-z0-9ÄÖÜäöüß.-]+)+)(?=[\s=+\-*/^;:.\\)}\]]|$)/g, (_match, subscript) => {
-          const normalized = normalizeLatexSubscriptLabel(subscript);
-          return normalized !== null ? (normalized ? `_{${normalized}}` : "") : _match;
-        })
-        .replace(/_([A-Za-z][A-Za-z0-9_]*)(?=[\s=+\-*/^,;:.\\)}\]]|$)/g, (_match, subscript) => {
-          const normalized = normalizeLatexSubscriptLabel(subscript);
-          return normalized !== null ? (normalized ? `_{${normalized}}` : "") : _match;
-        });
-    }
-
-    function normalizeLatexSource(text) {
-      let value = repairMojibakeText(String(text || "")).trim();
-      if (!value) {
-        return "";
-      }
-      value = value
-        .replace(/\\\\(?=(?:Delta|rho|varepsilon|epsilon|pi|varphi|phi|Psi|chi|cdot|times|frac|mathrm|text|sum|dot|left|right|approx)\b)/g, "\\")
-        .replace(/Δ\s*T/g, "\\Delta T")
-        .replace(/Δ/g, "\\Delta")
-        .replace(/Φ/g, "\\Phi")
-        .replace(/Σ/g, "\\sum")
-        .replace(/Ψ/g, "\\Psi")
-        .replace(/χ/g, "\\chi")
-        .replace(/θ/g, "\\theta")
-        .replace(/Θ/g, "\\Theta")
-        .replace(/ρ/g, "\\rho")
-        .replace(/ε/g, "\\varepsilon")
-        .replace(/π/g, "\\pi")
-        .replace(/φ/g, "\\varphi")
-        .replace(/×/g, "\\times")
-        .replace(/·/g, "\\cdot")
-        .replace(/⁻¹/g, "^{-1}")
-        .replace(/(^|[^\\])\bcdot\b/g, "$1\\cdot")
-        .replace(/(^|[^\\])\bDelta\s*T\b/g, "$1\\Delta T")
-        .replace(/(^|[^\\])\brho\b/g, "$1\\rho");
-      value = normalizeLatexSubscripts(value);
-      value = value
-        .replace(/\s*\\?,?\s*\[\s*\\(?:mathrm|text)\{[^{}]+\}\s*\]\s*(?==)/g, " ")
-        .replace(/\s*\\?,?\s*\[\s*[A-Za-z0-9/%^°\s.-]+\s*\]\s*(?==)/g, " ");
-      return value.replace(/\s+/g, " ").trim();
+    function latexSourceText(text) {
+      return repairMojibakeText(String(text || '')).trim();
     }
 
     function markdownTableFromWorkflowTable(table) {
@@ -3333,13 +3216,15 @@
           columns.forEach((column) => {
             const key = typeof column === "string" ? column : (column.name || column.key || column.label);
             const td = document.createElement("td");
+            let value = "";
             if (Array.isArray(row)) {
-              td.textContent = String(row[columns.indexOf(column)] ?? "");
+              value = String(row[columns.indexOf(column)] ?? "");
             } else if (row && typeof row === "object") {
-              td.textContent = String(row[key] ?? "");
+              value = String(row[key] ?? "");
             } else {
-              td.textContent = String(row ?? "");
+              value = String(row ?? "");
             }
+            appendInlineMarkdown(td, value);
             tr.appendChild(td);
           });
           tbody.appendChild(tr);
@@ -3668,7 +3553,7 @@
       if (!formula || typeof formula !== "object") {
         return "";
       }
-      const explicit = normalizeLatexSource(formula.latex || formula.latexExpression || "");
+      const explicit = latexSourceText(formula.latex || formula.latexExpression || "");
       if (explicit) {
         return explicit;
       }
@@ -3676,13 +3561,7 @@
       if (!expression) {
         return "";
       }
-      expression = expression
-        .replaceAll("DeltaT", "\\Delta T")
-        .replaceAll("deltaT", "\\Delta T")
-        .replace(/\bQ_T\b/g, "Q_T")
-        .replace(/\bQ_V\b/g, "Q_V")
-        .replace(/\s=\s/g, " = ");
-      return normalizeLatexSource(expression);
+      return latexSourceText(expression);
     }
 
     function ensurePdfParserReady() {
@@ -4424,6 +4303,15 @@
     function applyClientStateFromQt(stateJson) {
       const raw = String(stateJson || "").trim();
       if (!raw) {
+        workspaceStates = {};
+        activeWorkspace = "bricscad";
+        ["bricscad", "chat"].forEach(ensureWorkspaceState);
+        restoreWorkspaceState(activeWorkspace);
+        renderReasoningSelection();
+        renderModeSelection();
+        renderSessionList();
+        prepareSessionOpenScroll();
+        renderActiveSession();
         clientStateHydrated = true;
         saveClientStateToQt();
         syncReasoningToQt();
@@ -4436,6 +4324,15 @@
       try {
         stored = JSON.parse(raw);
       } catch (_error) {
+        workspaceStates = {};
+        activeWorkspace = "bricscad";
+        ["bricscad", "chat"].forEach(ensureWorkspaceState);
+        restoreWorkspaceState(activeWorkspace);
+        renderReasoningSelection();
+        renderModeSelection();
+        renderSessionList();
+        prepareSessionOpenScroll();
+        renderActiveSession();
         clientStateHydrated = true;
         saveClientStateToQt();
         return;
@@ -4798,6 +4695,10 @@
       restoreWorkspaceState(activeWorkspace);
       renderModeSelection();
       clientStateHydrated = true;
+    }
+
+    function hasQtWebChannelTransport() {
+      return !!(window.qt && window.qt.webChannelTransport && window.QWebChannel);
     }
 
     function persistSessions(options = {}) {
@@ -5342,28 +5243,78 @@
       };
     }
 
-    function createSelectableMathNode(rawMath) {
+    function normalizedMathParts(rawMath) {
       let math = String(rawMath || "").trim();
+      let display = false;
+      let tex = math;
       if (math.startsWith("\\[") && math.endsWith("\\]")) {
-        math = `\\[${normalizeLatexSource(math.slice(2, -2))}\\]`;
+        display = true;
+        tex = latexSourceText(math.slice(2, -2));
+        math = `\\[${tex}\\]`;
       } else if (math.startsWith("\\(") && math.endsWith("\\)")) {
-        math = `\\(${normalizeLatexSource(math.slice(2, -2))}\\)`;
+        tex = latexSourceText(math.slice(2, -2));
+        math = `\\(${tex}\\)`;
       } else if (math.startsWith("$$") && math.endsWith("$$")) {
-        math = `$$${normalizeLatexSource(math.slice(2, -2))}$$`;
+        display = true;
+        tex = latexSourceText(math.slice(2, -2));
+        math = `$$${tex}$$`;
       } else if (math.startsWith("$") && math.endsWith("$") && math.length > 2) {
-        math = `$${normalizeLatexSource(math.slice(1, -1))}$`;
+        tex = latexSourceText(math.slice(1, -1));
+        math = `$${tex}$`;
       } else {
-        math = normalizeLatexSource(math);
+        tex = latexSourceText(math);
+        math = tex;
       }
+      return { source: math, tex, display };
+    }
+
+    function cachedKatexHtml(tex, displayMode) {
+      if (!window.katex || typeof window.katex.renderToString !== "function") {
+        return "";
+      }
+      const key = `${displayMode ? "display" : "inline"}\n${tex}`;
+      if (mathRenderCache.has(key)) {
+        return mathRenderCache.get(key);
+      }
+      let html = "";
+      try {
+        html = window.katex.renderToString(tex, {
+          displayMode,
+          throwOnError: false,
+          output: "html",
+          strict: "ignore",
+          trust: false
+        });
+      } catch (_error) {
+        html = "";
+      }
+      if (!html) {
+        return "";
+      }
+      mathRenderCache.set(key, html);
+      if (mathRenderCache.size > maxMathRenderCacheEntries) {
+        mathRenderCache.delete(mathRenderCache.keys().next().value);
+      }
+      return html;
+    }
+
+    function createSelectableMathNode(rawMath) {
+      const { source: math, tex, display } = normalizedMathParts(rawMath);
       const wrapper = document.createElement("span");
       wrapper.className = "math-selectable";
-      if (math.startsWith("\\[") || math.startsWith("$$")) {
+      if (display) {
         wrapper.classList.add("display");
       }
 
       const render = document.createElement("span");
       render.className = "math-render";
-      render.textContent = math;
+      const katexHtml = cachedKatexHtml(tex, display);
+      if (katexHtml) {
+        render.innerHTML = katexHtml;
+        render.dataset.mathTypeset = "true";
+      } else {
+        render.textContent = math;
+      }
 
       const source = document.createElement("span");
       source.className = "math-source-text";
@@ -5388,91 +5339,13 @@
       return wrapper;
     }
 
-    function isTechnicalFormulaText(text) {
-      const value = String(text || "")
-        .replace(/^\*+|\*+$/g, "")
-        .replace(/\s+/g, " ")
-        .trim();
-      if (!value || value.length > 240) {
-        return false;
-      }
-      if (/[{}<>]/.test(value)) {
-        return false;
-      }
-      const hasMathSymbol = /[ΦΣθΘΔρπφϑ]|\\(?:Phi|sum|theta|Theta|Delta|rho|pi|varphi|phi)\b/.test(value);
-      const hasSubscript = /[A-Za-zΑ-Ωα-ωÄÖÜäöüß]_[A-Za-z0-9ÄÖÜäöüß]/.test(value);
-      const hasEquationOperator = /[=≈+\-*/×·]/.test(value);
-      const proseRemainder = value
-        .replace(/[A-Za-zΑ-Ωα-ωÄÖÜäöüß]+_[A-Za-z0-9ÄÖÜäöüß,.-]+/g, " ")
-        .replace(/\\(?:Phi|sum|theta|Theta|Delta|rho|pi|varphi|phi|mathrm|text|cdot|times)\b/g, " ")
-        .replace(/[ΦΣθΘΔρπφϑ=≈+\-*\/×·(),.;:\[\]\s0-9_°]/g, " ")
-        .replace(/\b(?:W|kW|Wh|kWh|J|kg|m|s|h|K|C|HL|TWW|WW|KW|WEZ|DIN|EN)\b/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-      if (/[A-Za-zÄÖÜäöüß]{3,}/.test(proseRemainder)) {
-        return false;
-      }
-      return (hasMathSymbol || hasSubscript) && (hasEquationOperator || hasSubscript);
-    }
-
-    function stripLatexDelimiters(text) {
-      let value = String(text || "").trim();
-      let changed = true;
-      while (changed) {
-        changed = false;
-        if ((value.startsWith("\\(") && value.endsWith("\\)"))
-          || (value.startsWith("\\[") && value.endsWith("\\]"))) {
-          value = value.slice(2, -2).trim();
-          changed = true;
-        } else if (value.startsWith("$$") && value.endsWith("$$") && value.length > 4) {
-          value = value.slice(2, -2).trim();
-          changed = true;
-        } else if (value.startsWith("$") && value.endsWith("$") && value.length > 2) {
-          value = value.slice(1, -1).trim();
-          changed = true;
-        }
-      }
-      return value;
-    }
-
-    function inlineLatexFromTechnicalText(text) {
-      const value = normalizeLatexSource(stripLatexDelimiters(String(text || "")
-        .replace(/^\*+|\*+$/g, "")
-        .replace(/\s+/g, " ")
-        .trim()));
-      return value ? `\\(${value}\\)` : "";
-    }
-
     function appendTextWithAutoMath(parent, text) {
       const source = repairMojibakeText(String(text || ""));
-      const pattern = /(^|[^A-Za-z0-9_\\])((?:Δθ|[ΦΣΨχθΘΔρπφϑ]|\\(?:Phi|sum|Psi|chi|theta|Theta|Delta|rho|pi|varphi|phi)\b|[A-Za-z])_[A-Za-z0-9ÄÖÜäöüß,.-]+)/g;
-      let index = 0;
-      let match = pattern.exec(source);
-      while (match) {
-        const prefix = match[1] || "";
-        const token = match[2] || "";
-        const tokenStart = match.index + prefix.length;
-        if (tokenStart > index) {
-          parent.appendChild(document.createTextNode(source.slice(index, tokenStart)));
-        }
-        parent.appendChild(createSelectableMathNode(inlineLatexFromTechnicalText(token)));
-        index = tokenStart + token.length;
-        match = pattern.exec(source);
-      }
-      if (index < source.length) {
-        parent.appendChild(document.createTextNode(source.slice(index)));
-      }
+      parent.appendChild(document.createTextNode(source));
     }
 
     function appendInlineMarkdown(parent, text) {
       const source = String(text || "");
-      if (isTechnicalFormulaText(source)) {
-        const latex = inlineLatexFromTechnicalText(source);
-        if (latex) {
-          parent.appendChild(createSelectableMathNode(latex));
-          return;
-        }
-      }
 
       const pattern = /`([^`]+)`|\*\*(.+?)\*\*|\*([^*\n]{1,180})\*|(\\\[[\s\S]+?\\\])|(\\\([\s\S]+?\\\))|(\$\$[\s\S]+?\$\$)|(^|[^\\])(\$[^$\n]{1,240}\$)/g;
       let index = 0;
@@ -5488,16 +5361,12 @@
           parent.appendChild(code);
         } else if (match[2] !== undefined) {
           const strong = document.createElement("strong");
-          appendTextWithAutoMath(strong, normalizeMarkdownHeading(match[2]));
+          appendInlineMarkdown(strong, normalizeMarkdownHeading(match[2]));
           parent.appendChild(strong);
         } else if (match[3] !== undefined) {
-          if (stripLatexDelimiters(match[3]) !== String(match[3]).trim() || isTechnicalFormulaText(match[3])) {
-            parent.appendChild(createSelectableMathNode(inlineLatexFromTechnicalText(match[3])));
-          } else {
-            const emphasis = document.createElement("em");
-            emphasis.textContent = match[3];
-            parent.appendChild(emphasis);
-          }
+          const emphasis = document.createElement("em");
+          appendInlineMarkdown(emphasis, match[3]);
+          parent.appendChild(emphasis);
         } else {
           const prefix = match[7] || "";
           const math = match[4] || match[5] || match[6] || match[8] || "";
@@ -5815,7 +5684,8 @@
 
     function messageNeedsMath(text) {
       const value = String(text || "");
-      return /\\\(|\\\[|\$\$/.test(value) || /(^|[^\\])\$[^$\n]{1,240}\$/.test(value);
+      return /\\\(|\\\[|\$\$/.test(value)
+        || /(^|[^\\])\$[^$\n]{1,240}\$/.test(value);
     }
 
     function scrollMessagesToBottomAfterLayout() {
@@ -5941,28 +5811,16 @@
     function flushQueuedMath(options = {}) {
       const queued = (window.__bareboneQueuedMath || []).filter((element) => element && element.isConnected);
       window.__bareboneQueuedMath = [];
-      if (!queued.length || !window.MathJax || typeof window.MathJax.typesetPromise !== "function") {
-        if (queued.length) {
-          window.__bareboneQueuedMath = queued;
+      queued.forEach((element) => {
+        if (element && element.isConnected) {
+          element.dataset.mathTypeset = "true";
+          delete element.dataset.mathPending;
         }
-        if (options.scroll !== false) {
-          scrollMessagesAfterLayout();
-        }
-        return undefined;
+      });
+      if (options.scroll !== false) {
+        scrollMessagesAfterLayout();
       }
-      return window.MathJax.typesetPromise(queued)
-        .then(() => {
-          queued.forEach((element) => {
-            if (element && element.isConnected) {
-              element.dataset.mathTypeset = "true";
-              delete element.dataset.mathPending;
-            }
-          });
-          if (options.scroll !== false) {
-            scrollMessagesAfterLayout();
-          }
-        })
-        .catch(() => {});
+      return undefined;
     }
 
     function scheduleQueuedMathTypeset(delay = 0, options = {}) {
@@ -5988,13 +5846,7 @@
         return;
       }
       targets.forEach((target) => queueMathElement(target));
-      if (window.MathJax && typeof window.MathJax.typesetPromise === "function") {
-        scheduleQueuedMathTypeset(0, { scroll: options.scroll !== false });
-        return;
-      }
-      if (options.scroll !== false) {
-        scrollMessagesAfterLayout();
-      }
+      scheduleQueuedMathTypeset(0, { scroll: options.scroll !== false });
     }
 
     window.__bareboneTypesetQueuedMath = function typesetQueuedMath() {
@@ -7811,9 +7663,13 @@
       applyUiLanguage(uiLanguage);
       applySidebarCollapsed(storedSidebarCollapsed(), { persist: false });
       loadReasoningSelection();
-      loadSessions();
-      renderSessionList();
-      renderActiveSession();
+      if (!hasQtWebChannelTransport()) {
+        loadSessions();
+        renderSessionList();
+        renderActiveSession();
+      } else {
+        chatList.replaceChildren();
+      }
       updateSendButtonState();
     }
 
@@ -7880,11 +7736,9 @@
             bridge.selectedWorkflowChanged.connect(applySelectedWorkflowFromQt);
           }
           bridge.ready();
-          syncWorkspaceToQt();
           if (typeof bridge.requestWorkflowList === "function") {
             bridge.requestWorkflowList();
           }
-          syncTrainingModeToQt();
         } catch (error) {
           bridgeReady = false;
           bridge = null;

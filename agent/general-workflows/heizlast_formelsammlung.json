@@ -1,0 +1,78 @@
+{
+    "contextSummary": "**Formelsammlung für die Heizlastberechnung nach DIN EN 12831**",
+    "description": "**Formelsammlung für die Heizlastberechnung nach DIN EN 12831**",
+    "display": {
+        "blocks": [
+            {
+                "id": "grundgleichung_raumheizlast",
+                "text": "\\[\\Phi_{\\mathrm{HL,i}} \\; = \\;\\Phi_{\\mathrm{T,i}}\\;+\\;\\Phi_{\\mathrm{V,i}}\\;+\\;\\Phi_{\\mathrm{RH,i}}\\]\n* **\\(\\Phi_{\\mathrm{HL,i}}\\)** – Norm‑Heizlast des Raumes i (W)  \n* **\\(\\Phi_{\\mathrm{T,i}}\\)** – Transmissionswärmeverlust des Raumes (W)  \n* **\\(\\Phi_{\\mathrm{V,i}}\\)** – Lüftungswärmeverlust des Raumes (W)  \n* **\\(\\Phi_{\\mathrm{RH,i}}\\)** – Zusatz‑Aufheizzuschlag (z. B. nach Nachtabsenkung, intermittierendem Betrieb) (W)",
+                "title": "Grundgleichung – Raumheizlast"
+            },
+            {
+                "id": "1_einzelbauteil",
+                "text": "\\[\\Phi_{\\mathrm{T}} \\; = \\; U \\; \\cdot \\; A \\; \\cdot \\; (\\theta_{\\mathrm{int,i}}\\!-\\!\\theta_{\\mathrm{x}})\\]\n* **\\(U_{\\mathrm{k}}\\)** – Wärmedurchgangskoeffizient des Bauteils k  \n  (W · m⁻² · K⁻¹)  \n* **\\(A_{\\mathrm{k}}\\)** – Fläche des Bauteils k (m²)  \n* **\\(\\theta_{\\mathrm{int,i}}\\)** – Norm‑Innen­temperatur des Raumes i (K)  \n* **\\(\\theta_{\\mathrm{x}}\\)** – Temperatur auf der anderen Seite des Bauteils  \n  (Außenluft, unbeheizter Raum, Erdreich …) (K)",
+                "title": "1 Einzelbauteil"
+            },
+            {
+                "id": "2_gesamter_raum",
+                "text": "\\[\\Phi_{\\mathrm{T,i}} \\; = \\;\\sum U\\,A\\,\\Delta\\theta \\;+\\;\\sum \\Psi\\,l\\,\\Delta\\theta \\;+\\;\\sum \\chi\\,\\Delta\\theta\\]\n* **\\(\\Delta\\theta_{\\mathrm{k}}\\)** – Temperaturdifferenz über Bauteil k (K)  \n* **\\(\\Psi_{\\mathrm{l}}\\), \\(l_{\\mathrm{l}}\\)** – Wärmebrücken‑Wert und Länge (W · m⁻¹ · K⁻¹, m)  \n* **\\(\\chi_{\\mathrm{m}}\\)** – Wärmebrücken‑Störfaktor (W · K⁻¹)",
+                "title": "2 Gesamter Raum"
+            },
+            {
+                "id": "1_luftvolumenstrom_aus_luftwechselrate",
+                "text": "\\[\\dot{V}_{\\mathrm{i}} \\; = \\; n_{\\mathrm{i}}\\; \\cdot \\;V_{\\mathrm{i}}\\]\n* **\\(n_{\\mathrm{i}}\\)** – Luftwechselrate (h⁻¹)  \n* **\\(V_{\\mathrm{i}}\\)** – Raumvolumen (m³)",
+                "title": "1 Luftvolumenstrom aus Luftwechselrate"
+            },
+            {
+                "id": "2_lueftungswaermeverlust_m_h",
+                "text": "\\[\\Phi_{\\mathrm{V,i}} \\; = \\;0{,}34\\; \\cdot \\;\\dot{V}_{\\mathrm{i}}\\; \\cdot \\;\\Delta\\theta\\]\n* **\\(\\Delta\\theta\\)** – Temperaturdifferenz Innen‑ vs. Außenluft (K)",
+                "title": "2 Lüftungswärmeverlust (m³ / h)"
+            },
+            {
+                "id": "3_lueftungswaermeverlust_in_si_grundform_m_s",
+                "text": "\\[\\Phi_{\\mathrm{V,i}} \\; = \\;\\rho\\,c_{\\mathrm{p}}\\,\\dot{V}_{\\mathrm{i}}\\; \\cdot \\;\\Delta\\theta\\]\n* **\\(\\rho\\)** – Luftdichte (~1,2 kg · m⁻³)  \n* **\\(c_{\\mathrm{p}}\\)** – spezifische Wärmekapazität der Luft (~1005 J · kg⁻¹ · K⁻¹)",
+                "title": "3 Lüftungswärmeverlust in SI‑Grundform (m³ / s)"
+            },
+            {
+                "id": "raumvolumen",
+                "text": "\\[V_{\\mathrm{i}} \\; = \\; A_{\\mathrm{Raum,i}}\\; \\cdot \\;h_{\\mathrm{i}}\\]\n* **\\(A_{\\mathrm{Raum,i}}\\)** – Raumfläche (m²)  \n* **\\(h_{\\mathrm{i}}\\)** – lichte Raumhöhe (m)",
+                "title": "Raumvolumen"
+            },
+            {
+                "id": "heizwasser_volumenstrom_fuer_fussbodenheizung_heizkoerper",
+                "text": "\\[\\dot{V}_{\\mathrm{i}} \\; = \\; \\frac{\\Phi_{\\mathrm{HL,i}}} {1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l} \\cdot \\mathrm{K}}\\; \\cdot \\;\\Delta T}\\]\n* **\\(\\Delta T\\)** – Vorlauf‑Rücklauf‑Spreizung (K)  \n* **\\(1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l}\\cdot\\mathrm{K}}\\)** – volumetrische Wärmekapazität von Wasser",
+                "title": "Heizwasser‑Volumenstrom (für Fußbodenheizung, Heizkörper)"
+            },
+            {
+                "id": "trinkwarmwasser_last_din_en_12831_3",
+                "text": "\\[\\Phi_{\\mathrm{TWW}} \\; = \\; 1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l} \\cdot \\mathrm{K}}\\; \\dot{V}_{\\mathrm{TWW}}\\; (\\theta_{\\mathrm{WW}}\\!-\\!\\theta)\\]\n* **\\(\\theta_{\\mathrm{WW}}\\)** – gewünschte Warmwasser‑Temperatur (K)  \n* **\\(\\theta_{\\mathrm{KW}}\\)** – Kalt­wasser‑Temperatur (K)",
+                "title": "Trinkwarmwasser‑Last (DIN EN 12831‑3)"
+            },
+            {
+                "id": "gebaeudeheizlast",
+                "text": "\\[\\Phi_{\\mathrm{HL,Gebaeude}} \\; = \\; \\sum_{\\mathrm{i}=1}^{n}\\;\\Phi_{\\mathrm{HL,i}}\\]\n* Summe aller raumweisen Heizlasten des Gebäudes.",
+                "title": "Gebäudeheizlast",
+                "expression": "\\Phi_{\\mathrm{HL,Gebaeude}} = \\sum_{\\mathrm{i}=1}^{n} \\Phi_{\\mathrm{HL,i}}"
+            },
+            {
+                "id": "hinweis",
+                "text": "Alle U‑Werte, Luftwechselraten und Temperaturdifferenzen sind projektbezogen aus DIN EN 12831‑1, DIN/TS 12831‑1 bzw. nationalen Anhängen zu übernehmen. Die oben genannten Formeln liefern die Grundlage für eine normgerechte Heizlastberechnung; konkrete Werte müssen je nach Gebäude, Nutzung und Standort angepasst werden.",
+                "title": "Hinweis"
+            }
+        ]
+    },
+    "domain": "Allgemein",
+    "id": "heizlast_formelsammlung",
+    "kind": "general",
+    "schema": "barebone.general.workflow.v1",
+    "tags": [
+        "Chat",
+        "AI-Entwurf"
+    ],
+    "title": "Heizlast Formelsammlung",
+    "triggerExamples": [
+        "Heizlast Formelsammlung",
+        "Formelsammlung Heizlastberechnung"
+    ],
+    "verificationStatus": "AI-Entwurf"
+}

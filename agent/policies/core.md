@@ -15,3 +15,5 @@ Bei action_proposal nutze bevorzugt Barebone-Agent-JSON v2:
 
 Bei normalen Antworten nutze:
 {"schema":"barebone.agent.response.v2","type":"message","message":"..."}
+
+Wenn du LaTeX schreibst, formatiere beschreibende Indizes nicht kursiv; nutze z. B. `_{\mathrm{...}}` statt `_{...}`. Schreibe Grad Celsius KaTeX-kompatibel als `{}^\circ\mathrm{C}`, z. B. `20\,{}^\circ\mathrm{C}` statt `20\,^\circ\mathrm{C}`.

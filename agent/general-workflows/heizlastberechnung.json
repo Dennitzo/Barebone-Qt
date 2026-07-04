@@ -1,562 +1,497 @@
-﻿{
-    "title":  "Heizlastberechnung",
-    "contextSummary":  "Detailliertes Arbeitsdokument zur Norm-Heizlast nach DIN EN 12831-1 und DIN/TS 12831-1 mit raumweiser Heizlast, Gebäudeheizlast, Transmissionswärmeverlusten, U-Wert-Prüftabelle, Lüftungswärmeverlusten, n-Kennzahlen, Aufheizzuschlag, Heizflächen-/Volumenstromauslegung, TWW-Abgrenzung nach DIN EN 12831-3 und TGA-Dokumentationscheckliste. Die Zahlen sind didaktische Beispiel- und Plausibilitätswerte und ersetzen keine projektbezogene Normberechnung mit nationalem Anhang.",
-    "description":  "Didaktisches Arbeitsdokument zur Heizlastberechnung nach DIN EN 12831. Es trennt die raumweise Norm-Heizlast von der Gebäudeheizlast und von der Trinkwarmwasserleistung. Es zeigt die wichtigsten Rechengrößen, U-Wert- und n-Kennzahl-Prüftabellen, Formeln, TGA-Prüfschritte und eine korrigierte Beispielrechnung für Transmission und Lüftung. Normative Randwerte müssen projektbezogen aus DIN EN 12831-1, DIN/TS 12831-1 und nationalen Anhängen geprüft werden.",
-    "display":  {
-                    "blocks":  [
-                                   {
-                                       "id":  "normstand_und_abgrenzung",
-                                       "title":  "Normstand und fachliche Abgrenzung",
-                                       "text":  "Für Deutschland ist die Raumheizlast nach DIN EN 12831-1:2017-09 in Verbindung mit DIN/TS 12831-1:2020-04 projektbezogen zu prüfen. Für Trinkwassererwärmung ist DIN EN 12831-3:2017-09 relevant, diese Last ist jedoch logisch von der Raumheizlast zu trennen.\n\nAktuell sollte außerdem geprüft werden, ob ein neuerer Entwurfsstand wie DIN EN 12831-1:2025-06 als Entwurf vertraglich oder projektspezifisch zu berücksichtigen ist.\n\nWichtig für die TGA-Struktur:\n\n- Raumheizlast: Grundlage für Heizflächen je Raum.\n- Gebäudeheizlast: Summe bzw. Auswertung der raumweisen Heizlasten für das Gebäude.\n- Wärmeerzeugerleistung: planerisch getrennt zu bewerten, insbesondere bei Trinkwarmwasser, Vorrangbetrieb, Speicher und Sperrzeiten.\n- Trinkwarmwasser: keine Raumheizlast, sondern zusätzliche Last bzw. Energieanforderung für Speicher, Wärmeerzeuger oder Frischwasserstation."
-                                   },
-                                   {
-                                       "id":  "eingangsgroessen",
-                                       "title":  "Eingangsgrößen und Randbedingungen",
-                                       "text":  "Für eine überschlägige, didaktische Heizlastbetrachtung werden mindestens Raumgeometrie, Innen- und Außentemperatur, Bauteilflächen, U-Werte, Wärmebrücken und Lüftungsdaten benötigt.\n\n| Parameter | Symbol | Einheit / Beispiel |\n|---|---|---|\n| Raumfläche | \\(A_{\\mathrm{Raum,i}}\\) | \\(\\mathrm{m^2}\\) |\n| lichte Raumhöhe | \\(h_{\\mathrm{i}}\\) | \\(\\mathrm{m}\\) |\n| Raumvolumen | \\(V_{\\mathrm{i}} = A_{\\mathrm{Raum,i}} \\cdot h_{\\mathrm{i}}\\) | \\(\\mathrm{m^3}\\) |\n| Innenraumtemperatur | \\(\\theta_{\\mathrm{int,i}}\\) | z. B. \\(20\\,^{\\circ}\\mathrm{C}\\) |\n| Norm-Außentemperatur | \\(\\theta_e\\) | standortbezogen |\n| Temperaturdifferenz | \\(\\Delta \\theta = \\theta_{\\mathrm{int,i}} - \\theta_e\\) | \\(\\mathrm{K}\\) |\n| Luftwechselrate | \\(n_{\\mathrm{i}}\\) | \\(\\mathrm{h^{-1}}\\) |\n| Luftvolumenstrom | \\(\\dot{V}_{\\mathrm{i}}\\) | \\(\\mathrm{m^3/h}\\) oder \\(\\mathrm{m^3/s}\\), abhängig von der Formel |\n| Luftdichte | \\(\\rho\\) | ca. \\(1{,}2\\,\\frac{\\mathrm{kg}}{\\mathrm{m^3}}\\) |\n| spezifische Wärmekapazität der Luft | \\(c_p\\) | ca. \\(1005\\,\\frac{\\mathrm{J}}{\\mathrm{kg}\\cdot\\mathrm{K}}\\) |\n\nDie tatsächlichen Raumtemperaturen, Außentemperaturen und Luftwechselraten sind projektspezifisch nach Norm, Nutzung und nationalem Anhang festzulegen."
-                                   },
-                                   {
-                                       "id":  "projekt_checkliste",
-                                       "title":  "Allgemeine Projekt-Checkliste",
-                                       "text":  "| Prüfschritt | Erforderliche Eingaben | Relevanz |\n|---|---|---|\n| Gebäudeadresse / Standort | Ort, PLZ, Klimaregion | Norm-Außentemperatur |\n| Gebäudenutzung | Wohnen, Büro, Schule, Gewerbe usw. | Raumtemperaturen, Luftmengen, Nutzungszeiten |\n| Raumliste | Raumnummer, Nutzung, Fläche, Höhe, Volumen | raumweise Heizlast |\n| Bauteile | Wand, Dach, Boden, Fenster, Türen | Transmissionsverluste |\n| U-Werte | \\(U\\) in \\(\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\) | Wärmedurchgang |\n| Wärmebrücken | \\(\\Psi\\), Länge \\(l\\), ggf. \\(\\chi\\) | zusätzliche Verluste |\n| Raumtemperaturen | \\(\\theta_{\\mathrm{int,i}}\\) | Temperaturdifferenz |\n| Norm-Außentemperatur | \\(\\theta_e\\) | Auslegungsfall |\n| Nachbarräume | beheizt, unbeheizt, Erdreich, Außenluft | Korrektur der Temperaturdifferenzen |\n| Lüftungssystem | Fensterlüftung, Abluft, Zu-/Abluft, WRG | Lüftungswärmeverluste |\n| Sanitärdaten | Warmwasserbedarf, Zirkulation, Speicher | Wärmeerzeugerleistung, nicht reine Raumheizlast |\n| Betriebsweise | durchgehend, abgesenkt, intermittierend | Zusatz-Aufheizleistung |"
-                                   },
-                                   {
-                                       "id":  "u_werte_prueftabelle",
-                                       "title":  "U-Werte: relevante Eingabewerte für die Heizlast",
-                                       "text":  "U-Werte sind Eingabedaten der Transmissionsberechnung und müssen aus Bauteilnachweisen, Bestandsaufnahme, Energieausweis, Bauteilkatalog, Projektvorgaben oder nationalen Anhängen übernommen werden. Die folgende Tabelle ist als Plausibilitäts- und Arbeitsstruktur gedacht, nicht als Ersatz für lizenzpflichtige Normtabellen.\n\n| Bauteil | Symbol | typische Eingabe / Plausibilitätsbereich | Hinweis für die Heizlast |\n|---|---|---|---|\n| Außenwand, Bestand unsaniert | \\(U_{\\mathrm{AW}}\\) | ca. \\(1{,}0\\) bis \\(1{,}8\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\) | stark abhängig von Baujahr, Material und Schichtaufbau |\n| Außenwand, modernisiert / Neubau | \\(U_{\\mathrm{AW}}\\) | ca. \\(0{,}15\\) bis \\(0{,}35\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\) | projektbezogenen Nachweis verwenden |\n| Dach / oberste Geschossdecke | \\(U_{\\mathrm{Dach}}\\) | ca. \\(0{,}12\\) bis \\(0{,}30\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\) | Dämmstandard besonders relevant für obere Räume |\n| Bodenplatte / Kellerdecke | \\(U_{\\mathrm{Boden}}\\) | ca. \\(0{,}20\\) bis \\(0{,}60\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\) | Erdreich- und Kellerkorrekturen getrennt prüfen |\n| Fenster, älterer Bestand | \\(U_{\\mathrm{W}}\\) | ca. \\(2{,}0\\) bis \\(5{,}0\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\) | Fensterflächen wirken stark auf die Raumheizlast |\n| Fenster, 2-fach-Wärmeschutzglas | \\(U_{\\mathrm{W}}\\) | ca. \\(1{,}1\\) bis \\(1{,}6\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\) | Rahmenanteil und Gesamtfensterwert beachten |\n| Fenster, 3-fach-Wärmeschutzglas | \\(U_{\\mathrm{W}}\\) | ca. \\(0{,}7\\) bis \\(1{,}0\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\) | tatsächlichen Uw-Wert verwenden |\n| Außentür / Tor | \\(U_{\\mathrm{Tuer}}\\) | ca. \\(1{,}0\\) bis \\(3{,}0\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\) | bei Gewerbe Toröffnungen und Nutzung gesondert prüfen |\n| Innentür zwischen gleich beheizten Räumen | \\(U_{\\mathrm{Tuer,int}}\\) | rechnerisch meist nicht maßgebend | nicht als Transmissionsverlust ansetzen, wenn \\(\\Delta\\theta \\approx 0\\,\\mathrm{K}\\) |\n| Innentür zu unbeheiztem / anders temperiertem Bereich | \\(U_{\\mathrm{Tuer,int}}\\) | ca. \\(1{,}5\\) bis \\(3{,}0\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\) | nur ansetzen, wenn eine relevante Temperaturdifferenz zum Nachbarbereich besteht; Projektwert prüfen |\n\nRechenhinweis:\n\n\\[\\Phi_{\\mathrm{T,k}} = U_{\\mathrm{k}} \\cdot A_{\\mathrm{k}} \\cdot \\Delta\\theta_k\\]\n\nJe Raum sollten alle angrenzenden Bauteile einzeln aufgeführt werden, damit die spätere Gebäudeheizlast nachvollziehbar aus den Raumheizlasten gebildet werden kann."
-                                   },
-                                   {
-                                       "id":  "n_kennzahlen_luftwechsel",
-                                       "title":  "n-Kennzahlen: Luftwechselrate und Lüftungsansatz",
-                                       "text":  "Die Luftwechselrate \\(n\\) ist ein Eingabewert für den Lüftungswärmeverlust. In einer normnahen Berechnung muss sie aus Lüftungskonzept, Nutzung, nationalem Anhang, Infiltration, Mindestaußenluftvolumenstrom oder Anlagenplanung abgeleitet werden. Die Tabelle dient als Arbeitsstruktur für die relevantesten Räume und darf nicht ungeprüft als verbindliche Normtabelle verwendet werden.\n\n| Raum / Zone | Kennzahl | Arbeitswert / Plausibilitätsbereich | Verwendung |\n|---|---|---|---|\n| Wohnraum / Büro | \\(n_{\\mathrm{i}}\\) | ca. \\(0{,}3\\) bis \\(0{,}7\\,\\mathrm{h^{-1}}\\) | Grundlüftung oder Nutzungsansatz prüfen |\n| Schlafzimmer / Aufenthaltsraum | \\(n_{\\mathrm{i}}\\) | ca. \\(0{,}3\\) bis \\(0{,}7\\,\\mathrm{h^{-1}}\\) | Personenbelegung und Nachtbetrieb beachten |\n| Küche | \\(n_{\\mathrm{i}}\\) oder \\(\\dot{V}_{\\mathrm{i}}\\) | ca. \\(0{,}5\\) bis \\(1{,}5\\,\\mathrm{h^{-1}}\\) | Abluft, Ersatzluft und Nutzung prüfen |\n| Bad / WC | \\(n_{\\mathrm{i}}\\) oder \\(\\dot{V}_{\\mathrm{i}}\\) | ca. \\(0{,}5\\) bis \\(1{,}5\\,\\mathrm{h^{-1}}\\) | Abluftvolumenstrom und Überströmung prüfen |\n| Flur / Nebenraum | \\(n_{\\mathrm{i}}\\) | ca. \\(0{,}2\\) bis \\(0{,}5\\,\\mathrm{h^{-1}}\\) | oft über angrenzende Räume beeinflusst |\n| Lager / Technikraum | \\(n_{\\mathrm{i}}\\) | ca. \\(0{,}2\\) bis \\(0{,}5\\,\\mathrm{h^{-1}}\\) | Nutzung, interne Lasten und Anlagenluft beachten |\n| mechanische Zu-/Abluft | \\(\\dot{V}_{\\mathrm{i}}\\) | aus Anlagenplanung in \\(\\mathrm{m^3/h}\\) | Volumenstrom direkt verwenden, WRG separat bewerten |\n| Infiltration | \\(n_{\\mathrm{inf}}\\) | projektbezogen | Gebäudeundichtheit, Wind und Druckverhältnisse prüfen |\n\nUmrechnung in den Volumenstrom:\n\n\\[\\dot{V}_{\\mathrm{i}} = n_{\\mathrm{i}} \\cdot V_{\\mathrm{i}}\\]\n\nLüftungswärmeverlust bei \\(\\dot{V}_{\\mathrm{i}}\\) in \\(\\mathrm{m^3/h}\\):\n\n\\[\\Phi_{\\mathrm{V,i}} = 0{,}34 \\cdot \\dot{V}_{\\mathrm{i}} \\cdot \\Delta\\theta\\]\n\nWenn stattdessen Volumenströme in \\(\\mathrm{m^3/s}\\) verwendet werden, muss die SI-Grundform genutzt werden. Die Einheit wird im Text geführt, nicht im Index:\n\n\\[\\Phi_{\\mathrm{V,i}} = \\rho \\cdot c_p \\cdot \\dot{V}_{\\mathrm{i}} \\cdot \\Delta\\theta\\]"
-                                   },
-                                   {
-                                       "id":  "transmission",
-                                       "title":  "Transmissionswärmeverluste",
-                                       "text":  "Transmissionswärmeverluste beschreiben den Wärmeverlust über Bauteile der Gebäudehülle, zum Beispiel Außenwände, Fenster, Dach, Bodenplatte oder Türen.\n\nJe Bauteil:\n\n\\[\\Phi_{\\mathrm{T,k}} = U_{\\mathrm{k}} \\cdot A_{\\mathrm{k}} \\cdot (\\theta_{\\mathrm{int,i}} - \\theta_{\\mathrm{x}})\\]\n\n- \\(U_{\\mathrm{k}}\\): Wärmedurchgangskoeffizient des Bauteils in \\(\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\)\n- \\(A_{\\mathrm{k}}\\): Fläche des Bauteils in \\(\\mathrm{m^2}\\)\n- \\(\\theta_{\\mathrm{int,i}}\\): Norm-Innentemperatur des Raumes\n- \\(\\theta_{\\mathrm{x}}\\): Temperatur auf der anderen Seite des Bauteils, z. B. Außenluft, unbeheizter Raum, Erdreich oder Nachbarraum\n\nRaumweiser Transmissionswärmeverlust inklusive Wärmebrücken:\n\n\\[\\Phi_{\\mathrm{T,i}} = \\sum_{\\mathrm{k}} U_{\\mathrm{k}} \\cdot A_{\\mathrm{k}} \\cdot \\Delta \\theta_k + \\sum_{\\mathrm{l}} \\Psi_{\\mathrm{l}} \\cdot l_{\\mathrm{l}} \\cdot \\Delta \\theta_l + \\sum_{\\mathrm{m}} \\chi_{\\mathrm{m}} \\cdot \\Delta \\theta_m\\]\n\nKompakt über den Transmissionswärmeverlustkoeffizienten:\n\n\\[\\Phi_{\\mathrm{T,i}} = H_{\\mathrm{T,i}} \\cdot \\Delta \\theta\\]\n\n\\[H_{\\mathrm{T,i}} = \\sum_{\\mathrm{k}} U_{\\mathrm{k}} \\cdot A_{\\mathrm{k}} + \\sum_{\\mathrm{l}} \\Psi_{\\mathrm{l}} \\cdot l_{\\mathrm{l}} + \\sum_{\\mathrm{m}} \\chi_{\\mathrm{m}}\\]\n\nBeispielhafte U-Werte dürfen nicht ungeprüft als Normwerte verwendet werden. Für reale Projekte müssen U-Werte aus Planung, Bestand, Nachweis oder nationalem Anhang übernommen werden."
-                                   },
-                                   {
-                                       "id":  "lueftung",
-                                       "title":  "Lüftungswärmeverluste",
-                                       "text":  "Lüftungswärmeverluste entstehen durch Außenluft, die erwärmt werden muss. Entscheidend ist der Volumenstrom der Luft und die klare Einheit der Formel.\n\nRaumvolumen:\n\n\\[V_{\\mathrm{i}} = A_{\\mathrm{Raum,i}} \\cdot h_{\\mathrm{i}}\\]\n\nLuftvolumenstrom über Luftwechselrate in \\(\\mathrm{m^3/h}\\):\n\n\\[\\dot{V}_{\\mathrm{i}} = n_{\\mathrm{i}} \\cdot V_{\\mathrm{i}}\\]\n\nLüftungswärmeverlust ohne Wärmerückgewinnung bei \\(\\dot{V}_{\\mathrm{i}}\\) in \\(\\mathrm{m^3/h}\\):\n\n\\[\\Phi_{\\mathrm{V,i}} = 0{,}34 \\cdot \\dot{V}_{\\mathrm{i}} \\cdot (\\theta_{\\mathrm{int,i}} - \\theta_e)\\]\n\nAlternative Grundform mit Volumenstrom in \\(\\mathrm{m^3/s}\\):\n\n\\[\\Phi_{\\mathrm{V,i}} = \\rho \\cdot c_p \\cdot \\dot{V}_{\\mathrm{i}} \\cdot \\Delta \\theta\\]\n\nUmrechnung in SI-Einheiten:\n\n\\[\\dot{V}_{\\mathrm{i}} = \\frac{n_{\\mathrm{i}} \\cdot V_{\\mathrm{i}}}{3600}\\]\n\nDabei muss \\(\\dot{V}_{\\mathrm{i}}\\) in der SI-Grundform in \\(\\mathrm{m^3/s}\\) eingesetzt werden. Wichtig: Der Faktor \\(0{,}34\\) liefert Watt, wenn der Volumenstrom in \\(\\mathrm{m^3/h}\\) eingesetzt wird. Für Kilowatt muss das Ergebnis durch \\(1000\\) geteilt werden."
-                                   },
-                                   {
-                                       "id":  "lueftung_wrg",
-                                       "title":  "Lüftung mit Wärmerückgewinnung",
-                                       "text":  "Bei zentraler Lüftung mit Wärmerückgewinnung kann vereinfacht zuerst die Zulufttemperatur nach Wärmerückgewinnung abgeschätzt werden:\n\n\\[\\theta_{\\mathrm{Zuluft,nach,WRG}} = \\theta_e + \\eta_{\\mathrm{WRG}} \\cdot (\\theta_{\\mathrm{Abluft}} - \\theta_e)\\]\n\nDann kann der wirksame Lüftungswärmeverlust als Differenz zwischen Raumtemperatur und Zulufttemperatur angesetzt werden:\n\n\\[\\Phi_{\\mathrm{V,i}} = 0{,}34 \\cdot \\dot{V}_{\\mathrm{i}} \\cdot (\\theta_{\\mathrm{int,i}} - \\theta_{\\mathrm{Zuluft}})\\]\n\nAlternativ kann ein vereinfachter Wirkungsgradansatz genutzt werden:\n\n\\[\\Phi_{\\mathrm{V,eff,i}} = \\Phi_{\\mathrm{V,i}} \\cdot (1 - \\varepsilon)\\]\n\nWichtig für die Checkliste: Die Lüftungsanlage darf nicht doppelt berücksichtigt werden. Entweder wird der Außenluftanteil als Lüftungswärmeverlust im Raum angesetzt, oder ein Teil der Leistung wird einem Luftheizregister zugeordnet."
-                                   },
-                                   {
-                                       "id":  "lueftung_planungspruefung",
-                                       "title":  "Gewerk Lüftung: Planungsprüfung",
-                                       "text":  "Die Lüftungswerte müssen raumweise nachvollziehbar sein, damit sie nicht doppelt oder mit falscher Einheit in die Heizlast eingehen.\n\n| Prüffrage | Gleichung / Kontrolle |\n|---|---|\n| Gibt es mechanische Lüftung? | Abluft, Zuluft, Zu-/Abluft, Wärmerückgewinnung erfassen |\n| Welche Luftmenge je Raum? | \\(\\dot{V}_{\\mathrm{i}} = n_{\\mathrm{i}} \\cdot V_{\\mathrm{i}}\\) |\n| Wird Luft vorgewärmt? | \\(\\theta_{\\mathrm{Zuluft}}\\) bestimmen |\n| Gibt es Wärmerückgewinnung? | \\(\\theta_{\\mathrm{Zuluft}} = \\theta_e + \\eta_{\\mathrm{WRG}}(\\theta_{\\mathrm{Abluft}}-\\theta_e)\\) |\n| Werden Bad, WC oder Küche über Abluft geführt? | Ersatzluft und Überströmung berücksichtigen |\n| Gibt es Infiltration über Gebäudeundichtheiten? | zusätzlichen oder maßgebenden Luftwechsel prüfen |\n| Wird die Lüftungsheizlast dem Raum oder einem Heizregister zugeordnet? | Doppelansatz vermeiden |"
-                                   },
-                                   {
-                                       "id":  "raumheizlast",
-                                       "title":  "Raumheizlast je Raum",
-                                       "text":  "Die Raumheizlast ist der zentrale Einzelwert für die Auslegung der Heizflächen eines konkreten Raumes.\n\nFür jeden Raum:\n\n\\[\\Phi_{\\mathrm{HL,i}} = \\Phi_{\\mathrm{T,i}} + \\Phi_{\\mathrm{V,i}} + \\Phi_{\\mathrm{RH,i}}\\]\n\n- \\(\\Phi_{\\mathrm{HL,i}}\\): Norm-Heizlast des Raumes \\(i\\) in \\(\\mathrm{W}\\)\n- \\(\\Phi_{\\mathrm{T,i}}\\): Transmissionswärmeverlust des Raumes\n- \\(\\Phi_{\\mathrm{V,i}}\\): Lüftungswärmeverlust des Raumes\n- \\(\\Phi_{\\mathrm{RH,i}}\\): Zusatz-Aufheizleistung, falls relevant, z. B. nach Nachtabsenkung oder intermittierendem Betrieb\n\nSolare und interne Wärmegewinne werden bei der klassischen Auslegungs-Heizlast normalerweise nicht als dauerhaft entlastende Leistung angesetzt, weil der ungünstige Auslegungsfall betrachtet wird.\n\nDie erforderliche Heizkörper-, Fußbodenheizungs- oder Luftheizleistung muss die Raumheizlast decken:\n\n\\[\\Phi_{\\mathrm{Heizflaeche,i}} \\geq \\Phi_{\\mathrm{HL,i}}\\]"
-                                   },
-                                   {
-                                       "id":  "gebaeudeheizlast",
-                                       "title":  "Gebäudeheizlast und Wärmeerzeugerleistung",
-                                       "text":  "Die Gebäudeheizlast ist von der raumweisen Heizlast und von der Wärmeerzeugerleistung zu unterscheiden.\n\nReine Gebäude-Raumheizlast:\n\n\\[\\Phi_{\\mathrm{HL,Gebaeude}} = \\sum_{\\mathrm{i}=1}^{n} \\Phi_{\\mathrm{HL,i}}\\]\n\nDie erforderliche Wärmeerzeugerleistung ist planerisch davon zu unterscheiden:\n\n\\[\\Phi_{\\mathrm{WEZ}} \\geq \\Phi_{\\mathrm{HL,Gebaeude}}\\]\n\nWenn Trinkwarmwasser gleichzeitig ohne Vorrangbetrieb erzeugt werden soll:\n\n\\[\\Phi_{\\mathrm{WEZ}} \\geq \\Phi_{\\mathrm{HL,Gebaeude}} + \\Phi_{\\mathrm{TWW,gleichzeitig}}\\]\n\nBei Warmwasser-Vorrangschaltung kann stattdessen geprüft werden:\n\n\\[\\Phi_{\\mathrm{WEZ}} \\geq \\max(\\Phi_{\\mathrm{HL,Gebaeude}}, \\Phi_{\\mathrm{TWW}})\\]\n\nDas ist kein rein mathematischer Automatismus, sondern hängt vom Anlagenkonzept ab: Wärmepumpe, Kessel, Speichergröße, Frischwasserstation, Komfortanforderung und Sperrzeiten."
-                                   },
-                                   {
-                                       "id":  "heizlast_bilanz",
-                                       "title":  "Heizlast-Bilanz: Raum, Gebäude und Wärmeerzeuger",
-                                       "text":  "Für die Gesamtheizlast müssen die raumweisen Werte einzeln sichtbar bleiben. Die Gebäudeheizlast ist deshalb keine neue Einzelraumlast, sondern die dokumentierte Summe der Raumheizlasten.\n\n| Ebene | Wert | Zweck | Bestandteil der Raumheizlast? |\n|---|---|---|---|\n| Raum | \\(\\Phi_{\\mathrm{HL,i}}\\) | Heizflächen und Raumregelung je Raum auslegen | ja |\n| Gebäude | \\(\\Phi_{\\mathrm{HL,Gebaeude}} = \\sum_{\\mathrm{i}} \\Phi_{\\mathrm{HL,i}}\\) | Gebäudesummenblatt und Grundlast für Wärmeerzeuger | Summe der Räume |\n| Trinkwarmwasser | \\(\\Phi_{\\mathrm{TWW}}\\) | Speicher, Frischwasserstation oder Warmwasserleistung bewerten | nein |\n| Wärmeerzeuger | \\(\\Phi_{\\mathrm{WEZ}}\\) | Kessel, Wärmepumpe oder Übergabestation auslegen | planerische Anlagenleistung |\n\nPraktische Dokumentationsregel: Erst jede Raumheizlast einzeln aufführen, danach die Gebäudeheizlast summieren und erst anschließend TWW, Vorrangbetrieb, Speicher und Leistungsreserve bewerten."
-                                   },
-                                   {
-                                       "id":  "heizung_auslegung",
-                                       "title":  "Gewerk Heizung: Heizflächen und Volumenströme",
-                                       "text":  "Aus der Raumheizlast folgt die Heizflächenauslegung je Raum.\n\nHeizwassermassenstrom:\n\n\\[\\dot{m}_{\\mathrm{i}} = \\frac{\\Phi_{\\mathrm{HL,i}}}{c_p \\cdot \\Delta T}\\]\n\n- \\(\\dot{m}_{\\mathrm{i}}\\): Massenstrom in \\(\\mathrm{kg/s}\\)\n- \\(c_p\\): spezifische Wärmekapazität von Wasser, näherungsweise \\(4180\\,\\frac{\\mathrm{J}}{\\mathrm{kg}\\cdot\\mathrm{K}}\\)\n- \\(\\Delta T\\): Spreizung zwischen Vorlauf und Rücklauf in \\(\\mathrm{K}\\)\n\nPraxisformel für den Heizwasser-Volumenstrom in \\(\\mathrm{l/h}\\), wenn \\(\\Phi_{\\mathrm{HL,i}}\\) in \\(\\mathrm{W}\\) eingesetzt wird. Der Faktor \\(1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l}\\cdot\\mathrm{K}}\\) ist die volumetrische Wärmekapazität von Wasser und fasst Dichte, spezifische Wärmekapazität und die Umrechnung auf Liter pro Stunde zusammen:\n\n\\[\\dot{V}_{\\mathrm{w,i}} = \\frac{\\Phi_{\\mathrm{HL,i}}}{1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l}\\cdot\\mathrm{K}} \\cdot \\Delta T}\\]\n\nBeispiel:\n\n\\[\\Phi_{\\mathrm{HL,i}} = 1000\\,\\mathrm{W}, \\quad \\Delta T = 10\\,\\mathrm{K}\\]\n\n\\[\\dot{V}_{\\mathrm{w,i}} = \\frac{1000\\,\\mathrm{W}}{1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l}\\cdot\\mathrm{K}} \\cdot 10\\,\\mathrm{K}} = 85{,}98\\,\\mathrm{l/h}\\]"
-                                   },
-                                   {
-                                       "id":  "sanitaer_tww",
-                                       "title":  "Gewerk Sanitär: Trinkwarmwasser getrennt bewerten",
-                                       "text":  "Sanitär beeinflusst die Raumheizlast nur indirekt. Trinkwarmwasser ist keine Raumheizlast, sondern eine zusätzliche Last für Speicher, Wärmeerzeuger oder Frischwasserstation. DIN EN 12831-3 behandelt Trinkwassererwärmungsanlagen separat.\n\nLeistung für Trinkwarmwasser bei Volumenstrom in \\(\\mathrm{m^3/h}\\):\n\n\\[\\Phi_{\\mathrm{TWW}} = \\frac{\\rho \\cdot c_p \\cdot \\dot{V}_{\\mathrm{TWW}} \\cdot (\\theta_{\\mathrm{WW}} - \\theta_{\\mathrm{KW}})}{3600}\\]\n\nPraxisformel bei Wasser mit \\(\\dot{V}_{\\mathrm{TWW}}\\) in \\(\\mathrm{l/h}\\):\n\n\\[\\Phi_{\\mathrm{TWW}} = 1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l}\\cdot\\mathrm{K}} \\cdot \\dot{V}_{\\mathrm{TWW}} \\cdot (\\theta_{\\mathrm{WW}} - \\theta_{\\mathrm{KW}})\\]\n\nDabei wird \\(\\dot{V}_{\\mathrm{TWW}}\\) in \\(\\mathrm{l/h}\\) eingesetzt. Der Faktor \\(1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l}\\cdot\\mathrm{K}}\\) entspricht näherungsweise der volumetrischen Wärmekapazität von Wasser; die Einheit steht in der Symbolerklärung und im Faktor, nicht im Index.\n\nTrinkwarmwasser-Energie:\n\n\\[Q_{\\mathrm{TWW}} = \\rho \\cdot c_p \\cdot V_{\\mathrm{TWW}} \\cdot (\\theta_{\\mathrm{WW}} - \\theta_{\\mathrm{KW}})\\]\n\nPraxisnah in \\(\\mathrm{kWh}\\):\n\n\\[Q_{\\mathrm{TWW}} = \\frac{1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l}\\cdot\\mathrm{K}} \\cdot V_{\\mathrm{TWW}} \\cdot (\\theta_{\\mathrm{WW}} - \\theta_{\\mathrm{KW}})}{1000}\\]\n\nDabei wird \\(V_{\\mathrm{TWW}}\\) in \\(\\mathrm{l}\\) eingesetzt und das Ergebnis in \\(\\mathrm{kWh}\\) ausgegeben."
-                                   },
-                                   {
-                                       "id":  "sanitaer_checkliste",
-                                       "title":  "Gewerk Sanitär: TWW-Checkliste",
-                                       "text":  "Die Sanitärdaten werden nicht in die Raumheizlast eingerechnet, müssen aber für Wärmeerzeuger, Speicher und Anlagenkonzept dokumentiert werden.\n\n| Prüfschritt | Relevanz |\n|---|---|\n| Warmwasserbedarf je Nutzung erfassen | Speicher- und Erzeugerleistung |\n| Zapfstellen erfassen | Bad, Küche, Dusche, Gewerbe |\n| Gleichzeitigkeiten prüfen | Spitzenleistung |\n| Zirkulationsleitung vorhanden? | Wärmeverluste und Betriebszeiten |\n| Rohrdämmung prüfen | Verteilverluste |\n| Aufstellräume für Speicher/Technik bewerten | mögliche interne Wärmeabgabe, aber nicht als sichere Heizlastminderung ansetzen |\n| TWW-Priorität definieren | Wärmeerzeuger muss ggf. nicht Raumheizung und TWW-Spitze gleichzeitig decken |\n| Hygiene-/Legionellenkonzept beachten | Temperatur- und Speicherstrategie |"
-                                   },
-                                   {
-                                       "id":  "beispielrechnung",
-                                       "title":  "Korrigierte Beispielrechnung",
-                                       "text":  "Gegeben ist ein Raum mit \\(5\\,\\mathrm{m} \\times 6\\,\\mathrm{m} \\times 3\\,\\mathrm{m}\\), also \\(V = 90\\,\\mathrm{m^3}\\). Die Temperaturdifferenz beträgt \\(\\Delta T = 30\\,\\mathrm{K}\\). Für das Beispiel werden nur eine Außenwand und ein Fenster betrachtet.\n\n| Teilrechnung | Formel | Ergebnis |\n|---|---|---|\n| Wand | \\(0{,}35 \\cdot 30 \\cdot 30\\) | \\(315\\,\\mathrm{W}\\) |\n| Fenster | \\(1{,}20 \\cdot 5 \\cdot 30\\) | \\(180\\,\\mathrm{W}\\) |\n| Transmission gesamt | \\(315 + 180\\) | \\(495\\,\\mathrm{W}\\) |\n| Lüftungsvolumenstrom | \\(\\frac{0{,}5 \\cdot 90}{3600}\\) | \\(0{,}0125\\,\\frac{\\mathrm{m^3}}{\\mathrm{s}}\\) |\n| Lüftungsverlust | \\(1{,}2 \\cdot 1005 \\cdot 0{,}0125 \\cdot 30\\) | \\(452\\,\\mathrm{W}\\) |\n| Raumheizlast ohne Aufheizzuschlag | \\(495 + 452\\) | \\(947\\,\\mathrm{W} = 0{,}947\\,\\mathrm{kW}\\) |\n| optional mit 10 % Zuschlag | \\(0{,}947 \\cdot 1{,}10\\) | \\(1{,}04\\,\\mathrm{kW}\\) |\n\nDie vorherige Fassung enthielt hier einen Rechenfehler: Beim Lüftungsverlust wurde die Umrechnung von \\(\\mathrm{m^3/h}\\) nach \\(\\mathrm{m^3/s}\\) nicht sauber dargestellt und das Ergebnis war mit ca. \\(162\\,\\mathrm{W}\\) zu niedrig. Korrekt sind in diesem Beispiel ca. \\(452\\,\\mathrm{W}\\) Lüftungswärmeverlust."
-                                   },
-                                   {
-                                       "id":  "ergebnisdokumentation",
-                                       "title":  "Ergebnisdokumentation",
-                                       "text":  "Am Ende sollte die TGA-Planung mindestens nachvollziehbar dokumentieren, welche Lasten raumweise und welche Lasten gebäudebezogen angesetzt wurden.\n\n| Dokument | Inhalt |\n|---|---|\n| Raumheizlasttabelle | \\(\\Phi_{\\mathrm{T}}\\), \\(\\Phi_{\\mathrm{V}}\\), \\(\\Phi_{\\mathrm{RH}}\\), \\(\\Phi_{\\mathrm{HL}}\\) je Raum |\n| Gebäudesummenblatt | gesamte Norm-Heizlast bzw. Gebäudeheizlast |\n| Bauteilliste | Flächen, U-Werte, Wärmebrücken |\n| Lüftungsliste | Luftmengen, WRG, Zulufttemperaturen |\n| Sanitär-TWW-Blatt | Warmwasserbedarf, Speicher, Zirkulation |\n| Heizflächenauslegung | Heizkörper/Fußbodenheizung je Raum |\n| Hydraulikdaten | Volumenströme, Ventilvoreinstellungen, Druckverluste |\n| Wärmeerzeuger-Auslegung | Heizlast, TWW-Konzept, Leistungsreserve |\n| Annahmenprotokoll | Normstand, Randbedingungen, Abweichungen |"
-                                   },
-                                   {
-                                       "id":  "kontrollformel_kette",
-                                       "title":  "Kompakte Kontrollformel-Kette",
-                                       "text":  "Für jeden Raum:\n\n\\[V_{\\mathrm{i}} = A_{\\mathrm{i}} \\cdot h_{\\mathrm{i}}\\]\n\n\\[\\dot{V}_{\\mathrm{i}} = n_{\\mathrm{i}} \\cdot V_{\\mathrm{i}}\\]\n\n\\[\\Phi_{\\mathrm{T,i}} = \\sum U \\cdot A \\cdot \\Delta \\theta + \\sum \\Psi \\cdot l \\cdot \\Delta \\theta + \\sum \\chi \\cdot \\Delta \\theta\\]\n\n\\[\\Phi_{\\mathrm{V,i}} = 0{,}34 \\cdot \\dot{V}_{\\mathrm{i}} \\cdot \\Delta \\theta\\]\n\n\\[\\Phi_{\\mathrm{HL,i}} = \\Phi_{\\mathrm{T,i}} + \\Phi_{\\mathrm{V,i}} + \\Phi_{\\mathrm{RH,i}}\\]\n\nFür das Gebäude:\n\n\\[\\Phi_{\\mathrm{HL,Gebaeude}} = \\sum_{\\mathrm{i}} \\Phi_{\\mathrm{HL,i}}\\]\n\nFür die Heizungs-Hydraulik:\n\n\\[\\dot{V}_{\\mathrm{w,i}} = \\frac{\\Phi_{\\mathrm{HL,i}}}{1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l}\\cdot\\mathrm{K}} \\cdot \\Delta T}\\]\n\nDer Faktor \\(1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l}\\cdot\\mathrm{K}}\\) wird für Wasser in der Praxisformel verwendet, wenn Leistung in \\(\\mathrm{W}\\), Spreizung in \\(\\mathrm{K}\\) und Volumenstrom in \\(\\mathrm{l/h}\\) gerechnet werden.\n\nDamit ist die Checkliste direkt als Grundlage für eine TGA-Planungsstruktur verwendbar: zuerst Raumdaten und Gebäudehülle, dann Lüftung, dann raumweise Heizflächen, anschließend Wärmeerzeuger und Sanitär-Warmwasser getrennt bewerten."
-                                   },
-                                   {
-                                       "id":  "neubau_zweiraum_wohnzimmer_bad_beispiel",
-                                       "title":  "Beispielrechnung: Neubau mit Wohnzimmer und Badezimmer als angrenzend beheizte Räume",
-                                       "text":  "Dieses Beispiel ist eine didaktische Plausibilitätsrechnung für einen sehr gut gedämmten Neubau mit zwei beheizten Räumen: einem Wohnzimmer und einem Badezimmer. Es zeigt ausdrücklich, wie angrenzende beheizte Räume raumweise berücksichtigt werden und warum Innenübertragungen in der Gebäudesumme nicht als zusätzlicher Außenverlust doppelt gezählt werden. Es ersetzt keine projektbezogene Normberechnung.\n\n**Annahmen**\n\n| Größe | Wohnzimmer | Badezimmer |\n|---|---:|---:|\n| Raumfläche | \\(A_{\\mathrm{WZ}} = 28\\,\\mathrm{m^2}\\) | \\(A_{\\mathrm{Bad}} = 8\\,\\mathrm{m^2}\\) |\n| lichte Raumhöhe | \\(h_{\\mathrm{WZ}} = 2{,}60\\,\\mathrm{m}\\) | \\(h_{\\mathrm{Bad}} = 2{,}60\\,\\mathrm{m}\\) |\n| Raumvolumen | \\(V_{\\mathrm{WZ}} = 72{,}8\\,\\mathrm{m^3}\\) | \\(V_{\\mathrm{Bad}} = 20{,}8\\,\\mathrm{m^3}\\) |\n| Norm-Innentemperatur | \\(\\theta_{\\mathrm{int,WZ}} = 21\\,^{\\circ}\\mathrm{C}\\) | \\(\\theta_{\\mathrm{int,Bad}} = 24\\,^{\\circ}\\mathrm{C}\\) |\n| Beispielhafte Auslegungsaußentemperatur | \\(\\theta_{\\mathrm{e}} = -10\\,^{\\circ}\\mathrm{C}\\) | \\(\\theta_{\\mathrm{e}} = -10\\,^{\\circ}\\mathrm{C}\\) |\n| Temperaturdifferenz nach außen | \\(\\Delta\\theta_{\\mathrm{WZ,e}} = 31\\,\\mathrm{K}\\) | \\(\\Delta\\theta_{\\mathrm{Bad,e}} = 34\\,\\mathrm{K}\\) |\n| Außenwandfläche | \\(A_{\\mathrm{AW,WZ}} = 14\\,\\mathrm{m^2}\\) | \\(A_{\\mathrm{AW,Bad}} = 8\\,\\mathrm{m^2}\\) |\n| Fensterfläche | \\(A_{\\mathrm{Fenster,WZ}} = 6\\,\\mathrm{m^2}\\) | \\(A_{\\mathrm{Fenster,Bad}} = 1{,}5\\,\\mathrm{m^2}\\) |\n| Dach-/Deckenfläche gegen außen | \\(A_{\\mathrm{Dach,WZ}} = 28\\,\\mathrm{m^2}\\) | \\(A_{\\mathrm{Dach,Bad}} = 8\\,\\mathrm{m^2}\\) |\n| Bodenfläche gegen unbeheizt / Erdreich vereinfacht | \\(A_{\\mathrm{Boden,WZ}} = 28\\,\\mathrm{m^2}\\) | \\(A_{\\mathrm{Boden,Bad}} = 8\\,\\mathrm{m^2}\\) |\n| Innenwand zwischen Bad und Wohnzimmer | \\(A_{\\mathrm{IW}} = 8\\,\\mathrm{m^2}\\) | \\(A_{\\mathrm{IW}} = 8\\,\\mathrm{m^2}\\) |\n| U-Wert Außenwand | \\(U_{\\mathrm{AW}} = 0{,}20\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\) | \\(U_{\\mathrm{AW}} = 0{,}20\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\) |\n| U-Wert Dach | \\(U_{\\mathrm{Dach}} = 0{,}16\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\) | \\(U_{\\mathrm{Dach}} = 0{,}16\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\) |\n| U-Wert Boden | \\(U_{\\mathrm{Boden}} = 0{,}25\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\) | \\(U_{\\mathrm{Boden}} = 0{,}25\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\) |\n| U-Wert Fenster | \\(U_{\\mathrm{Fenster}} = 0{,}90\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\) | \\(U_{\\mathrm{Fenster}} = 0{,}90\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\) |\n| U-Wert Innenwand vereinfacht | \\(U_{\\mathrm{IW}} = 1{,}80\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\) | \\(U_{\\mathrm{IW}} = 1{,}80\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\) |\n| Lüftungsvolumenstrom mit WRG | \\(\\dot{V}_{\\mathrm{WZ}} = 45\\,\\mathrm{m^3/h}\\) | \\(\\dot{V}_{\\mathrm{Bad}} = 40\\,\\mathrm{m^3/h}\\) |\n| Wärmerückgewinnung | \\(\\varepsilon = 80\\,\\%\\) | \\(\\varepsilon = 80\\,\\%\\) |\n| Fußbodenheizung | Auslegung \\(35/30\\,^{\\circ}\\mathrm{C}\\), ca. \\(45\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}}\\) | Auslegung \\(35/30\\,^{\\circ}\\mathrm{C}\\), ca. \\(60\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}}\\) |\n| Trinkwarmwasserspeicher | \\(V_{\\mathrm{TWW}} = 180\\,\\mathrm{l}\\), Erwärmung von \\(10\\,^{\\circ}\\mathrm{C}\\) auf \\(50\\,^{\\circ}\\mathrm{C}\\) | Nutzung dem Bad zugeordnet, aber nicht Teil der Raumheizlast |\n\n**Grundgleichung Transmission je Raum**\n\n\\[\\Phi_{\\mathrm{T,i}} = \\sum_{\\mathrm{k}} U_{\\mathrm{k}} \\cdot A_{\\mathrm{k,i}} \\cdot \\Delta\\theta_{\\mathrm{k,i}}\\]\n\n- \\(\\Phi_{\\mathrm{T,i}}\\): Transmissionswärmeverlust des Raumes \\(i\\) in \\(\\mathrm{W}\\)\n- \\(U_{\\mathrm{k}}\\): Wärmedurchgangskoeffizient des Bauteils \\(k\\) in \\(\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\)\n- \\(A_{\\mathrm{k,i}}\\): dem Raum \\(i\\) zugeordnete Bauteilfläche in \\(\\mathrm{m^2}\\)\n- \\(\\Delta\\theta_{\\mathrm{k,i}}\\): Temperaturdifferenz über das Bauteil in \\(\\mathrm{K}\\)\n\nFür Außenbauteile gilt im Beispiel \\(\\Delta\\theta_{\\mathrm{WZ,e}} = 31\\,\\mathrm{K}\\) und \\(\\Delta\\theta_{\\mathrm{Bad,e}} = 34\\,\\mathrm{K}\\). Für die Innenwand zwischen beheiztem Bad und beheiztem Wohnzimmer gilt nur die Temperaturdifferenz zwischen beiden Räumen:\n\n\\[\\Delta\\theta_{\\mathrm{Bad,WZ}} = 24\\,^{\\circ}\\mathrm{C} - 21\\,^{\\circ}\\mathrm{C} = 3\\,\\mathrm{K}\\]\n\n**Wohnzimmer: Außenbauteile**\n\n\\[\\Phi_{\\mathrm{AW,WZ}} = 0{,}20\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}} \\cdot 14\\,\\mathrm{m^2} \\cdot 31\\,\\mathrm{K} = 86{,}8\\,\\mathrm{W}\\]\n\n\\[\\Phi_{\\mathrm{Fenster,WZ}} = 0{,}90\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}} \\cdot 6\\,\\mathrm{m^2} \\cdot 31\\,\\mathrm{K} = 167{,}4\\,\\mathrm{W}\\]\n\n\\[\\Phi_{\\mathrm{Dach,WZ}} = 0{,}16\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}} \\cdot 28\\,\\mathrm{m^2} \\cdot 31\\,\\mathrm{K} = 138{,}9\\,\\mathrm{W}\\]\n\n\\[\\Phi_{\\mathrm{Boden,WZ}} = 0{,}25\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}} \\cdot 28\\,\\mathrm{m^2} \\cdot 31\\,\\mathrm{K} = 217{,}0\\,\\mathrm{W}\\]\n\n\\[\\Phi_{\\mathrm{T,WZ,aussen}} = 86{,}8\\,\\mathrm{W} + 167{,}4\\,\\mathrm{W} + 138{,}9\\,\\mathrm{W} + 217{,}0\\,\\mathrm{W} = 610{,}1\\,\\mathrm{W}\\]\n\n**Bad: Außenbauteile und Innenwand zum Wohnzimmer**\n\n\\[\\Phi_{\\mathrm{AW,Bad}} = 0{,}20\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}} \\cdot 8\\,\\mathrm{m^2} \\cdot 34\\,\\mathrm{K} = 54{,}4\\,\\mathrm{W}\\]\n\n\\[\\Phi_{\\mathrm{Fenster,Bad}} = 0{,}90\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}} \\cdot 1{,}5\\,\\mathrm{m^2} \\cdot 34\\,\\mathrm{K} = 45{,}9\\,\\mathrm{W}\\]\n\n\\[\\Phi_{\\mathrm{Dach,Bad}} = 0{,}16\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}} \\cdot 8\\,\\mathrm{m^2} \\cdot 34\\,\\mathrm{K} = 43{,}5\\,\\mathrm{W}\\]\n\n\\[\\Phi_{\\mathrm{Boden,Bad}} = 0{,}25\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}} \\cdot 8\\,\\mathrm{m^2} \\cdot 34\\,\\mathrm{K} = 68{,}0\\,\\mathrm{W}\\]\n\n\\[\\Phi_{\\mathrm{T,Bad,aussen}} = 54{,}4\\,\\mathrm{W} + 45{,}9\\,\\mathrm{W} + 43{,}5\\,\\mathrm{W} + 68{,}0\\,\\mathrm{W} = 211{,}8\\,\\mathrm{W}\\]\n\nDa das Bad wärmer ausgelegt wird als das Wohnzimmer, fließt rechnerisch Wärme vom Bad zum Wohnzimmer. Für die Bad-Heizfläche ist dieser Innenverlust sichtbar zu dokumentieren:\n\n\\[\\Phi_{\\mathrm{IW,Bad,WZ}} = 1{,}80\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}} \\cdot 8\\,\\mathrm{m^2} \\cdot 3\\,\\mathrm{K} = 43{,}2\\,\\mathrm{W}\\]\n\nFür das Wohnzimmer ist derselbe Betrag ein Wärmegewinn aus dem Bad. In einer konservativen Heizflächenauslegung wird dieser Gewinn häufig nicht zur Reduzierung der Wohnzimmer-Heizfläche genutzt. In einer signed Summenprüfung kann er jedoch mit negativem Vorzeichen gezeigt werden:\n\n\\[\\Phi_{\\mathrm{IW,WZ,Bad}} = -43{,}2\\,\\mathrm{W}\\]\n\n**Grundgleichung Lüftung mit Wärmerückgewinnung**\n\n\\[\\Phi_{\\mathrm{V,eff,i}} = 0{,}34 \\cdot \\dot{V}_{\\mathrm{i}} \\cdot \\Delta\\theta_{\\mathrm{i,e}} \\cdot (1 - \\varepsilon)\\]\n\n- \\(\\Phi_{\\mathrm{V,eff,i}}\\): wirksamer Lüftungswärmeverlust des Raumes \\(i\\) in \\(\\mathrm{W}\\)\n- \\(\\dot{V}_{\\mathrm{i}}\\): Luftvolumenstrom in \\(\\mathrm{m^3/h}\\)\n- \\(\\Delta\\theta_{\\mathrm{i,e}}\\): Temperaturdifferenz zwischen Innenluft und Außenluft in \\(\\mathrm{K}\\)\n- \\(\\varepsilon\\): Wärmerückgewinnungsgrad als Dezimalwert\n\n\\[\\Phi_{\\mathrm{V,eff,WZ}} = 0{,}34\\,\\frac{\\mathrm{Wh}}{\\mathrm{m^3}\\cdot\\mathrm{K}} \\cdot 45\\,\\frac{\\mathrm{m^3}}{\\mathrm{h}} \\cdot 31\\,\\mathrm{K} \\cdot (1 - 0{,}80) = 94{,}9\\,\\mathrm{W}\\]\n\n\\[\\Phi_{\\mathrm{V,eff,Bad}} = 0{,}34\\,\\frac{\\mathrm{Wh}}{\\mathrm{m^3}\\cdot\\mathrm{K}} \\cdot 40\\,\\frac{\\mathrm{m^3}}{\\mathrm{h}} \\cdot 34\\,\\mathrm{K} \\cdot (1 - 0{,}80) = 92{,}5\\,\\mathrm{W}\\]\n\n**Raumheizlasten**\n\n\\[\\Phi_{\\mathrm{HL,i}} = \\Phi_{\\mathrm{T,i}} + \\Phi_{\\mathrm{V,eff,i}} + \\Phi_{\\mathrm{RH,i}}\\]\n\n- \\(\\Phi_{\\mathrm{HL,i}}\\): Raumheizlast des Raumes \\(i\\) in \\(\\mathrm{W}\\)\n- \\(\\Phi_{\\mathrm{T,i}}\\): Transmissionswärmeverlust des Raumes in \\(\\mathrm{W}\\)\n- \\(\\Phi_{\\mathrm{V,eff,i}}\\): wirksamer Lüftungswärmeverlust in \\(\\mathrm{W}\\)\n- \\(\\Phi_{\\mathrm{RH,i}}\\): Zusatz-Aufheizleistung, hier beispielhaft \\(0\\,\\mathrm{W}\\)\n\nWohnzimmer mit konservativer Nicht-Anrechnung des Innengewinns:\n\n\\[\\Phi_{\\mathrm{HL,WZ,konservativ}} = 610{,}1\\,\\mathrm{W} + 94{,}9\\,\\mathrm{W} + 0\\,\\mathrm{W} = 705{,}0\\,\\mathrm{W}\\]\n\nWohnzimmer in signed Summenprüfung mit Innenwärmegewinn aus dem Bad:\n\n\\[\\Phi_{\\mathrm{HL,WZ,signed}} = 610{,}1\\,\\mathrm{W} + 94{,}9\\,\\mathrm{W} - 43{,}2\\,\\mathrm{W} = 661{,}8\\,\\mathrm{W}\\]\n\nBadezimmer mit Innenverlust an das niedriger temperierte Wohnzimmer:\n\n\\[\\Phi_{\\mathrm{HL,Bad}} = 211{,}8\\,\\mathrm{W} + 43{,}2\\,\\mathrm{W} + 92{,}5\\,\\mathrm{W} = 347{,}5\\,\\mathrm{W}\\]\n\n**Gebäudesumme und angrenzend beheizte Räume**\n\nDie interne Wärmeübertragung zwischen zwei beheizten Räumen ist keine zusätzliche Gebäude-Außenlast. Sie verteilt Leistung zwischen Räumen, muss aber in der Gebäudesumme entweder mit Vorzeichen saldiert oder als Innenübertragung separat ausgewiesen werden.\n\nSigned Summenprüfung:\n\n\\[\\Phi_{\\mathrm{HL,Gebaeude}} = \\Phi_{\\mathrm{HL,WZ,signed}} + \\Phi_{\\mathrm{HL,Bad}}\\]\n\n\\[\\Phi_{\\mathrm{HL,Gebaeude}} = 661{,}8\\,\\mathrm{W} + 347{,}5\\,\\mathrm{W} = 1009{,}3\\,\\mathrm{W}\\]\n\nGleiche Gebäudesumme über Außenverluste plus Lüftung:\n\n\\[\\Phi_{\\mathrm{HL,Gebaeude}} = 610{,}1\\,\\mathrm{W} + 211{,}8\\,\\mathrm{W} + 94{,}9\\,\\mathrm{W} + 92{,}5\\,\\mathrm{W} = 1009{,}3\\,\\mathrm{W}\\]\n\nKonservative Summe der Heizflächenauslegung ohne Anrechnung des Wohnzimmer-Innengewinns:\n\n\\[\\Phi_{\\mathrm{Heizflaechen,konservativ}} = 705{,}0\\,\\mathrm{W} + 347{,}5\\,\\mathrm{W} = 1052{,}5\\,\\mathrm{W}\\]\n\n**Fußbodenheizung und TWW-Abgrenzung**\n\n\\[\\Phi_{\\mathrm{FBH,WZ}} = 28\\,\\mathrm{m^2} \\cdot 45\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}} = 1260\\,\\mathrm{W}\\]\n\n\\[\\Phi_{\\mathrm{FBH,Bad}} = 8\\,\\mathrm{m^2} \\cdot 60\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}} = 480\\,\\mathrm{W}\\]\n\nBeide Heizflächen decken die überschlägigen Raumheizlasten in diesem Beispiel. Randzonen, Bodenbelag, Oberflächentemperaturen, Verlegeabstände und hydraulischer Abgleich müssen projektbezogen geprüft werden.\n\nTrinkwarmwasser bleibt getrennt von der Raumheizlast. In der Beispielrechnung bedeutet \\(1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l}\\cdot\\mathrm{K}}\\) die näherungsweise Wärmemenge, um \\(1\\,\\mathrm{l}\\) Wasser um \\(1\\,\\mathrm{K}\\) zu erwärmen:\n\n\\[Q_{\\mathrm{TWW}} = \\frac{1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l}\\cdot\\mathrm{K}} \\cdot V_{\\mathrm{TWW}} \\cdot (\\theta_{\\mathrm{WW}} - \\theta_{\\mathrm{KW}})}{1000}\\]\n\n\\[Q_{\\mathrm{TWW}} = \\frac{1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l}\\cdot\\mathrm{K}} \\cdot 180\\,\\mathrm{l} \\cdot (50\\,^{\\circ}\\mathrm{C} - 10\\,^{\\circ}\\mathrm{C})}{1000} = 8{,}37\\,\\mathrm{kWh}\\]\n\nBei einer Wärmepumpe mit TWW-Vorrang werden Raumheizlast, Sperrzeiten, Speichergröße, gewünschte Ladezeit, Warmwasserkomfort und Wärmepumpenleistung getrennt bewertet. Die TWW-Speicherenergie wird nicht blind zur Raumheizlast addiert."
-                                   },
-                                   {
-                                       "id":  "praxis_checkliste",
-                                       "title":  "Praxis-Checkliste",
-                                       "text":  "- Raumgeometrie und Raumvolumen erfassen.\n- Norm-Innentemperaturen und Auslegungsaußentemperatur festlegen.\n- Bauteilflächen und U-Werte je Raum prüfen.\n- Wärmebrücken und angrenzende Zonen nach Projektanforderung berücksichtigen.\n- Lüftungskonzept bestimmen und Luftwechsel bzw. Volumenstrom nachvollziehbar ansetzen.\n- Prüfen, ob Wärmerückgewinnung oder Luftheizregister die Raumlast verändert.\n- Einheiten prüfen: \\(\\mathrm{m^3/h}\\) und \\(\\mathrm{m^3/s}\\) nicht vermischen.\n- Raumheizlast je Raum berechnen und separat dokumentieren.\n- Gebäudeheizlast als Summe bzw. Gebäudeauswertung darstellen.\n- Trinkwarmwasser separat von der Raumheizlast bewerten.\n- Wärmeerzeugerleistung abhängig von Anlagenkonzept, Vorrangbetrieb, Speicher und Sperrzeiten bestimmen.\n- Zuschläge nur verwenden, wenn sie fachlich begründet und dokumentiert sind."
-                                   }
-                               ]
-                },
-    "domain":  "TGA / Heizlast",
-    "formulas":  [
-                     {
-                         "id":  "raumheizlast",
-                         "name":  "Raumheizlast",
-                         "expression":  "Phi_HL_i = Phi_T_i + Phi_V_{\\mathrm{i}} + Phi_RH_i",
-                         "latex":  "\\Phi_{\\mathrm{HL,i}} = \\Phi_{\\mathrm{T,i}} + \\Phi_{\\mathrm{V,i}} + \\Phi_{\\mathrm{RH,i}}",
-                         "description":  "Norm-Heizlast eines einzelnen Raumes als Summe aus Transmission, Lüftung und ggf. Aufheizzuschlag."
-                     },
-                     {
-                         "id":  "gebaeudeheizlast",
-                         "name":  "Gebäudeheizlast",
-                         "expression":  "Phi_HL_Gebaeude = sum(Phi_HL_i)",
-                         "latex":  "\\Phi_{\\mathrm{HL,Gebaeude}} = \\sum_{\\mathrm{i}=1}^{n} \\Phi_{\\mathrm{HL,i}}",
-                         "description":  "Gebäudebezogene Heizlast als Summe der raumweisen Heizlasten."
-                     },
-                     {
-                         "id":  "waermeerzeuger_mit_tww",
-                         "name":  "Wärmeerzeugerleistung mit gleichzeitiger Trinkwarmwasserleistung",
-                         "expression":  "Phi_WEZ \u003e= Phi_HL_Gebaeude + Phi_TWW_gleichzeitig",
-                         "latex":  "\\Phi_{\\mathrm{WEZ}} \\geq \\Phi_{\\mathrm{HL,Gebaeude}} + \\Phi_{\\mathrm{TWW,gleichzeitig}}",
-                         "description":  "Prüfformel für Anlagen ohne Warmwasser-Vorrangbetrieb oder mit gleichzeitig zu deckender TWW-Leistung."
-                     },
-                     {
-                         "id":  "transmissionsverlust_bauteil",
-                         "name":  "Transmissionswärmeverlust eines Bauteils",
-                         "expression":  "Phi_T_k = U_{\\mathrm{k}} * A_{\\mathrm{k}} * (theta_int_i - theta_x)",
-                         "latex":  "\\Phi_{\\mathrm{T,k}} = U_{\\mathrm{k}} \\cdot A_{\\mathrm{k}} \\cdot (\\theta_{\\mathrm{int,i}} - \\theta_{\\mathrm{x}})",
-                         "description":  "Berechnet den Wärmeverlust über ein einzelnes Bauteil."
-                     },
-                     {
-                         "id":  "transmissionsverlust_raum",
-                         "name":  "Raumweiser Transmissionswärmeverlust",
-                         "expression":  "Phi_T_i = sum(U*A*DeltaTheta) + sum(Psi*l*DeltaTheta) + sum(chi*DeltaTheta)",
-                         "latex":  "\\Phi_{\\mathrm{T,i}} = \\sum_{\\mathrm{k}} U_{\\mathrm{k}} \\cdot A_{\\mathrm{k}} \\cdot \\Delta\\theta_k + \\sum_{\\mathrm{l}} \\Psi_{\\mathrm{l}} \\cdot l_{\\mathrm{l}} \\cdot \\Delta\\theta_l + \\sum_{\\mathrm{m}} \\chi_{\\mathrm{m}} \\cdot \\Delta\\theta_m",
-                         "description":  "Transmissionswärmeverlust eines Raumes inklusive Wärmebrücken."
-                     },
-                     {
-                         "id":  "lueftungsvolumenstrom",
-                         "name":  "Lüftungsvolumenstrom aus Luftwechselrate",
-                         "expression":  "Vdot_i = n_{\\mathrm{i}} * V_{\\mathrm{i}}",
-                         "latex":  "\\dot{V}_{\\mathrm{i}} = n_{\\mathrm{i}} \\cdot V_{\\mathrm{i}}",
-                         "description":  "Luftvolumenstrom in m³/h, wenn n in h^-1 und V in m³ eingesetzt werden."
-                     },
-                     {
-                         "id":  "lueftungsverlust_034",
-                         "name":  "Lüftungswärmeverlust mit 0,34-Faktor",
-                         "expression":  "Phi_V_{\\mathrm{i}} = 0.34 * Vdot_i * DeltaTheta",
-                         "latex":  "\\Phi_{\\mathrm{V,i}} = 0{,}34 \\cdot \\dot{V}_{\\mathrm{i}} \\cdot \\Delta\\theta",
-                         "description":  "Lüftungswärmeverlust in W bei Volumenstrom in m³/h."
-                     },
-                     {
-                         "id":  "lueftungsverlust_grundform",
-                         "name":  "Lüftungswärmeverlust in SI-Grundform",
-                         "expression":  "Phi_V_i = rho * c_p * Vdot_i * DeltaTheta",
-                         "latex":  "\\Phi_{\\mathrm{V,i}} = \\rho \\cdot c_p \\cdot \\dot{V}_{\\mathrm{i}} \\cdot \\Delta\\theta",
-                         "description":  "Lüftungswärmeverlust in W; der Volumenstrom wird in m³/s eingesetzt."
-                     },
-                     {
-                         "id":  "heizwasser_volumenstrom",
-                         "name":  "Heizwasser-Volumenstrom",
-                         "expression":  "Vdot_w_i = Phi_HL_i / (1.163 * DeltaT)",
-                         "latex":  "\\dot{V}_{\\mathrm{w,i}} = \\frac{\\Phi_{\\mathrm{HL,i}}}{1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l}\\cdot\\mathrm{K}} \\cdot \\Delta T}",
-                         "description":  "Praxisformel für Heizwasser-Volumenstrom in l/h bei Heizlast in W; 1,163 Wh/(l·K) ist die volumetrische Wärmekapazität von Wasser."
-                     },
-                     {
-                         "id":  "trinkwarmwasser_leistung",
-                         "name":  "Trinkwarmwasser-Leistung",
-                         "expression":  "Phi_TWW = 1.163 * Vdot_TWW * (theta_WW - theta_KW)",
-                         "latex":  "\\Phi_{\\mathrm{TWW}} = 1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l}\\cdot\\mathrm{K}} \\cdot \\dot{V}_{\\mathrm{TWW}} \\cdot (\\theta_{\\mathrm{WW}} - \\theta_{\\mathrm{KW}})",
-                         "description":  "Praxisformel für Trinkwarmwasserleistung in W; der Volumenstrom wird in l/h eingesetzt und der Faktor 1,163 Wh/(l·K) beschreibt die volumetrische Wärmekapazität von Wasser."
-                     }
-                 ],
-    "id":  "Heizlastberechnung_detail",
-    "kind":  "general",
-    "schema":  "barebone.general.workflow.v1",
-    "sourceRefs":  [
-                       {
-                           "title":  "DIN EN 12831-1:2017-09",
-                           "url":  "https://www.dinmedia.de/de/norm/din-en-12831-1/261292587",
-                           "note":  "Normative Grundlage für die Berechnung der Norm-Heizlast; Details sind projektbezogen aus der Norm und nationalen Anhängen zu entnehmen."
-                       },
-                       {
-                           "title":  "DIN/TS 12831-1:2020-04",
-                           "url":  "https://www.dinmedia.de/en/pre-standard/din-ts-12831-1/316645651",
-                           "note":  "Nationale Ergänzungen zur DIN EN 12831-1; laut DIN Media Vornorm zur Berechnung der Raumheizlast."
-                       },
-                       {
-                           "title":  "DIN EN 12831-3:2017-09",
-                           "url":  "https://www.dinmedia.de/de/norm/din-en-12831-3/261437587",
-                           "note":  "Norm für Anlagen zur Trinkwassererwärmung; separat von der Raumheizlast zu betrachten."
-                       },
-                       {
-                           "title":  "DIN EN 12831-1:2025-06 Entwurf",
-                           "url":  "https://www.dinmedia.de/de/norm-entwurf/din-en-12831-1/390800689",
-                           "note":  "Entwurfsstand projektbezogen nur berücksichtigen, wenn vertraglich oder fachlich gefordert."
-                       }
-                   ],
-    "tables":  [
-                   {
-                       "id":  "projekt_checkliste",
-                       "title":  "Allgemeine Projekt-Checkliste",
-                       "columns":  [
-                                       "Prüfschritt",
-                                       "Erforderliche Eingaben",
-                                       "Relevanz"
-                                   ],
-                       "rows":  [
-                                    [
-                                        "Gebäudeadresse / Standort",
-                                        "Ort, PLZ, Klimaregion",
-                                        "Norm-Außentemperatur"
-                                    ],
-                                    [
-                                        "Raumliste",
-                                        "Raumnummer, Nutzung, Fläche, Höhe, Volumen",
-                                        "raumweise Heizlast"
-                                    ],
-                                    [
-                                        "Bauteile und U-Werte",
-                                        "Wand, Dach, Boden, Fenster, Türen, U-Werte",
-                                        "Transmissionsverluste"
-                                    ],
-                                    [
-                                        "Lüftungssystem",
-                                        "Fensterlüftung, Abluft, Zu-/Abluft, WRG",
-                                        "Lüftungswärmeverluste"
-                                    ],
-                                    [
-                                        "Sanitärdaten",
-                                        "Warmwasserbedarf, Zirkulation, Speicher",
-                                        "Wärmeerzeugerleistung, nicht reine Raumheizlast"
-                                    ],
-                                    [
-                                        "Betriebsweise",
-                                        "durchgehend, abgesenkt, intermittierend",
-                                        "Zusatz-Aufheizleistung"
-                                    ]
-                                ]
-                   },
-                   {
-                       "id":  "u_werte_prueftabelle",
-                       "title":  "U-Werte: Eingabewerte für die Heizlast",
-                       "columns":  [
-                                       "Bauteil",
-                                       "Symbol",
-                                       "typische Eingabe / Plausibilitätsbereich",
-                                       "Hinweis"
-                                   ],
-                       "rows":  [
-                                    [
-                                        "Außenwand, Bestand unsaniert",
-                                        "\\(U_{\\mathrm{AW}}\\)",
-                                        "ca. \\(1{,}0\\) bis \\(1{,}8\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\)",
-                                        "Baujahr, Material und Schichtaufbau prüfen"
-                                    ],
-                                    [
-                                        "Außenwand, modernisiert / Neubau",
-                                        "\\(U_{\\mathrm{AW}}\\)",
-                                        "ca. \\(0{,}15\\) bis \\(0{,}35\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\)",
-                                        "Projekt- oder Bauteilnachweis verwenden"
-                                    ],
-                                    [
-                                        "Dach / oberste Geschossdecke",
-                                        "\\(U_{\\mathrm{Dach}}\\)",
-                                        "ca. \\(0{,}12\\) bis \\(0{,}30\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\)",
-                                        "relevant für obere Räume"
-                                    ],
-                                    [
-                                        "Bodenplatte / Kellerdecke",
-                                        "\\(U_{\\mathrm{Boden}}\\)",
-                                        "ca. \\(0{,}20\\) bis \\(0{,}60\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\)",
-                                        "Erdreich- und Kellerkorrekturen getrennt prüfen"
-                                    ],
-                                    [
-                                        "Fenster, älterer Bestand",
-                                        "\\(U_{\\mathrm{W}}\\)",
-                                        "ca. \\(2{,}0\\) bis \\(5{,}0\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\)",
-                                        "Fensterflächen wirken stark auf die Raumheizlast"
-                                    ],
-                                    [
-                                        "Fenster, 2-fach-Wärmeschutzglas",
-                                        "\\(U_{\\mathrm{W}}\\)",
-                                        "ca. \\(1{,}1\\) bis \\(1{,}6\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\)",
-                                        "Rahmenanteil und Gesamtfensterwert beachten"
-                                    ],
-                                    [
-                                        "Fenster, 3-fach-Wärmeschutzglas",
-                                        "\\(U_{\\mathrm{W}}\\)",
-                                        "ca. \\(0{,}7\\) bis \\(1{,}0\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\)",
-                                        "tatsächlichen Uw-Wert verwenden"
-                                    ],
-                                    [
-                                        "Außentür / Tor",
-                                        "\\(U_{\\mathrm{Tuer}}\\)",
-                                        "ca. \\(1{,}0\\) bis \\(3{,}0\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\)",
-                                        "bei Gewerbe Toröffnungen und Nutzung gesondert prüfen"
-                                    ],
-                                    [
-                                        "Innentür zwischen gleich beheizten Räumen",
-                                        "\\(U_{\\mathrm{Tuer,int}}\\)",
-                                        "rechnerisch meist nicht maßgebend",
-                                        "nicht als Transmissionsverlust ansetzen, wenn \\(\\Delta\\theta \\approx 0\\,\\mathrm{K}\\)"
-                                    ],
-                                    [
-                                        "Innentür zu unbeheiztem / anders temperiertem Bereich",
-                                        "\\(U_{\\mathrm{Tuer,int}}\\)",
-                                        "ca. \\(1{,}5\\) bis \\(3{,}0\\,\\frac{\\mathrm{W}}{\\mathrm{m^2}\\cdot\\mathrm{K}}\\)",
-                                        "nur ansetzen, wenn eine relevante Temperaturdifferenz zum Nachbarbereich besteht; Projektwert prüfen"
-                                    ]
-                                ]
-                   },
-                   {
-                       "id":  "n_kennzahlen_luftwechsel",
-                       "title":  "n-Kennzahlen: Luftwechselrate und Lüftungsansatz",
-                       "columns":  [
-                                       "Raum / Zone",
-                                       "Kennzahl",
-                                       "Arbeitswert / Plausibilitätsbereich",
-                                       "Verwendung"
-                                   ],
-                       "rows":  [
-                                    [
-                                        "Wohnraum / Büro",
-                                        "\\(n_{\\mathrm{i}}\\)",
-                                        "ca. \\(0{,}3\\) bis \\(0{,}7\\,\\mathrm{h^{-1}}\\)",
-                                        "Grundlüftung oder Nutzungsansatz prüfen"
-                                    ],
-                                    [
-                                        "Schlafzimmer / Aufenthaltsraum",
-                                        "\\(n_{\\mathrm{i}}\\)",
-                                        "ca. \\(0{,}3\\) bis \\(0{,}7\\,\\mathrm{h^{-1}}\\)",
-                                        "Personenbelegung und Nachtbetrieb beachten"
-                                    ],
-                                    [
-                                        "Küche",
-                                        "\\(n_{\\mathrm{i}}\\) oder \\(\\dot{V}_{\\mathrm{i}}\\)",
-                                        "ca. \\(0{,}5\\) bis \\(1{,}5\\,\\mathrm{h^{-1}}\\)",
-                                        "Abluft, Ersatzluft und Nutzung prüfen"
-                                    ],
-                                    [
-                                        "Bad / WC",
-                                        "\\(n_{\\mathrm{i}}\\) oder \\(\\dot{V}_{\\mathrm{i}}\\)",
-                                        "ca. \\(0{,}5\\) bis \\(1{,}5\\,\\mathrm{h^{-1}}\\)",
-                                        "Abluftvolumenstrom und Überströmung prüfen"
-                                    ],
-                                    [
-                                        "Flur / Nebenraum",
-                                        "\\(n_{\\mathrm{i}}\\)",
-                                        "ca. \\(0{,}2\\) bis \\(0{,}5\\,\\mathrm{h^{-1}}\\)",
-                                        "oft über angrenzende Räume beeinflusst"
-                                    ],
-                                    [
-                                        "Lager / Technikraum",
-                                        "\\(n_{\\mathrm{i}}\\)",
-                                        "ca. \\(0{,}2\\) bis \\(0{,}5\\,\\mathrm{h^{-1}}\\)",
-                                        "Nutzung, interne Lasten und Anlagenluft beachten"
-                                    ],
-                                    [
-                                        "mechanische Zu-/Abluft",
-                                        "\\(\\dot{V}_{\\mathrm{i}}\\)",
-                                        "aus Anlagenplanung in \\(\\mathrm{m^3/h}\\)",
-                                        "Volumenstrom direkt verwenden, WRG separat bewerten"
-                                    ],
-                                    [
-                                        "Infiltration",
-                                        "\\(n_{\\mathrm{inf}}\\)",
-                                        "projektbezogen",
-                                        "Gebäudeundichtheit, Wind und Druckverhältnisse prüfen"
-                                    ]
-                                ]
-                   },
-                   {
-                       "id":  "heizlast_bilanz",
-                       "title":  "Heizlast-Bilanz",
-                       "columns":  [
-                                       "Ebene",
-                                       "Wert",
-                                       "Zweck",
-                                       "Bestandteil der Raumheizlast?"
-                                   ],
-                       "rows":  [
-                                    [
-                                        "Raum",
-                                        "\\(\\Phi_{\\mathrm{HL,i}}\\)",
-                                        "Heizflächen und Raumregelung je Raum auslegen",
-                                        "ja"
-                                    ],
-                                    [
-                                        "Gebäude",
-                                        "\\(\\Phi_{\\mathrm{HL,Gebaeude}} = \\sum_{\\mathrm{i}} \\Phi_{\\mathrm{HL,i}}\\)",
-                                        "Gebäudesummenblatt und Grundlast für Wärmeerzeuger",
-                                        "Summe der Räume"
-                                    ],
-                                    [
-                                        "Trinkwarmwasser",
-                                        "\\(\\Phi_{\\mathrm{TWW}}\\)",
-                                        "Speicher, Frischwasserstation oder Warmwasserleistung bewerten",
-                                        "nein"
-                                    ],
-                                    [
-                                        "Wärmeerzeuger",
-                                        "\\(\\Phi_{\\mathrm{WEZ}}\\)",
-                                        "Kessel, Wärmepumpe oder Übergabestation auslegen",
-                                        "planerische Anlagenleistung"
-                                    ]
-                                ]
-                   },
-                   {
-                       "id":  "lueftung_planungspruefung",
-                       "title":  "Gewerk Lüftung: Planungsprüfung",
-                       "columns":  [
-                                       "Prüffrage",
-                                       "Gleichung / Kontrolle"
-                                   ],
-                       "rows":  [
-                                    [
-                                        "Gibt es mechanische Lüftung?",
-                                        "Abluft, Zuluft, Zu-/Abluft, Wärmerückgewinnung erfassen"
-                                    ],
-                                    [
-                                        "Welche Luftmenge je Raum?",
-                                        "\\(\\dot{V}_{\\mathrm{i}} = n_{\\mathrm{i}} \\cdot V_{\\mathrm{i}}\\)"
-                                    ],
-                                    [
-                                        "Wird Luft vorgewärmt?",
-                                        "\\(\\theta_{\\mathrm{Zuluft}}\\) bestimmen"
-                                    ],
-                                    [
-                                        "Gibt es Wärmerückgewinnung?",
-                                        "\\(\\theta_{\\mathrm{Zuluft}} = \\theta_e + \\eta_{\\mathrm{WRG}}(\\theta_{\\mathrm{Abluft}}-\\theta_e)\\)"
-                                    ],
-                                    [
-                                        "Wird die Lüftungsheizlast dem Raum oder einem Heizregister zugeordnet?",
-                                        "Doppelansatz vermeiden"
-                                    ]
-                                ]
-                   },
-                   {
-                       "id":  "sanitaer_checkliste",
-                       "title":  "Gewerk Sanitär: TWW-Checkliste",
-                       "columns":  [
-                                       "Prüfschritt",
-                                       "Relevanz"
-                                   ],
-                       "rows":  [
-                                    [
-                                        "Warmwasserbedarf je Nutzung erfassen",
-                                        "Speicher- und Erzeugerleistung"
-                                    ],
-                                    [
-                                        "Zapfstellen erfassen",
-                                        "Bad, Küche, Dusche, Gewerbe"
-                                    ],
-                                    [
-                                        "Gleichzeitigkeiten prüfen",
-                                        "Spitzenleistung"
-                                    ],
-                                    [
-                                        "Zirkulationsleitung vorhanden?",
-                                        "Wärmeverluste und Betriebszeiten"
-                                    ],
-                                    [
-                                        "TWW-Priorität definieren",
-                                        "Wärmeerzeuger muss ggf. nicht Raumheizung und TWW-Spitze gleichzeitig decken"
-                                    ],
-                                    [
-                                        "Hygiene-/Legionellenkonzept beachten",
-                                        "Temperatur- und Speicherstrategie"
-                                    ]
-                                ]
-                   },
-                   {
-                       "id":  "ergebnisdokumentation",
-                       "title":  "Ergebnisdokumentation",
-                       "columns":  [
-                                       "Dokument",
-                                       "Inhalt"
-                                   ],
-                       "rows":  [
-                                    [
-                                        "Raumheizlasttabelle",
-                                        "\\(\\Phi_{\\mathrm{T}}\\), \\(\\Phi_{\\mathrm{V}}\\), \\(\\Phi_{\\mathrm{RH}}\\), \\(\\Phi_{\\mathrm{HL}}\\) je Raum"
-                                    ],
-                                    [
-                                        "Gebäudesummenblatt",
-                                        "gesamte Norm-Heizlast bzw. Gebäudeheizlast"
-                                    ],
-                                    [
-                                        "Bauteilliste",
-                                        "Flächen, U-Werte, Wärmebrücken"
-                                    ],
-                                    [
-                                        "Lüftungsliste",
-                                        "Luftmengen, WRG, Zulufttemperaturen"
-                                    ],
-                                    [
-                                        "Sanitär-TWW-Blatt",
-                                        "Warmwasserbedarf, Speicher, Zirkulation"
-                                    ],
-                                    [
-                                        "Heizflächenauslegung",
-                                        "Heizkörper/Fußbodenheizung je Raum"
-                                    ],
-                                    [
-                                        "Hydraulikdaten",
-                                        "Volumenströme, Ventilvoreinstellungen, Druckverluste"
-                                    ],
-                                    [
-                                        "Wärmeerzeuger-Auslegung",
-                                        "Heizlast, TWW-Konzept, Leistungsreserve"
-                                    ]
-                                ]
-                   }
-               ],
-    "tags":  [
-                 "TGA",
-                 "Heizlastberechnung",
-                 "DIN EN 12831",
-                 "DIN/TS 12831-1",
-                 "Raumheizlast",
-                 "Gebäudeheizlast",
-                 "U-Werte",
-                 "n-Kennzahlen",
-                 "Luftwechselrate",
-                 "Lüftungswärmeverlust",
-                 "Transmissionswärmeverlust",
-                 "Trinkwarmwasser",
-                 "Neubau",
-                 "Fußbodenheizung",
-                 "Wärmepumpe",
-                 "Wärmerückgewinnung",
-                 "Trinkwarmwasserspeicher",
-                 "Wohnzimmer",
-                 "Zweiraum",
-                 "angrenzend beheizte Räume"
-             ],
-    "triggerExamples":  [
-                            "Heizlastberechnung nach DIN EN 12831 erklären",
-                            "Raumheizlast und Gebäudeheizlast unterscheiden",
-                            "Lüftungswärmeverlust mit Luftwechselrate berechnen",
-                            "Transmissionswärmeverlust und Heizlast mit Beispiel berechnen",
-                            "TGA-Checkliste für Heizung Lüftung Sanitär erstellen"
-                        ],
-    "verificationStatus":  "fachlich bereinigt; Normwerte projektbezogen prüfen",
-    "warnings":  [
-                     "Die Beispielwerte sind didaktische Annahmen und keine verbindlichen Normtabellen.",
-                     "Die U-Wert- und n-Kennzahl-Tabellen sind Arbeits- und Plausibilitätswerte. Verbindliche Projektwerte müssen aus Norm, nationalem Anhang, Bauteilnachweis, Lüftungskonzept oder Fachplanung übernommen werden.",
-                     "Für reale Projekte müssen DIN EN 12831-1, DIN/TS 12831-1, nationale Anhänge, Projekt-U-Werte, Auslegungsaußentemperatur und Lüftungskonzept geprüft werden.",
-                     "Trinkwarmwasser nach DIN EN 12831-3 ist von der Raumheizlast zu trennen und planerisch im Wärmeerzeuger-/Speicherkonzept zu bewerten.",
-                     "Ein pauschaler Sicherheitszuschlag ist projektbezogen zu begründen und nicht automatisch als DIN-Standard anzusetzen."
-                 ]
+{
+    "title": "Heizlastberechnung",
+    "contextSummary": "Definitions- und Arbeitsworkflow zur Norm-Heizlast nach DIN EN 12831-1 und DIN/TS 12831-1 mit raumweiser Heizlast, Gebäudeheizlast, Transmissionswärmeverlusten, U-Wert-Prüftabelle, Lüftungswärmeverlusten, n-Kennzahlen, Aufheizzuschlag, Heizflächen-/Volumenstromauslegung, TWW-Abgrenzung nach DIN EN 12831-3 und TGA-Dokumentationsstruktur. Beispielrechnungen sind in den separaten Workflow Heizlast Beispielrechnung ausgelagert.",
+    "description": "Didaktisches Arbeitsdokument zur Heizlastberechnung nach DIN EN 12831. Es trennt die raumweise Norm-Heizlast von der Gebäudeheizlast und von der Trinkwarmwasserleistung. Es zeigt die wichtigsten Rechengrößen, U-Wert- und n-Kennzahl-Prüftabellen, Formeln und TGA-Prüfschritte. Normative Randwerte müssen projektbezogen aus DIN EN 12831-1, DIN/TS 12831-1 und nationalen Anhängen geprüft werden.",
+    "display": {
+        "blocks": [
+            {
+                "id": "normstand_und_abgrenzung",
+                "title": "Normstand und fachliche Abgrenzung",
+                "text": "Für Deutschland ist die Raumheizlast nach DIN EN 12831-1:2017-09 in Verbindung mit DIN/TS 12831-1:2020-04 projektbezogen zu prüfen. Für Trinkwassererwärmung ist DIN EN 12831-3:2017-09 relevant, diese Last ist jedoch logisch von der Raumheizlast zu trennen.\n\nAktuell sollte außerdem geprüft werden, ob ein neuerer Entwurfsstand wie DIN EN 12831-1:2025-06 als Entwurf vertraglich oder projektspezifisch zu berücksichtigen ist.\n\nWichtig für die TGA-Struktur:\n\n- Raumheizlast: Grundlage für Heizflächen je Raum.\n- Gebäudeheizlast: Summe bzw. Auswertung der raumweisen Heizlasten für das Gebäude.\n- Wärmeerzeugerleistung: planerisch getrennt zu bewerten, insbesondere bei Trinkwarmwasser, Vorrangbetrieb, Speicher und Sperrzeiten.\n- Trinkwarmwasser: keine Raumheizlast, sondern zusätzliche Last bzw. Energieanforderung für Speicher, Wärmeerzeuger oder Frischwasserstation."
+            },
+            {
+                "id": "eingangsgroessen",
+                "title": "Eingangsgrößen und Randbedingungen",
+                "text": "Für eine überschlägige, didaktische Heizlastbetrachtung werden mindestens Raumgeometrie, Innen- und Außentemperatur, Bauteilflächen, U-Werte, Wärmebrücken und Lüftungsdaten benötigt.\n\n| Parameter | Symbol | Einheit / Beispiel |\n|---|---|---|\n| Raumfläche | \\(A_{\\mathrm{Raum,i}}\\) | \\(\\mathrm{m}^{2}\\) |\n| lichte Raumhöhe | \\(h_{\\mathrm{i}}\\) | \\(\\mathrm{m}\\) |\n| Raumvolumen | \\(V_{\\mathrm{i}} = A_{\\mathrm{Raum,i}} \\cdot h_{\\mathrm{i}}\\) | \\(\\mathrm{m}^{3}\\) |\n| Innenraumtemperatur | \\(\\theta_{\\mathrm{int,i}}\\) | z. B. \\(20\\,{}^\\circ\\mathrm{C}\\) |\n| Norm-Außentemperatur | \\(\\theta_{\\mathrm{e}}\\) | standortbezogen |\n| Temperaturdifferenz | \\(\\Delta\\theta = \\theta_{\\mathrm{int,i}} - \\theta_{\\mathrm{e}}\\) | \\(\\mathrm{K}\\) |\n| Luftwechselrate | \\(n_{\\mathrm{i}}\\) | \\(\\mathrm{h}^{-1}\\) |\n| Luftvolumenstrom | \\(\\dot{V}_{\\mathrm{i}}\\) | \\(\\mathrm{m}^{3}/\\mathrm{h}\\) oder \\(\\mathrm{m}^{3}/\\mathrm{s}\\), abhängig von der Formel |\n| Luftdichte | \\(\\rho\\) | ca. \\(1{,}2\\,\\frac{\\mathrm{kg}}{\\mathrm{m}^{3}}\\) |\n| spezifische Wärmekapazität der Luft | \\(c_{\\mathrm{p}}\\) | ca. \\(1005\\,\\frac{\\mathrm{J}}{\\mathrm{kg}\\cdot\\mathrm{K}}\\) |\n\nDie tatsächlichen Raumtemperaturen, Außentemperaturen und Luftwechselraten sind projektspezifisch nach Norm, Nutzung und nationalem Anhang festzulegen."
+            },
+            {
+                "id": "projekt_checkliste",
+                "title": "Allgemeine Projekt-Checkliste",
+                "text": "| Prüfschritt | Erforderliche Eingaben | Relevanz |\n|---|---|---|\n| Gebäudeadresse / Standort | Ort, PLZ, Klimaregion | Norm-Außentemperatur |\n| Gebäudenutzung | Wohnen, Büro, Schule, Gewerbe usw. | Raumtemperaturen, Luftmengen, Nutzungszeiten |\n| Raumliste | Raumnummer, Nutzung, Fläche, Höhe, Volumen | raumweise Heizlast |\n| Bauteile | Wand, Dach, Boden, Fenster, Türen | Transmissionsverluste |\n| U-Werte | \\(U\\) in \\(\\frac{\\mathrm{W}}{\\mathrm{m}^{2}\\cdot\\mathrm{K}}\\) | Wärmedurchgang |\n| Wärmebrücken | \\(\\Psi\\), Länge \\(l\\), ggf. \\(\\chi\\) | zusätzliche Verluste |\n| Raumtemperaturen | \\(\\theta_{\\mathrm{int,i}}\\) | Temperaturdifferenz |\n| Norm-Außentemperatur | \\(\\theta_{\\mathrm{e}}\\) | Auslegungsfall |\n| Nachbarräume | beheizt, unbeheizt, Erdreich, Außenluft | Korrektur der Temperaturdifferenzen |\n| Lüftungssystem | Fensterlüftung, Abluft, Zu-/Abluft, WRG | Lüftungswärmeverluste |\n| Sanitärdaten | Warmwasserbedarf, Zirkulation, Speicher | Wärmeerzeugerleistung, nicht reine Raumheizlast |\n| Betriebsweise | durchgehend, abgesenkt, intermittierend | Zusatz-Aufheizleistung |"
+            },
+            {
+                "id": "u_werte_prueftabelle",
+                "title": "U-Werte: relevante Eingabewerte für die Heizlast",
+                "text": "U-Werte sind Eingabedaten der Transmissionsberechnung und müssen aus Bauteilnachweisen, Bestandsaufnahme, Energieausweis, Bauteilkatalog, Projektvorgaben oder nationalen Anhängen übernommen werden. Die folgende Tabelle ist als Plausibilitäts- und Arbeitsstruktur gedacht, nicht als Ersatz für lizenzpflichtige Normtabellen.\n\n| Bauteil | Symbol | typische Eingabe / Plausibilitätsbereich | Hinweis für die Heizlast |\n|---|---|---|---|\n| Außenwand, Bestand unsaniert | \\(U_{\\mathrm{AW}}\\) | ca. \\(1{,}0\\) bis \\(1{,}8\\,\\frac{\\mathrm{W}}{\\mathrm{m}^{2}\\cdot\\mathrm{K}}\\) | stark abhängig von Baujahr, Material und Schichtaufbau |\n| Außenwand, modernisiert / Neubau | \\(U_{\\mathrm{AW}}\\) | ca. \\(0{,}15\\) bis \\(0{,}35\\,\\frac{\\mathrm{W}}{\\mathrm{m}^{2}\\cdot\\mathrm{K}}\\) | projektbezogenen Nachweis verwenden |\n| Dach / oberste Geschossdecke | \\(U_{\\mathrm{Dach}}\\) | ca. \\(0{,}12\\) bis \\(0{,}30\\,\\frac{\\mathrm{W}}{\\mathrm{m}^{2}\\cdot\\mathrm{K}}\\) | Dämmstandard besonders relevant für obere Räume |\n| Bodenplatte / Kellerdecke | \\(U_{\\mathrm{Boden}}\\) | ca. \\(0{,}20\\) bis \\(0{,}60\\,\\frac{\\mathrm{W}}{\\mathrm{m}^{2}\\cdot\\mathrm{K}}\\) | Erdreich- und Kellerkorrekturen getrennt prüfen |\n| Fenster, älterer Bestand | \\(U_{\\mathrm{W}}\\) | ca. \\(2{,}0\\) bis \\(5{,}0\\,\\frac{\\mathrm{W}}{\\mathrm{m}^{2}\\cdot\\mathrm{K}}\\) | Fensterflächen wirken stark auf die Raumheizlast |\n| Fenster, 2-fach-Wärmeschutzglas | \\(U_{\\mathrm{W}}\\) | ca. \\(1{,}1\\) bis \\(1{,}6\\,\\frac{\\mathrm{W}}{\\mathrm{m}^{2}\\cdot\\mathrm{K}}\\) | Rahmenanteil und Gesamtfensterwert beachten |\n| Fenster, 3-fach-Wärmeschutzglas | \\(U_{\\mathrm{W}}\\) | ca. \\(0{,}7\\) bis \\(1{,}0\\,\\frac{\\mathrm{W}}{\\mathrm{m}^{2}\\cdot\\mathrm{K}}\\) | tatsächlichen Uw-Wert verwenden |\n| Außentür / Tor | \\(U_{\\mathrm{Tuer}}\\) | ca. \\(1{,}0\\) bis \\(3{,}0\\,\\frac{\\mathrm{W}}{\\mathrm{m}^{2}\\cdot\\mathrm{K}}\\) | bei Gewerbe Toröffnungen und Nutzung gesondert prüfen |\n| Innentür zwischen gleich beheizten Räumen | \\(U_{\\mathrm{Tuer,int}}\\) | rechnerisch meist nicht maßgebend | nicht als Transmissionsverlust ansetzen, wenn \\(\\Delta\\theta \\approx 0\\,\\mathrm{K}\\) |\n| Innentür zu unbeheiztem / anders temperiertem Bereich | \\(U_{\\mathrm{Tuer,int}}\\) | ca. \\(1{,}5\\) bis \\(3{,}0\\,\\frac{\\mathrm{W}}{\\mathrm{m}^{2}\\cdot\\mathrm{K}}\\) | nur ansetzen, wenn eine relevante Temperaturdifferenz zum Nachbarbereich besteht; Projektwert prüfen |\n\nRechenhinweis:\n\n\\[\\Phi_{\\mathrm{T,k}} = U_{\\mathrm{k}} \\cdot A_{\\mathrm{k}} \\cdot \\Delta\\theta_{\\mathrm{k}}\\]\n\nJe Raum sollten alle angrenzenden Bauteile einzeln aufgeführt werden, damit die spätere Gebäudeheizlast nachvollziehbar aus den Raumheizlasten gebildet werden kann."
+            },
+            {
+                "id": "n_kennzahlen_luftwechsel",
+                "title": "n-Kennzahlen: Luftwechselrate und Lüftungsansatz",
+                "text": "Die Luftwechselrate \\(n\\) ist ein Eingabewert für den Lüftungswärmeverlust. In einer normnahen Berechnung muss sie aus Lüftungskonzept, Nutzung, nationalem Anhang, Infiltration, Mindestaußenluftvolumenstrom oder Anlagenplanung abgeleitet werden. Die Tabelle dient als Arbeitsstruktur für die relevantesten Räume und darf nicht ungeprüft als verbindliche Normtabelle verwendet werden.\n\n| Raum / Zone | Kennzahl | Arbeitswert / Plausibilitätsbereich | Verwendung |\n|---|---|---|---|\n| Wohnraum / Büro | \\(n_{\\mathrm{i}}\\) | ca. \\(0{,}3\\) bis \\(0{,}7\\,\\mathrm{h}^{-1}\\) | Grundlüftung oder Nutzungsansatz prüfen |\n| Schlafzimmer / Aufenthaltsraum | \\(n_{\\mathrm{i}}\\) | ca. \\(0{,}3\\) bis \\(0{,}7\\,\\mathrm{h}^{-1}\\) | Personenbelegung und Nachtbetrieb beachten |\n| Küche | \\(n_{\\mathrm{i}}\\) oder \\(\\dot{V}_{\\mathrm{i}}\\) | ca. \\(0{,}5\\) bis \\(1{,}5\\,\\mathrm{h}^{-1}\\) | Abluft, Ersatzluft und Nutzung prüfen |\n| Bad / WC | \\(n_{\\mathrm{i}}\\) oder \\(\\dot{V}_{\\mathrm{i}}\\) | ca. \\(0{,}5\\) bis \\(1{,}5\\,\\mathrm{h}^{-1}\\) | Abluftvolumenstrom und Überströmung prüfen |\n| Flur / Nebenraum | \\(n_{\\mathrm{i}}\\) | ca. \\(0{,}2\\) bis \\(0{,}5\\,\\mathrm{h}^{-1}\\) | oft über angrenzende Räume beeinflusst |\n| Lager / Technikraum | \\(n_{\\mathrm{i}}\\) | ca. \\(0{,}2\\) bis \\(0{,}5\\,\\mathrm{h}^{-1}\\) | Nutzung, interne Lasten und Anlagenluft beachten |\n| mechanische Zu-/Abluft | \\(\\dot{V}_{\\mathrm{i}}\\) | aus Anlagenplanung in \\(\\mathrm{m}^{3}/\\mathrm{h}\\) | Volumenstrom direkt verwenden, WRG separat bewerten |\n| Infiltration | \\(n_{\\mathrm{inf}}\\) | projektbezogen | Gebäudeundichtheit, Wind und Druckverhältnisse prüfen |\n\nUmrechnung in den Volumenstrom:\n\n\\[\\dot{V}_{\\mathrm{i}} = n_{\\mathrm{i}} \\cdot V_{\\mathrm{i}}\\]\n\nLüftungswärmeverlust bei \\(\\dot{V}_{\\mathrm{i}}\\) in \\(\\mathrm{m}^{3}/\\mathrm{h}\\):\n\n\\[\\Phi_{\\mathrm{V,i}} = 0{,}34 \\cdot \\dot{V}_{\\mathrm{i}} \\cdot \\Delta\\theta\\]\n\nWenn stattdessen Volumenströme in \\(\\mathrm{m}^{3}/\\mathrm{s}\\) verwendet werden, muss die SI-Grundform genutzt werden. Die Einheit wird im Text geführt, nicht im Index:\n\n\\[\\Phi_{\\mathrm{V,i}} = \\rho \\cdot c_{\\mathrm{p}} \\cdot \\dot{V}_{\\mathrm{i}} \\cdot \\Delta\\theta\\]"
+            },
+            {
+                "id": "transmission",
+                "title": "Transmissionswärmeverluste",
+                "text": "Transmissionswärmeverluste beschreiben den Wärmeverlust über Bauteile der Gebäudehülle, zum Beispiel Außenwände, Fenster, Dach, Bodenplatte oder Türen.\n\nJe Bauteil:\n\n\\[\\Phi_{\\mathrm{T,k}} = U_{\\mathrm{k}} \\cdot A_{\\mathrm{k}} \\cdot (\\theta_{\\mathrm{int,i}} - \\theta_{\\mathrm{x}})\\]\n\n- \\(U_{\\mathrm{k}}\\): Wärmedurchgangskoeffizient des Bauteils in \\(\\frac{\\mathrm{W}}{\\mathrm{m}^{2}\\cdot\\mathrm{K}}\\)\n- \\(A_{\\mathrm{k}}\\): Fläche des Bauteils in \\(\\mathrm{m}^{2}\\)\n- \\(\\theta_{\\mathrm{int,i}}\\): Norm-Innentemperatur des Raumes\n- \\(\\theta_{\\mathrm{x}}\\): Temperatur auf der anderen Seite des Bauteils, z. B. Außenluft, unbeheizter Raum, Erdreich oder Nachbarraum\n\nRaumweiser Transmissionswärmeverlust inklusive Wärmebrücken:\n\n\\[\\Phi_{\\mathrm{T,i}} = \\sum_{\\mathrm{k}} U_{\\mathrm{k}} \\cdot A_{\\mathrm{k}} \\cdot \\Delta\\theta_{\\mathrm{k}} + \\sum_{\\mathrm{l}} \\Psi_{\\mathrm{l}} \\cdot l_{\\mathrm{l}} \\cdot \\Delta\\theta_{\\mathrm{l}} + \\sum_{\\mathrm{m}} \\chi_{\\mathrm{m}} \\cdot \\Delta\\theta_{\\mathrm{m}}\\]\n\nKompakt über den Transmissionswärmeverlustkoeffizienten:\n\n\\[\\Phi_{\\mathrm{T,i}} = H_{\\mathrm{T,i}} \\cdot \\Delta\\theta\\]\n\n\\[H_{\\mathrm{T,i}} = \\sum_{\\mathrm{k}} U_{\\mathrm{k}} \\cdot A_{\\mathrm{k}} + \\sum_{\\mathrm{l}} \\Psi_{\\mathrm{l}} \\cdot l_{\\mathrm{l}} + \\sum_{\\mathrm{m}} \\chi_{\\mathrm{m}}\\]\n\nBeispielhafte U-Werte dürfen nicht ungeprüft als Normwerte verwendet werden. Für reale Projekte müssen U-Werte aus Planung, Bestand, Nachweis oder nationalem Anhang übernommen werden."
+            },
+            {
+                "id": "lueftung",
+                "title": "Lüftungswärmeverluste",
+                "text": "Lüftungswärmeverluste entstehen durch Außenluft, die erwärmt werden muss. Entscheidend ist der Volumenstrom der Luft und die klare Einheit der Formel.\n\nRaumvolumen:\n\n\\[V_{\\mathrm{i}} = A_{\\mathrm{Raum,i}} \\cdot h_{\\mathrm{i}}\\]\n\nLuftvolumenstrom über Luftwechselrate in \\(\\mathrm{m}^{3}/\\mathrm{h}\\):\n\n\\[\\dot{V}_{\\mathrm{i}} = n_{\\mathrm{i}} \\cdot V_{\\mathrm{i}}\\]\n\nLüftungswärmeverlust ohne Wärmerückgewinnung bei \\(\\dot{V}_{\\mathrm{i}}\\) in \\(\\mathrm{m}^{3}/\\mathrm{h}\\):\n\n\\[\\Phi_{\\mathrm{V,i}} = 0{,}34 \\cdot \\dot{V}_{\\mathrm{i}} \\cdot (\\theta_{\\mathrm{int,i}} - \\theta_{\\mathrm{e}})\\]\n\nAlternative Grundform mit Volumenstrom in \\(\\mathrm{m}^{3}/\\mathrm{s}\\):\n\n\\[\\Phi_{\\mathrm{V,i}} = \\rho \\cdot c_{\\mathrm{p}} \\cdot \\dot{V}_{\\mathrm{i}} \\cdot \\Delta\\theta\\]\n\nUmrechnung in SI-Einheiten:\n\n\\[\\dot{V}_{\\mathrm{i}} = \\frac{n_{\\mathrm{i}} \\cdot V_{\\mathrm{i}}}{3600}\\]\n\nDabei muss \\(\\dot{V}_{\\mathrm{i}}\\) in der SI-Grundform in \\(\\mathrm{m}^{3}/\\mathrm{s}\\) eingesetzt werden. Wichtig: Der Faktor \\(0{,}34\\) liefert Watt, wenn der Volumenstrom in \\(\\mathrm{m}^{3}/\\mathrm{h}\\) eingesetzt wird. Für Kilowatt muss das Ergebnis durch \\(1000\\) geteilt werden."
+            },
+            {
+                "id": "lueftung_wrg",
+                "title": "Lüftung mit Wärmerückgewinnung",
+                "text": "Bei zentraler Lüftung mit Wärmerückgewinnung kann vereinfacht zuerst die Zulufttemperatur nach Wärmerückgewinnung abgeschätzt werden:\n\n\\[\\theta_{\\mathrm{Zuluft,nach,WRG}} = \\theta_{\\mathrm{e}} + \\eta_{\\mathrm{WRG}} \\cdot (\\theta_{\\mathrm{Abluft}} - \\theta_{\\mathrm{e}})\\]\n\nDann kann der wirksame Lüftungswärmeverlust als Differenz zwischen Raumtemperatur und Zulufttemperatur angesetzt werden:\n\n\\[\\Phi_{\\mathrm{V,i}} = 0{,}34 \\cdot \\dot{V}_{\\mathrm{i}} \\cdot (\\theta_{\\mathrm{int,i}} - \\theta_{\\mathrm{Zuluft}})\\]\n\nAlternativ kann ein vereinfachter Wirkungsgradansatz genutzt werden:\n\n\\[\\Phi_{\\mathrm{V,eff,i}} = \\Phi_{\\mathrm{V,i}} \\cdot (1 - \\varepsilon)\\]\n\nWichtig für die Checkliste: Die Lüftungsanlage darf nicht doppelt berücksichtigt werden. Entweder wird der Außenluftanteil als Lüftungswärmeverlust im Raum angesetzt, oder ein Teil der Leistung wird einem Luftheizregister zugeordnet."
+            },
+            {
+                "id": "lueftung_planungspruefung",
+                "title": "Gewerk Lüftung: Planungsprüfung",
+                "text": "Die Lüftungswerte müssen raumweise nachvollziehbar sein, damit sie nicht doppelt oder mit falscher Einheit in die Heizlast eingehen.\n\n| Prüffrage | Gleichung / Kontrolle |\n|---|---|\n| Gibt es mechanische Lüftung? | Abluft, Zuluft, Zu-/Abluft, Wärmerückgewinnung erfassen |\n| Welche Luftmenge je Raum? | \\(\\dot{V}_{\\mathrm{i}} = n_{\\mathrm{i}} \\cdot V_{\\mathrm{i}}\\) |\n| Wird Luft vorgewärmt? | \\(\\theta_{\\mathrm{Zuluft}}\\) bestimmen |\n| Gibt es Wärmerückgewinnung? | \\(\\theta_{\\mathrm{Zuluft}} = \\theta_{\\mathrm{e}} + \\eta_{\\mathrm{WRG}}(\\theta_{\\mathrm{Abluft}}-\\theta_{\\mathrm{e}})\\) |\n| Werden Bad, WC oder Küche über Abluft geführt? | Ersatzluft und Überströmung berücksichtigen |\n| Gibt es Infiltration über Gebäudeundichtheiten? | zusätzlichen oder maßgebenden Luftwechsel prüfen |\n| Wird die Lüftungsheizlast dem Raum oder einem Heizregister zugeordnet? | Doppelansatz vermeiden |"
+            },
+            {
+                "id": "raumheizlast",
+                "title": "Raumheizlast je Raum",
+                "text": "Die Raumheizlast ist der zentrale Einzelwert für die Auslegung der Heizflächen eines konkreten Raumes.\n\nFür jeden Raum:\n\n\\[\\Phi_{\\mathrm{HL,i}} = \\Phi_{\\mathrm{T,i}} + \\Phi_{\\mathrm{V,i}} + \\Phi_{\\mathrm{RH,i}}\\]\n\n- \\(\\Phi_{\\mathrm{HL,i}}\\): Norm-Heizlast des Raumes \\(i\\) in \\(\\mathrm{W}\\)\n- \\(\\Phi_{\\mathrm{T,i}}\\): Transmissionswärmeverlust des Raumes\n- \\(\\Phi_{\\mathrm{V,i}}\\): Lüftungswärmeverlust des Raumes\n- \\(\\Phi_{\\mathrm{RH,i}}\\): Zusatz-Aufheizleistung, falls relevant, z. B. nach Nachtabsenkung oder intermittierendem Betrieb\n\nSolare und interne Wärmegewinne werden bei der klassischen Auslegungs-Heizlast normalerweise nicht als dauerhaft entlastende Leistung angesetzt, weil der ungünstige Auslegungsfall betrachtet wird.\n\nDie erforderliche Heizkörper-, Fußbodenheizungs- oder Luftheizleistung muss die Raumheizlast decken:\n\n\\[\\Phi_{\\mathrm{Heizflaeche,i}} \\geq \\Phi_{\\mathrm{HL,i}}\\]",
+                "expression": "\\Phi_{\\mathrm{HL,i}} = \\Phi_{\\mathrm{T,i}} + \\Phi_{\\mathrm{V,i}} + \\Phi_{\\mathrm{RH,i}}"
+            },
+            {
+                "id": "gebaeudeheizlast",
+                "title": "Gebäudeheizlast und Wärmeerzeugerleistung",
+                "text": "Die Gebäudeheizlast ist von der raumweisen Heizlast und von der Wärmeerzeugerleistung zu unterscheiden.\n\nReine Gebäude-Raumheizlast:\n\n\\[\\Phi_{\\mathrm{HL,Gebaeude}} = \\sum_{\\mathrm{i}=1}^{n} \\Phi_{\\mathrm{HL,i}}\\]\n\nDie erforderliche Wärmeerzeugerleistung ist planerisch davon zu unterscheiden:\n\n\\[\\Phi_{\\mathrm{WEZ}} \\geq \\Phi_{\\mathrm{HL,Gebaeude}}\\]\n\nWenn Trinkwarmwasser gleichzeitig ohne Vorrangbetrieb erzeugt werden soll:\n\n\\[\\Phi_{\\mathrm{WEZ}} \\geq \\Phi_{\\mathrm{HL,Gebaeude}} + \\Phi_{\\mathrm{TWW,gleichzeitig}}\\]\n\nBei Warmwasser-Vorrangschaltung kann stattdessen geprüft werden:\n\n\\[\\Phi_{\\mathrm{WEZ}} \\geq \\max(\\Phi_{\\mathrm{HL,Gebaeude}}, \\Phi_{\\mathrm{TWW}})\\]\n\nDas ist kein rein mathematischer Automatismus, sondern hängt vom Anlagenkonzept ab: Wärmepumpe, Kessel, Speichergröße, Frischwasserstation, Komfortanforderung und Sperrzeiten.",
+                "expression": "\\Phi_{\\mathrm{HL,Gebaeude}} = \\sum_{\\mathrm{i}=1}^{n} \\Phi_{\\mathrm{HL,i}}"
+            },
+            {
+                "id": "heizlast_bilanz",
+                "title": "Heizlast-Bilanz: Raum, Gebäude und Wärmeerzeuger",
+                "text": "Für die Gesamtheizlast müssen die raumweisen Werte einzeln sichtbar bleiben. Die Gebäudeheizlast ist deshalb keine neue Einzelraumlast, sondern die dokumentierte Summe der Raumheizlasten.\n\n| Ebene | Wert | Zweck | Bestandteil der Raumheizlast? |\n|---|---|---|---|\n| Raum | \\(\\Phi_{\\mathrm{HL,i}}\\) | Heizflächen und Raumregelung je Raum auslegen | ja |\n| Gebäude | \\(\\Phi_{\\mathrm{HL,Gebaeude}} = \\sum_{\\mathrm{i}} \\Phi_{\\mathrm{HL,i}}\\) | Gebäudesummenblatt und Grundlast für Wärmeerzeuger | Summe der Räume |\n| Trinkwarmwasser | \\(\\Phi_{\\mathrm{TWW}}\\) | Speicher, Frischwasserstation oder Warmwasserleistung bewerten | nein |\n| Wärmeerzeuger | \\(\\Phi_{\\mathrm{WEZ}}\\) | Kessel, Wärmepumpe oder Übergabestation auslegen | planerische Anlagenleistung |\n\nPraktische Dokumentationsregel: Erst jede Raumheizlast einzeln aufführen, danach die Gebäudeheizlast summieren und erst anschließend TWW, Vorrangbetrieb, Speicher und Leistungsreserve bewerten."
+            },
+            {
+                "id": "heizung_auslegung",
+                "title": "Gewerk Heizung: Heizflächen und Volumenströme",
+                "text": "Aus der Raumheizlast folgt die Heizflächenauslegung je Raum.\n\nHeizwassermassenstrom:\n\n\\[\\dot{m}_{\\mathrm{i}} = \\frac{\\Phi_{\\mathrm{HL,i}}}{c_{\\mathrm{p}} \\cdot \\Delta T}\\]\n\n- \\(\\dot{m}_{\\mathrm{i}}\\): Massenstrom in \\(\\mathrm{kg/s}\\)\n- \\(c_{\\mathrm{p}}\\): spezifische Wärmekapazität von Wasser, näherungsweise \\(4180\\,\\frac{\\mathrm{J}}{\\mathrm{kg}\\cdot\\mathrm{K}}\\)\n- \\(\\Delta T\\): Spreizung zwischen Vorlauf und Rücklauf in \\(\\mathrm{K}\\)\n\nPraxisformel für den Heizwasser-Volumenstrom in \\(\\mathrm{l/h}\\), wenn \\(\\Phi_{\\mathrm{HL,i}}\\) in \\(\\mathrm{W}\\) eingesetzt wird. Der Faktor \\(1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l}\\cdot\\mathrm{K}}\\) ist die volumetrische Wärmekapazität von Wasser und fasst Dichte, spezifische Wärmekapazität und die Umrechnung auf Liter pro Stunde zusammen:\n\n\\[\\dot{V}_{\\mathrm{w,i}} = \\frac{\\Phi_{\\mathrm{HL,i}}}{1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l}\\cdot\\mathrm{K}} \\cdot \\Delta T}\\]\n\nBeispiel:\n\n\\[\\Phi_{\\mathrm{HL,i}} = 1000\\,\\mathrm{W}, \\quad \\Delta T = 10\\,\\mathrm{K}\\]\n\n\\[\\dot{V}_{\\mathrm{w,i}} = \\frac{1000\\,\\mathrm{W}}{1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l}\\cdot\\mathrm{K}} \\cdot 10\\,\\mathrm{K}} = 85{,}98\\,\\mathrm{l/h}\\]"
+            },
+            {
+                "id": "sanitaer_tww",
+                "title": "Gewerk Sanitär: Trinkwarmwasser getrennt bewerten",
+                "text": "Sanitär beeinflusst die Raumheizlast nur indirekt. Trinkwarmwasser ist keine Raumheizlast, sondern eine zusätzliche Last für Speicher, Wärmeerzeuger oder Frischwasserstation. DIN EN 12831-3 behandelt Trinkwassererwärmungsanlagen separat.\n\nLeistung für Trinkwarmwasser bei Volumenstrom in \\(\\mathrm{m}^{3}/\\mathrm{h}\\):\n\n\\[\\Phi_{\\mathrm{TWW}} = \\frac{\\rho \\cdot c_{\\mathrm{p}} \\cdot \\dot{V}_{\\mathrm{TWW}} \\cdot (\\theta_{\\mathrm{WW}} - \\theta_{\\mathrm{KW}})}{3600}\\]\n\nPraxisformel bei Wasser mit \\(\\dot{V}_{\\mathrm{TWW}}\\) in \\(\\mathrm{l/h}\\):\n\n\\[\\Phi_{\\mathrm{TWW}} = 1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l}\\cdot\\mathrm{K}} \\cdot \\dot{V}_{\\mathrm{TWW}} \\cdot (\\theta_{\\mathrm{WW}} - \\theta_{\\mathrm{KW}})\\]\n\nDabei wird \\(\\dot{V}_{\\mathrm{TWW}}\\) in \\(\\mathrm{l/h}\\) eingesetzt. Der Faktor \\(1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l}\\cdot\\mathrm{K}}\\) entspricht näherungsweise der volumetrischen Wärmekapazität von Wasser; die Einheit steht in der Symbolerklärung und im Faktor, nicht im Index.\n\nTrinkwarmwasser-Energie:\n\n\\[Q_{\\mathrm{TWW}} = \\rho \\cdot c_{\\mathrm{p}} \\cdot V_{\\mathrm{TWW}} \\cdot (\\theta_{\\mathrm{WW}} - \\theta_{\\mathrm{KW}})\\]\n\nPraxisnah in \\(\\mathrm{kWh}\\):\n\n\\[Q_{\\mathrm{TWW}} = \\frac{1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l}\\cdot\\mathrm{K}} \\cdot V_{\\mathrm{TWW}} \\cdot (\\theta_{\\mathrm{WW}} - \\theta_{\\mathrm{KW}})}{1000}\\]\n\nDabei wird \\(V_{\\mathrm{TWW}}\\) in \\(\\mathrm{l}\\) eingesetzt und das Ergebnis in \\(\\mathrm{kWh}\\) ausgegeben."
+            },
+            {
+                "id": "sanitaer_checkliste",
+                "title": "Gewerk Sanitär: TWW-Checkliste",
+                "text": "Die Sanitärdaten werden nicht in die Raumheizlast eingerechnet, müssen aber für Wärmeerzeuger, Speicher und Anlagenkonzept dokumentiert werden.\n\n| Prüfschritt | Relevanz |\n|---|---|\n| Warmwasserbedarf je Nutzung erfassen | Speicher- und Erzeugerleistung |\n| Zapfstellen erfassen | Bad, Küche, Dusche, Gewerbe |\n| Gleichzeitigkeiten prüfen | Spitzenleistung |\n| Zirkulationsleitung vorhanden? | Wärmeverluste und Betriebszeiten |\n| Rohrdämmung prüfen | Verteilverluste |\n| Aufstellräume für Speicher/Technik bewerten | mögliche interne Wärmeabgabe, aber nicht als sichere Heizlastminderung ansetzen |\n| TWW-Priorität definieren | Wärmeerzeuger muss ggf. nicht Raumheizung und TWW-Spitze gleichzeitig decken |\n| Hygiene-/Legionellenkonzept beachten | Temperatur- und Speicherstrategie |"
+            }
+        ]
+    },
+    "domain": "TGA / Heizlast",
+    "formulas": [
+        {
+            "id": "raumheizlast",
+            "name": "Raumheizlast",
+            "expression": "\\Phi_{\\mathrm{HL,i}} = \\Phi_{\\mathrm{T,i}} + \\Phi_{\\mathrm{V,i}} + \\Phi_{\\mathrm{RH,i}}",
+            "latex": "\\Phi_{\\mathrm{HL,i}} = \\Phi_{\\mathrm{T,i}} + \\Phi_{\\mathrm{V,i}} + \\Phi_{\\mathrm{RH,i}}",
+            "description": "Norm-Heizlast eines einzelnen Raumes als Summe aus Transmission, Lüftung und ggf. Aufheizzuschlag."
+        },
+        {
+            "id": "gebaeudeheizlast",
+            "name": "Gebäudeheizlast",
+            "expression": "\\Phi_{\\mathrm{HL,Gebaeude}} = \\sum_{\\mathrm{i}=1}^{n} \\Phi_{\\mathrm{HL,i}}",
+            "latex": "\\Phi_{\\mathrm{HL,Gebaeude}} = \\sum_{\\mathrm{i}=1}^{n} \\Phi_{\\mathrm{HL,i}}",
+            "description": "Gebäudebezogene Heizlast als Summe der raumweisen Heizlasten."
+        },
+        {
+            "id": "waermeerzeuger_mit_tww",
+            "name": "Wärmeerzeugerleistung mit gleichzeitiger Trinkwarmwasserleistung",
+            "expression": "\\Phi_{\\mathrm{WEZ}} \\geq \\Phi_{\\mathrm{HL,Gebaeude}} + \\Phi_{\\mathrm{TWW,gleichzeitig}}",
+            "latex": "\\Phi_{\\mathrm{WEZ}} \\geq \\Phi_{\\mathrm{HL,Gebaeude}} + \\Phi_{\\mathrm{TWW,gleichzeitig}}",
+            "description": "Prüfformel für Anlagen ohne Warmwasser-Vorrangbetrieb oder mit gleichzeitig zu deckender TWW-Leistung."
+        },
+        {
+            "id": "transmissionsverlust_bauteil",
+            "name": "Transmissionswärmeverlust eines Bauteils",
+            "expression": "\\Phi_{\\mathrm{T,k}} = U_{\\mathrm{k}} \\cdot A_{\\mathrm{k}} \\cdot (\\theta_{\\mathrm{int,i}} - \\theta_{\\mathrm{x}})",
+            "latex": "\\Phi_{\\mathrm{T,k}} = U_{\\mathrm{k}} \\cdot A_{\\mathrm{k}} \\cdot (\\theta_{\\mathrm{int,i}} - \\theta_{\\mathrm{x}})",
+            "description": "Berechnet den Wärmeverlust über ein einzelnes Bauteil."
+        },
+        {
+            "id": "transmissionsverlust_raum",
+            "name": "Raumweiser Transmissionswärmeverlust",
+            "expression": "\\Phi_{\\mathrm{T,i}} = \\sum_{\\mathrm{k}} U_{\\mathrm{k}} \\cdot A_{\\mathrm{k}} \\cdot \\Delta\\theta_{\\mathrm{k}} + \\sum_{\\mathrm{l}} \\Psi_{\\mathrm{l}} \\cdot l_{\\mathrm{l}} \\cdot \\Delta\\theta_{\\mathrm{l}} + \\sum_{\\mathrm{m}} \\chi_{\\mathrm{m}} \\cdot \\Delta\\theta_{\\mathrm{m}}",
+            "latex": "\\Phi_{\\mathrm{T,i}} = \\sum_{\\mathrm{k}} U_{\\mathrm{k}} \\cdot A_{\\mathrm{k}} \\cdot \\Delta\\theta_{\\mathrm{k}} + \\sum_{\\mathrm{l}} \\Psi_{\\mathrm{l}} \\cdot l_{\\mathrm{l}} \\cdot \\Delta\\theta_{\\mathrm{l}} + \\sum_{\\mathrm{m}} \\chi_{\\mathrm{m}} \\cdot \\Delta\\theta_{\\mathrm{m}}",
+            "description": "Transmissionswärmeverlust eines Raumes inklusive Wärmebrücken."
+        },
+        {
+            "id": "lueftungsvolumenstrom",
+            "name": "Lüftungsvolumenstrom aus Luftwechselrate",
+            "expression": "Vdot_i = n_{\\mathrm{i}} * V_{\\mathrm{i}}",
+            "latex": "\\dot{V}_{\\mathrm{i}} = n_{\\mathrm{i}} \\cdot V_{\\mathrm{i}}",
+            "description": "Luftvolumenstrom in m³/h, wenn n in h^-1 und V in m³ eingesetzt werden."
+        },
+        {
+            "id": "lueftungsverlust_034",
+            "name": "Lüftungswärmeverlust mit 0{,}34-Faktor",
+            "expression": "\\Phi_{\\mathrm{V,i}} = 0{,}34 \\cdot \\dot{V}_{\\mathrm{i}} \\cdot \\Delta\\theta",
+            "latex": "\\Phi_{\\mathrm{V,i}} = 0{,}34 \\cdot \\dot{V}_{\\mathrm{i}} \\cdot \\Delta\\theta",
+            "description": "Lüftungswärmeverlust in W bei Volumenstrom in m³/h."
+        },
+        {
+            "id": "lueftungsverlust_grundform",
+            "name": "Lüftungswärmeverlust in SI-Grundform",
+            "expression": "\\Phi_{\\mathrm{V,i}} = \\rho \\cdot c_{\\mathrm{p}} \\cdot \\dot{V}_{\\mathrm{i}} \\cdot \\Delta\\theta",
+            "latex": "\\Phi_{\\mathrm{V,i}} = \\rho \\cdot c_{\\mathrm{p}} \\cdot \\dot{V}_{\\mathrm{i}} \\cdot \\Delta\\theta",
+            "description": "Lüftungswärmeverlust in W; der Volumenstrom wird in m³/s eingesetzt."
+        },
+        {
+            "id": "heizwasser_volumenstrom",
+            "name": "Heizwasser-Volumenstrom",
+            "expression": "\\dot{V}_{\\mathrm{w,i}} = \\frac{\\Phi_{\\mathrm{HL,i}}}{1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l}\\cdot\\mathrm{K}} \\cdot \\Delta T}",
+            "latex": "\\dot{V}_{\\mathrm{w,i}} = \\frac{\\Phi_{\\mathrm{HL,i}}}{1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l}\\cdot\\mathrm{K}} \\cdot \\Delta T}",
+            "description": "Praxisformel für Heizwasser-Volumenstrom in l/h bei Heizlast in W; 1{,}163 Wh/(l·K) ist die volumetrische Wärmekapazität von Wasser."
+        },
+        {
+            "id": "trinkwarmwasser_leistung",
+            "name": "Trinkwarmwasser-Leistung",
+            "expression": "\\Phi_{\\mathrm{TWW}} = 1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l}\\cdot\\mathrm{K}} \\cdot \\dot{V}_{\\mathrm{TWW}} \\cdot (\\theta_{\\mathrm{WW}} - \\theta_{\\mathrm{KW}})",
+            "latex": "\\Phi_{\\mathrm{TWW}} = 1{,}163\\,\\frac{\\mathrm{Wh}}{\\mathrm{l}\\cdot\\mathrm{K}} \\cdot \\dot{V}_{\\mathrm{TWW}} \\cdot (\\theta_{\\mathrm{WW}} - \\theta_{\\mathrm{KW}})",
+            "description": "Praxisformel für Trinkwarmwasserleistung in W; der Volumenstrom wird in l/h eingesetzt und der Faktor 1{,}163 Wh/(l·K) beschreibt die volumetrische Wärmekapazität von Wasser."
+        }
+    ],
+    "id": "Heizlastberechnung_detail",
+    "kind": "general",
+    "schema": "barebone.general.workflow.v1",
+    "sourceRefs": [
+        {
+            "title": "DIN EN 12831-1:2017-09",
+            "url": "https://www.dinmedia.de/de/norm/din-en-12831-1/261292587",
+            "note": "Normative Grundlage für die Berechnung der Norm-Heizlast; Details sind projektbezogen aus der Norm und nationalen Anhängen zu entnehmen."
+        },
+        {
+            "title": "DIN/TS 12831-1:2020-04",
+            "url": "https://www.dinmedia.de/en/pre-standard/din-ts-12831-1/316645651",
+            "note": "Nationale Ergänzungen zur DIN EN 12831-1; laut DIN Media Vornorm zur Berechnung der Raumheizlast."
+        },
+        {
+            "title": "DIN EN 12831-3:2017-09",
+            "url": "https://www.dinmedia.de/de/norm/din-en-12831-3/261437587",
+            "note": "Norm für Anlagen zur Trinkwassererwärmung; separat von der Raumheizlast zu betrachten."
+        },
+        {
+            "title": "DIN EN 12831-1:2025-06 Entwurf",
+            "url": "https://www.dinmedia.de/de/norm-entwurf/din-en-12831-1/390800689",
+            "note": "Entwurfsstand projektbezogen nur berücksichtigen, wenn vertraglich oder fachlich gefordert."
+        }
+    ],
+    "tables": [
+        {
+            "id": "projekt_checkliste",
+            "title": "Allgemeine Projekt-Checkliste",
+            "columns": [
+                "Prüfschritt",
+                "Erforderliche Eingaben",
+                "Relevanz"
+            ],
+            "rows": [
+                [
+                    "Gebäudeadresse / Standort",
+                    "Ort, PLZ, Klimaregion",
+                    "Norm-Außentemperatur"
+                ],
+                [
+                    "Raumliste",
+                    "Raumnummer, Nutzung, Fläche, Höhe, Volumen",
+                    "raumweise Heizlast"
+                ],
+                [
+                    "Bauteile und U-Werte",
+                    "Wand, Dach, Boden, Fenster, Türen, U-Werte",
+                    "Transmissionsverluste"
+                ],
+                [
+                    "Lüftungssystem",
+                    "Fensterlüftung, Abluft, Zu-/Abluft, WRG",
+                    "Lüftungswärmeverluste"
+                ],
+                [
+                    "Sanitärdaten",
+                    "Warmwasserbedarf, Zirkulation, Speicher",
+                    "Wärmeerzeugerleistung, nicht reine Raumheizlast"
+                ],
+                [
+                    "Betriebsweise",
+                    "durchgehend, abgesenkt, intermittierend",
+                    "Zusatz-Aufheizleistung"
+                ]
+            ]
+        },
+        {
+            "id": "u_werte_prueftabelle",
+            "title": "U-Werte: Eingabewerte für die Heizlast",
+            "columns": [
+                "Bauteil",
+                "Symbol",
+                "typische Eingabe / Plausibilitätsbereich",
+                "Hinweis"
+            ],
+            "rows": [
+                [
+                    "Außenwand, Bestand unsaniert",
+                    "\\(U_{\\mathrm{AW}}\\)",
+                    "ca. \\(1{,}0\\) bis \\(1{,}8\\,\\frac{\\mathrm{W}}{\\mathrm{m}^{2}\\cdot\\mathrm{K}}\\)",
+                    "Baujahr, Material und Schichtaufbau prüfen"
+                ],
+                [
+                    "Außenwand, modernisiert / Neubau",
+                    "\\(U_{\\mathrm{AW}}\\)",
+                    "ca. \\(0{,}15\\) bis \\(0{,}35\\,\\frac{\\mathrm{W}}{\\mathrm{m}^{2}\\cdot\\mathrm{K}}\\)",
+                    "Projekt- oder Bauteilnachweis verwenden"
+                ],
+                [
+                    "Dach / oberste Geschossdecke",
+                    "\\(U_{\\mathrm{Dach}}\\)",
+                    "ca. \\(0{,}12\\) bis \\(0{,}30\\,\\frac{\\mathrm{W}}{\\mathrm{m}^{2}\\cdot\\mathrm{K}}\\)",
+                    "relevant für obere Räume"
+                ],
+                [
+                    "Bodenplatte / Kellerdecke",
+                    "\\(U_{\\mathrm{Boden}}\\)",
+                    "ca. \\(0{,}20\\) bis \\(0{,}60\\,\\frac{\\mathrm{W}}{\\mathrm{m}^{2}\\cdot\\mathrm{K}}\\)",
+                    "Erdreich- und Kellerkorrekturen getrennt prüfen"
+                ],
+                [
+                    "Fenster, älterer Bestand",
+                    "\\(U_{\\mathrm{W}}\\)",
+                    "ca. \\(2{,}0\\) bis \\(5{,}0\\,\\frac{\\mathrm{W}}{\\mathrm{m}^{2}\\cdot\\mathrm{K}}\\)",
+                    "Fensterflächen wirken stark auf die Raumheizlast"
+                ],
+                [
+                    "Fenster, 2-fach-Wärmeschutzglas",
+                    "\\(U_{\\mathrm{W}}\\)",
+                    "ca. \\(1{,}1\\) bis \\(1{,}6\\,\\frac{\\mathrm{W}}{\\mathrm{m}^{2}\\cdot\\mathrm{K}}\\)",
+                    "Rahmenanteil und Gesamtfensterwert beachten"
+                ],
+                [
+                    "Fenster, 3-fach-Wärmeschutzglas",
+                    "\\(U_{\\mathrm{W}}\\)",
+                    "ca. \\(0{,}7\\) bis \\(1{,}0\\,\\frac{\\mathrm{W}}{\\mathrm{m}^{2}\\cdot\\mathrm{K}}\\)",
+                    "tatsächlichen Uw-Wert verwenden"
+                ],
+                [
+                    "Außentür / Tor",
+                    "\\(U_{\\mathrm{Tuer}}\\)",
+                    "ca. \\(1{,}0\\) bis \\(3{,}0\\,\\frac{\\mathrm{W}}{\\mathrm{m}^{2}\\cdot\\mathrm{K}}\\)",
+                    "bei Gewerbe Toröffnungen und Nutzung gesondert prüfen"
+                ],
+                [
+                    "Innentür zwischen gleich beheizten Räumen",
+                    "\\(U_{\\mathrm{Tuer,int}}\\)",
+                    "rechnerisch meist nicht maßgebend",
+                    "nicht als Transmissionsverlust ansetzen, wenn \\(\\Delta\\theta \\approx 0\\,\\mathrm{K}\\)"
+                ],
+                [
+                    "Innentür zu unbeheiztem / anders temperiertem Bereich",
+                    "\\(U_{\\mathrm{Tuer,int}}\\)",
+                    "ca. \\(1{,}5\\) bis \\(3{,}0\\,\\frac{\\mathrm{W}}{\\mathrm{m}^{2}\\cdot\\mathrm{K}}\\)",
+                    "nur ansetzen, wenn eine relevante Temperaturdifferenz zum Nachbarbereich besteht; Projektwert prüfen"
+                ]
+            ]
+        },
+        {
+            "id": "n_kennzahlen_luftwechsel",
+            "title": "n-Kennzahlen: Luftwechselrate und Lüftungsansatz",
+            "columns": [
+                "Raum / Zone",
+                "Kennzahl",
+                "Arbeitswert / Plausibilitätsbereich",
+                "Verwendung"
+            ],
+            "rows": [
+                [
+                    "Wohnraum / Büro",
+                    "\\(n_{\\mathrm{i}}\\)",
+                    "ca. \\(0{,}3\\) bis \\(0{,}7\\,\\mathrm{h}^{-1}\\)",
+                    "Grundlüftung oder Nutzungsansatz prüfen"
+                ],
+                [
+                    "Schlafzimmer / Aufenthaltsraum",
+                    "\\(n_{\\mathrm{i}}\\)",
+                    "ca. \\(0{,}3\\) bis \\(0{,}7\\,\\mathrm{h}^{-1}\\)",
+                    "Personenbelegung und Nachtbetrieb beachten"
+                ],
+                [
+                    "Küche",
+                    "\\(n_{\\mathrm{i}}\\) oder \\(\\dot{V}_{\\mathrm{i}}\\)",
+                    "ca. \\(0{,}5\\) bis \\(1{,}5\\,\\mathrm{h}^{-1}\\)",
+                    "Abluft, Ersatzluft und Nutzung prüfen"
+                ],
+                [
+                    "Bad / WC",
+                    "\\(n_{\\mathrm{i}}\\) oder \\(\\dot{V}_{\\mathrm{i}}\\)",
+                    "ca. \\(0{,}5\\) bis \\(1{,}5\\,\\mathrm{h}^{-1}\\)",
+                    "Abluftvolumenstrom und Überströmung prüfen"
+                ],
+                [
+                    "Flur / Nebenraum",
+                    "\\(n_{\\mathrm{i}}\\)",
+                    "ca. \\(0{,}2\\) bis \\(0{,}5\\,\\mathrm{h}^{-1}\\)",
+                    "oft über angrenzende Räume beeinflusst"
+                ],
+                [
+                    "Lager / Technikraum",
+                    "\\(n_{\\mathrm{i}}\\)",
+                    "ca. \\(0{,}2\\) bis \\(0{,}5\\,\\mathrm{h}^{-1}\\)",
+                    "Nutzung, interne Lasten und Anlagenluft beachten"
+                ],
+                [
+                    "mechanische Zu-/Abluft",
+                    "\\(\\dot{V}_{\\mathrm{i}}\\)",
+                    "aus Anlagenplanung in \\(\\mathrm{m}^{3}/\\mathrm{h}\\)",
+                    "Volumenstrom direkt verwenden, WRG separat bewerten"
+                ],
+                [
+                    "Infiltration",
+                    "\\(n_{\\mathrm{inf}}\\)",
+                    "projektbezogen",
+                    "Gebäudeundichtheit, Wind und Druckverhältnisse prüfen"
+                ]
+            ]
+        },
+        {
+            "id": "heizlast_bilanz",
+            "title": "Heizlast-Bilanz",
+            "columns": [
+                "Ebene",
+                "Wert",
+                "Zweck",
+                "Bestandteil der Raumheizlast?"
+            ],
+            "rows": [
+                [
+                    "Raum",
+                    "\\(\\Phi_{\\mathrm{HL,i}}\\)",
+                    "Heizflächen und Raumregelung je Raum auslegen",
+                    "ja"
+                ],
+                [
+                    "Gebäude",
+                    "\\(\\Phi_{\\mathrm{HL,Gebaeude}} = \\sum_{\\mathrm{i}} \\Phi_{\\mathrm{HL,i}}\\)",
+                    "Gebäudesummenblatt und Grundlast für Wärmeerzeuger",
+                    "Summe der Räume"
+                ],
+                [
+                    "Trinkwarmwasser",
+                    "\\(\\Phi_{\\mathrm{TWW}}\\)",
+                    "Speicher, Frischwasserstation oder Warmwasserleistung bewerten",
+                    "nein"
+                ],
+                [
+                    "Wärmeerzeuger",
+                    "\\(\\Phi_{\\mathrm{WEZ}}\\)",
+                    "Kessel, Wärmepumpe oder Übergabestation auslegen",
+                    "planerische Anlagenleistung"
+                ]
+            ]
+        },
+        {
+            "id": "lueftung_planungspruefung",
+            "title": "Gewerk Lüftung: Planungsprüfung",
+            "columns": [
+                "Prüffrage",
+                "Gleichung / Kontrolle"
+            ],
+            "rows": [
+                [
+                    "Gibt es mechanische Lüftung?",
+                    "Abluft, Zuluft, Zu-/Abluft, Wärmerückgewinnung erfassen"
+                ],
+                [
+                    "Welche Luftmenge je Raum?",
+                    "\\(\\dot{V}_{\\mathrm{i}} = n_{\\mathrm{i}} \\cdot V_{\\mathrm{i}}\\)"
+                ],
+                [
+                    "Wird Luft vorgewärmt?",
+                    "\\(\\theta_{\\mathrm{Zuluft}}\\) bestimmen"
+                ],
+                [
+                    "Gibt es Wärmerückgewinnung?",
+                    "\\(\\theta_{\\mathrm{Zuluft}} = \\theta_{\\mathrm{e}} + \\eta_{\\mathrm{WRG}}(\\theta_{\\mathrm{Abluft}}-\\theta_{\\mathrm{e}})\\)"
+                ],
+                [
+                    "Wird die Lüftungsheizlast dem Raum oder einem Heizregister zugeordnet?",
+                    "Doppelansatz vermeiden"
+                ]
+            ]
+        },
+        {
+            "id": "sanitaer_checkliste",
+            "title": "Gewerk Sanitär: TWW-Checkliste",
+            "columns": [
+                "Prüfschritt",
+                "Relevanz"
+            ],
+            "rows": [
+                [
+                    "Warmwasserbedarf je Nutzung erfassen",
+                    "Speicher- und Erzeugerleistung"
+                ],
+                [
+                    "Zapfstellen erfassen",
+                    "Bad, Küche, Dusche, Gewerbe"
+                ],
+                [
+                    "Gleichzeitigkeiten prüfen",
+                    "Spitzenleistung"
+                ],
+                [
+                    "Zirkulationsleitung vorhanden?",
+                    "Wärmeverluste und Betriebszeiten"
+                ],
+                [
+                    "TWW-Priorität definieren",
+                    "Wärmeerzeuger muss ggf. nicht Raumheizung und TWW-Spitze gleichzeitig decken"
+                ],
+                [
+                    "Hygiene-/Legionellenkonzept beachten",
+                    "Temperatur- und Speicherstrategie"
+                ]
+            ]
+        }
+    ],
+    "tags": [
+        "TGA",
+        "Heizlastberechnung",
+        "DIN EN 12831",
+        "DIN/TS 12831-1",
+        "Raumheizlast",
+        "Gebäudeheizlast",
+        "U-Werte",
+        "n-Kennzahlen",
+        "Luftwechselrate",
+        "Lüftungswärmeverlust",
+        "Transmissionswärmeverlust",
+        "Trinkwarmwasser",
+        "Neubau",
+        "Fußbodenheizung",
+        "Wärmepumpe",
+        "Wärmerückgewinnung",
+        "Trinkwarmwasserspeicher",
+        "Wohnzimmer",
+        "Zweiraum",
+        "angrenzend beheizte Räume"
+    ],
+    "triggerExamples": [
+        "Heizlastberechnung nach DIN EN 12831 erklären",
+        "Raumheizlast und Gebäudeheizlast unterscheiden",
+        "Lüftungswärmeverlust mit Luftwechselrate berechnen",
+        "Transmissionswärmeverlust und Heizlast mit Beispiel berechnen",
+        "TGA-Checkliste für Heizung Lüftung Sanitär erstellen",
+        "Heizlast Definitionen",
+        "Heizlast Grundlagen"
+    ],
+    "verificationStatus": "fachlich bereinigt; Normwerte projektbezogen prüfen",
+    "warnings": [
+        "Die U-Wert- und n-Kennzahl-Tabellen sind Arbeits- und Plausibilitätswerte. Verbindliche Projektwerte müssen aus Norm, nationalem Anhang, Bauteilnachweis, Lüftungskonzept oder Fachplanung übernommen werden.",
+        "Für reale Projekte müssen DIN EN 12831-1, DIN/TS 12831-1, nationale Anhänge, Projekt-U-Werte, Auslegungsaußentemperatur und Lüftungskonzept geprüft werden.",
+        "Trinkwarmwasser nach DIN EN 12831-3 ist von der Raumheizlast zu trennen und planerisch im Wärmeerzeuger-/Speicherkonzept zu bewerten.",
+        "Beispielrechnungen sind in den separaten Workflow Heizlast Beispielrechnung ausgelagert."
+    ]
 }
-
