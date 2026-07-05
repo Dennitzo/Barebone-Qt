@@ -4532,8 +4532,8 @@
       document.querySelector(".model-title").textContent = t("assistantTitle");
       if (sidebarTitle) {
         sidebarTitle.textContent = t("sessions");
-        sidebarTitle.hidden = isChatWorkspace();
-        sidebarTitle.style.display = isChatWorkspace() ? "none" : "";
+        sidebarTitle.hidden = false;
+        sidebarTitle.style.display = "";
       }
       chatSearch.placeholder = t("searchSessions");
       newChatButton.lastChild.textContent = ` ${t("newChat")}`;
