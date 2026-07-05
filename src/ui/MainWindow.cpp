@@ -2,10 +2,13 @@
 
 #include <QApplication>
 #include <QCloseEvent>
+#include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPalette>
 #include <QPixmap>
+#include <QScreen>
+#include <QSize>
 #include <QVBoxLayout>
 
 namespace {
@@ -25,6 +28,22 @@ bool effectiveDarkTheme(const QString& theme)
 bool englishUi(const ConfigManager& config)
 {
     return config.language().trimmed().compare(QStringLiteral("en"), Qt::CaseInsensitive) == 0;
+}
+
+QPixmap highDpiLogoPixmap(const QSize& logicalSize)
+{
+    const QPixmap source(QStringLiteral(":/icons/AppLogo.png"));
+    if (source.isNull() || logicalSize.isEmpty()) {
+        return source;
+    }
+
+    const QScreen* screen = QGuiApplication::primaryScreen();
+    const qreal dpr = screen ? qMax<qreal>(screen->devicePixelRatio(), 1.0) : 1.0;
+    const QSize physicalSize = logicalSize * dpr;
+
+    QPixmap pixmap = source.scaled(physicalSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    pixmap.setDevicePixelRatio(dpr);
+    return pixmap;
 }
 
 }
@@ -70,7 +89,7 @@ void MainWindow::buildUi()
     auto* brandIcon = new QLabel(brand);
     brandIcon->setObjectName("brandIcon");
     brandIcon->setFixedSize(34, 34);
-    brandIcon->setPixmap(QPixmap(":/icons/AppLogo.png").scaled(34, 34, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    brandIcon->setPixmap(highDpiLogoPixmap(QSize(34, 34)));
 
     auto* brandText = new QLabel("Barebone-Qt", brand);
     brandText->setObjectName("brandText");
