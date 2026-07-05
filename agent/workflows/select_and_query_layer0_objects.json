@@ -1,0 +1,146 @@
+{
+    "authoringNotes": {
+        "assumptions": [
+            "Der Layer \"0\" existiert und enthält mindestens ein Objekt.",
+            "Die Auswahl soll alle Objekttypen umfassen – Punkte, Linien, Polylinien, Kreise, Rechtecke, Solids etc."
+        ]
+    },
+    "constructionStrategy": [
+        "1. Selektiere mit selection.set sämtliche Objekte im Layer 0 (scope=currentSpace).",
+        "2. Führe geometry.query aus, um die Geometrie‑ und Messdaten der ausgewählten Objekte abzurufen.",
+        "3. BricsCAD wandelt das Ergebnis in eine Markdown‑Tabelle um, die im Chat angezeigt wird."
+    ],
+    "derivedValues": [
+    ],
+    "description": "Wählt zunächst alle Objekte im Layer 0 aus, führt anschließend eine geometry.query durch, um die Eigenschaften der ausgewählten Objekte zu ermitteln. Die Ergebnisse werden von BricsCAD als Markdown‑Tabelle ausgegeben.",
+    "display": {
+        "blocks": [
+        ]
+    },
+    "executionBatches": [
+        {
+            "id": "select_objects",
+            "mode": "sequential",
+            "steps": [
+                {
+                    "id": "step_select_all",
+                    "paramsTemplate": {
+                        "selector": {
+                            "layer": "0",
+                            "scope": "currentSpace"
+                        }
+                    },
+                    "title": "Alle Objekte im Layer 0 auswählen",
+                    "tool": "selection.set"
+                }
+            ],
+            "stopOnFailure": true,
+            "title": "Auswahl erstellen"
+        },
+        {
+            "id": "query_geometry",
+            "mode": "sequential",
+            "steps": [
+                {
+                    "id": "step_query_geom",
+                    "paramsTemplate": {
+                        "include": [
+                            "metrics",
+                            "geometry"
+                        ],
+                        "limit": 100,
+                        "selector": {
+                            "layer": "0",
+                            "scope": "currentSpace"
+                        }
+                    },
+                    "title": "Geometrie und Messdaten abrufen",
+                    "tool": "geometry.query"
+                }
+            ],
+            "stopOnFailure": true,
+            "title": "Daten abfragen"
+        }
+    ],
+    "forbidden": [
+    ],
+    "id": "select_and_query_layer0_objects",
+    "kind": "general",
+    "knownSlotValues": {
+        "layerName": "0"
+    },
+    "optionalSlots": {
+    },
+    "preferredTools": [
+        "selection.set",
+        "geometry.query"
+    ],
+    "readOnly": false,
+    "requiredSlots": [
+    ],
+    "schema": "barebone.agent.workflow.v1",
+    "steps": [
+        {
+            "id": "step_select_all",
+            "paramsTemplate": {
+                "selector": {
+                    "layer": "0",
+                    "scope": "currentSpace"
+                }
+            },
+            "title": "Alle Objekte im Layer 0 auswählen",
+            "tool": "selection.set"
+        },
+        {
+            "id": "step_query_geom",
+            "paramsTemplate": {
+                "include": [
+                    "metrics",
+                    "geometry"
+                ],
+                "limit": 100,
+                "selector": {
+                    "layer": "0",
+                    "scope": "currentSpace"
+                }
+            },
+            "title": "Geometrie und Messdaten abrufen",
+            "tool": "geometry.query"
+        }
+    ],
+    "title": "Alle Objekte in Layer 0 auswählen und als Tabelle ausgeben",
+    "triggerExamples": [
+    ],
+    "validationExamples": [
+        {
+            "actions": [
+                {
+                    "params": {
+                        "saveBefore": true,
+                        "selector": {
+                            "layer": "0",
+                            "scope": "currentSpace"
+                        }
+                    },
+                    "tool": "selection.set"
+                },
+                {
+                    "params": {
+                        "include": [
+                            "metrics",
+                            "geometry"
+                        ],
+                        "limit": 100,
+                        "saveBefore": false,
+                        "selector": {
+                            "layer": "0",
+                            "scope": "currentSpace"
+                        }
+                    },
+                    "tool": "geometry.query"
+                }
+            ],
+            "title": "Aus erfolgreichem Trainingslauf"
+        }
+    ]
+}

@@ -5015,6 +5015,15 @@
         kind: "greeting"
         };
       }
+      if (mode === "training") {
+        return {
+          speaker: "AI",
+          messageId: nextMessageId("ai"),
+          message: t("trainingIntro"),
+          time: nowTime(),
+          kind: "greeting"
+        };
+      }
       return {
         speaker: "AI",
         messageId: nextMessageId("ai"),
@@ -5272,6 +5281,9 @@
             && message.message === "Was möchtest du mit BricsCAD tun?"
           ))
         : rawMessages;
+      if (sessionTrainingMode && !messages.length) {
+        messages.push(defaultGreeting("training"));
+      }
       const explicitLatestId = typeof session.latestAiMessageId === "string" ? session.latestAiMessageId.trim() : "";
       const latestAiMessageId = explicitLatestId && messages.some((message) => message.messageId === explicitLatestId)
         ? explicitLatestId
@@ -5604,10 +5616,13 @@
       return message?.kind === "greeting"
         || text === t("greetingChat")
         || text === t("greetingBricscad")
+        || text === t("trainingIntro")
         || text === "Worüber möchtest du sprechen?"
         || text === "Was möchtest du mit BricsCAD tun?"
         || text === "What would you like to talk about?"
-        || text === "What would you like to do with BricsCAD?";
+        || text === "What would you like to do with BricsCAD?"
+        || text === "Training mode active. Describe the new BricsCAD workflow we should create."
+        || text === "Trainingsmodus aktiv. Beschreibe den neuen BricsCAD Workflow, den wir erstellen wollen.";
     }
 
     function shouldShowWorkflowFooterForMessage(message, role) {
@@ -7914,8 +7929,16 @@
       if (isBusy) {
         return;
       }
-      trainingMode = false;
-      const session = createSession(`Neuer Chat ${++chatCounter}`, chatMode, { trainingMode: false });
+      const keepTrainingMode = isBricsCadWorkspace() && trainingMode;
+      if (keepTrainingMode) {
+        chatMode = "bricscad";
+      } else {
+        trainingMode = false;
+      }
+      const session = createSession(
+        `Neuer Chat ${++chatCounter}`,
+        chatMode,
+        { trainingMode: keepTrainingMode });
       sessions.unshift(session);
       activeSessionId = session.id;
       if (isGeneralWorkflowWorkspace()) {

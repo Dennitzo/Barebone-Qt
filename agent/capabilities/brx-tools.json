@@ -33,6 +33,37 @@
       ]
     },
     {
+      "name": "geometry.query",
+      "domain": "geometry",
+      "summary": "Reads geometry objects from the current drawing without modifying anything and returns structured objects for chat/table output.",
+      "keywords": ["geometry", "query", "fetch", "read", "objects", "table", "metrics", "layer", "daten", "abfragen", "auslesen", "tabelle", "objekte", "metriken", "selektieren"],
+      "policy": "Use geometry.query for read-only geometry inspection, reporting, table output, and workflows that need object data from BricsCAD. It does not select or modify entities. Runtime schemas from BRX are authoritative.",
+      "agentHints": [
+        "limit must be an integer >= 1. Never use limit=0. To fetch many objects, use a practical positive value such as 100, 250, or 500.",
+        "For all objects in a layer, use selector={\"scope\":\"currentSpace\",\"layer\":\"0\"} or the requested layer name.",
+        "For currently selected objects, use selector={\"scope\":\"selection\"}.",
+        "For table output, include metrics and optionally geometry: include=[\"metrics\",\"geometry\"]. Qt converts result.objects from geometry.query into a Markdown table in the workflow run and BricsCAD chat.",
+        "If the user asks to select objects and then show a table, use selection.set only when the visible editor selection matters; geometry.query with selector.scope=currentSpace and selector.layer can fetch the data directly."
+      ],
+      "semanticConstraints": [
+        "This tool is read-only and must not be used as a drawing mutation.",
+        "selector.scope should be currentSpace, selection, handles, lastResult, or lastExtruded.",
+        "limit must be >= 1; omit limit to use the BRX default instead of sending an invalid zero.",
+        "Layer 0 is a valid layer filter and must be sent as the string \"0\"."
+      ],
+      "unsupportedOperations": ["creating geometry", "editing geometry", "changing selection"],
+      "examples": [
+        {
+          "intent": "Fetch all objects on layer 0 and show them as a table.",
+          "params": {"selector": {"scope": "currentSpace", "layer": "0"}, "include": ["metrics", "geometry"], "limit": 500}
+        },
+        {
+          "intent": "Fetch currently selected objects with metrics.",
+          "params": {"selector": {"scope": "selection"}, "include": ["metrics"], "limit": 100}
+        }
+      ]
+    },
+    {
       "name": "rectangles.extrude",
       "domain": "geometry",
       "summary": "Extrudes closed rectangle polylines to 3D solids.",

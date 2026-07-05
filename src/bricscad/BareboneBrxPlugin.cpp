@@ -4706,6 +4706,17 @@ bool validateActionObject(
         }
     } else if (result.tool == "command.execute") {
         validateCommandExecuteParams(paramsJson, result);
+    } else if (result.tool == "capabilities.list"
+        || result.tool == "actions.list"
+        || result.tool == "commands.list"
+        || result.tool == "layers.list"
+        || result.tool == "geometry.query"
+        || result.tool == "selection.describe"
+        || result.tool == "entity.describe"
+        || result.tool == "measurement.bbox"
+        || result.tool == "measurement.length"
+        || result.tool == "measurement.area") {
+        addUniqueMessage(result.hints, result.tool + " ist read-only und veraendert die Zeichnung nicht");
     } else {
         addUniqueMessage(result.errors, "Unbekannte oder nicht validierbare Action: " + result.tool);
     }
