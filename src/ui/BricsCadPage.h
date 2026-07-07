@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include "../agent/BricsCadLearningAgent.h"
 #include "../core/ConfigManager.h"
 #include "AiWebBridge.h"
 
@@ -51,35 +52,22 @@ private:
         int compressedHistoryMessages = 0;
     };
 
-    struct WorkflowRunState {
-        bool active = false;
-        bool awaitingUser = false;
-        QString runKind;
-        QJsonObject proposal;
-        QJsonArray actions;
-        QJsonArray results;
-        QJsonObject workingWorkflow;
-        QJsonObject draftCheckpointWorkflow;
-        QJsonObject slotValues;
-        QJsonArray acceptedStepIndexes;
-        QJsonArray acceptedConcreteActions;
-        int nextIndex = 0;
-        int currentStepIndex = -1;
-        int repairAttemptCount = 0;
-        int runGeneration = 0;
-        bool repairing = false;
-        bool readyToFinalSave = false;
-        QJsonObject lastStepResponse;
-        QJsonArray repairDialog;
-        QStringList repairAskSignatures;
-    };
-
     struct PendingMathFormattingRepair {
         QString originalMarkdown;
         QString diagnosticsJson;
         QString sessionId;
         int attempts = 0;
         int revision = 0;
+    };
+
+    struct BrxLearningInteraction {
+        QJsonArray lessonIds;
+        QJsonArray tools;
+        QJsonArray actions;
+        QString prompt;
+        QString summary;
+        bool awaitingFeedback = false;
+        int operationGeneration = 0;
     };
 
     void startBridgeServer();
@@ -90,7 +78,9 @@ private:
     void continueUnifiedAgentRequest(const QString& prompt, const QJsonObject& documentContext, const QJsonObject& route);
     void selectToolsForUnifiedAgentRequest(const QString& prompt, const QJsonObject& documentContext, const QJsonObject& route);
     void sendUnifiedAgentRequest(const QString& prompt, const QJsonObject& documentContext, const QJsonObject& route);
+    void sendUnifiedAgentRequestWithDrawingContext(const QString& prompt, const QJsonObject& documentContext, const QJsonObject& route);
     void sendUnifiedAgentRequestWithPrefetchedContext(const QString& prompt, const QString& method, const QJsonObject& params, const QJsonObject& documentContext, const QJsonObject& route);
+    void requestFocusedConversationContext(const QString& prompt, const QJsonObject& documentContext, const QJsonObject& route, std::function<void(const QJsonObject&)> continuation);
     void sendAgentEnvelope(const QJsonObject& envelope, const QString& userHistoryContent, bool storeUserMessage, const QString& logLabel);
     void sendWorkflowTrainingPrompt(const QString& prompt, bool compactContext = false);
     void saveGeneralWorkflowFromTraining(
@@ -101,6 +91,15 @@ private:
         const QString& selectedMessageText = QString(),
         const QString& sessionTitle = QString());
     void saveGeneralWorkflowFromMessage(const QString& messageId, const QString& messageText, const QString& sessionTitle);
+    void applyBrxLearningUpdateFromReply(const QJsonObject& reply, const QString& responseType);
+    QJsonArray applyBrxLearningRuntimeEvent(const QJsonArray& lessonIds, const QJsonObject& event, const QString& logPrefix);
+    void recordBrxLearningExecutionOutcome(const QJsonObject& proposal, const QJsonArray& actions, const QJsonObject& batchResult, const QString& fallbackSummary);
+    void recordBrxLearningExecutionFailure(const QJsonObject& proposal, const QString& errorMessage);
+    void evaluatePendingBrxLearningFeedback(const QString& prompt);
+    QString brxLearningFeedbackOutcome(const QString& prompt) const;
+    QJsonArray brxLearningLessonIdsForRoute(const QJsonObject& route, const QString& prompt) const;
+    QJsonArray brxLearningToolsFromActions(const QJsonArray& actions) const;
+    QJsonArray brxLearningRecentConversation(int maxMessages = 10) const;
     QJsonObject workflowSaveCompressedTitleContext(const QString& selectedMessageText, const QString& sessionTitle) const;
     void requestMathFormattingRepair(const QString& messageId, int revision, const QString& markdown, const QString& diagnosticsJson);
     void acceptMathFormattingRepair(const QString& messageId, int revision, const QString& markdown);
@@ -114,7 +113,6 @@ private:
     void mergeWorkflowTrainingSlotValues(const QJsonObject& slots);
     QJsonArray unresolvedWorkflowTrainingMissing(const QJsonArray& missing) const;
     QJsonArray workflowTrainingIndex() const;
-    QString workflowsDirectoryPath() const;
     QString generalWorkflowsDirectoryPath() const;
     QJsonArray generalWorkflowIndex() const;
     QJsonObject loadGeneralWorkflowById(const QString& workflowId, QString* fileName = nullptr, QString* errorMessage = nullptr) const;
@@ -126,35 +124,7 @@ private:
     void selectWorkflowForChat(const QString& workflowId);
     void clearSelectedWorkflowForChat();
     void exportAgentMessageToPdf(const QString& messageId, const QString& suggestedTitle);
-    bool handleSelectedWorkflowPrompt(const QString& prompt);
-    bool prepareSelectedWorkflowRun(const QString& prompt);
-    bool prepareTrainingDraftWorkflowRun(const QString& prompt);
-    bool prepareWorkflowRunFromWorkflow(const QJsonObject& workflow, const QJsonObject& slotValues, const QString& prompt, const QString& runKind);
     QJsonObject selectedWorkflowSummary() const;
-    QJsonArray workflowRunActions(const QJsonObject& workflow, const QJsonObject& slotValues, QString& errorMessage) const;
-    QJsonObject workflowSlotValuesForPrompt(const QJsonObject& workflow, const QString& prompt);
-    QStringList missingWorkflowSlots(const QJsonObject& workflow, const QJsonObject& slotValues) const;
-    void continueWorkflowStepReview(const QJsonObject& proposal, const QJsonArray& actions, int index, QJsonArray results, const QJsonObject& stepResponse);
-    void startWorkflowRepairFromStep(const QJsonObject& proposal, const QJsonObject& stepState, const QString& reason);
-    bool handleWorkflowRunUserResponse(const QString& prompt);
-    void pauseWorkflowRunAfterStep(const QJsonObject& proposal, const QJsonArray& actions, int index, const QJsonArray& results, const QJsonObject& stepResponse);
-    void clearWorkflowRunState();
-    bool saveWorkflowRunWorkingWorkflow(QString* errorMessage = nullptr);
-    bool workflowRunShouldPersistWorkingWorkflow() const;
-    bool checkpointTrainingDraftWorkflowRunStep(QString* errorMessage = nullptr);
-    QJsonObject workflowWithRunValidationExample(QJsonObject workflow, const QJsonArray& acceptedActions) const;
-    QJsonObject replaceWorkflowRunStep(QJsonObject workflow, const QJsonObject& source, const QJsonObject& replacementStep) const;
-    QJsonObject insertWorkflowRunStep(QJsonObject workflow, const QJsonObject& source, const QJsonObject& insertedStep, bool beforeCurrent) const;
-    QJsonObject insertWorkflowRunStepAtIndex(QJsonObject workflow, int stepIndex, const QJsonObject& insertedStep) const;
-    QJsonObject removeWorkflowRunStep(QJsonObject workflow, const QJsonObject& source) const;
-    QJsonObject removeWorkflowRunStepAtIndex(QJsonObject workflow, int stepIndex) const;
-    QJsonObject workflowStepFromRepairReply(const QJsonObject& reply, const QJsonObject& currentAction) const;
-    QJsonObject workflowInsertedStepFromRepairReply(const QJsonObject& reply, const QJsonObject& currentAction) const;
-    bool handleWorkflowRunStepRemoval(const QString& prompt);
-    void requestWorkflowStepRepair(const QString& userFeedback, const QString& failureContext = QString());
-    void handleWorkflowStepRepairReply(const QString& content, const QString& userFeedback);
-    void validateAndExecuteWorkflowRepairedStep(const QJsonObject& replacementStep, const QString& userFeedback);
-    void validateAndExecuteWorkflowInsertedStep(const QJsonObject& insertedStep, bool beforeCurrent, const QString& userFeedback);
     bool saveWorkflowFromTraining(const QJsonObject& workflow, QString* savedPath, QString* errorMessage) const;
     bool validateWorkflowForTraining(QJsonObject& workflow, QString& errorMessage) const;
     bool validateWorkflowStepForTraining(const QJsonObject& step, int index, QString& errorMessage, const QString& pathPrefix = QString()) const;
@@ -165,9 +135,7 @@ private:
         const QString& errorMessage);
     void startWorkflowTrainingSaveReview(const QString& rejectedContent, const QJsonObject& reply, const QJsonObject& workflow);
     void confirmWorkflowTrainingSaveReview();
-    void confirmWorkflowTrainingRun();
     void confirmWorkflowTrainingFinalSave();
-    void emitWorkflowTrainingRunPrompt();
     void emitWorkflowTrainingFinalSavePrompt();
     void clearWorkflowTrainingPrompts();
     void clearWorkflowTrainingSavePrompt();
@@ -187,6 +155,14 @@ private:
     int estimateTokensForMessages(const QJsonArray& messages) const;
     QJsonObject documentContextWithTokenBudget(const QJsonObject& context, int tokenBudget, bool* minimized = nullptr) const;
     ContextBuildResult buildGeneralMessagesForBudget(const QString& prompt, const QJsonObject& documentContext, int requestedOutputTokens) const;
+    QJsonObject fallbackFocusedConversationContext(const QString& prompt) const;
+    QJsonObject normalizedFocusedConversationContext(const QJsonObject& object, const QString& prompt) const;
+    QJsonObject conversationAccessForFocusedContext(const QJsonObject& focusedContext) const;
+    QJsonObject compactSessionHistoryMessage(int index, bool fullText, int maxChars = 2200) const;
+    QJsonArray sessionHistoryMessagesRange(int start, int count, bool fullText) const;
+    QJsonArray sessionHistoryMessagesForQuery(const QString& query, int limit, bool fullText) const;
+    QJsonObject sessionHistoryContextResponse(const QString& method, const QJsonObject& params) const;
+    bool isSessionHistoryContextMethod(const QString& method) const;
     void handleAgentReply(const QString& content);
     bool retryAgentAfterValidationFailure(const QString& rejectedContent, const QJsonObject& rejectedObject, const QString& errorMessage);
     void discardLastAssistantConversation(const QString& content);
@@ -194,6 +170,7 @@ private:
     QJsonObject normalizedAgentAction(const QJsonObject& action) const;
     QJsonArray agentProposalActions(const QJsonObject& proposal) const;
     QJsonArray expandedAgentActions(const QJsonObject& action) const;
+    bool proposalRequiresUserConfirmation(const QJsonObject& proposal) const;
     QJsonObject agentPreflightParams(const QJsonObject& proposal) const;
     void preflightAgentProposal(const QString& rejectedContent, const QJsonObject& rejectedObject, const QJsonObject& proposal);
     void handleAgentContextRequest(const QJsonObject& request);
@@ -221,6 +198,7 @@ private:
     QJsonArray compactToolSelectorList() const;
     QJsonArray compactWorkflowSelectorList() const;
     QJsonArray selectedWorkflowObjectsForRoute(const QJsonObject& route) const;
+    QJsonArray selectedLearningLessonsForRoute(const QJsonObject& route, const QString& prompt) const;
     QJsonArray agentToolsByNames(const QStringList& names) const;
     QJsonArray readOnlyMethodsForRoute(const QJsonObject& route) const;
     QJsonObject layersEnsureManyToolDefinition() const;
@@ -316,18 +294,18 @@ private:
     QString m_trainingPendingReviewContent;
     QJsonObject m_trainingPendingReviewReply;
     QJsonObject m_trainingPendingReviewWorkflow;
-    bool m_trainingRunPending = false;
     bool m_trainingFinalSavePending = false;
-    QJsonObject m_trainingPendingRunWorkflow;
     QJsonObject m_trainingFinalSaveWorkflow;
     QJsonArray m_trainingFinalSaveActions;
     QString m_trainingPromptSignature;
     QString m_selectedWorkflowId;
     QJsonObject m_selectedWorkflow;
     QJsonObject m_selectedWorkflowSlotValues;
-    WorkflowRunState m_workflowRunState;
     QJsonObject m_lastDocumentContext;
     QJsonObject m_lastAgentRoute;
+    QJsonObject m_lastFocusedConversationContext;
+    BricsCadLearningAgent m_brxLearning;
+    BrxLearningInteraction m_lastBrxLearningInteraction;
     bool m_nextAgentMessageContinuationAvailable = false;
     QString m_nextAgentMessageContinuationReason;
     QJsonObject m_brxCapabilities;

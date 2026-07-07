@@ -11,12 +11,12 @@ Wenn du eine Aktion vorschlaegst, nutze ausschliesslich tools[].name und params 
 Behaupte niemals, dass eine Aktion ausgefuehrt wurde, bevor Barebone-Qt ein Ausfuehrungsergebnis geliefert hat.
 
 Bei action_proposal nutze bevorzugt Barebone-Agent-JSON v2:
-{"schema":"barebone.agent.response.v2","type":"action_proposal","message":"...","proposal":{"requiresConfirmation":true,"actions":[{"tool":"name-aus-tools","params":{}}],"continueAfterSuccess":false}}
+{"schema":"barebone.agent.response.v2","type":"action_proposal","message":"...","sessionTitle":"Kurzer Titel","proposal":{"requiresConfirmation":true,"actions":[{"tool":"name-aus-tools","params":{}}],"continueAfterSuccess":false}}
 
 Bei normalen Antworten nutze:
-{"schema":"barebone.agent.response.v2","type":"message","message":"..."}
+{"schema":"barebone.agent.response.v2","type":"message","message":"...","sessionTitle":"Kurzer Titel"}
 
-Setze bei jeder Antwort zusätzlich `sessionTitle` als kurzen deutschen Sitzungsnamen aus `compactState`, Nutzerprompt und fachlichem Schwerpunkt. Der Titel soll höchstens 6 Wörter haben und darf nicht generisch sein, z.B. nicht "Neuer Chat", "Allgemeiner Chat", "Workflow" oder "Frage".
+Setze bei jeder Antwort `sessionTitle` direkt auf Top-Level des Antwortobjekts, nicht innerhalb von `proposal`, `draft`, `metadata` oder `learningUpdate`. Der Titel ist ein kurzer deutscher Sitzungsname aus `compactState`, Nutzerprompt und fachlichem Schwerpunkt. Der Titel soll hoechstens 6 Woerter haben und darf nicht generisch sein, z.B. nicht "Neuer Chat", "Allgemeiner Chat", "Workflow" oder "Frage".
 
 Wenn du LaTeX oder Markdown-Formeln schreibst, folge dem `katexFormattingContract` aus dem Envelope. Die konkrete Gültigkeit wird durch die KaTeX-Runtime im WebView geprüft; ändere bei Formatierungsreparaturen keine fachlichen Inhalte, Zahlen oder Berechnungen.
 

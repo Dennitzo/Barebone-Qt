@@ -21,6 +21,8 @@ qt_standard_project_setup()
 qt_add_executable(BareboneQtApp
     resources/resources.qrc
     src/main.cpp
+    src/agent/BricsCadLearningAgent.cpp
+    src/agent/BricsCadLearningAgent.h
     src/core/ConfigManager.cpp
     src/core/ConfigManager.h
     src/ui/AiWebBridge.cpp

@@ -115,7 +115,7 @@ const BridgeMethodDescriptor kBridgeMethods[] = {
         "geometry.query",
         "query",
         "readOnly",
-        "Liest aktuelle Geometrien aus der Zeichnung anhand eines Selectors und optionaler Filter.",
+        "Liest aktuelle Geometrien aus der Zeichnung anhand eines Selectors und optionaler Filter. Liefert bounds und daraus abgeleitete dimensions(widthX, depthY, heightZ, unit=mm), sofern getGeomExtents verfuegbar ist.",
         R"JSON({
 "type":"object",
 "properties":{
@@ -488,7 +488,7 @@ const BridgeMethodDescriptor kBridgeMethods[] = {
 "method":"geometry.rotate",
 "required":["selector"],
 "oneOfRequired":[["angleDeg"],["angleRad"]],
-"bodySchema":{"type":"object","properties":{"selector":"Selector","basePoint":"rotation center","basePointMode":"entityCenter/eachEntityCenter rotates every entity around its own extents center; selectionCenter rotates around the combined selection extents center","axis":"rotation axis; Z default","angleDeg":"degrees","angleRad":"radians","saveBefore":"boolean default true"}},
+"bodySchema":{"type":"object","properties":{"selector":"Selector; after selection.set prefer scope=handles with affectedHandles instead of scope=selection","basePoint":"rotation center","basePointMode":"entityCenter/eachEntityCenter rotates every entity around its own extents center; selectionCenter rotates around the combined selection extents center","axis":"rotation axis; Z default","angleDeg":"user-provided degrees; no default","angleRad":"user-provided radians; no default","saveBefore":"boolean default true"}},
 "examples":[{"selector":{"scope":"selection"},"basePoint":{"x":0,"y":0,"z":0},"angleDeg":90}]
 })JSON",
     },
@@ -555,6 +555,30 @@ R"JSON({
 "required":["selector"],
 "bodySchema":{"type":"object","properties":{"selector":"Selector resolving to selectable entities"}},
 "examples":[{"selector":{"scope":"handles","handles":["A7","A8"]}}]
+})JSON",
+    },
+    {
+        "entity.setLayer",
+        "action",
+        "modifiesDrawing",
+        "Weist vorhandenen Entities per Selector einen Ziel-Layer zu.",
+        R"JSON({
+"type":"object",
+"required":["selector","layer"],
+"properties":{
+  "selector":{"type":"object"},
+  "layer":{"type":"string"},
+  "targetLayer":{"type":"string"},
+  "createIfMissing":{"type":"boolean"},
+  "saveBefore":{"type":"boolean"},
+  "reason":{"type":"string"}
+}
+})JSON",
+        R"JSON({
+"method":"entity.setLayer",
+"required":["selector","layer"],
+"bodySchema":{"type":"object","properties":{"selector":"Selector for existing entities; use scope=handles for explicit handles like A8","layer":"target layer name","targetLayer":"alias for layer","createIfMissing":"optional boolean; creates target layer before assignment when missing","saveBefore":"boolean default true"}},
+"examples":[{"selector":{"scope":"handles","handles":["A8"]},"layer":"Haus - Wände","createIfMissing":true,"saveBefore":true}]
 })JSON",
     },
     {
@@ -687,7 +711,7 @@ R"JSON({
         "measurement.bbox",
         "query",
         "readOnly",
-        "Berechnet Bounding-Boxes fuer Entities per Selector.",
+        "Berechnet Bounding-Boxes fuer Entities per Selector. Liefert pro Objekt bounds, dimensions(widthX, depthY, heightZ, unit=mm), success und optional error.",
         R"JSON({
 "type":"object",
 "required":["selector"],
@@ -880,6 +904,7 @@ struct SelectionEntitySnapshot {
 struct JsonPoint3d;
 
 void captureCurrentSelection(const char* reason);
+void rememberSelectionSnapshot(const AcDbObjectIdArray& ids, const char* reason, std::vector<std::string>* debugLines = nullptr);
 void sendSelectionSnapshotEvent(const std::vector<SelectionEntitySnapshot>& snapshot);
 AcDbObjectIdArray lastExtrudedSolidIds();
 AcDbObjectIdArray lastResultObjectIds();
@@ -1342,6 +1367,43 @@ std::string selectionSignature(const std::vector<SelectionEntitySnapshot>& snaps
     return signature.str();
 }
 
+void rememberSelectionSnapshot(const AcDbObjectIdArray& ids, const char* reason, std::vector<std::string>* debugLines)
+{
+    std::vector<SelectionEntitySnapshot> snapshot;
+    snapshot.reserve(static_cast<std::size_t>(ids.length()));
+    for (int i = 0; i < ids.length(); ++i) {
+        const AcDbObjectId entityId = ids.at(i);
+        AcDbEntity* entity = nullptr;
+        const Acad::ErrorStatus openStatus = acdbOpenObject(entity, entityId, AcDb::kForRead);
+        if (openStatus != Acad::eOk || entity == nullptr) {
+            if (debugLines != nullptr) {
+                appendDebug(*debugLines, "selection cache open failed handle=" + objectHandleText(entityId) + ": " + errorStatusText(openStatus));
+            }
+            continue;
+        }
+
+        SelectionEntitySnapshot item;
+        item.handle = objectHandleText(entityId);
+        item.type = entityTypeName(entity);
+        item.layer = entityLayerName(entity);
+        snapshot.push_back(std::move(item));
+        entity->close();
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(g_selectionSnapshotMutex);
+        g_lastSelectionSignature = selectionSignature(snapshot);
+        g_lastSelectionSnapshot = snapshot;
+    }
+
+    if (debugLines != nullptr) {
+        appendDebug(*debugLines, "Cached BBTRACK selection snapshot updated from "
+            + std::string(reason != nullptr ? reason : "unknown")
+            + " size=" + std::to_string(snapshot.size()));
+    }
+    sendSelectionSnapshotEvent(snapshot);
+}
+
 void captureCurrentSelection(const char* reason)
 {
     std::vector<SelectionEntitySnapshot> snapshot = readPickfirstSelectionSnapshot();
@@ -1491,6 +1553,7 @@ bool requiresCommandContext(const std::string& request)
         "GEOMETRYSCALE",
         "GEOMETRYDELETE",
         "SELECTIONSET",
+        "ENTITYSETLAYER",
         "LAYERCREATE",
         "LAYERRENAME",
         "LAYERSETCOLOR",
@@ -2003,7 +2066,7 @@ std::string jsonCapabilitiesResponse(int id)
         << "{\"name\":\"actions.list\",\"kind\":\"query\",\"risk\":\"readOnly\",\"description\":\"Liefert die dokumentierten Barebone-BRX API-Aktionen mit POST-Optionen, Pflichtfeldern und Beispielen.\"},"
         << "{\"name\":\"commands.list\",\"kind\":\"query\",\"risk\":\"readOnly\",\"description\":\"Liefert eine Low-Level-Startliste nativer BricsCAD-Kommandos und zugehoeriger Bridge-Tools.\"},"
         << "{\"name\":\"layers.list\",\"kind\":\"query\",\"risk\":\"readOnly\",\"description\":\"Listet Layer der aktiven Zeichnung.\"},"
-        << "{\"name\":\"geometry.query\",\"kind\":\"query\",\"risk\":\"readOnly\",\"description\":\"Liest aktuelle Geometrien aus der Zeichnung anhand eines Selectors und optionaler Filter.\","
+        << "{\"name\":\"geometry.query\",\"kind\":\"query\",\"risk\":\"readOnly\",\"description\":\"Liest aktuelle Geometrien aus der Zeichnung anhand eines Selectors und optionaler Filter. Liefert bounds und dimensions(widthX, depthY, heightZ, unit=mm), sofern getGeomExtents verfuegbar ist.\","
         << "\"paramsSchema\":{\"type\":\"object\",\"properties\":{\"selector\":{\"type\":\"object\",\"properties\":{\"scope\":{\"enum\":[\"currentSpace\",\"selection\",\"handles\",\"lastResult\",\"lastExtruded\"]},\"layer\":{\"type\":\"string\"},\"handles\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"kind\":{\"enum\":[\"polyline\",\"solid\",\"entity\"]},\"shape\":{\"enum\":[\"rectangle\"]}}},\"filters\":{\"type\":\"object\",\"properties\":{\"layer\":{\"type\":\"string\"},\"layers\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"kind\":{\"enum\":[\"polyline\",\"solid\",\"entity\"]},\"kinds\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"shape\":{\"enum\":[\"rectangle\"]},\"shapes\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"types\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}}},\"include\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"limit\":{\"type\":\"number\",\"minimum\":1}}}},"
         << "{\"name\":\"selection.describe\",\"kind\":\"query\",\"risk\":\"readOnly\",\"description\":\"Beschreibt die aktuelle BricsCAD-Auswahl mit Handles, Typen, Layern und optionaler Geometrie.\","
         << "\"paramsSchema\":{\"type\":\"object\",\"properties\":{\"include\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"limit\":{\"type\":\"number\",\"minimum\":1}}}},"
@@ -2015,7 +2078,7 @@ std::string jsonCapabilitiesResponse(int id)
         << "{\"name\":\"rectangles.extrude\",\"kind\":\"action\",\"risk\":\"modifiesDrawing\",\"description\":\"Extrudiert geschlossene Rechteck-Polylinien ueber die BRX API. Die Aktion ist atomar: Alle benoetigten Optionen stehen im POST-Body.\","
         << "\"paramsSchema\":{\"type\":\"object\",\"required\":[\"heightMm\"],\"properties\":{\"layer\":{\"type\":\"string\",\"description\":\"Optionaler Layername, wenn kein selector verwendet wird.\"},\"selector\":{\"type\":\"object\",\"description\":\"Optionaler Selector fuer Auswahl, Handles oder aktuellen Raum.\",\"properties\":{\"scope\":{\"enum\":[\"currentSpace\",\"selection\",\"handles\"]},\"layer\":{\"type\":\"string\"},\"handles\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"kind\":{\"enum\":[\"rectangle\"]},\"shape\":{\"enum\":[\"rectangle\"]}}},\"heightMm\":{\"type\":\"number\",\"minimum\":0.1,\"description\":\"Extrusionshoehe in Millimetern.\"},\"detail\":{\"enum\":[\"summary\",\"element\",\"geometry\"]},\"saveBefore\":{\"type\":\"boolean\"},\"reason\":{\"type\":\"string\"}}},"
         << "\"apiDoc\":{\"transport\":\"bridge-json\",\"post\":{\"method\":\"rectangles.extrude\",\"required\":[\"heightMm\"],\"oneOfRequired\":[[\"layer\"],[\"selector\"]],\"bodySchema\":{\"type\":\"object\",\"properties\":{\"layer\":\"string\",\"selector\":\"Selector\",\"heightMm\":\"number mm > 0\",\"detail\":\"summary|element|geometry\",\"saveBefore\":\"boolean default true\"}},\"examples\":[{\"heightMm\":1000,\"selector\":{\"scope\":\"selection\",\"kind\":\"rectangle\"},\"saveBefore\":true},{\"heightMm\":3000,\"layer\":\"0\",\"detail\":\"element\",\"saveBefore\":true}]}}},"
-        << "{\"name\":\"undo.last\",\"kind\":\"action\",\"risk\":\"modifiesDrawing\",\"description\":\"Macht bis zu mehreren letzten Aktionen rueckgaengig.\","
+        << "{\"name\":\"undo.last\",\"kind\":\"action\",\"risk\":\"modifiesDrawing\",\"description\":\"Macht bis zu mehreren letzten Aktionen rueckgaengig. BRX nutzt numerisches UNDO <steps> und keine Back/All-Variante mit Yes/No-Rueckfrage.\","
         << "\"paramsSchema\":{\"type\":\"object\",\"properties\":{\"steps\":{\"type\":\"number\",\"minimum\":1,\"description\":\"Anzahl der Schritte fuer UNDO (Standard: 1).\"},\"saveBefore\":{\"type\":\"boolean\"},\"reason\":{\"type\":\"string\"}}},"
         << "\"apiDoc\":{\"transport\":\"bridge-json\",\"post\":{\"method\":\"undo.last\",\"required\":[],\"bodySchema\":{\"type\":\"object\",\"properties\":{\"steps\":\"number >= 1 (default: 1)\",\"saveBefore\":\"boolean default true\"}},\"examples\":[{\"steps\":1,\"saveBefore\":true}]}}},"
         << "{\"name\":\"bim.classify\",\"kind\":\"action\",\"risk\":\"modifiesDrawing\",\"description\":\"Klassifiziert 3D-Solids ueber die BRX API als BIM-Element. Die Aktion ist atomar und nutzt eine Zielauswahl oder zuletzt erzeugte Solids.\","
@@ -2042,7 +2105,7 @@ std::string jsonActionsResponse(int id)
         << ",\"result\":{\"schema\":\"barebone.bricscad.actions.v1\",\"description\":\"Dokumentierte Barebone-BRX API-Aktionen. Jede Aktion beschreibt den POST-Body vollstaendig, damit der Agent fehlende Optionen gezielt erfragen kann.\",\"actions\":["
         << "{\"name\":\"geometry.create\",\"description\":\"Erzeugt neue Grundgeometrie direkt in der Zeichnung.\",\"post\":{\"method\":\"geometry.create\",\"required\":[\"geometry\"],\"bodySchema\":{\"type\":\"object\",\"properties\":{\"geometry\":\"point|rectangle|line|polyline|circle|arc|box\",\"layer\":\"string optional\",\"position/point\":\"{x,y,z} for point\",\"origin\":\"{x,y,z} for rectangle/box\",\"center\":\"{x,y,z} for circle/arc\",\"radius\":\"circle/arc radius\",\"startAngleDeg/endAngleDeg\":\"arc angles in degrees\",\"width/x\":\"rectangle or box width\",\"depth/y\":\"rectangle or box depth/length\",\"height/z\":\"box height\",\"start\":\"{x,y,z} for line\",\"end\":\"{x,y,z} for line\",\"points\":\"array of {x,y,z} for polyline\",\"closed\":\"boolean for polyline\",\"saveBefore\":\"boolean default true\"}},\"examples\":[{\"geometry\":\"box\",\"origin\":{\"x\":0,\"y\":0,\"z\":0},\"width\":100,\"depth\":100,\"height\":100,\"layer\":\"0\",\"saveBefore\":true},{\"geometry\":\"circle\",\"center\":{\"x\":0,\"y\":0,\"z\":0},\"radius\":50,\"layer\":\"0\"},{\"geometry\":\"arc\",\"center\":{\"x\":0,\"y\":0,\"z\":0},\"radius\":50,\"startAngleDeg\":0,\"endAngleDeg\":90},{\"geometry\":\"rectangle\",\"origin\":{\"x\":0,\"y\":0,\"z\":0},\"width\":100,\"depth\":100,\"layer\":\"0\",\"saveBefore\":true},{\"geometry\":\"line\",\"start\":{\"x\":0,\"y\":0,\"z\":0},\"end\":{\"x\":100,\"y\":0,\"z\":0},\"layer\":\"0\"},{\"geometry\":\"polyline\",\"points\":[{\"x\":0,\"y\":0,\"z\":0},{\"x\":100,\"y\":0,\"z\":0},{\"x\":100,\"y\":50,\"z\":0}],\"closed\":false},{\"geometry\":\"point\",\"position\":{\"x\":0,\"y\":0,\"z\":0}}]}},"
         << "{\"name\":\"rectangles.extrude\",\"description\":\"Extrudiert geschlossene Rechteck-Polylinien.\",\"post\":{\"method\":\"rectangles.extrude\",\"required\":[\"heightMm\"],\"oneOfRequired\":[[\"layer\"],[\"selector\"]],\"bodySchema\":{\"type\":\"object\",\"properties\":{\"layer\":\"string optional\",\"selector\":\"Selector optional\",\"heightMm\":\"number mm > 0\",\"detail\":\"summary|element|geometry\",\"saveBefore\":\"boolean default true\"}},\"examples\":[{\"heightMm\":1000,\"selector\":{\"scope\":\"selection\",\"kind\":\"rectangle\"},\"saveBefore\":true},{\"heightMm\":3000,\"layer\":\"0\",\"detail\":\"element\",\"saveBefore\":true}]}},"
-        << "{\"name\":\"undo.last\",\"description\":\"Macht bis zu mehreren letzten Aktionen rueckgaengig.\",\"post\":{\"method\":\"undo.last\",\"required\":[],\"bodySchema\":{\"type\":\"object\",\"properties\":{\"steps\":\"number >=1\",\"saveBefore\":\"boolean default true\"}},\"examples\":[{\"steps\":1,\"saveBefore\":true}]}},"
+        << "{\"name\":\"undo.last\",\"description\":\"Macht bis zu mehreren letzten Aktionen rueckgaengig; nutzt numerisches UNDO <steps> ohne Back/All-Yes-No-Rueckfrage.\",\"post\":{\"method\":\"undo.last\",\"required\":[],\"bodySchema\":{\"type\":\"object\",\"properties\":{\"steps\":\"number >=1\",\"saveBefore\":\"boolean default true\"}},\"examples\":[{\"steps\":1,\"saveBefore\":true}]}},"
         << "{\"name\":\"bim.classify\",\"description\":\"Klassifiziert 3D-Solids als BIM-Element.\",\"post\":{\"method\":\"bim.classify\",\"required\":[\"classification\"],\"bodySchema\":{\"type\":\"object\",\"properties\":{\"target\":\"lastExtruded|selection|handles\",\"selector\":\"Selector optional\",\"classification\":\"BIMWall\",\"saveBefore\":\"boolean default true\"}},\"examples\":[{\"classification\":\"BIMWall\",\"target\":\"lastExtruded\",\"saveBefore\":true},{\"classification\":\"BIMWall\",\"selector\":{\"scope\":\"selection\",\"kind\":\"solid\"},\"saveBefore\":true}]}}"
         << "]},\"debug\":[]}\n";
     return response.str();
@@ -2641,6 +2704,21 @@ void appendBoundsJson(std::ostringstream& json, const BoundsData& bounds)
     json << '}';
 }
 
+void appendDimensionsJson(std::ostringstream& json, const BoundsData& bounds)
+{
+    if (!bounds.valid) {
+        json << "null";
+        return;
+    }
+
+    json << "{\"widthX\":" << std::abs(bounds.maxPoint.x - bounds.minPoint.x)
+        << ",\"depthY\":" << std::abs(bounds.maxPoint.y - bounds.minPoint.y)
+        << ",\"heightZ\":" << std::abs(bounds.maxPoint.z - bounds.minPoint.z)
+        << ",\"unit\":\"mm\""
+        << ",\"source\":\"bounds\""
+        << '}';
+}
+
 double boundsCenterDistance2d(const BoundsData& a, const BoundsData& b)
 {
     if (!a.valid || !b.valid) {
@@ -3125,12 +3203,16 @@ AcDbObjectIdArray pickfirstObjectIds(std::vector<std::string>* debugLines = null
         return ids;
     }
 
+    ids = cachedSelectionObjectIds(debugLines);
+    if (!ids.isEmpty()) {
+        return ids;
+    }
+
     ids = selectionSetObjectIds(_T("_P"), "previous/_P", debugLines);
     if (!ids.isEmpty()) {
         return ids;
     }
 
-    ids = cachedSelectionObjectIds(debugLines);
     if (debugLines != nullptr) {
         appendDebug(*debugLines, "Selection fallback result ids=" + std::to_string(ids.length()));
     }
@@ -3174,6 +3256,8 @@ void appendEntityJson(std::ostringstream& json, const AcDbObjectId& entityId, bo
     }
     json << ",\"bounds\":";
     appendBoundsJson(json, bounds);
+    json << ",\"dimensions\":";
+    appendDimensionsJson(json, bounds);
 
     if (includeMetrics) {
         double length = 0.0;
@@ -4652,6 +4736,28 @@ bool validateActionObject(
     } else if (result.tool == "selection.set") {
         AcDbObjectIdArray ids;
         validateSelectorForAction(state, paramsJson, result.tool, true, &ids, result.errors, result.missing, debugLines);
+    } else if (result.tool == "entity.setLayer") {
+        AcDbObjectIdArray ids;
+        validateSelectorForAction(state, paramsJson, result.tool, true, &ids, result.errors, result.missing, debugLines);
+        const std::string requestedLayer = trim(jsonStringProperty(paramsJson, "layer").value_or(
+            jsonStringProperty(paramsJson, "targetLayer").value_or("")));
+        const std::string layerName = normalizedBrxLayerName(requestedLayer);
+        if (layerName.empty()) {
+            addUniqueMessage(result.missing, "entity.setLayer.params.layer");
+        } else {
+            if (layerName != requestedLayer) {
+                addUniqueMessage(result.hints, "entity.setLayer.params.layer wird vor Ausfuehrung zu '" + layerName + "' normalisiert");
+            }
+            const bool createIfMissing = jsonBoolProperty(paramsJson, "createIfMissing").value_or(false);
+            if (!layerExistsForValidation(state, layerName)) {
+                if (createIfMissing) {
+                    markLayerPlanned(state, layerName);
+                    addUniqueMessage(result.hints, "entity.setLayer legt den fehlenden Ziellayer '" + layerName + "' vor der Zuweisung an");
+                } else {
+                    addUniqueMessage(result.errors, "entity.setLayer.params.layer verweist auf nicht vorhandenen Layer '" + layerName + "'. Lege ihn vorher mit layers.create an oder setze createIfMissing=true");
+                }
+            }
+        }
     } else if (result.tool == "rectangles.extrude") {
         AcDbObjectIdArray ids;
         validateSelectorForAction(state, paramsJson, result.tool, true, &ids, result.errors, result.missing, debugLines);
@@ -4708,6 +4814,7 @@ bool validateActionObject(
         validateCommandExecuteParams(paramsJson, result);
     } else if (result.tool == "capabilities.list"
         || result.tool == "actions.list"
+        || result.tool == "actions.validate"
         || result.tool == "commands.list"
         || result.tool == "layers.list"
         || result.tool == "geometry.query"
@@ -5220,7 +5327,9 @@ std::string setSelectionInApplicationContext(const std::string& paramsJson)
     appendDebug(debugLines, "acedSSSetFirst status=" + std::to_string(status));
     const int freeStatus = acedSSFree(selectionSet);
     appendDebug(debugLines, "acedSSFree selection.set status=" + std::to_string(freeStatus));
-    captureCurrentSelection("selection.set");
+    if (status == RTNORM) {
+        rememberSelectionSnapshot(ids, "selection.set", &debugLines);
+    }
 
     AcDbObjectIdArray failedIds;
     const std::string summary = "selection.set selected=" + std::to_string(status == RTNORM ? ids.length() : 0);
@@ -5259,6 +5368,82 @@ Acad::ErrorStatus applyLayerMutation(
     std::string& summary,
     bool& skipped,
     std::vector<std::string>& debugLines);
+
+std::string setEntityLayerInApplicationContext(const std::string& paramsJson)
+{
+    std::vector<std::string> debugLines;
+    auto fail = [&debugLines](const std::string& message) {
+        appendDebug(debugLines, "ERROR: " + message);
+        std::ostringstream response;
+        response << errorResponse(message);
+        appendDebugResponse(response, debugLines);
+        return response.str();
+    };
+
+    const bool saveBefore = jsonBoolProperty(paramsJson, "saveBefore").value_or(true);
+    AcDbDatabase* database = nullptr;
+    bool savedBefore = false;
+    std::unique_ptr<AcAxDocLock> docLock;
+    std::string errorMessage;
+    if (!prepareMutation(database, saveBefore, savedBefore, docLock, debugLines, errorMessage)) {
+        return fail(errorMessage);
+    }
+
+    const std::string requestedLayer = trim(jsonStringProperty(paramsJson, "layer").value_or(
+        jsonStringProperty(paramsJson, "targetLayer").value_or("")));
+    const std::string layerName = normalizedBrxLayerName(requestedLayer);
+    if (layerName.empty()) {
+        return fail("entity.setLayer braucht layer");
+    }
+    if (layerName != requestedLayer) {
+        appendDebug(debugLines, "entity.setLayer normalized layer '" + requestedLayer + "' -> '" + layerName + "'");
+    }
+
+    const bool createIfMissing = jsonBoolProperty(paramsJson, "createIfMissing").value_or(false);
+    if (!layerExistsInDatabase(database, layerName)) {
+        if (!createIfMissing) {
+            return fail("entity.setLayer Ziellayer nicht gefunden: " + layerName);
+        }
+        std::string createSummary;
+        bool skipped = false;
+        const std::string createParams = std::string("{\"name\":\"") + jsonEscape(layerName) + "\"}";
+        const Acad::ErrorStatus createStatus = applyLayerMutation(database, createParams, "create", createSummary, skipped, debugLines);
+        appendDebug(debugLines, "entity.setLayer createIfMissing: " + createSummary + " status=" + errorStatusText(createStatus));
+        if (createStatus != Acad::eOk || !layerExistsInDatabase(database, layerName)) {
+            return fail("entity.setLayer konnte Ziellayer nicht anlegen: " + createSummary);
+        }
+    }
+
+    const std::string selectorJson = selectorJsonFromParams(paramsJson);
+    if (selectorJson.empty()) {
+        return fail("entity.setLayer braucht selector, handles, handle oder layer");
+    }
+
+    const AcDbObjectIdArray ids = selectorObjectIds(selectorJson, database, debugLines);
+    if (ids.isEmpty()) {
+        return fail("entity.setLayer selector findet keine Objekte");
+    }
+
+    AcDbObjectIdArray affectedIds;
+    AcDbObjectIdArray failedIds;
+    for (int i = 0; i < ids.length(); ++i) {
+        const AcDbObjectId id = ids.at(i);
+        if (setEntityLayerByName(id, layerName, debugLines)) {
+            affectedIds.append(id);
+        } else {
+            failedIds.append(id);
+        }
+    }
+
+    if (!affectedIds.isEmpty()) {
+        rememberLastResult(affectedIds, "entity.setLayer", debugLines);
+    }
+
+    const std::string summary = "entity.setLayer affected=" + std::to_string(affectedIds.length())
+        + " failed=" + std::to_string(failedIds.length())
+        + " layer=" + layerName;
+    return okJsonResultResponse(genericActionResultJson("barebone.bricscad.entity.setLayer.result.v1", summary, affectedIds, failedIds, saveBefore, savedBefore), debugLines);
+}
 
 std::string mutateLayerInApplicationContext(const std::string& paramsJson, const std::string& operation)
 {
@@ -5689,8 +5874,14 @@ std::string measureEntitiesInApplicationContext(const std::string& paramsJson, c
                 << "\",\"type\":\"" << jsonEscape(entityTypeName(entity))
                 << "\",\"layer\":\"" << jsonEscape(entityLayerName(entity))
                 << "\",\"ok\":" << (ok ? "true" : "false")
+                << ",\"success\":" << (ok ? "true" : "false")
                 << ",\"bounds\":";
             appendBoundsJson(objects, bounds);
+            objects << ",\"dimensions\":";
+            appendDimensionsJson(objects, bounds);
+            if (!ok) {
+                objects << ",\"error\":\"" << jsonEscape(operation + "_unavailable") << "\"";
+            }
             if (operation == "length") {
                 objects << ",\"length\":" << value;
             } else if (operation == "area") {
@@ -5717,6 +5908,8 @@ std::string measureEntitiesInApplicationContext(const std::string& paramsJson, c
     }
     json << ",\"bounds\":";
     appendBoundsJson(json, aggregateBounds);
+    json << ",\"dimensions\":";
+    appendDimensionsJson(json, aggregateBounds);
     json << ",\"objects\":" << objects.str()
         << ",\"warnings\":[]"
         << ",\"timeMs\":0"
@@ -6235,7 +6428,6 @@ int runNativeUndoCommand(int steps, std::vector<std::string>& debugLines)
     const std::basic_string<ACHAR> stepArg = utf8ToAchar(stepsText);
     const int commandStatus = acedCommand(
         RTSTR, _T("_.UNDO"),
-        RTSTR, _T("_B"),
         RTSTR, stepArg.c_str(),
         RTNONE);
     appendDebug(debugLines, "acedCommand _.UNDO status=" + std::to_string(commandStatus));
@@ -7016,6 +7208,11 @@ std::string handlePluginRequestInApplicationContext(const std::string& request)
         return setSelectionInApplicationContext(paramsJson);
     }
 
+    if (command == "ENTITYSETLAYER") {
+        const std::string paramsJson = parts.size() >= 2 ? percentDecode(parts[1]) : "{}";
+        return setEntityLayerInApplicationContext(paramsJson);
+    }
+
     if (command == "LAYERCREATE") {
         const std::string paramsJson = parts.size() >= 2 ? percentDecode(parts[1]) : "{}";
         return mutateLayerInApplicationContext(paramsJson, "create");
@@ -7327,6 +7524,9 @@ std::string jsonResponseForBridgeRequest(const std::string& line)
     }
     if (method == "selection.set") {
         return dispatchJsonParamsMethod("SELECTIONSET");
+    }
+    if (method == "entity.setLayer") {
+        return dispatchJsonParamsMethod("ENTITYSETLAYER");
     }
     if (method == "layers.create") {
         return dispatchJsonParamsMethod("LAYERCREATE");

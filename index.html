@@ -1741,6 +1741,12 @@
       border-color: var(--text-muted);
     }
 
+    .workflow-filter-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
     .workflow-list {
       flex: 1 1 auto;
       min-height: 0;
@@ -2115,7 +2121,7 @@
                   <span>Workflows</span>
                 </button>
                 <button class="tool-btn mode-status-btn" id="training-base-mode-indicator" type="button" disabled hidden>BricsCAD Modus</button>
-                <button class="tool-btn mode-status-btn" id="mode-indicator" type="button" disabled>BricsCAD Modus</button>
+                <button class="tool-btn mode-status-btn" id="mode-indicator" type="button" disabled hidden>BricsCAD Modus</button>
                 <div class="context-meter unknown" id="context-meter" title="Kontext wird geladen">
                   <span class="context-ring" aria-hidden="true"></span>
                   <span class="context-label" id="context-label">Kontext</span>
@@ -2198,13 +2204,29 @@
             <option value="oldest">Älteste zuerst</option>
             <option value="titleAsc">Name A-Z</option>
             <option value="titleDesc">Name Z-A</option>
+            <option value="kindAsc">Typ A-Z</option>
+            <option value="statusAsc">Status A-Z</option>
           </select>
+          <div class="workflow-filter-row" id="workflow-learning-filters" hidden>
+            <select class="workflow-sort" id="workflow-kind-filter" aria-label="Learning-Typ filtern">
+              <option value="all">Alle Typen</option>
+              <option value="tool">Tools</option>
+              <option value="lesson">Lessons</option>
+              <option value="repair_rule">Repair-Regeln</option>
+              <option value="example">Beispiele</option>
+            </select>
+            <select class="workflow-sort" id="workflow-status-filter" aria-label="Learning-Status filtern">
+              <option value="all">Alle Status</option>
+              <option value="active">Aktiv</option>
+              <option value="deprecated">Veraltet</option>
+            </select>
+          </div>
         </div>
         <div class="workflow-list" id="workflow-list"></div>
       </div>
       <div class="workflow-detail-pane">
         <div class="workflow-detail" id="workflow-detail">
-          <div class="workflow-detail-empty">Wähle einen Workflow aus. Danach kannst du ihn per Chat steuern, zum Beispiel mit „Workflow ausführen“ oder „Workflow bearbeiten“.</div>
+          <div class="workflow-detail-empty">Waehle einen Workflow aus. Danach kannst du ihn als Kontext im Chat nutzen.</div>
         </div>
         <div class="workflow-footer">
           <button class="cancel-btn workflow-delete" id="workflow-delete" type="button" disabled>Workflow löschen</button>
@@ -2250,6 +2272,7 @@
         attachFile: "Datei hinzufügen",
         attachFileAria: "Datei als Kontext hinzufügen",
         workflows: "Workflows",
+        brxLearning: "BRX Learning",
         showWorkflows: "Workflows anzeigen",
         tools: "Tools",
         bricscadMode: "BricsCAD Modus",
@@ -2269,11 +2292,23 @@
         closeWorkflows: "Workflows schließen",
         searchWorkflows: "Workflows suchen",
         sortWorkflows: "Workflows sortieren",
+        filterWorkflowKind: "Learning-Typ filtern",
+        filterWorkflowStatus: "Learning-Status filtern",
+        allTypes: "Alle Typen",
+        allStatuses: "Alle Status",
+        activeStatus: "Aktiv",
+        deprecatedStatus: "Veraltet",
+        lessons: "Lessons",
+        repairRules: "Repair-Regeln",
+        examples: "Beispiele",
+        typeAscending: "Typ A-Z",
+        statusAscending: "Status A-Z",
         newestFirst: "Neueste zuerst",
         oldestFirst: "Älteste zuerst",
         nameAscending: "Name A-Z",
         nameDescending: "Name Z-A",
         workflowEmpty: "Wähle einen Workflow aus. Danach kannst du ihn als Kontext im Chat nutzen.",
+        learningEmpty: "Waehle einen BRX-Learning-Eintrag aus, um Details, Gewichtung, Tools, Lessons, Repair-Regeln oder Beispiele anzuzeigen.",
         selectWorkflow: "Workflow auswählen",
         copy: "Kopieren",
         copied: "Kopiert",
@@ -2287,6 +2322,8 @@
         pdfFailed: "PDF-Export fehlgeschlagen",
         saveWorkflow: "Als Workflow speichern",
         deleteWorkflow: "Workflow löschen",
+        deleteLesson: "Lesson deaktivieren",
+        confirmDeleteLesson: "Ja deaktivieren",
         confirmDeleteWorkflow: "Ja löschen",
         jumpToStart: "Zum Anfang springen",
         delete: "Löschen",
@@ -2348,6 +2385,7 @@
         attachFile: "Add file",
         attachFileAria: "Add file as context",
         workflows: "Workflows",
+        brxLearning: "BRX Learning",
         showWorkflows: "Show workflows",
         tools: "Tools",
         bricscadMode: "BricsCAD mode",
@@ -2367,11 +2405,23 @@
         closeWorkflows: "Close workflows",
         searchWorkflows: "Search workflows",
         sortWorkflows: "Sort workflows",
+        filterWorkflowKind: "Filter learning type",
+        filterWorkflowStatus: "Filter learning status",
+        allTypes: "All types",
+        allStatuses: "All statuses",
+        activeStatus: "Active",
+        deprecatedStatus: "Deprecated",
+        lessons: "Lessons",
+        repairRules: "Repair rules",
+        examples: "Examples",
+        typeAscending: "Type A-Z",
+        statusAscending: "Status A-Z",
         newestFirst: "Newest first",
         oldestFirst: "Oldest first",
         nameAscending: "Name A-Z",
         nameDescending: "Name Z-A",
         workflowEmpty: "Select a workflow. It will be used as context in chat.",
+        learningEmpty: "Select a BRX learning entry to inspect details, weighting, tools, lessons, repair rules, or examples.",
         selectWorkflow: "Select workflow",
         copy: "Copy",
         copied: "Copied",
@@ -2385,6 +2435,8 @@
         pdfFailed: "PDF export failed",
         saveWorkflow: "Save as workflow",
         deleteWorkflow: "Delete workflow",
+        deleteLesson: "Deprecate lesson",
+        confirmDeleteLesson: "Deprecate",
         confirmDeleteWorkflow: "Yes, delete",
         jumpToStart: "Jump to start",
         delete: "Delete",
@@ -2432,6 +2484,7 @@
     const isBricsCadWorkspace = () => activeWorkspace === "bricscad";
     const isChatWorkspace = () => activeWorkspace === "chat";
     const isGeneralWorkflowWorkspace = () => isChatWorkspace();
+    const isBrxLearningWorkspace = () => isBricsCadWorkspace();
 
     const app = document.getElementById("app");
     const messages = document.getElementById("messages");
@@ -2475,6 +2528,9 @@
     const workflowClose = document.getElementById("workflow-close");
     const workflowSearch = document.getElementById("workflow-search");
     const workflowSort = document.getElementById("workflow-sort");
+    const workflowLearningFilters = document.getElementById("workflow-learning-filters");
+    const workflowKindFilter = document.getElementById("workflow-kind-filter");
+    const workflowStatusFilter = document.getElementById("workflow-status-filter");
     const workflowList = document.getElementById("workflow-list");
     const workflowDetail = document.getElementById("workflow-detail");
     const workflowDelete = document.getElementById("workflow-delete");
@@ -2615,10 +2671,36 @@
           newest: "newestFirst",
           oldest: "oldestFirst",
           titleAsc: "nameAscending",
-          titleDesc: "nameDescending"
+          titleDesc: "nameDescending",
+          kindAsc: "typeAscending",
+          statusAsc: "statusAscending"
         };
         Array.from(workflowSort.options).forEach((option) => {
           option.textContent = t(sortLabels[option.value] || "newestFirst");
+        });
+      }
+      if (workflowKindFilter) {
+        workflowKindFilter.setAttribute("aria-label", t("filterWorkflowKind"));
+        const kindLabels = {
+          all: "allTypes",
+          tool: "tools",
+          lesson: "lessons",
+          repair_rule: "repairRules",
+          example: "examples"
+        };
+        Array.from(workflowKindFilter.options).forEach((option) => {
+          option.textContent = t(kindLabels[option.value] || "allTypes");
+        });
+      }
+      if (workflowStatusFilter) {
+        workflowStatusFilter.setAttribute("aria-label", t("filterWorkflowStatus"));
+        const statusLabels = {
+          all: "allStatuses",
+          active: "activeStatus",
+          deprecated: "deprecatedStatus"
+        };
+        Array.from(workflowStatusFilter.options).forEach((option) => {
+          option.textContent = t(statusLabels[option.value] || "allStatuses");
         });
       }
       const workflowPanelTitle = document.getElementById("workflow-panel-title");
@@ -2627,11 +2709,11 @@
       }
       const workflowEmpty = workflowDetail?.querySelector(".workflow-detail-empty");
       if (workflowEmpty) {
-        workflowEmpty.textContent = t("workflowEmpty");
+        workflowEmpty.textContent = isBrxLearningWorkspace() ? t("learningEmpty") : t("workflowEmpty");
       }
       if (workflowSelect) {
         workflowSelect.textContent = t("selectWorkflow");
-        workflowSelect.title = t("selectWorkflow");
+        workflowSelect.title = workflowSelect.textContent;
         updateWorkflowSelectButton();
       }
       setLocalAiStatus(localAiStatusText || (localAiReachable ? t("localAiReachable") : t("localAiUnavailable")), localAiReachable);
@@ -2686,6 +2768,8 @@
     let trainingMode = false;
     let workflows = [];
     let workflowSortMode = "newest";
+    let workflowKindFilterMode = "all";
+    let workflowStatusFilterMode = "all";
     let selectedWorkflow = null;
     let workflowPreview = null;
     let pendingWorkflowSessionOpenMode = "";
@@ -2794,6 +2878,18 @@
 
     function repairMojibakeText(text) {
       let value = String(text || "");
+      value = value
+        .replace(/\u00c2\u00a0/g, " ")
+        .replace(/\u00c2/g, "")
+        .replace(/\u00e2\u20ac\u2018/g, "-")
+        .replace(/\u00e2\u20ac\u2019/g, "'")
+        .replace(/\u00e2\u20ac\u201c/g, "-")
+        .replace(/\u00e2\u20ac\u201d/g, "-")
+        .replace(/\u00e2\u20ac\u0153/g, "\"")
+        .replace(/\u00e2\u20ac\u009d/g, "\"")
+        .replace(/\u00e2\u20ac\u017e/g, "\"")
+        .replace(/\u00e2\u20ac\u00a6/g, "...")
+        .replace(/\u00e2\u20ac\u00af/g, " ");
       if (!/[ÃÂâÎÏ]/.test(value)) {
         return value;
       }
@@ -2944,38 +3040,50 @@
       const nested = wrapper.workflow && typeof wrapper.workflow === "object" ? wrapper.workflow : {};
       const value = { ...nested, ...wrapper };
       delete value.workflow;
-      const id = String(value.id || value.workflowId || value.fileName || "").trim();
-      const title = String(value.title || id || "Workflow").trim();
+      const id = repairMojibakeText(String(value.id || value.workflowId || value.fileName || "")).trim();
+      const title = repairMojibakeText(String(value.title || id || "Workflow")).trim();
       return {
         ...value,
         id,
         title,
-        description: String(value.description || value.summary || value.contextSummary || value.compactSummary || "").trim(),
-        kind: String(value.kind || "").trim() || (isGeneralWorkflowWorkspace() ? "general" : ""),
-        fileName: String(value.fileName || "").trim(),
-        createdAt: String(value.createdAt || "").trim(),
-        modifiedAt: String(value.modifiedAt || value.updatedAt || "").trim()
+        description: repairMojibakeText(String(value.description || value.summary || value.contextSummary || value.compactSummary || "")).trim(),
+        kind: repairMojibakeText(String(value.kind || "")).trim() || (isGeneralWorkflowWorkspace() ? "general" : ""),
+        fileName: repairMojibakeText(String(value.fileName || "")).trim(),
+        status: repairMojibakeText(String(value.status || value.learningStatus || "")).trim(),
+        recommendedTools: (Array.isArray(value.recommendedTools) ? value.recommendedTools : (Array.isArray(value.preferredTools) ? value.preferredTools : [])).map((tool) => repairMojibakeText(String(tool))),
+        knownFailures: Array.isArray(value.knownFailures) ? value.knownFailures : [],
+        repairRules: Array.isArray(value.repairRules) ? value.repairRules : [],
+        successfulExamples: Array.isArray(value.successfulExamples) ? value.successfulExamples : [],
+        learningMetadata: value.learningMetadata && typeof value.learningMetadata === "object" ? value.learningMetadata : null,
+        createdAt: repairMojibakeText(String(value.createdAt || "")).trim(),
+        modifiedAt: repairMojibakeText(String(value.modifiedAt || value.updatedAt || "")).trim()
       };
     }
 
     function normalizeWorkflowListEntry(workflow) {
       const wrapper = workflow && typeof workflow === "object" ? workflow : {};
       const nested = wrapper.workflow && typeof wrapper.workflow === "object" ? wrapper.workflow : {};
-      const id = String(wrapper.id || nested.id || wrapper.workflowId || nested.workflowId || wrapper.fileName || nested.fileName || "").trim();
-      const title = String(wrapper.title || nested.title || id || "Workflow").trim();
+      const id = repairMojibakeText(String(wrapper.id || nested.id || wrapper.workflowId || nested.workflowId || wrapper.fileName || nested.fileName || "")).trim();
+      const title = repairMojibakeText(String(wrapper.title || nested.title || id || "Workflow")).trim();
       return {
         id,
         title,
-        description: String(wrapper.description || nested.description || wrapper.summary || nested.summary || wrapper.contextSummary || nested.contextSummary || wrapper.compactSummary || nested.compactSummary || "").trim(),
-        kind: String(wrapper.kind || nested.kind || "").trim() || (isGeneralWorkflowWorkspace() ? "general" : ""),
-        fileName: String(wrapper.fileName || nested.fileName || "").trim(),
+        description: repairMojibakeText(String(wrapper.description || nested.description || wrapper.summary || nested.summary || wrapper.contextSummary || nested.contextSummary || wrapper.compactSummary || nested.compactSummary || "")).trim(),
+        kind: repairMojibakeText(String(wrapper.kind || nested.kind || "")).trim() || (isGeneralWorkflowWorkspace() ? "general" : ""),
+        fileName: repairMojibakeText(String(wrapper.fileName || nested.fileName || "")).trim(),
         readOnly: !!(wrapper.readOnly || nested.readOnly),
+        status: repairMojibakeText(String(wrapper.status || nested.status || wrapper.learningStatus || nested.learningStatus || "")).trim(),
+        recommendedTools: (Array.isArray(wrapper.recommendedTools) ? wrapper.recommendedTools : (Array.isArray(nested.recommendedTools) ? nested.recommendedTools : [])).map((tool) => repairMojibakeText(String(tool))),
+        knownFailures: Array.isArray(wrapper.knownFailures) ? wrapper.knownFailures : (Array.isArray(nested.knownFailures) ? nested.knownFailures : []),
+        repairRules: Array.isArray(wrapper.repairRules) ? wrapper.repairRules : (Array.isArray(nested.repairRules) ? nested.repairRules : []),
+        successfulExamples: Array.isArray(wrapper.successfulExamples) ? wrapper.successfulExamples : (Array.isArray(nested.successfulExamples) ? nested.successfulExamples : []),
+        learningMetadata: wrapper.learningMetadata || nested.learningMetadata || null,
         blockCount: Number(wrapper.blockCount || 0) || 0,
         tableCount: Number(wrapper.tableCount || 0) || 0,
         formulaCount: Number(wrapper.formulaCount || 0) || 0,
-        createdAt: String(wrapper.createdAt || nested.createdAt || "").trim(),
-        modifiedAt: String(wrapper.modifiedAt || wrapper.updatedAt || nested.modifiedAt || nested.updatedAt || "").trim(),
-        verificationStatus: String(wrapper.verificationStatus || nested.verificationStatus || "").trim()
+        createdAt: repairMojibakeText(String(wrapper.createdAt || nested.createdAt || "")).trim(),
+        modifiedAt: repairMojibakeText(String(wrapper.modifiedAt || wrapper.updatedAt || nested.modifiedAt || nested.updatedAt || "")).trim(),
+        verificationStatus: repairMojibakeText(String(wrapper.verificationStatus || nested.verificationStatus || "")).trim()
       };
     }
 
@@ -2992,7 +3100,98 @@
       return String(workflow?.title || workflow?.id || workflow?.fileName || "").trim().toLocaleLowerCase(uiLanguage === "de" ? "de-DE" : "en-US");
     }
 
+    function workflowLearningKind(workflow) {
+      const kind = String(workflow?.kind || "").trim();
+      return kind === "learning" ? "lesson" : kind;
+    }
+
+    function isWorkflowLearningEntry(workflow) {
+      return ["tool", "lesson", "repair_rule", "example", "learning"].includes(String(workflow?.kind || "").trim());
+    }
+
+    function workflowLearningKindLabel(kind, singular = false) {
+      const labels = singular
+        ? {
+          tool: "Tool",
+          lesson: "Lesson",
+          repair_rule: "Repair-Regel",
+          example: t("example"),
+          learning: "Lesson"
+        }
+        : {
+          tool: t("tools"),
+          lesson: t("lessons"),
+          repair_rule: t("repairRules"),
+          example: t("examples"),
+          learning: t("lessons")
+        };
+      return labels[kind] || kind || t("brxLearning");
+    }
+
+    function workflowStatusLabel(status) {
+      const normalized = String(status || "active").trim().toLowerCase();
+      if (normalized === "active") {
+        return t("activeStatus");
+      }
+      if (normalized === "deprecated") {
+        return t("deprecatedStatus");
+      }
+      if (normalized === "merged") {
+        return uiLanguage === "de" ? "Zusammengefuehrt" : "Merged";
+      }
+      return repairMojibakeText(String(status || "").trim());
+    }
+
+    function workflowWeightParts(workflow) {
+      const parts = [];
+      const confidence = Number(workflow?.confidence);
+      if (Number.isFinite(confidence) && confidence > 0) {
+        parts.push(`${uiLanguage === "de" ? "Gewichtung" : "Weight"} ${Math.round(confidence * 100)}%`);
+      }
+      const usage = Number(workflow?.usageCount);
+      if (Number.isFinite(usage)) {
+        parts.push(`${uiLanguage === "de" ? "Nutzung" : "Uses"} ${usage}`);
+      }
+      const success = Number(workflow?.successCount);
+      const failure = Number(workflow?.failureCount);
+      const complaints = Number(workflow?.complaintCount);
+      const signalParts = [];
+      if (Number.isFinite(success) && success > 0) {
+        signalParts.push(`${uiLanguage === "de" ? "Erfolg" : "Success"} ${success}`);
+      }
+      if (Number.isFinite(failure) && failure > 0) {
+        signalParts.push(`${uiLanguage === "de" ? "Fehler" : "Failures"} ${failure}`);
+      }
+      if (Number.isFinite(complaints) && complaints > 0) {
+        signalParts.push(`${uiLanguage === "de" ? "Kritik" : "Complaints"} ${complaints}`);
+      }
+      if (signalParts.length) {
+        parts.push(signalParts.join(" / "));
+      }
+      return parts;
+    }
+
     function workflowMetaText(workflow) {
+      if (isWorkflowLearningEntry(workflow)) {
+        const kind = workflowLearningKind(workflow);
+        const parts = [];
+        parts.push(workflowLearningKindLabel(kind, true));
+        parts.push(workflowStatusLabel(workflow.status));
+        const tools = Array.isArray(workflow.recommendedTools) ? workflow.recommendedTools.length : 0;
+        const repairs = Array.isArray(workflow.repairRules) ? workflow.repairRules.length : 0;
+        const examples = Array.isArray(workflow.successfulExamples) ? workflow.successfulExamples.length : 0;
+        if (tools > 0) {
+          parts.push(`${tools} Tool${tools === 1 ? "" : "s"}`);
+        }
+        if (repairs > 0) {
+          parts.push(`${repairs} Repair${repairs === 1 ? "" : "s"}`);
+        }
+        if (examples > 0) {
+          parts.push(`${examples} Beispiel${examples === 1 ? "" : "e"}`);
+        }
+        parts.push(...workflowWeightParts(workflow));
+        return parts.filter(Boolean).join(" | ") || "BRX Learning";
+      }
       if (workflow.kind === "general") {
         const parts = [];
         if (workflow.domain) {
@@ -3012,7 +3211,7 @@
         if (workflow.fileName) {
           parts.push(workflow.fileName);
         }
-        return parts.join(" · ") || "Workflow";
+        return parts.join(" | ") || "Workflow";
       }
       const stepCount = Number(workflow.stepCount || (Array.isArray(workflow.steps) ? workflow.steps.length : 0)) || 0;
       const batchCount = Number(workflow.batchCount || (Array.isArray(workflow.executionBatches) ? workflow.executionBatches.length : 0)) || 0;
@@ -3026,7 +3225,7 @@
       if (workflow.fileName) {
         parts.push(workflow.fileName);
       }
-      return parts.join(" · ") || "Workflow";
+      return parts.join(" | ") || "Workflow";
     }
 
     function workflowHasLoadedContent(workflow) {
@@ -3474,25 +3673,39 @@
     function updateWorkflowSelectButton() {
       const hasPreview = !!(workflowPreview && workflowPreview.id);
       if (workflowSelect) {
-        workflowSelect.disabled = !hasPreview;
-        workflowSelect.setAttribute("aria-disabled", hasPreview ? "false" : "true");
+        const canSelect = hasPreview && !isBrxLearningWorkspace();
+        workflowSelect.hidden = isBrxLearningWorkspace();
+        workflowSelect.disabled = !canSelect;
+        workflowSelect.setAttribute("aria-disabled", canSelect ? "false" : "true");
         workflowSelect.textContent = t("selectWorkflow");
-        workflowSelect.title = t("selectWorkflow");
+        workflowSelect.title = workflowSelect.textContent;
       }
       if (workflowDelete) {
-        const canDelete = hasPreview && !workflowPreview.readOnly;
+        const canDelete = hasPreview
+          && !workflowPreview.readOnly
+          && (!isBrxLearningWorkspace() || workflowLearningKind(workflowPreview) === "lesson");
         const confirming = canDelete && pendingOverlayWorkflowDeleteId === workflowPreview.id;
+        workflowDelete.classList.toggle("confirm-btn", isBrxLearningWorkspace());
+        workflowDelete.classList.toggle("cancel-btn", !isBrxLearningWorkspace());
         workflowDelete.disabled = !canDelete;
         workflowDelete.setAttribute("aria-disabled", canDelete ? "false" : "true");
-        workflowDelete.textContent = confirming ? t("confirmDeleteWorkflow") : t("deleteWorkflow");
-        workflowDelete.title = confirming ? t("confirmDeleteWorkflow") : t("deleteWorkflow");
+        if (isBrxLearningWorkspace()) {
+          workflowDelete.textContent = confirming ? t("confirmDeleteLesson") : t("deleteLesson");
+        } else {
+          workflowDelete.textContent = confirming ? t("confirmDeleteWorkflow") : t("deleteWorkflow");
+        }
+        workflowDelete.title = workflowDelete.textContent;
       }
     }
 
     function setWorkflowPreview(workflow) {
+      const workflowListScrollTop = workflowList ? workflowList.scrollTop : 0;
       workflowPreview = workflow && workflow.id ? normalizeWorkflow(workflow) : null;
       pendingOverlayWorkflowDeleteId = "";
       renderWorkflowList();
+      if (workflowList) {
+        workflowList.scrollTop = workflowListScrollTop;
+      }
       renderWorkflowDetail(workflowPreview);
       updateWorkflowSelectButton();
       if (workflowDetail) {
@@ -3501,11 +3714,15 @@
     }
 
     function activateWorkflowPreview() {
+      if (isBrxLearningWorkspace()) {
+        input.focus();
+        return;
+      }
       if (!workflowPreview || !workflowPreview.id) {
         workflowSearch.focus();
         return;
       }
-      pendingWorkflowSessionOpenMode = isGeneralWorkflowWorkspace() ? "general" : "training";
+      pendingWorkflowSessionOpenMode = isGeneralWorkflowWorkspace() ? "general" : "";
       if (bridge && typeof bridge.selectWorkflow === "function") {
         bridge.selectWorkflow(workflowPreview.id);
       } else {
@@ -3535,7 +3752,7 @@
           ? workflows.find((workflow) => workflow.id === selectedWorkflow.id) || null
           : null;
       } else {
-        workflowPreview = selectedWorkflow && selectedWorkflow.id ? selectedWorkflow : null;
+        workflowPreview = null;
       }
       workflowOverlay.classList.add("open");
       workflowOverlay.setAttribute("aria-hidden", "false");
@@ -3591,18 +3808,33 @@
         workflow.id,
         workflow.description,
         workflow.domain,
+        workflow.kind,
+        workflow.status,
+        workflow.failurePattern,
+        workflow.instruction,
+        workflow.policy,
         Array.isArray(workflow.tags) ? workflow.tags.join(" ") : "",
         workflow.fileName,
         Array.isArray(workflow.triggerExamples) ? workflow.triggerExamples.join(" ") : "",
-        Array.isArray(workflow.preferredTools) ? workflow.preferredTools.join(" ") : ""
+        Array.isArray(workflow.preferredTools) ? workflow.preferredTools.join(" ") : "",
+        Array.isArray(workflow.recommendedTools) ? workflow.recommendedTools.join(" ") : "",
+        Array.isArray(workflow.keywords) ? workflow.keywords.join(" ") : ""
       ].join(" ").toLowerCase();
     }
 
     function filteredWorkflows() {
       const query = workflowSearch.value.trim().toLowerCase();
-      const visible = query
+      let visible = query
         ? workflows.filter((workflow) => workflowTextContent(workflow).includes(query))
         : workflows.slice();
+      if (isBrxLearningWorkspace()) {
+        if (workflowKindFilterMode !== "all") {
+          visible = visible.filter((workflow) => workflowLearningKind(workflow) === workflowKindFilterMode);
+        }
+        if (workflowStatusFilterMode !== "all") {
+          visible = visible.filter((workflow) => String(workflow.status || "active").trim() === workflowStatusFilterMode);
+        }
+      }
       return visible.sort((left, right) => {
         const leftTitle = workflowTitleValue(left);
         const rightTitle = workflowTitleValue(right);
@@ -3611,6 +3843,16 @@
         }
         if (workflowSortMode === "titleDesc") {
           return rightTitle.localeCompare(leftTitle, uiLanguage === "de" ? "de-DE" : "en-US");
+        }
+        if (workflowSortMode === "kindAsc") {
+          const kindCompare = workflowLearningKindLabel(workflowLearningKind(left))
+            .localeCompare(workflowLearningKindLabel(workflowLearningKind(right)), uiLanguage === "de" ? "de-DE" : "en-US");
+          return kindCompare || leftTitle.localeCompare(rightTitle, uiLanguage === "de" ? "de-DE" : "en-US");
+        }
+        if (workflowSortMode === "statusAsc") {
+          const statusCompare = String(left.status || "active")
+            .localeCompare(String(right.status || "active"), uiLanguage === "de" ? "de-DE" : "en-US");
+          return statusCompare || leftTitle.localeCompare(rightTitle, uiLanguage === "de" ? "de-DE" : "en-US");
         }
         const leftTime = workflowTimestampValue(left);
         const rightTime = workflowTimestampValue(right);
@@ -3622,6 +3864,9 @@
     }
 
     function renderWorkflowList() {
+      if (workflowLearningFilters) {
+        workflowLearningFilters.hidden = !isBrxLearningWorkspace();
+      }
       workflowList.replaceChildren();
       const visible = filteredWorkflows();
       if (!visible.length) {
@@ -3835,7 +4080,7 @@
         const type = value.type ? repairMojibakeText(value.type) : "";
         const description = value.description ? repairMojibakeText(value.description) : "";
         const parts = [name, color, type, description].filter(Boolean);
-        return parts.length ? parts.join(" · ") : repairMojibakeText(JSON.stringify(value));
+        return parts.length ? parts.join(" | ") : repairMojibakeText(JSON.stringify(value));
       }
       return repairMojibakeText(String(value));
     }
@@ -3923,6 +4168,148 @@
       id.className = "workflow-detail-id";
       id.textContent = workflow.id;
       workflowDetail.appendChild(id);
+
+      if (isWorkflowLearningEntry(workflow)) {
+        const metadata = workflow.learningMetadata && typeof workflow.learningMetadata === "object" ? workflow.learningMetadata : {};
+        const statusLines = [];
+        statusLines.push(`Typ: ${workflowLearningKindLabel(workflowLearningKind(workflow))}`);
+        if (workflow.status) {
+          statusLines.push(`Status: ${workflowStatusLabel(workflow.status)}`);
+        }
+        if (metadata.loaded !== undefined) {
+          statusLines.push(`Datei: ${metadata.loaded ? "geladen" : "nicht geladen"}`);
+        }
+        if (metadata.source) {
+          statusLines.push(`Quelle: ${metadata.source}`);
+        }
+        if (metadata.lessonCount !== undefined) {
+          statusLines.push(`Lessons: ${metadata.activeCount || 0} aktiv / ${metadata.lessonCount || 0} gesamt`);
+        }
+        if (metadata.repairRuleCount !== undefined) {
+          statusLines.push(`Repair-Regeln: ${metadata.repairRuleCount}`);
+        }
+        if (metadata.successfulExampleCount !== undefined) {
+          statusLines.push(`Erfolgsbeispiele: ${metadata.successfulExampleCount}`);
+        }
+        if (metadata.updatedAt) {
+          statusLines.push(`Stand: ${metadata.updatedAt}`);
+        }
+        if (metadata.sourcePath) {
+          statusLines.push(`Pfad: ${metadata.sourcePath}`);
+        }
+        if (statusLines.length) {
+          workflowDetail.appendChild(createWorkflowSection("Learning Status", statusLines));
+        }
+        const weightLines = workflowWeightParts(workflow);
+        if (workflow.lastOutcome) {
+          weightLines.push(`${uiLanguage === "de" ? "Letztes Ergebnis" : "Last outcome"}: ${repairMojibakeText(String(workflow.lastOutcome))}`);
+        }
+        if (workflow.lastOutcomeAt) {
+          weightLines.push(`${uiLanguage === "de" ? "Zeitpunkt" : "Timestamp"}: ${repairMojibakeText(String(workflow.lastOutcomeAt))}`);
+        }
+        if (weightLines.length) {
+          workflowDetail.appendChild(createWorkflowSection("Gewichtung", weightLines));
+        }
+        if (workflow.description || workflow.intent) {
+          workflowDetail.appendChild(createWorkflowSection(workflowLearningKind(workflow) === "lesson" ? "Intent" : "Beschreibung", repairMojibakeText(workflow.description || workflow.intent)));
+        }
+        if (workflow.policy) {
+          workflowDetail.appendChild(createWorkflowSection("Policy", repairMojibakeText(workflow.policy)));
+        }
+        if (workflow.failurePattern) {
+          workflowDetail.appendChild(createWorkflowSection("Fehlerbild", repairMojibakeText(workflow.failurePattern)));
+        }
+        if (workflow.instruction) {
+          workflowDetail.appendChild(createWorkflowSection("Reparatur", repairMojibakeText(workflow.instruction)));
+        }
+        const strategy = Array.isArray(workflow.strategy) ? workflow.strategy.filter(Boolean) : [];
+        if (strategy.length) {
+          workflowDetail.appendChild(createWorkflowSection("Strategie", strategy.map((entry) => repairMojibakeText(String(entry)))));
+        }
+        const hints = Array.isArray(workflow.agentHints) ? workflow.agentHints.filter(Boolean) : [];
+        if (hints.length) {
+          workflowDetail.appendChild(createWorkflowSection("AI-Hinweise", hints.map((entry) => repairMojibakeText(String(entry)))));
+        }
+        const constraints = Array.isArray(workflow.semanticConstraints) ? workflow.semanticConstraints.filter(Boolean) : [];
+        if (constraints.length) {
+          workflowDetail.appendChild(createWorkflowSection("Constraints", constraints.map((entry) => repairMojibakeText(String(entry)))));
+        }
+        const unsupported = Array.isArray(workflow.unsupportedOperations) ? workflow.unsupportedOperations.filter(Boolean) : [];
+        if (unsupported.length) {
+          workflowDetail.appendChild(createWorkflowSection("Nicht unterstützt", unsupported.map((entry) => repairMojibakeText(String(entry)))));
+        }
+        const failures = Array.isArray(workflow.knownFailures) ? workflow.knownFailures : [];
+        if (failures.length) {
+          workflowDetail.appendChild(createWorkflowSection("Bekannte Fehler", failures.map((failure) => {
+            if (typeof failure === "string") {
+              return repairMojibakeText(failure);
+            }
+            const message = repairMojibakeText(failure?.message || failure?.failurePattern || JSON.stringify(failure));
+            const repair = repairMojibakeText(failure?.repair || failure?.instruction || "");
+            return repair ? `${message} -> ${repair}` : message;
+          })));
+        }
+        const repairs = Array.isArray(workflow.repairRules) ? workflow.repairRules : [];
+        if (repairs.length) {
+          workflowDetail.appendChild(createWorkflowSection("Repair-Regeln", repairs.map((rule) => {
+            if (typeof rule === "string") {
+              return repairMojibakeText(rule);
+            }
+            return repairMojibakeText(rule?.instruction || rule?.repair || rule?.message || JSON.stringify(rule));
+          })));
+        }
+        const examples = Array.isArray(workflow.successfulExamples) ? workflow.successfulExamples : [];
+        if (examples.length) {
+          workflowDetail.appendChild(createWorkflowSection("Erfolgsbeispiele", examples.map((example) => {
+            if (typeof example === "string") {
+              return repairMojibakeText(example);
+            }
+            const title = repairMojibakeText(example?.title || "Beispiel");
+            const actions = Array.isArray(example?.actions) ? ` (${example.actions.length} Aktionen)` : "";
+            return `${title}${actions}`;
+          })));
+        }
+        const toolExamples = Array.isArray(workflow.examples) ? workflow.examples : [];
+        if (toolExamples.length) {
+          workflowDetail.appendChild(createWorkflowSection("Beispiele", toolExamples.map((example) => {
+            if (typeof example === "string") {
+              return repairMojibakeText(example);
+            }
+            const intent = repairMojibakeText(example?.intent || example?.title || "Beispiel");
+            const params = example?.params ? ` params=${JSON.stringify(example.params)}` : "";
+            return `${intent}${params}`;
+          })));
+        }
+        const actions = Array.isArray(workflow.actions) ? workflow.actions : [];
+        if (actions.length) {
+          workflowDetail.appendChild(createWorkflowSection("Aktionen", actions.map((action) => {
+            if (!action || typeof action !== "object") {
+              return String(action || "");
+            }
+            return `${action.tool || "Tool"} params=${JSON.stringify(action.params || {})}`;
+          })));
+        }
+        const tools = Array.isArray(workflow.recommendedTools) ? workflow.recommendedTools : [];
+        if (tools.length) {
+          const section = document.createElement("section");
+          section.className = "workflow-section";
+          const heading = document.createElement("div");
+          heading.className = "workflow-section-title";
+          heading.textContent = "Tools";
+          const chips = document.createElement("div");
+          chips.className = "workflow-chip-row";
+          tools.forEach((tool) => {
+            const chip = document.createElement("span");
+            chip.className = "workflow-chip";
+            chip.textContent = tool;
+            chips.appendChild(chip);
+          });
+          section.appendChild(heading);
+          section.appendChild(chips);
+          workflowDetail.appendChild(section);
+        }
+        return;
+      }
 
       const publicDescription = publicWorkflowDescription(workflow);
       const visibleBlocks = publicWorkflowBlocks(workflow);
@@ -4077,14 +4464,18 @@
         }
       }
       const session = activeSession();
-      if ((!selectedWorkflow || !selectedWorkflow.id) && session && session.workflowId) {
+      if (isGeneralWorkflowWorkspace() && (!selectedWorkflow || !selectedWorkflow.id) && session && session.workflowId) {
         const workflow = workflows.find((item) => item.id === session.workflowId);
         if (workflow) {
           selectedWorkflow = workflow;
         }
       }
+      const workflowListScrollTop = workflowList ? workflowList.scrollTop : 0;
       renderWorkflowList();
-      if (selectedWorkflow && !workflows.some((workflow) => workflow.id === selectedWorkflow.id)) {
+      if (workflowList) {
+        workflowList.scrollTop = workflowListScrollTop;
+      }
+      if (isGeneralWorkflowWorkspace() && selectedWorkflow && !workflows.some((workflow) => workflow.id === selectedWorkflow.id)) {
         selectedWorkflow = null;
         renderActiveWorkflow();
         if (!workflowOverlay.classList.contains("open")) {
@@ -4145,7 +4536,7 @@
         pendingWorkflowSessionOpenMode = "";
         if (mode === "general") {
           openGeneralWorkflowSession(selectedWorkflow);
-        } else {
+        } else if (mode === "training") {
           openTrainingWorkflowSession(selectedWorkflow);
         }
         return;
@@ -4442,9 +4833,6 @@
     }
 
     function activeModeKey() {
-      if (trainingMode) {
-        return "training";
-      }
       return chatMode;
     }
 
@@ -4465,8 +4853,9 @@
     }
 
     function syncTrainingModeToQt() {
+      trainingMode = false;
       if (bridge && typeof bridge.setTrainingMode === "function") {
-        bridge.setTrainingMode(trainingMode);
+        bridge.setTrainingMode(false);
       }
     }
 
@@ -4546,14 +4935,14 @@
         brxStatus.hidden = !showBrx;
         brxStatus.style.display = showBrx ? "" : "none";
       }
-      const showModeSection = isBricsCadWorkspace();
+      const showModeSection = false;
       if (toolsModeTitle) {
         toolsModeTitle.hidden = !showModeSection;
         toolsModeTitle.style.display = showModeSection ? "" : "none";
       }
       modeOptions.forEach((option) => {
         const mode = option.dataset.mode;
-        const visible = showModeSection && (mode === "bricscad" || mode === "training");
+        const visible = showModeSection && mode === "bricscad";
         option.hidden = !visible;
         option.style.display = visible ? "" : "none";
       });
@@ -4565,16 +4954,16 @@
       modeOptions.forEach((option) => {
         option.classList.toggle("active", option.dataset.mode === activeMode);
       });
-      modeIndicator.textContent = trainingMode
-        ? t("trainingMode")
-        : (isChatWorkspace() ? t("chatMode") : modeLabel(chatMode));
-      modeIndicator.classList.toggle("training-active", trainingMode);
+      trainingMode = false;
+      modeIndicator.textContent = isChatWorkspace() ? t("chatMode") : modeLabel(chatMode);
+      modeIndicator.hidden = true;
+      modeIndicator.style.display = "none";
+      modeIndicator.classList.toggle("training-active", false);
       if (trainingBaseModeIndicator) {
-        const showBaseMode = trainingMode;
-        trainingBaseModeIndicator.hidden = !showBaseMode;
-        trainingBaseModeIndicator.style.display = showBaseMode ? "" : "none";
+        trainingBaseModeIndicator.hidden = true;
+        trainingBaseModeIndicator.style.display = "none";
       }
-      const showWorkflowButton = isChatWorkspace() || (trainingMode && isBricsCadWorkspace());
+      const showWorkflowButton = isChatWorkspace() || isBricsCadWorkspace();
       workflowsButton.hidden = !showWorkflowButton;
       workflowsButton.disabled = !showWorkflowButton;
       workflowsButton.style.display = showWorkflowButton ? "" : "none";
@@ -4644,7 +5033,7 @@
       activeSessionId = typeof state.activeSessionId === "string" ? state.activeSessionId : "";
       chatCounter = Number.isFinite(state.chatCounter) ? state.chatCounter : sessions.length;
       chatMode = activeWorkspace === "bricscad" ? "bricscad" : "general";
-      trainingMode = activeWorkspace === "chat" ? false : normalizeTrainingMode(state.trainingMode || false);
+      trainingMode = false;
       workflows = Array.isArray(state.workflows)
         ? state.workflows
           .map(activeWorkspace === "chat" ? normalizeWorkflowListEntry : normalizeWorkflow)
@@ -4796,11 +5185,11 @@
     }
 
     function setTrainingModeSelection(value) {
-      trainingMode = isChatWorkspace() ? false : normalizeTrainingMode(value);
-      if (trainingMode) {
-        chatMode = "bricscad";
-        activeSession().mode = chatMode;
-      }
+      void value;
+      trainingMode = false;
+      chatMode = normalizeChatMode(chatMode);
+      activeSession().mode = chatMode;
+      activeSession().trainingMode = false;
       renderModeSelection();
       syncChatModeToQt();
       syncTrainingModeToQt();
@@ -4808,19 +5197,14 @@
     }
 
     function applyTrainingModeFromQt(value) {
-      trainingMode = isChatWorkspace() ? false : normalizeTrainingMode(value);
-      if (trainingMode) {
-        chatMode = "bricscad";
-      }
+      void value;
+      trainingMode = false;
       if (sessions.length) {
         activeSession().mode = chatMode;
-        activeSession().trainingMode = trainingMode;
+        activeSession().trainingMode = false;
       }
       try {
-        localStorage.setItem(trainingModeStorageKey, trainingMode ? "true" : "false");
-        if (trainingMode) {
-          localStorage.setItem(chatModeStorageKey, chatMode);
-        }
+        localStorage.setItem(trainingModeStorageKey, "false");
       } catch (_error) {
         // WebEngine may deny storage for some local origins. The current runtime state still works.
       }
@@ -4874,7 +5258,7 @@
     }
 
     function setChatModeSelection(value, { createFreshSession = false } = {}) {
-      const nextTrainingMode = isBricsCadWorkspace() && value === "training";
+      const nextTrainingMode = false;
       const nextMode = isBricsCadWorkspace()
         ? "bricscad"
         : "general";
@@ -4885,12 +5269,12 @@
 
       if (changed && createFreshSession) {
         chatMode = nextMode;
-        trainingMode = isChatWorkspace() ? false : nextTrainingMode;
+        trainingMode = false;
         const sessionKind = "chat";
         const nextSession = createSession(
-          nextTrainingMode ? modeTitle("training") : modeTitle(chatMode),
+          modeTitle(chatMode),
           chatMode,
-          { trainingMode: nextTrainingMode, includeGreeting: !nextTrainingMode, kind: sessionKind });
+          { trainingMode: false, includeGreeting: true, kind: sessionKind });
         sessions.unshift(nextSession);
         activeSessionId = nextSession.id;
         renderSessionList();
@@ -4898,9 +5282,9 @@
         renderActiveSession();
       } else {
         chatMode = nextMode;
-        trainingMode = isChatWorkspace() ? false : nextTrainingMode;
+        trainingMode = false;
         activeSession().mode = chatMode;
-        activeSession().trainingMode = trainingMode;
+        activeSession().trainingMode = false;
       }
 
       renderModeSelection();
@@ -5034,7 +5418,7 @@
     }
 
     function germanizeText(text) {
-      let value = repairMojibakeText(text);
+      let value = repairMojibakeText(text).replace(/\uFFFD/g, " - ");
       const replacements = [
         [/Bestaetigung/g, "Bestätigung"],
         [/bestaetigen/g, "bestätigen"],
@@ -5145,7 +5529,7 @@
 
     function createSession(title, mode = chatMode, options = {}) {
       const normalizedMode = normalizeChatMode(mode);
-      const sessionTrainingMode = normalizeTrainingMode(options.trainingMode || false);
+      const sessionTrainingMode = false;
       const includeGreeting = options.includeGreeting !== false;
       return {
         id: `session-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
@@ -5156,7 +5540,7 @@
         workflowId: options.workflowId || "",
         userNamed: false,
         latestAiMessageId: "",
-        messages: includeGreeting ? [defaultGreeting(sessionTrainingMode ? "training" : normalizedMode)] : [],
+        messages: includeGreeting ? [defaultGreeting(normalizedMode)] : [],
         proposal: null
       };
     }
@@ -5176,13 +5560,10 @@
         activeSessionId = session.id;
       }
 
-      trainingMode = isChatWorkspace() ? false : normalizeTrainingMode(session.trainingMode || false);
+      trainingMode = false;
       chatMode = normalizeChatMode(session.mode || chatMode || storedChatMode() || "bricscad");
-      if (trainingMode) {
-        chatMode = "bricscad";
-      }
       session.mode = chatMode;
-      session.trainingMode = trainingMode;
+      session.trainingMode = false;
       return session;
     }
 
@@ -5271,7 +5652,7 @@
 
     function normalizeSession(session, index) {
       const fallback = createSession(index === 0 ? "BricsCAD AI Assistent" : `Neuer Chat ${index + 1}`);
-      const sessionTrainingMode = normalizeTrainingMode(session.trainingMode || false);
+      const sessionTrainingMode = false;
       const rawMessages = Array.isArray(session.messages) && session.messages.length
         ? session.messages.map(normalizeMessage)
         : fallback.messages;
@@ -5674,7 +6055,7 @@
 
     function isMarkdownTableSeparator(line) {
       const cells = splitMarkdownTableRow(line);
-      return !!cells && cells.length > 1 && cells.every((cell) => /^:?-{3,}:?$/.test(cell));
+      return !!cells && cells.length >= 1 && cells.every((cell) => /^:?-{3,}:?$/.test(cell));
     }
 
     function escapeMarkdownTableCell(value) {
@@ -7603,11 +7984,8 @@
         activeSessionId = sessions[Math.min(index, sessions.length - 1)].id;
         const session = activeSession();
         chatMode = normalizeChatMode(session.mode || "bricscad");
-        trainingMode = isChatWorkspace() ? false : normalizeTrainingMode(session.trainingMode || false);
-        if (trainingMode) {
-          chatMode = "bricscad";
-          session.mode = chatMode;
-        }
+        trainingMode = false;
+        session.trainingMode = false;
         renderModeSelection();
         renderActiveSession();
         syncActiveSessionToQt();
@@ -7747,7 +8125,7 @@
         switchWorkspace("bricscad");
       }
       chatMode = "bricscad";
-      trainingMode = true;
+      trainingMode = false;
       selectedWorkflow = normalizeWorkflow(workflow);
       const session = createSession(selectedWorkflow.title, "bricscad", {
         includeGreeting: false,
@@ -7809,16 +8187,13 @@
       const session = sessions.find((item) => item.id === sessionId);
       prepareSessionOpenScroll();
       chatMode = normalizeChatMode(session?.mode || "bricscad");
-      trainingMode = isChatWorkspace() ? false : normalizeTrainingMode(session?.trainingMode || false);
-      if (trainingMode) {
-        chatMode = "bricscad";
-        session.mode = chatMode;
-      }
+      trainingMode = false;
+      session.trainingMode = false;
       renderModeSelection();
       persistSessions({ rememberScroll: false });
       renderSessionList();
       renderActiveSession();
-      if ((isGeneralWorkflowWorkspace() || !isChatWorkspace()) && session.workflowId && bridge && typeof bridge.selectWorkflow === "function") {
+      if (isGeneralWorkflowWorkspace() && session.workflowId && bridge && typeof bridge.selectWorkflow === "function") {
         const workflow = workflows.find((item) => item.id === session.workflowId);
         selectedWorkflow = workflow || selectedWorkflow;
         renderActiveWorkflow();
@@ -7929,16 +8304,12 @@
       if (isBusy) {
         return;
       }
-      const keepTrainingMode = isBricsCadWorkspace() && trainingMode;
-      if (keepTrainingMode) {
-        chatMode = "bricscad";
-      } else {
-        trainingMode = false;
-      }
+      const keepTrainingMode = false;
+      trainingMode = false;
       const session = createSession(
         `Neuer Chat ${++chatCounter}`,
         chatMode,
-        { trainingMode: keepTrainingMode });
+        { trainingMode: false });
       sessions.unshift(session);
       activeSessionId = session.id;
       if (isGeneralWorkflowWorkspace()) {
@@ -8065,9 +8436,67 @@
         return true;
       }
 
+      if (text.includes("AI Agent: fokussiere Sitzungsverlauf fuer aktuellen Prompt")) {
+        updateAiThinkingDetail("Ich fokussiere den Sitzungsverlauf auf den aktuellen Prompt.", "conversation-focus");
+        return true;
+      }
+
+      match = text.match(/^AI Kontext-Fokus: topic=(.*?)\s+confidence=([0-9.]+)\s+relevant=(\d+)/);
+      if (match) {
+        updateAiThinkingDetail(`Ich nutze eine fokussierte Verlaufsauswahl (${match[3]} relevante Nachrichten).`, "conversation-focus");
+        return true;
+      }
+
+      match = text.match(/^AI -> Qt Sitzungsverlauf: ([\w.]+)\s+(.*)$/);
+      if (match) {
+        updateAiThinkingDetail("Ich brauche mehr Sitzungsverlauf und lade relevante Nachrichten nach.", "conversation-history");
+        return true;
+      }
+
+      match = text.match(/^Qt -> AI Sitzungsverlauf: ([\w.]+)\s+count=(\d+)/);
+      if (match) {
+        updateAiThinkingDetail(`Ich habe ${match[2]} Nachricht${match[2] === "1" ? "" : "en"} aus dem Sitzungsverlauf nachgeladen.`, "conversation-history");
+        return true;
+      }
+
+      if (text.includes("AI Agent: nutze nachgeladenen Sitzungsverlauf als Zusatzkontext")) {
+        updateAiThinkingDetail("Ich nutze den nachgeladenen Verlauf als Zusatzkontext.", "conversation-history");
+        return true;
+      }
+
       match = text.match(/^Qt -> AI Tool\/Workflow Selector: tools=(\d+) workflows=(\d+)/);
       if (match) {
-        updateAiThinkingDetail(`Ich lasse die AI aus ${match[1]} Werkzeugen und ${match[2]} Workflows die passenden Kontexte auswählen.`, "tool-selector");
+        updateAiThinkingDetail(`Ich prüfe ${match[1]} Werkzeuge und ${match[2]} Learning-Lessons.`, "tool-selector");
+        return true;
+      }
+
+      match = text.match(/^Qt -> BRX Zeichnungskontext: (.*)$/);
+      if (match) {
+        updateAiThinkingDetail("Ich lese den aktuellen Zeichnungszustand aus BricsCAD.", "drawing-context");
+        return true;
+      }
+
+      match = text.match(/^Qt -> BRX Zeichnungskontext (\d+)\/(\d+): ([\w.]+)/);
+      if (match) {
+        updateAiThinkingDetail(`Ich lese Zeichnungskontext ${match[1]}/${match[2]}: ${match[3]}.`, "drawing-context");
+        return true;
+      }
+
+      match = text.match(/^BRX -> Qt Zeichnungskontext: ([\w.]+) count=(\d+)/);
+      if (match) {
+        updateAiThinkingDetail(`BRX liefert Zeichnungskontext aus ${match[1]} (${match[2]} Eintraege).`, "drawing-context");
+        return true;
+      }
+
+      match = text.match(/^BRX -> Qt Zeichnungskontext: (\d+) Abfragen bereit/);
+      if (match) {
+        updateAiThinkingDetail("Ich nutze den aktuellen Zeichnungszustand als Zusatzkontext.", "drawing-context");
+        return true;
+      }
+
+      match = text.match(/^Qt -> AI Tool\/Learning Selector: tools=(\d+) lessons=(\d+)/);
+      if (match) {
+        updateAiThinkingDetail(`Ich prüfe ${match[1]} BRX-Agent-Tools und ${match[2]} relevante Learning-Lessons.`, "tool-selector");
         return true;
       }
 
@@ -8084,7 +8513,16 @@
         const tools = match[1].split(",").filter(Boolean);
         const workflows = match[2].split(",").filter(Boolean);
         const suffix = match[3] ? ` ${compactLogText(match[3], 100)}` : "";
-        updateAiThinkingDetail(`Ich nutze ${tools.length} Werkzeug${tools.length === 1 ? "" : "e"} und ${workflows.length} Workflow${workflows.length === 1 ? "" : "s"} als Kontext.${suffix}`, "tool-selector");
+        updateAiThinkingDetail(`Ich nutze ${tools.length} Werkzeug${tools.length === 1 ? "" : "e"} und ${workflows.length} Learning-Lesson${workflows.length === 1 ? "" : "s"} als Kontext.${suffix}`, "tool-selector");
+        return true;
+      }
+
+      match = text.match(/^AI Tool\/Learning Selector: tools=([^\s]+)\s+lessons=([^\s]*)(?:\s+reason=(.*))?/);
+      if (match) {
+        const tools = match[1].split(",").filter(Boolean);
+        const lessons = match[2].split(",").filter(Boolean);
+        const suffix = match[3] ? ` ${compactLogText(match[3], 100)}` : "";
+        updateAiThinkingDetail(`Ich nutze ${tools.length} Werkzeug${tools.length === 1 ? "" : "e"} und ${lessons.length} Learning-Lesson${lessons.length === 1 ? "" : "s"} als Kontext.${suffix}`, "tool-selector");
         return true;
       }
 
@@ -8092,14 +8530,29 @@
       if (match) {
         const workflows = match[1].split(",").filter(Boolean);
         const suffix = match[2] ? ` ${compactLogText(match[2], 100)}` : "";
-        updateAiThinkingDetail(`Ich nutze ${workflows.length} passenden Workflow${workflows.length === 1 ? "" : "s"} als bevorzugten Kontext.${suffix}`, "tool-selector");
+        updateAiThinkingDetail(`Ich nutze ${workflows.length} Learning-Lesson${workflows.length === 1 ? "" : "s"} als Kontext.${suffix}`, "tool-selector");
+        return true;
+      }
+
+      match = text.match(/^AI Tool\/Learning Selector: lessons=([^\s]+)(?:\s+reason=(.*))?/);
+      if (match) {
+        const lessons = match[1].split(",").filter(Boolean);
+        const suffix = match[2] ? ` ${compactLogText(match[2], 100)}` : "";
+        updateAiThinkingDetail(`Ich nutze ${lessons.length} Learning-Lesson${lessons.length === 1 ? "" : "s"} als Kontext.${suffix}`, "tool-selector");
         return true;
       }
 
       match = text.match(/^AI Tool\/Workflow Selector: lokale Workflow-Auswahl (.*)$/);
       if (match) {
         const workflows = match[1].split(",").filter(Boolean);
-        updateAiThinkingDetail(`Ich nutze lokal ${workflows.length} passenden Workflow${workflows.length === 1 ? "" : "s"} als Kontext.`, "tool-selector");
+        updateAiThinkingDetail(`Ich nutze lokal ${workflows.length} passende Learning-Lesson${workflows.length === 1 ? "" : "s"} als Kontext.`, "tool-selector");
+        return true;
+      }
+
+      match = text.match(/^AI Tool\/Learning Selector: lokale Lesson-Auswahl (.*)$/);
+      if (match) {
+        const lessons = match[1].split(",").filter(Boolean);
+        updateAiThinkingDetail(`Ich nutze lokal ${lessons.length} passende Learning-Lesson${lessons.length === 1 ? "" : "s"} als Kontext.`, "tool-selector");
         return true;
       }
 
@@ -8266,6 +8719,11 @@
 
       if (text.includes("AI Kontext: automatisch minimiert")) {
         updateAiThinkingDetail("Ich kürze den Kontext automatisch, damit die Anfrage in das Modellfenster passt.", "ai-context");
+        return true;
+      }
+
+      if (text.includes("AI Kontext: budgetbedingt minimiert")) {
+        updateAiThinkingDetail("Ich halte den fokussierten Kontext knapp, damit die Anfrage in das Modellfenster passt.", "ai-context");
         return true;
       }
 
@@ -8459,12 +8917,19 @@
         setCapabilitiesIndicator("failed", "BRX-Capabilities fehlgeschlagen");
         return;
       }
-      const match = text.match(/BRX -> Qt: (\d+) Capabilities, (\d+) Commands, (\d+) Action-Tools/);
+      const match = text.match(/BRX -> Qt: (\d+) Capabilities, (\d+) Commands, (\d+) (?:Action|Agent)-Tools/);
       if (match) {
         if (!shouldShowBrxCapabilitiesInChat()) {
           return;
         }
-        setCapabilitiesIndicator("done", `BRX-Capabilities geladen: ${match[1]} Methoden, ${match[2]} Commands, ${match[3]} Action-Tools`);
+        setCapabilitiesIndicator("done", `BRX-Capabilities geladen: ${match[1]} Methoden, ${match[2]} Commands, ${match[3]} Agent-Tools`);
+        return;
+      }
+      if (text.includes("BRX Verbindung getrennt") || text.includes("capabilities.list konnte nicht gesendet")) {
+        if (!shouldShowBrxCapabilitiesInChat()) {
+          return;
+        }
+        setCapabilitiesIndicator("failed", "BRX-Capabilities nicht geladen");
         return;
       }
       if (addAiThinkingDetailFromLog(text)) {
@@ -8477,7 +8942,6 @@
       }
       if (text.includes("AI Agent: fasse BRX Ergebnis fuer den Chat zusammen")) {
         pendingExecutionSummary = true;
-        addThinkingDetail("Ich erstelle eine kurze Abschlusszusammenfassung der Ausführung.");
         return;
       }
       if (text.includes("AI JSON:")) {
@@ -8541,7 +9005,7 @@
       }
     });
     workflowsButton.addEventListener("click", () => {
-      if (isChatWorkspace() || (trainingMode && isBricsCadWorkspace())) {
+      if (isChatWorkspace() || isBricsCadWorkspace()) {
         openWorkflowOverlay();
       }
     });
@@ -8575,6 +9039,14 @@
     workflowSearch.addEventListener("input", renderWorkflowList);
     workflowSort.addEventListener("change", () => {
       workflowSortMode = workflowSort.value || "newest";
+      renderWorkflowList();
+    });
+    workflowKindFilter.addEventListener("change", () => {
+      workflowKindFilterMode = workflowKindFilter.value || "all";
+      renderWorkflowList();
+    });
+    workflowStatusFilter.addEventListener("change", () => {
+      workflowStatusFilterMode = workflowStatusFilter.value || "all";
       renderWorkflowList();
     });
     document.addEventListener("keydown", (event) => {

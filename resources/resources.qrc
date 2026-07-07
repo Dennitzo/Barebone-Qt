@@ -10,19 +10,12 @@
         <file alias="policies/general.md">../agent/policies/general.md</file>
         <file alias="policies/bricscad-safety.md">../agent/policies/bricscad-safety.md</file>
         <file alias="policies/documents.md">../agent/policies/documents.md</file>
-        <file alias="capabilities/brx-tools.json">../agent/capabilities/brx-tools.json</file>
+        <file alias="bricscad-learning/brx-learning.json">../agent/bricscad-learning/brx-learning.json</file>
         <file alias="contracts/response-v2.json">../agent/contracts/response-v2.json</file>
         <file alias="contracts/router-v1.json">../agent/contracts/router-v1.json</file>
         <file alias="contracts/router-general-v1.json">../agent/contracts/router-general-v1.json</file>
         <file alias="contracts/router-bricscad-v1.json">../agent/contracts/router-bricscad-v1.json</file>
         <file alias="general-workflows/bemessung_der_trinkwasserinstallation_nach_din_1988_300.json">../agent/general-workflows/bemessung_der_trinkwasserinstallation_nach_din_1988_300.json</file>
         <file alias="general-workflows/heizlastberechnung_nach_din_en_12831.json">../agent/general-workflows/heizlastberechnung_nach_din_en_12831.json</file>
-        <file alias="workflows/create_four_walls_and_extrude.json">../agent/workflows/create_four_walls_and_extrude.json</file>
-        <file alias="workflows/create_layer_and_rectangle.json">../agent/workflows/create_layer_and_rectangle.json</file>
-        <file alias="workflows/create_tga_layers_heizung_sanitaer_lueftung.json">../agent/workflows/create_tga_layers_heizung_sanitaer_lueftung.json</file>
-        <file alias="workflows/move_and_rotate_solids_layer_0.json">../agent/workflows/move_and_rotate_solids_layer_0.json</file>
-        <file alias="workflows/rotate_solids_layer_0.json">../agent/workflows/rotate_solids_layer_0.json</file>
-        <file alias="workflows/select_and_move_solids_layer0.json">../agent/workflows/select_and_move_solids_layer0.json</file>
-        <file alias="workflows/select_rectangles_and_extrude_bimwall.json">../agent/workflows/select_rectangles_and_extrude_bimwall.json</file>
     </qresource>
 </RCC>
