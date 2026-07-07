@@ -8019,10 +8019,13 @@ void BricsCadPage::sendAgentEnvelope(const QJsonObject& envelope, const QString&
             : corePrompt)},
     };
     const bool includeConversationHistory = envelope.value("includeConversationHistory").toBool(true);
+    const int localResponsesOutputMaximum = std::clamp(effectiveContextWindowTokens() / 4, 8192, 32768);
     const int requestedOutputTokens = dynamicOutputTokenTarget(
         useResponsesApi ? 2048 : 1024,
-        useResponsesApi ? 8192 : 8192,
-        16);
+        useResponsesApi
+            ? (provider == QStringLiteral("local") ? localResponsesOutputMaximum : 8192)
+            : 8192,
+        useResponsesApi && provider == QStringLiteral("local") ? 4 : 16);
     const int initialOutputTokens = adjustedOutputTokenLimit(requestedOutputTokens);
     const int budget = inputBudgetTokens(initialOutputTokens);
     const int totalHistoryMessages = includeConversationHistory
