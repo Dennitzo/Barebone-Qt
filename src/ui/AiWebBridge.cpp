@@ -108,6 +108,11 @@ void AiWebBridge::selectWorkflow(const QString& workflowId)
     Q_EMIT workflowSelected(workflowId);
 }
 
+void AiWebBridge::runWorkflowTest(const QString& workflowId)
+{
+    Q_EMIT workflowTestRequested(workflowId);
+}
+
 void AiWebBridge::deleteWorkflow(const QString& workflowId)
 {
     Q_EMIT workflowDeleteRequested(workflowId);

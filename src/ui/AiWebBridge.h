@@ -31,6 +31,7 @@ public Q_SLOTS:
     void saveClientState(const QString& stateJson);
     void requestWorkflowList();
     void selectWorkflow(const QString& workflowId);
+    void runWorkflowTest(const QString& workflowId);
     void deleteWorkflow(const QString& workflowId);
     void clearSelectedWorkflow();
     void exportMessageToPdf(const QString& messageId, const QString& suggestedTitle);
@@ -59,6 +60,7 @@ Q_SIGNALS:
     void clientStateSaved(const QString& stateJson);
     void workflowListRequested();
     void workflowSelected(const QString& workflowId);
+    void workflowTestRequested(const QString& workflowId);
     void workflowDeleteRequested(const QString& workflowId);
     void workflowSelectionCleared();
     void messagePdfExportRequested(const QString& messageId, const QString& suggestedTitle);

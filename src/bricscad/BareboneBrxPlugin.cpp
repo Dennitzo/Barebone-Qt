@@ -20,6 +20,7 @@
 #include <cctype>
 #include <cstring>
 #include <fstream>
+#include <iomanip>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -112,19 +113,19 @@ const BridgeMethodDescriptor kBridgeMethods[] = {
     {
         "pipes.validateNetwork", "query", "readOnly",
         "Validiert Konnektivitaet und offene Enden eines Rohrnetzes aus offenen Polylinien.",
-        R"({"type":"object","required":["system"],"properties":{"system":{"type":"string"},"selector":{"type":"object"},"startNode":{"type":"object"},"endNodes":{"type":"array"},"teeNodes":{"type":"array"},"minimumClearanceMm":{"type":"number","minimum":0},"avoidLayers":{"type":"array","items":{"type":"string"}}}})", nullptr,
+        R"({"type":"object","required":["system","selector","startNode","floorPlanBounds","techniqueRoomBounds"],"properties":{"system":{"type":"string"},"selector":{"type":"object"},"startNode":{"type":"object"},"endNodes":{"type":"array"},"teeNodes":{"type":"array"},"floorPlanBounds":{"type":"object"},"techniqueRoomBounds":{"type":"object"},"minimumClearanceMm":{"type":"number","minimum":0},"avoidLayers":{"type":"array","items":{"type":"string"}}}})", nullptr,
     },
     {
         "pipes.createNetworkSolids", "action", "modifiesDrawing",
         "Erzeugt zylindrische Rohrsegmente entlang validierter offener Polylinien.",
-        R"({"type":"object","required":["system","selector","diameterMm","targetLayer"],"properties":{"system":{"type":"string"},"selector":{"type":"object"},"diameterMm":{"type":"number","exclusiveMinimum":0},"targetLayer":{"type":"string"},"connectionMode":{"enum":["elbows_and_tees"]},"saveBefore":{"type":"boolean"}}})",
-        R"({"method":"pipes.createNetworkSolids","required":["system","selector","diameterMm","targetLayer"]})",
+        R"({"type":"object","required":["system","selector","diameterMm","targetLayer","startNode","floorPlanBounds","techniqueRoomBounds"],"properties":{"system":{"type":"string"},"selector":{"type":"object"},"diameterMm":{"type":"number","exclusiveMinimum":0},"targetLayer":{"type":"string"},"startNode":{"type":"object"},"floorPlanBounds":{"type":"object"},"techniqueRoomBounds":{"type":"object"},"connectionMode":{"enum":["elbows_and_tees"]},"saveBefore":{"type":"boolean"}}})",
+        R"({"method":"pipes.createNetworkSolids","required":["system","selector","diameterMm","targetLayer","startNode","floorPlanBounds","techniqueRoomBounds"]})",
     },
     {
         "annotations.createRoomDimensions", "action", "modifiesDrawing",
         "Erzeugt Laengen- und Breitenbemassung sowie einen Raumstempel fuer rechteckige Raumkonturen.",
-        R"({"type":"object","required":["selector","roomHeightMm","dimensionLayer","labelLayer"],"properties":{"selector":{"type":"object"},"roomNames":{"type":"array","items":{"type":"string"}},"roomHeightMm":{"type":"number","exclusiveMinimum":0},"dimensionLayer":{"type":"string"},"labelLayer":{"type":"string"},"textHeightMm":{"type":"number","exclusiveMinimum":0},"offsetMm":{"type":"number","minimum":0},"saveBefore":{"type":"boolean"}}})",
-        R"({"method":"annotations.createRoomDimensions","required":["selector","roomHeightMm","dimensionLayer","labelLayer"]})",
+        R"({"type":"object","required":["selector","roomHeightMm","dimensionLayer","labelLayer","techniqueRoomBounds"],"properties":{"selector":{"type":"object"},"roomNames":{"type":"array","items":{"type":"string"}},"roomHeightMm":{"type":"number","exclusiveMinimum":0},"dimensionLayer":{"type":"string"},"labelLayer":{"type":"string"},"techniqueRoomBounds":{"type":"object"},"decimalPlaces":{"type":"number","minimum":0,"maximum":2},"textHeightMm":{"type":"number","exclusiveMinimum":0},"offsetMm":{"type":"number","minimum":0},"saveBefore":{"type":"boolean"}}})",
+        R"({"method":"annotations.createRoomDimensions","required":["selector","roomHeightMm","dimensionLayer","labelLayer","techniqueRoomBounds"]})",
     },
     {"commands.list", "query", "readOnly", "Liefert eine Low-Level-Startliste nativer BricsCAD-Kommandos und zugehoeriger Bridge-Tools.", nullptr, nullptr},
     {"layers.list", "query", "readOnly", "Listet Layer der aktiven Zeichnung.", nullptr, nullptr},
@@ -3348,6 +3349,10 @@ void appendEntityJson(std::ostringstream& json, const AcDbObjectId& entityId, bo
                 appendPointJson(json, point);
             }
             json << "]}";
+        } else if (const AcDbPoint* point = AcDbPoint::cast(entity); point != nullptr) {
+            json << ",\"geometry\":{\"position\":";
+            appendPointJson(json, point->position());
+            json << '}';
         }
     }
 
@@ -4851,12 +4856,25 @@ bool validateActionObject(
         if (jsonStringProperty(paramsJson, "system").value_or("").empty()) addUniqueMessage(result.missing, "pipes.createNetworkSolids.params.system");
         if (jsonStringProperty(paramsJson, "targetLayer").value_or("").empty()) addUniqueMessage(result.missing, "pipes.createNetworkSolids.params.targetLayer");
         if (jsonDoubleProperty(paramsJson, "diameterMm").value_or(0.0) <= 0.0) addUniqueMessage(result.errors, "pipes.createNetworkSolids.params.diameterMm muss > 0 sein");
+        if (!jsonObjectProperty(paramsJson, "floorPlanBounds").has_value()) addUniqueMessage(result.missing, "pipes.createNetworkSolids.params.floorPlanBounds");
+        if (!jsonObjectProperty(paramsJson, "techniqueRoomBounds").has_value()) addUniqueMessage(result.missing, "pipes.createNetworkSolids.params.techniqueRoomBounds");
+        if (!jsonObjectProperty(paramsJson, "startNode").has_value()) addUniqueMessage(result.missing, "pipes.createNetworkSolids.params.startNode");
     } else if (result.tool == "annotations.createRoomDimensions") {
         AcDbObjectIdArray ids;
         validateSelectorForAction(state, paramsJson, result.tool, true, &ids, result.errors, result.missing, debugLines);
         if (jsonStringProperty(paramsJson, "dimensionLayer").value_or("").empty()) addUniqueMessage(result.missing, "annotations.createRoomDimensions.params.dimensionLayer");
         if (jsonStringProperty(paramsJson, "labelLayer").value_or("").empty()) addUniqueMessage(result.missing, "annotations.createRoomDimensions.params.labelLayer");
+        if (!jsonObjectProperty(paramsJson, "techniqueRoomBounds").has_value()) addUniqueMessage(result.missing, "annotations.createRoomDimensions.params.techniqueRoomBounds");
+        const int decimalPlaces = jsonIntProperty(paramsJson, "decimalPlaces").value_or(2);
+        if (decimalPlaces < 0 || decimalPlaces > 2) addUniqueMessage(result.errors, "annotations.createRoomDimensions.params.decimalPlaces muss 0 bis 2 sein");
         if (jsonDoubleProperty(paramsJson, "roomHeightMm").value_or(0.0) <= 0.0) addUniqueMessage(result.errors, "annotations.createRoomDimensions.params.roomHeightMm muss > 0 sein");
+    } else if (result.tool == "pipes.validateNetwork") {
+        AcDbObjectIdArray ids;
+        validateSelectorForAction(state, paramsJson, result.tool, true, &ids, result.errors, result.missing, debugLines);
+        if (!jsonObjectProperty(paramsJson, "floorPlanBounds").has_value()) addUniqueMessage(result.missing, "pipes.validateNetwork.params.floorPlanBounds");
+        if (!jsonObjectProperty(paramsJson, "techniqueRoomBounds").has_value()) addUniqueMessage(result.missing, "pipes.validateNetwork.params.techniqueRoomBounds");
+        if (!jsonObjectProperty(paramsJson, "startNode").has_value()) addUniqueMessage(result.missing, "pipes.validateNetwork.params.startNode");
+        addUniqueMessage(result.hints, "pipes.validateNetwork ist read-only und veraendert die Zeichnung nicht");
     } else if (result.tool == "capabilities.list"
         || result.tool == "actions.list"
         || result.tool == "actions.validate"
@@ -4867,8 +4885,7 @@ bool validateActionObject(
         || result.tool == "entity.describe"
         || result.tool == "measurement.bbox"
         || result.tool == "measurement.length"
-        || result.tool == "measurement.area"
-        || result.tool == "pipes.validateNetwork") {
+        || result.tool == "measurement.area") {
         addUniqueMessage(result.hints, result.tool + " ist read-only und veraendert die Zeichnung nicht");
     } else {
         addUniqueMessage(result.errors, "Unbekannte oder nicht validierbare Action: " + result.tool);
@@ -6476,6 +6493,18 @@ bool pipePointsEqual(const AcGePoint3d& a, const AcGePoint3d& b, double toleranc
     return a.distanceTo(b) <= tolerance;
 }
 
+bool pipePointWithinBounds(const AcGePoint3d& point, const std::string& boundsJson)
+{
+    if (boundsJson.empty()) {
+        return true;
+    }
+    const JsonPoint3d min = jsonPointProperty(boundsJson, "min");
+    const JsonPoint3d max = jsonPointProperty(boundsJson, "max");
+    return point.x >= min.x - kRectangleTolerance && point.x <= max.x + kRectangleTolerance
+        && point.y >= min.y - kRectangleTolerance && point.y <= max.y + kRectangleTolerance
+        && point.z >= min.z - kRectangleTolerance && point.z <= max.z + kRectangleTolerance;
+}
+
 std::string validatePipeNetworkInApplicationContext(const std::string& paramsJson)
 {
     std::vector<std::string> debugLines;
@@ -6487,6 +6516,23 @@ std::string validatePipeNetworkInApplicationContext(const std::string& paramsJso
     if (segments.empty()) {
         return errorResponse("pipes.validateNetwork findet keine offenen Polyliniensegmente");
     }
+    const std::string floorBounds = jsonObjectProperty(paramsJson, "floorPlanBounds").value_or("");
+    const std::string techniqueBounds = jsonObjectProperty(paramsJson, "techniqueRoomBounds").value_or("");
+    const bool hasStartNode = jsonObjectProperty(paramsJson, "startNode").has_value();
+    const JsonPoint3d startNode = jsonPointProperty(paramsJson, "startNode");
+    bool insideFloorPlan = true;
+    bool startConnected = !hasStartNode;
+    for (const PipeSegment& segment : segments) {
+        insideFloorPlan = insideFloorPlan
+            && pipePointWithinBounds(segment.start, floorBounds)
+            && pipePointWithinBounds(segment.end, floorBounds);
+        if (hasStartNode && (pipePointsEqual(segment.start, AcGePoint3d(startNode.x, startNode.y, startNode.z))
+                || pipePointsEqual(segment.end, AcGePoint3d(startNode.x, startNode.y, startNode.z)))) {
+            startConnected = true;
+        }
+    }
+    const bool startInsideTechniqueRoom = !hasStartNode
+        || pipePointWithinBounds(AcGePoint3d(startNode.x, startNode.y, startNode.z), techniqueBounds);
 
     std::vector<AcGePoint3d> nodes;
     std::vector<int> degrees;
@@ -6526,15 +6572,32 @@ std::string validatePipeNetworkInApplicationContext(const std::string& paramsJso
     const int openEnds = static_cast<int>(std::count(degrees.cbegin(), degrees.cend(), 1));
     const int teeNodes = static_cast<int>(std::count_if(degrees.cbegin(), degrees.cend(), [](int degree) { return degree >= 3; }));
     const bool connected = components == 1;
+    const bool valid = connected && insideFloorPlan && startConnected && startInsideTechniqueRoom;
+    std::vector<std::string> selectedHandles;
+    const std::string selector = jsonObjectProperty(paramsJson, "selector").value_or("{}");
+    const AcDbObjectIdArray selectedIds = selectorObjectIds(selector, database, debugLines);
+    for (int i = 0; i < selectedIds.length(); ++i) {
+        const std::string handle = objectHandleText(selectedIds.at(i));
+        if (!handle.empty()) selectedHandles.push_back(handle);
+    }
     std::ostringstream result;
     result << "RESULT\t{\"schema\":\"barebone.bricscad.pipes.validate-network.result.v1\""
-        << ",\"valid\":" << (connected ? "true" : "false")
+        << ",\"valid\":" << (valid ? "true" : "false")
         << ",\"connected\":" << (connected ? "true" : "false")
+        << ",\"insideFloorPlan\":" << (insideFloorPlan ? "true" : "false")
+        << ",\"startConnected\":" << (startConnected ? "true" : "false")
+        << ",\"startInsideTechniqueRoom\":" << (startInsideTechniqueRoom ? "true" : "false")
         << ",\"segments\":" << segments.size()
         << ",\"nodes\":" << nodes.size()
         << ",\"openEnds\":" << openEnds
         << ",\"teeNodes\":" << teeNodes
-        << ",\"components\":" << components << "}\n";
+        << ",\"components\":" << components
+        << ",\"selectedHandles\":[";
+    for (std::size_t i = 0; i < selectedHandles.size(); ++i) {
+        if (i > 0) result << ',';
+        result << '\"' << selectedHandles[i] << '\"';
+    }
+    result << "]}\n";
     return result.str();
 }
 
@@ -6553,6 +6616,26 @@ std::string createPipeNetworkSolidsInApplicationContext(const std::string& param
     const std::vector<PipeSegment> segments = pipeSegmentsFromParams(paramsJson, database, debugLines);
     if (segments.empty()) {
         return errorResponse("Keine validierten Polyliniensegmente gefunden");
+    }
+    const std::string floorBounds = jsonObjectProperty(paramsJson, "floorPlanBounds").value_or("");
+    const std::string techniqueBounds = jsonObjectProperty(paramsJson, "techniqueRoomBounds").value_or("");
+    const bool hasStartNode = jsonObjectProperty(paramsJson, "startNode").has_value();
+    const JsonPoint3d startNode = jsonPointProperty(paramsJson, "startNode");
+    bool startConnected = !hasStartNode;
+    for (const PipeSegment& segment : segments) {
+        if (!pipePointWithinBounds(segment.start, floorBounds)
+            || !pipePointWithinBounds(segment.end, floorBounds)) {
+            return errorResponse("pipes.createNetworkSolids lehnt Kontur ausserhalb der Grundrissbounds ab");
+        }
+        if (hasStartNode && (pipePointsEqual(segment.start, AcGePoint3d(startNode.x, startNode.y, startNode.z))
+                || pipePointsEqual(segment.end, AcGePoint3d(startNode.x, startNode.y, startNode.z)))) {
+            startConnected = true;
+        }
+    }
+    if (!hasStartNode
+        || !pipePointWithinBounds(AcGePoint3d(startNode.x, startNode.y, startNode.z), techniqueBounds)
+        || !startConnected) {
+        return errorResponse("pipes.createNetworkSolids braucht einen verbundenen Startpunkt innerhalb des Technikraums");
     }
     AcDbBlockTableRecord* space = nullptr;
     if (acdbOpenObject(space, database->currentSpaceId(), AcDb::kForWrite) != Acad::eOk || space == nullptr) {
@@ -6649,11 +6732,23 @@ std::string createRoomDimensionsInApplicationContext(const std::string& paramsJs
     const double roomHeight = jsonDoubleProperty(paramsJson, "roomHeightMm").value_or(0.0);
     const double textHeight = jsonDoubleProperty(paramsJson, "textHeightMm").value_or(180.0);
     const double offset = jsonDoubleProperty(paramsJson, "offsetMm").value_or(300.0);
+    const int decimalPlaces = std::clamp(jsonIntProperty(paramsJson, "decimalPlaces").value_or(2), 0, 2);
     const std::vector<std::string> roomNames = jsonArrayProperty(paramsJson, "roomNames").has_value()
         ? jsonStringArrayValues(*jsonArrayProperty(paramsJson, "roomNames")) : std::vector<std::string>{};
-    if (roomIds.isEmpty() || dimensionLayer.empty() || labelLayer.empty() || roomHeight <= 0.0) {
-        return errorResponse("annotations.createRoomDimensions braucht Raumhandles, roomHeightMm und beide Layer");
+    const std::string techniqueBoundsJson = jsonObjectProperty(paramsJson, "techniqueRoomBounds").value_or("");
+    if (roomIds.isEmpty() || dimensionLayer.empty() || labelLayer.empty() || roomHeight <= 0.0 || techniqueBoundsJson.empty()) {
+        return errorResponse("annotations.createRoomDimensions braucht Raumhandles, roomHeightMm, Technikraumbounds und beide Layer");
     }
+    const JsonPoint3d techniqueMin = jsonPointProperty(techniqueBoundsJson, "min");
+    const JsonPoint3d techniqueMax = jsonPointProperty(techniqueBoundsJson, "max");
+    auto formatMaxTwoDecimals = [decimalPlaces](double value) {
+        std::ostringstream text;
+        text << std::fixed << std::setprecision(decimalPlaces) << value;
+        std::string result = text.str();
+        while (!result.empty() && result.back() == '0') result.pop_back();
+        if (!result.empty() && result.back() == '.') result.pop_back();
+        return result.empty() ? std::string("0") : result;
+    };
     AcDbBlockTableRecord* space = nullptr;
     if (acdbOpenObject(space, database->currentSpaceId(), AcDb::kForWrite) != Acad::eOk || space == nullptr) {
         return errorResponse("Modellbereich konnte nicht geoeffnet werden");
@@ -6674,19 +6769,30 @@ std::string createRoomDimensionsInApplicationContext(const std::string& paramsJs
         const AcGePoint3d max = extents.maxPoint();
         const double length = max.x - min.x;
         const double width = max.y - min.y;
-        const std::string name = i < static_cast<int>(roomNames.size()) ? roomNames[i] : "Raum " + std::to_string(i + 1);
+        const bool isTechniqueRoom = std::abs(min.x - techniqueMin.x) <= kRectangleTolerance
+            && std::abs(min.y - techniqueMin.y) <= kRectangleTolerance
+            && std::abs(max.x - techniqueMax.x) <= kRectangleTolerance
+            && std::abs(max.y - techniqueMax.y) <= kRectangleTolerance;
+        const std::string name = isTechniqueRoom
+            ? std::string("Technikraum")
+            : (i < static_cast<int>(roomNames.size()) ? roomNames[i] : "Raum " + std::to_string(i + 1));
         std::vector<AcDbEntity*> entities;
-        entities.push_back(new AcDbAlignedDimension(
-            AcGePoint3d(min.x, min.y, min.z), AcGePoint3d(max.x, min.y, min.z), AcGePoint3d((min.x + max.x) / 2.0, min.y - offset, min.z)));
-        entities.push_back(new AcDbAlignedDimension(
-            AcGePoint3d(min.x, min.y, min.z), AcGePoint3d(min.x, max.y, min.z), AcGePoint3d(min.x - offset, (min.y + max.y) / 2.0, min.z)));
+        auto* lengthDimension = new AcDbAlignedDimension(
+            AcGePoint3d(min.x, min.y, min.z), AcGePoint3d(max.x, min.y, min.z), AcGePoint3d((min.x + max.x) / 2.0, min.y - offset, min.z));
+        auto* widthDimension = new AcDbAlignedDimension(
+            AcGePoint3d(min.x, min.y, min.z), AcGePoint3d(min.x, max.y, min.z), AcGePoint3d(min.x - offset, (min.y + max.y) / 2.0, min.z));
+        lengthDimension->setDimdec(decimalPlaces);
+        widthDimension->setDimdec(decimalPlaces);
+        entities.push_back(lengthDimension);
+        entities.push_back(widthDimension);
         auto* label = new AcDbMText();
         label->setLocation(AcGePoint3d((min.x + max.x) / 2.0, (min.y + max.y) / 2.0, min.z));
         label->setTextHeight(textHeight);
-        const std::string labelText = name + "\\PL=" + std::to_string(static_cast<int>(std::round(length)))
-            + " mm  B=" + std::to_string(static_cast<int>(std::round(width)))
-            + " mm\\PH=" + std::to_string(static_cast<int>(std::round(roomHeight)))
-            + " mm  A=" + std::to_string(length * width / 1000000.0) + " m2";
+        label->setAttachment(AcDbMText::kMiddleCenter);
+        const std::string labelText = name + "\\PL=" + formatMaxTwoDecimals(length)
+            + " mm  B=" + formatMaxTwoDecimals(width)
+            + " mm\\PH=" + formatMaxTwoDecimals(roomHeight)
+            + " mm  A=" + formatMaxTwoDecimals(length * width / 1000000.0) + " m2";
         const std::basic_string<ACHAR> nativeText = utf8ToAchar(labelText);
         label->setContents(nativeText.c_str());
         entities.push_back(label);
@@ -6697,7 +6803,13 @@ std::string createRoomDimensionsInApplicationContext(const std::string& paramsJs
             AcDbObjectId id;
             if (space->appendAcDbEntity(id, entity) == Acad::eOk) {
                 entity->close();
-                createdIds.append(id);
+                const std::string expectedLayer = entityIndex < 2 ? dimensionLayer : labelLayer;
+                if (setEntityLayerByName(id, expectedLayer, debugLines)) {
+                    createdIds.append(id);
+                } else {
+                    appendDebug(debugLines, "annotations.createRoomDimensions layer assignment failed handle="
+                        + objectHandleText(id) + " layer='" + expectedLayer + "'");
+                }
             } else {
                 delete entity;
             }
@@ -7433,6 +7545,7 @@ std::string extrudeSelectorRectanglesInApplicationContext(const std::string& sel
 
     const std::string selectorLabel = jsonStringProperty(selectorJson, "layer").value_or(
         jsonStringProperty(selectorJson, "scope").value_or("selector"));
+    std::string sourceLayerName;
     {
         std::ostringstream line;
         line << "EXTRUDE selector request selector=" << selectorJson
@@ -7481,10 +7594,7 @@ std::string extrudeSelectorRectanglesInApplicationContext(const std::string& sel
         return fail("Keine BricsCAD-Auswahl erkannt. Bitte Rechtecke in BricsCAD auswaehlen und danach erneut in Barebone-Qt bestaetigen.");
     }
 
-    AcDbObjectIdArray solidIdsBefore;
-    if (detail != "summary") {
-        solidIdsBefore = collectCurrentSpaceSolidIds(database, debugLines);
-    }
+    AcDbObjectIdArray solidIdsBefore = collectCurrentSpaceSolidIds(database, debugLines);
     AcDbObjectIdArray rectangleIds;
     std::vector<RectangleElementData> elements;
 
@@ -7500,6 +7610,13 @@ std::string extrudeSelectorRectanglesInApplicationContext(const std::string& sel
         const AcDbPolyline* polyline = AcDbPolyline::cast(entity);
         RectangleElementData element;
         if (extractRectangleElementData(polyline, entityId, heightMm, element)) {
+            const std::string candidateLayer = entityLayerName(entity);
+            if (sourceLayerName.empty()) {
+                sourceLayerName = candidateLayer;
+            } else if (validationLayerKey(sourceLayerName) != validationLayerKey(candidateLayer)) {
+                entity->close();
+                return fail("EXTRUDE Selector enthaelt Profile aus unterschiedlichen Layern; verwende getrennte Aktionen");
+            }
             rectangleIds.append(entityId);
             elements.push_back(element);
             appendDebug(debugLines, "Selector rectangle candidate handle=" + objectHandleText(entityId)
@@ -7537,13 +7654,43 @@ std::string extrudeSelectorRectanglesInApplicationContext(const std::string& sel
             if (commandStatus == RTNORM) {
                 extruded = rectangleIds.length();
                 appendDebug(debugLines, "Native EXTRUDE completed for selector selection");
-                if (detail != "summary") {
+                {
                     const AcDbObjectIdArray solidIdsAfter = collectCurrentSpaceSolidIds(database, debugLines);
-                    const AcDbObjectIdArray createdSolidIds = newObjectIds(solidIdsBefore, solidIdsAfter);
+                    AcDbObjectIdArray createdSolidIds = newObjectIds(solidIdsBefore, solidIdsAfter);
+                    for (int sourceIndex = 0; sourceIndex < rectangleIds.length(); ++sourceIndex) {
+                        const AcDbObjectId sourceId = rectangleIds.at(sourceIndex);
+                        AcDbEntity* transformedEntity = nullptr;
+                        const Acad::ErrorStatus transformedOpenStatus = acdbOpenObject(transformedEntity, sourceId, AcDb::kForRead);
+                        const bool transformedInPlace = transformedOpenStatus == Acad::eOk
+                            && transformedEntity != nullptr
+                            && AcDb3dSolid::cast(transformedEntity) != nullptr;
+                        if (transformedEntity != nullptr) {
+                            transformedEntity->close();
+                        }
+                        if (!transformedInPlace) {
+                            continue;
+                        }
+                        bool alreadyIncluded = false;
+                        for (int createdIndex = 0; createdIndex < createdSolidIds.length(); ++createdIndex) {
+                            if (createdSolidIds.at(createdIndex) == sourceId) {
+                                alreadyIncluded = true;
+                                break;
+                            }
+                        }
+                        if (!alreadyIncluded) {
+                            createdSolidIds.append(sourceId);
+                            appendDebug(debugLines, "Detected in-place extruded solid handle=" + objectHandleText(sourceId));
+                        }
+                    }
                     appendDebug(debugLines, "Created solid scan before=" + std::to_string(solidIdsBefore.length())
                         + " after=" + std::to_string(solidIdsAfter.length())
                         + " created=" + std::to_string(createdSolidIds.length()));
-                    rememberLastExtrudedSolids(createdSolidIds, selectorLabel, debugLines);
+                    if (!sourceLayerName.empty() && !setEntitiesLayerByName(createdSolidIds, sourceLayerName, debugLines)) {
+                        return fail("Extrudierte Solids konnten nicht auf Quelllayer '" + sourceLayerName + "' gesetzt werden");
+                    }
+                    appendDebug(debugLines, "Verified extruded solids target layer='" + sourceLayerName
+                        + "' count=" + std::to_string(createdSolidIds.length()));
+                    rememberLastExtrudedSolids(createdSolidIds, sourceLayerName.empty() ? selectorLabel : sourceLayerName, debugLines);
                     rememberLastResult(createdSolidIds, "rectangles.extrude", debugLines);
                     matchCreatedSolids(elements, createdSolidIds, debugLines);
                 }
@@ -7565,7 +7712,7 @@ std::string extrudeSelectorRectanglesInApplicationContext(const std::string& sel
         << "\tEXTRUDED\t" << extruded
         << "\tSKIPPED\t" << skipped
         << "\tERRORS\t" << errors
-        << "\tLAYER\t" << percentEncode(selectorLabel)
+        << "\tLAYER\t" << percentEncode(sourceLayerName.empty() ? selectorLabel : sourceLayerName)
         << "\tHEIGHT_MM\t" << heightMm
         << "\tDETAIL\t" << detail
         << "\tSAVE_BEFORE\t" << (saveBefore ? 1 : 0)
@@ -7574,7 +7721,7 @@ std::string extrudeSelectorRectanglesInApplicationContext(const std::string& sel
     if (detail != "summary") {
         const bool commandSucceeded = extruded > 0 && errors == 0;
         for (const RectangleElementData& element : elements) {
-            response << "ELEMENT\t" << rectangleElementJson(element, selectorLabel, detail, commandSucceeded) << "\n";
+            response << "ELEMENT\t" << rectangleElementJson(element, sourceLayerName.empty() ? selectorLabel : sourceLayerName, detail, commandSucceeded) << "\n";
         }
     }
     appendDebugResponse(response, debugLines);
@@ -7837,7 +7984,13 @@ std::string dispatchPluginRequest(const std::string& rawRequest)
 
     BridgeJob job(request);
     if (requiresCommandContext(request)) {
-        const Acad::ErrorStatus scheduleStatus = acDocManager->beginExecuteInCommandContext(&processBridgeJobInCommandContext, &job);
+        Acad::ErrorStatus scheduleStatus = Acad::eInvalidContext;
+        constexpr int kCommandContextRetryCount = 20;
+        for (int attempt = 0; attempt < kCommandContextRetryCount; ++attempt) {
+            scheduleStatus = acDocManager->beginExecuteInCommandContext(&processBridgeJobInCommandContext, &job);
+            if (scheduleStatus != Acad::eInvalidContext) break;
+            Sleep(50);
+        }
         if (scheduleStatus != Acad::eOk) {
             return errorResponse("BricsCAD Command Context konnte nicht gestartet werden: " + errorStatusText(scheduleStatus));
         }

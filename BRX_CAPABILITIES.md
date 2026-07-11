@@ -58,9 +58,9 @@ BRX-Capabilities geladen: 33 Methoden, 22 Commands, 34 Agent-Tools
 | 28 | `measurement.length` | query | readOnly | Kurvenlaengen fuer Entities berechnen. |
 | 29 | `measurement.area` | query | readOnly | Flaechen geschlossener Kurven und Kreise berechnen. |
 | 30 | `undo.redo` | action | modifiesDrawing | Redo ausfuehren, sofern BricsCAD es erlaubt. |
-| 31 | `pipes.validateNetwork` | query | readOnly | Offene Polylinien als zusammenhaengendes Rohrnetz mit Knoten, Enden und T-Abzweigungen validieren. |
-| 32 | `pipes.createNetworkSolids` | action | modifiesDrawing | Zylindrische Rohrsegmente entlang validierter Polylinien erzeugen. |
-| 33 | `annotations.createRoomDimensions` | action | modifiesDrawing | Laengen-/Breitenbemassung und Raumstempel fuer rechteckige Raumkonturen erzeugen. |
+| 31 | `pipes.validateNetwork` | query | readOnly | Netz, Grundrissbounds sowie verbundenen Startpunkt innerhalb des Technikraums validieren; liefert `selectedHandles`, Segment-, Knoten-, Komponenten- und Offen-Ende-Statistik. |
+| 32 | `pipes.createNetworkSolids` | action | modifiesDrawing | Rohrsegmente nur aus grundrissinternen Konturen mit verbundenem Technikraumstart erzeugen. |
+| 33 | `annotations.createRoomDimensions` | action | modifiesDrawing | AcDbAlignedDimension und AcDbMText erzeugen; Technikraum zwingend benennen, maximal zwei Nachkommastellen. |
 
 ## BRX-Action-Methoden (21, alle direkte AI-Tools)
 

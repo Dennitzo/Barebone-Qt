@@ -1760,6 +1760,15 @@
       gap: 4px;
     }
 
+    .workflow-group-title {
+      padding: 10px 12px 4px;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
     .workflow-item {
       width: 100%;
       border: 0;
@@ -2310,7 +2319,7 @@
         workflowEmpty: "Wähle einen Workflow aus. Danach kannst du ihn als Kontext im Chat nutzen.",
         learningEmpty: "Waehle einen BRX-Learning-Eintrag aus, um Details, Gewichtung, Tools, Lessons, Repair-Regeln oder Beispiele anzuzeigen.",
         selectWorkflow: "Workflow auswählen",
-        executeWorkflow: "Workflow ausführen",
+        executeWorkflow: "Workflow direkt testen",
         copy: "Kopieren",
         copied: "Kopiert",
         copyFailed: "Kopieren fehlgeschlagen",
@@ -2424,7 +2433,7 @@
         workflowEmpty: "Select a workflow. It will be used as context in chat.",
         learningEmpty: "Select a BRX learning entry to inspect details, weighting, tools, lessons, repair rules, or examples.",
         selectWorkflow: "Select workflow",
-        executeWorkflow: "Run workflow",
+        executeWorkflow: "Test workflow directly",
         copy: "Copy",
         copied: "Copied",
         copyFailed: "Copy failed",
@@ -2753,6 +2762,7 @@
     let chatCounter = 1;
     let sidebarCollapsed = false;
     let isBusy = false;
+    let lastFetchedContextBudget = null;
     let thinkingIndicator = null;
     let thinkingDetailsList = null;
     let thinkingDetailCount = 0;
@@ -3730,13 +3740,11 @@
       }
       closeWorkflowOverlay();
       if (executeInBricsCad) {
-        addMessage({
-          speaker: "Barebone-Qt",
-          message: workflowCompactMarkdownForChat(workflowToExecute),
-          time: nowTime()
-        });
-        input.value = `Führe den Workflow „${workflowToExecute.title || workflowToExecute.id}“ (${workflowToExecute.id}) jetzt in BricsCAD aus. Prüfe die aktuellen Zeichnungsdaten und berechneten Positionen zuerst. Erzeuge anschließend einen Workflow-ausführen-Vorschlag zur Bestätigung. Noch gewünschte Änderungen an Maßen, Layern oder Schritten berücksichtige aus diesem Prompt.`;
-        submitPrompt();
+        if (bridge && typeof bridge.runWorkflowTest === "function") {
+          bridge.runWorkflowTest(workflowToExecute.id);
+        } else {
+          addMessage({ speaker: "Barebone-Qt", message: "Direkter Workflowtest ist nicht verfügbar.", time: nowTime() });
+        }
         return;
       }
       input.focus();
@@ -3887,7 +3895,33 @@
         return;
       }
 
-      visible.forEach((workflow) => {
+      const disciplineLabels = {
+        architecture: "Architektur",
+        drinking_water: "Trinkwasser",
+        heating: "Heizung",
+        ventilation: "Lüftung",
+        documentation: "Dokumentation"
+      };
+      const disciplineOrder = Object.keys(disciplineLabels);
+      const rendered = isBrxLearningWorkspace()
+        ? visible.slice().sort((left, right) => {
+            const leftRank = disciplineOrder.indexOf(String(left.discipline || ""));
+            const rightRank = disciplineOrder.indexOf(String(right.discipline || ""));
+            const normalizedLeft = leftRank < 0 ? disciplineOrder.length : leftRank;
+            const normalizedRight = rightRank < 0 ? disciplineOrder.length : rightRank;
+            return normalizedLeft - normalizedRight || workflowTitleValue(left).localeCompare(workflowTitleValue(right), "de-DE");
+          })
+        : visible;
+      let previousDiscipline = null;
+      rendered.forEach((workflow) => {
+        const discipline = String(workflow.discipline || "");
+        if (isBrxLearningWorkspace() && discipline && discipline !== previousDiscipline) {
+          const group = document.createElement("div");
+          group.className = "workflow-group-title";
+          group.textContent = disciplineLabels[discipline] || discipline;
+          workflowList.appendChild(group);
+          previousDiscipline = discipline;
+        }
         const item = document.createElement("button");
         item.type = "button";
         item.className = "workflow-item";
@@ -5091,13 +5125,27 @@
     }
 
     function applyContextBudget(info) {
-      const percent = Math.max(0, Math.min(100, Number(info && info.percent) || 0));
-      const maxTokens = Number(info && info.maxTokens) || 0;
-      const usedTokens = Number(info && info.usedTokens) || 0;
-      const available = !!(info && info.available);
-      const state = info && typeof info.state === "string" ? info.state : (available ? "ok" : "unknown");
-      const minimized = !!(info && info.minimized);
+      const incoming = info && typeof info === "object" ? info : {};
+      const incomingMaxTokens = Number(incoming.maxTokens) || 0;
+      const incomingUsedTokens = Number(incoming.usedTokens) || 0;
+      const incomingAvailable = !!incoming.available;
+      const transientMissingWhileThinking = isBusy
+        && !!lastFetchedContextBudget
+        && (!incomingAvailable || incomingMaxTokens <= 0 || incomingUsedTokens <= 0);
+      const effective = transientMissingWhileThinking
+        ? { ...lastFetchedContextBudget, detail: incoming.detail || lastFetchedContextBudget.detail || "", preservedWhileThinking: true }
+        : incoming;
+      const percent = Math.max(0, Math.min(100, Number(effective.percent) || 0));
+      const maxTokens = Number(effective.maxTokens) || 0;
+      const usedTokens = Number(effective.usedTokens) || 0;
+      const available = !!effective.available;
+      const state = effective && typeof effective.state === "string" ? effective.state : (available ? "ok" : "unknown");
+      const minimized = !!effective.minimized;
       const fill = Math.round((percent / 100) * 360);
+
+      if (available && maxTokens > 0 && (!isBusy || usedTokens > 0)) {
+        lastFetchedContextBudget = { ...effective };
+      }
 
       contextMeter.style.setProperty("--context-fill", `${fill}deg`);
       contextMeter.classList.toggle("unknown", state === "unknown" || !available);
@@ -5106,8 +5154,8 @@
       contextMeter.classList.toggle("minimized", minimized);
       contextLabel.textContent = available ? `${percent}%` : t("context");
 
-      const model = info && info.model ? `\n${uiLanguage === "en" ? "Model" : "Modell"}: ${info.model}` : "";
-      const detail = info && info.detail ? `\n${info.detail}` : "";
+      const model = effective && effective.model ? `\n${uiLanguage === "en" ? "Model" : "Modell"}: ${effective.model}` : "";
+      const detail = effective && effective.detail ? `\n${effective.detail}` : "";
       contextMeter.title = available
         ? `${t("context")}: ${formatTokenCount(usedTokens)} / ${formatTokenCount(maxTokens)} Tokens${model}${detail}`
         : `${uiLanguage === "en" ? "Context length has not been reported by LM Studio yet" : "Kontextlaenge wird von LM Studio noch nicht gemeldet"}${model}${detail}`;
@@ -9191,6 +9239,20 @@
           }
           if (bridge.selectedWorkflowChanged) {
             bridge.selectedWorkflowChanged.connect(applySelectedWorkflowFromQt);
+          }
+          if (bridge.workflowRunProgress) {
+            bridge.workflowRunProgress.connect((progress) => {
+              const phaseLabels = { materializing: "Materialisiere Workflow", preflight: "BRX validiert Schritt", executing: "BRX führt Schritt aus", validating: "Prüfe Ergebnis" };
+              const current = Number(progress.current || 0);
+              const total = Number(progress.total || 0);
+              const suffix = current > 0 && total > 0 ? ` ${current}/${total}` : "";
+              addThinkingDetail(`${phaseLabels[progress.phase] || "Workflowtest"}${suffix}${progress.tool ? `: ${toolDisplayName(progress.tool)}` : ""}`);
+            });
+          }
+          if (bridge.workflowRunFinished) {
+            bridge.workflowRunFinished.connect((result) => {
+              addThinkingDetail(`Workflowtest ${result.status || "beendet"}: ${result.completed || 0}/${result.total || 0} Schritte.`);
+            });
           }
           if (bridge.mathFormattingRepairCompleted) {
             bridge.mathFormattingRepairCompleted.connect(handleMathFormattingRepairCompleted);

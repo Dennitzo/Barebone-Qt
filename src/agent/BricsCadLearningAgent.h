@@ -23,7 +23,8 @@ public:
     QJsonArray lessonIndex() const;
     QJsonObject lessonById(const QString& id) const;
     QJsonArray relevantLessons(const QString& prompt, int maxCount = 3) const;
-    QJsonObject contextForPrompt(const QString& prompt, int maxLessons = 3) const;
+    QJsonObject contextForPrompt(const QString& prompt, int maxLessons = 3,
+        const QString& selectedWorkflowId = {}, const QStringList& selectedTools = {}) const;
 
     bool applyLearningUpdate(const QJsonObject& update, QStringList* appliedChanges = nullptr, QString* errorMessage = nullptr);
     bool recordLessonUse(const QJsonArray& lessonIds, const QJsonObject& event, QStringList* appliedChanges = nullptr, QString* errorMessage = nullptr);

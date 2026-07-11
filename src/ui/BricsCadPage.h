@@ -122,6 +122,11 @@ private:
     void emitWorkflowListToWeb() const;
     QJsonObject loadWorkflowById(const QString& workflowId, QString* fileName = nullptr, QString* errorMessage = nullptr) const;
     void selectWorkflowForChat(const QString& workflowId);
+    void runBrxWorkflowTest(const QString& workflowId);
+    void executeBrxWorkflowTestStep(int index, QJsonArray results);
+    void finishBrxWorkflowTest(const QString& status, const QString& message, int failedIndex = -1, const QJsonObject& failedAction = {}, const QJsonArray& results = {});
+    void requestWorkflowFailureAnalysis(const QJsonObject& result);
+    QJsonArray materializedWorkflowTestActions(const QJsonObject& workflow, QJsonObject* usedDefaults, QString* errorMessage) const;
     void clearSelectedWorkflowForChat();
     void exportAgentMessageToPdf(const QString& messageId, const QString& suggestedTitle);
     QJsonObject selectedWorkflowSummary() const;
@@ -144,7 +149,7 @@ private:
     void scheduleLocalAiStatusPoll();
     void refreshLocalContextWindow(bool force = false);
     void handleLocalContextWindowResponse(const QJsonObject& response);
-    void emitContextBudget(int estimatedTokens = -1, bool minimized = false, const QString& detail = QString()) const;
+    void emitContextBudget(int estimatedTokens = -1, bool minimized = false, const QString& detail = QString());
     void emitSessionTitleSuggestion(const QString& title) const;
     int effectiveContextWindowTokens() const;
     int inputBudgetTokens(int requestedOutputTokens) const;
@@ -264,7 +269,11 @@ private:
     QString m_contextWindowModel;
     int m_contextWindowTokens = 0;
     int m_contextWindowMaxTokens = 0;
+    int m_lastContextBudgetUsedTokens = 0;
     int m_agentValidationRetries = 0;
+    int m_repeatedAgentContextRequestCount = 0;
+    QString m_lastAgentContextRequestSignature;
+    bool m_agentContextLoopBlocked = false;
     int m_trainingValidationRetries = 0;
     int m_nextRequestId = 1;
     int m_operationGeneration = 1;
@@ -301,6 +310,11 @@ private:
     QString m_selectedWorkflowId;
     QJsonObject m_selectedWorkflow;
     QJsonObject m_selectedWorkflowSlotValues;
+    QJsonObject m_workflowTestWorkflow;
+    QJsonArray m_workflowTestActions;
+    QJsonObject m_workflowTestDefaults;
+    qint64 m_workflowTestStartedMs = 0;
+    int m_workflowTestGeneration = 0;
     QJsonObject m_lastDocumentContext;
     QJsonObject m_lastAgentRoute;
     QJsonObject m_lastFocusedConversationContext;
