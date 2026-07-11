@@ -7698,7 +7698,7 @@
 
     function setBusy(status) {
       isBusy = status === "thinking";
-      input.disabled = isBusy;
+      input.disabled = false;
       updateSendButtonState();
       attachButton.disabled = isBusy;
       if (isBusy) {
@@ -7976,8 +7976,14 @@
     }
 
     function deleteSession(sessionId) {
-      if (isBusy) {
-        return;
+      if (isBusy && sessionId === activeSessionId) {
+        try {
+          if (bridge && typeof bridge.cancelCurrentOperation === "function") {
+            bridge.cancelCurrentOperation();
+          }
+        } catch (_error) {
+          // Session deletion must remain available even if cancellation fails.
+        }
       }
       const index = sessions.findIndex((session) => session.id === sessionId);
       if (index < 0) {

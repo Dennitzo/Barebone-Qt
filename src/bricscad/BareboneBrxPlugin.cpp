@@ -599,6 +599,28 @@ R"JSON({
 })JSON",
     },
     {
+        "entity.setName",
+        "action",
+        "modifiesDrawing",
+        "Speichert einen fachlichen Namen an vorhandenen Entities.",
+        R"JSON({
+"type":"object",
+"required":["selector","name"],
+"properties":{
+  "selector":{"type":"object"},
+  "name":{"type":"string"},
+  "saveBefore":{"type":"boolean"},
+  "reason":{"type":"string"}
+}
+})JSON",
+        R"JSON({
+"method":"entity.setName",
+"required":["selector","name"],
+"bodySchema":{"type":"object","properties":{"selector":"Selector for existing entities","name":"meaningful entity name","saveBefore":"boolean default true"}},
+"examples":[{"selector":{"scope":"lastResult"},"name":"Badezimmer Wand","saveBefore":true}]
+})JSON",
+    },
+    {
         "layers.create",
         "action",
         "modifiesDrawing",
@@ -1571,6 +1593,7 @@ bool requiresCommandContext(const std::string& request)
         "GEOMETRYDELETE",
         "SELECTIONSET",
         "ENTITYSETLAYER",
+        "ENTITYSETNAME",
         "LAYERCREATE",
         "LAYERRENAME",
         "LAYERSETCOLOR",
@@ -3848,7 +3871,7 @@ std::string normalizedBrxLayerName(const std::string& value)
             } else if (std::isspace(ch) != 0) {
                 out.push_back(' ');
             } else {
-                out.push_back('-');
+                out.push_back(' ');
             }
             ++i;
             continue;
@@ -3870,51 +3893,32 @@ std::string normalizedBrxLayerName(const std::string& value)
             }
         }
 
-        out.push_back('-');
+        out.push_back(' ');
         i += std::min<std::size_t>(utf8CodepointLength(ch), input.size() - i);
     }
 
     std::string collapsed;
     collapsed.reserve(out.size());
     bool previousSpace = false;
-    bool previousHyphen = false;
     for (char ch : out) {
         if (std::isspace(static_cast<unsigned char>(ch)) != 0) {
-            if (!previousSpace && !previousHyphen) {
+            if (!previousSpace) {
                 collapsed.push_back(' ');
             }
             previousSpace = true;
             continue;
         }
-        if (ch == '-') {
-            if (!previousHyphen) {
-                if (!collapsed.empty() && collapsed.back() == ' ') {
-                    collapsed.pop_back();
-                }
-                collapsed.push_back('-');
-            }
-            previousHyphen = true;
-            previousSpace = false;
-            continue;
-        }
-        if (previousHyphen) {
-            collapsed.push_back(' ');
-        }
         collapsed.push_back(ch);
         previousSpace = false;
-        previousHyphen = false;
     }
 
-    std::string result = trim(collapsed);
-    while (!result.empty() && result.front() == '-') {
-        result.erase(result.begin());
-        result = trim(result);
-    }
-    while (!result.empty() && result.back() == '-') {
-        result.pop_back();
-        result = trim(result);
-    }
-    return result;
+    return trim(collapsed);
+}
+
+bool hasBrxSubjectTopicLayerStructure(const std::string& layerName)
+{
+    const std::string normalized = normalizedBrxLayerName(layerName);
+    return normalized.find(' ') != std::string::npos;
 }
 
 AcDbObjectId defaultLayerLinetypeId(AcDbDatabase* database, AcDbLayerTable* layerTable)
@@ -4645,7 +4649,10 @@ bool validateActionObject(
             addUniqueMessage(result.missing, "layers.create.params.name");
         } else {
             if (name != requestedName) {
-                addUniqueMessage(result.hints, "layers.create.params.name wird vor Ausfuehrung zu '" + name + "' normalisiert");
+                addUniqueMessage(result.errors, "layers.create.params.name darf nur Buchstaben, Ziffern und Leerzeichen enthalten; verwende die Struktur 'Fachgebiet Thema' statt '" + requestedName + "'");
+            }
+            if (!hasBrxSubjectTopicLayerStructure(name)) {
+                addUniqueMessage(result.errors, "layers.create.params.name muss die Struktur 'Fachgebiet Thema' aus mindestens zwei Woertern besitzen");
             }
             if (validationLayerKey(name) == "0") {
                 addUniqueMessage(result.errors, "Layer 0 darf nicht neu angelegt werden");
@@ -4777,6 +4784,12 @@ bool validateActionObject(
                     addUniqueMessage(result.errors, "entity.setLayer.params.layer verweist auf nicht vorhandenen Layer '" + layerName + "'. Lege ihn vorher mit layers.create an oder setze createIfMissing=true");
                 }
             }
+        }
+    } else if (result.tool == "entity.setName") {
+        AcDbObjectIdArray ids;
+        validateSelectorForAction(state, paramsJson, result.tool, true, &ids, result.errors, result.missing, debugLines);
+        if (trim(jsonStringProperty(paramsJson, "name").value_or("")).empty()) {
+            addUniqueMessage(result.missing, "entity.setName.params.name");
         }
     } else if (result.tool == "rectangles.extrude") {
         AcDbObjectIdArray ids;
@@ -5629,14 +5642,24 @@ Acad::ErrorStatus applyLayerMutation(
             return Acad::eOk;
         }
 
-        const int colorIndex = jsonIntProperty(paramsJson, "colorIndex").value_or(0);
-        Acad::ErrorStatus status = layerCommandStatus(runNativeLayerNewCommand(name, debugLines));
-        if (status == Acad::eOk && !layerExistsInDatabase(database, name)) {
-            summary = "layers.create " + name + " command returned success but layer was not found after creation";
-            return Acad::eInvalidInput;
+        AcDbLayerTable* layerTable = nullptr;
+        Acad::ErrorStatus status = database->getLayerTable(layerTable, AcDb::kForWrite);
+        if (status != Acad::eOk || layerTable == nullptr) {
+            summary = "layers.create konnte Layer-Tabelle nicht zum Schreiben oeffnen";
+            return status == Acad::eOk ? Acad::eNullObjectPointer : status;
         }
-        if (status == Acad::eOk && colorIndex >= 1 && colorIndex <= 255) {
-            status = layerCommandStatus(runNativeLayerColorCommand(name, colorIndex, debugLines));
+
+        const int colorIndex = jsonIntProperty(paramsJson, "colorIndex").value_or(0);
+        status = addInitializedLayerRecord(
+            database,
+            layerTable,
+            utf8ToAchar(name),
+            colorIndex);
+        layerTable->close();
+        appendDebug(debugLines, "layers.create direct LayerTable add status=" + errorStatusText(status));
+        if (status == Acad::eOk && !layerExistsInDatabase(database, name)) {
+            summary = "layers.create " + name + " wurde angelegt, ist aber nicht lesbar";
+            return Acad::eInvalidInput;
         }
         summary = "layers.create " + name;
         return status;
@@ -6240,6 +6263,24 @@ std::string createGeometryInApplicationContext(const std::string& paramsJson)
         return fail("Geometrie konnte nicht angelegt werden: " + errorStatusText(appendStatus));
     }
     entity->close();
+    if (!layerName.empty()) {
+        if (!setEntityLayerByName(entityId, layerName, debugLines)) {
+            return fail("Geometrie wurde erzeugt, aber der Ziellayer '" + layerName + "' konnte nach dem Einfuegen nicht gesetzt werden");
+        }
+        AcDbEntity* storedEntity = nullptr;
+        const Acad::ErrorStatus verifyOpenStatus = acdbOpenObject(storedEntity, entityId, AcDb::kForRead);
+        if (verifyOpenStatus != Acad::eOk || storedEntity == nullptr) {
+            return fail("Geometrie-Layer konnte nach dem Einfuegen nicht verifiziert werden");
+        }
+        const std::string storedLayer = entityLayerName(storedEntity);
+        storedEntity->close();
+        appendDebug(debugLines, "Verified created entity layer handle=" + objectHandleText(entityId)
+            + " expected='" + layerName + "' actual='" + storedLayer + "'");
+        if (validationLayerKey(storedLayer) != validationLayerKey(layerName)) {
+            return fail("Geometrie liegt nach dem Einfuegen auf Layer '" + storedLayer
+                + "' statt auf Ziellayer '" + layerName + "'");
+        }
+    }
     appendDebug(debugLines, "Created " + normalizedType + " handle=" + objectHandleText(entityId));
     AcDbObjectId resultEntityId = entityId;
     int createdCount = 1;
@@ -6303,6 +6344,93 @@ std::string createGeometryInApplicationContext(const std::string& paramsJson)
         << "\n";
     appendDebugResponse(response, debugLines);
     return response.str();
+}
+
+std::string setEntityNameInApplicationContext(const std::string& paramsJson)
+{
+    std::vector<std::string> debugLines;
+    auto fail = [&debugLines](const std::string& message) {
+        appendDebug(debugLines, "ERROR: " + message);
+        std::ostringstream response;
+        response << errorResponse(message);
+        appendDebugResponse(response, debugLines);
+        return response.str();
+    };
+
+    const std::string name = trim(jsonStringProperty(paramsJson, "name").value_or(""));
+    if (name.empty()) {
+        return fail("entity.setName braucht name");
+    }
+    const bool saveBefore = jsonBoolProperty(paramsJson, "saveBefore").value_or(true);
+    AcDbDatabase* database = nullptr;
+    bool savedBefore = false;
+    std::unique_ptr<AcAxDocLock> docLock;
+    std::string errorMessage;
+    if (!prepareMutation(database, saveBefore, savedBefore, docLock, debugLines, errorMessage)) {
+        return fail(errorMessage);
+    }
+    const std::string selectorJson = selectorJsonFromParams(paramsJson);
+    const AcDbObjectIdArray ids = selectorObjectIds(selectorJson, database, debugLines);
+    if (ids.isEmpty()) {
+        return fail("entity.setName selector findet keine Objekte");
+    }
+
+    AcDbRegAppTable* regApps = nullptr;
+    Acad::ErrorStatus status = database->getRegAppTable(regApps, AcDb::kForRead);
+    if (status != Acad::eOk || regApps == nullptr) {
+        return fail("entity.setName konnte RegApp-Tabelle nicht lesen");
+    }
+    const std::basic_string<ACHAR> appName = utf8ToAchar("BareboneQtEntityName");
+    if (!regApps->has(appName.c_str())) {
+        status = regApps->upgradeOpen();
+        if (status == Acad::eOk) {
+            auto* record = new AcDbRegAppTableRecord();
+            record->setName(appName.c_str());
+            AcDbObjectId recordId;
+            status = regApps->add(recordId, record);
+            if (status == Acad::eOk) {
+                record->close();
+            } else {
+                delete record;
+            }
+        }
+    }
+    regApps->close();
+    if (status != Acad::eOk) {
+        return fail("entity.setName konnte RegApp nicht registrieren: " + errorStatusText(status));
+    }
+
+    AcDbObjectIdArray affected;
+    AcDbObjectIdArray failed;
+    const std::basic_string<ACHAR> nativeName = utf8ToAchar(name);
+    for (int i = 0; i < ids.length(); ++i) {
+        AcDbEntity* entity = nullptr;
+        status = acdbOpenObject(entity, ids.at(i), AcDb::kForWrite);
+        if (status != Acad::eOk || entity == nullptr) {
+            failed.append(ids.at(i));
+            continue;
+        }
+        resbuf* data = acutBuildList(
+            AcDb::kDxfRegAppName, appName.c_str(),
+            AcDb::kDxfXdAsciiString, nativeName.c_str(),
+            RTNONE);
+        status = entity->setXData(data);
+        acutRelRb(data);
+        entity->close();
+        if (status == Acad::eOk) {
+            affected.append(ids.at(i));
+        } else {
+            failed.append(ids.at(i));
+        }
+    }
+    if (affected.isEmpty()) {
+        return fail("entity.setName konnte keinen Namen speichern");
+    }
+    rememberLastResult(affected, "entity.setName", debugLines);
+    return okJsonResultResponse(genericActionResultJson(
+        "barebone.bricscad.entity.setName.result.v1",
+        "entity.setName name=" + name + " affected=" + std::to_string(affected.length()),
+        affected, failed, saveBefore, savedBefore), debugLines);
 }
 
 struct PipeSegment {
@@ -7569,6 +7697,11 @@ std::string handlePluginRequestInApplicationContext(const std::string& request)
         return extrudeProfilesInApplicationContext(paramsJson);
     }
 
+    if (command == "ENTITYSETNAME") {
+        const std::string paramsJson = parts.size() >= 2 ? percentDecode(parts[1]) : "{}";
+        return setEntityNameInApplicationContext(paramsJson);
+    }
+
     if (command == "PIPESVALIDATE") {
         const std::string paramsJson = parts.size() >= 2 ? percentDecode(parts[1]) : "{}";
         return validatePipeNetworkInApplicationContext(paramsJson);
@@ -7863,6 +7996,9 @@ std::string jsonResponseForBridgeRequest(const std::string& line)
     }
     if (method == "entity.setLayer") {
         return dispatchJsonParamsMethod("ENTITYSETLAYER");
+    }
+    if (method == "entity.setName") {
+        return dispatchJsonParamsMethod("ENTITYSETNAME");
     }
     if (method == "layers.create") {
         return dispatchJsonParamsMethod("LAYERCREATE");

@@ -272,22 +272,17 @@ QString normalizedBricsCadLayerName(QString name)
             continue;
         }
 
-        normalized += QLatin1Char('-');
+        normalized += QLatin1Char(' ');
     }
 
     normalized.replace(QRegularExpression(QStringLiteral("\\s+")), QStringLiteral(" "));
-    normalized.replace(QRegularExpression(QStringLiteral("\\s*-\\s*")), QStringLiteral(" - "));
-    normalized.replace(QRegularExpression(QStringLiteral("(\\s*-\\s*){2,}")), QStringLiteral(" - "));
     normalized = normalized.trimmed();
-    while (normalized.startsWith(QLatin1Char('-'))) {
-        normalized.remove(0, 1);
-        normalized = normalized.trimmed();
-    }
-    while (normalized.endsWith(QLatin1Char('-'))) {
-        normalized.chop(1);
-        normalized = normalized.trimmed();
-    }
     return normalized;
+}
+
+bool hasBricsCadSubjectTopicLayerStructure(const QString& name)
+{
+    return normalizedBricsCadLayerName(name).split(QLatin1Char(' '), Qt::SkipEmptyParts).size() >= 2;
 }
 
 QJsonObject sanitizedDocumentContext(QJsonObject context)
@@ -393,6 +388,31 @@ QJsonObject validationRepairGuidance(const QString& errorMessage)
         guidance.insert(QStringLiteral("failedActionIndex"), actionIndex);
     }
     return guidance;
+}
+
+bool proposalCreatesMissingLayerBeforeUse(const QJsonArray& actions, const QJsonObject& guidance)
+{
+    if (guidance.value(QStringLiteral("category")).toString() != QStringLiteral("missing_layer")) {
+        return false;
+    }
+    const QString missingLayer = normalizedBricsCadLayerName(guidance.value(QStringLiteral("layerName")).toString());
+    const int failedActionIndex = guidance.value(QStringLiteral("failedActionIndex")).toInt(0);
+    if (missingLayer.isEmpty() || failedActionIndex < 2 || failedActionIndex > actions.size()) {
+        return false;
+    }
+
+    for (int i = 0; i < failedActionIndex - 1; ++i) {
+        const QJsonObject action = actions.at(i).toObject();
+        if (action.value(QStringLiteral("tool")).toString() != QStringLiteral("layers.create")) {
+            continue;
+        }
+        const QString plannedLayer = normalizedBricsCadLayerName(
+            action.value(QStringLiteral("params")).toObject().value(QStringLiteral("name")).toString());
+        if (plannedLayer.compare(missingLayer, Qt::CaseInsensitive) == 0) {
+            return true;
+        }
+    }
+    return false;
 }
 
 QString bridgeTokenFilePath()
@@ -5707,6 +5727,7 @@ bool toolCanUseRuntimeSelectionHandles(const QString& tool)
         || tool == QStringLiteral("geometry.scale")
         || tool == QStringLiteral("geometry.delete")
         || tool == QStringLiteral("entity.setLayer")
+        || tool == QStringLiteral("entity.setName")
         || tool == QStringLiteral("rectangles.extrude")
         || tool == QStringLiteral("profile.extrude")
         || tool == QStringLiteral("bim.classify");
@@ -5817,6 +5838,14 @@ QJsonObject paramsWithRuntimeBatchHandles(const QString& tool, QJsonObject param
     if ((tool == QStringLiteral("rectangles.extrude") || tool == QStringLiteral("profile.extrude"))
         && params.value(QStringLiteral("autoHandlesFromBatch")).toBool(false)) {
         QJsonArray handles = createdGeometryHandlesFromBatchResults(previousResults);
+        const int createdHandleIndex = params.value(QStringLiteral("createdGeometryHandleIndex")).toInt(-1);
+        if (createdHandleIndex >= 0) {
+            QJsonArray selectedHandle;
+            if (createdHandleIndex < handles.size()) {
+                selectedHandle.append(handles.at(createdHandleIndex));
+            }
+            handles = selectedHandle;
+        }
         const int skipCreatedHandles = std::clamp(
             params.value(QStringLiteral("skipCreatedGeometryHandles")).toInt(0),
             0,
@@ -5827,6 +5856,7 @@ QJsonObject paramsWithRuntimeBatchHandles(const QString& tool, QJsonObject param
         if (!handles.isEmpty()) {
             params.remove(QStringLiteral("autoHandlesFromBatch"));
             params.remove(QStringLiteral("skipCreatedGeometryHandles"));
+            params.remove(QStringLiteral("createdGeometryHandleIndex"));
             params.remove(QStringLiteral("layer"));
             QJsonObject selector = params.value(QStringLiteral("selector")).toObject();
             selector.insert(QStringLiteral("scope"), QStringLiteral("handles"));
@@ -5838,6 +5868,7 @@ QJsonObject paramsWithRuntimeBatchHandles(const QString& tool, QJsonObject param
             params.insert(QStringLiteral("selector"), selector);
         }
         params.remove(QStringLiteral("skipCreatedGeometryHandles"));
+        params.remove(QStringLiteral("createdGeometryHandleIndex"));
     }
 
     if (tool != QStringLiteral("bim.classify")
@@ -12460,6 +12491,10 @@ QString actionCompletionText(const QJsonObject& action, const QJsonObject& resul
         const QString geometry = params.value("geometry").toString(params.value("type").toString()).trimmed();
         return geometry.isEmpty() ? QStringLiteral("Geometrie erstellt") : QString("%1 erstellt").arg(geometry);
     }
+    if (tool == QStringLiteral("entity.setName")) {
+        const QString name = params.value(QStringLiteral("name")).toString().trimmed();
+        return name.isEmpty() ? QStringLiteral("Entity benannt") : QString("Entity als \"%1\" benannt").arg(name);
+    }
     if (tool == QStringLiteral("geometry.query")
         || tool == QStringLiteral("selection.describe")
         || tool == QStringLiteral("entity.describe")) {
@@ -12691,6 +12726,24 @@ void BricsCadPage::preflightAgentProposal(const QString& rejectedContent, const 
             const QString message = validationFailureMessage(response);
             appendBridgeLog(QString("BRX Preflight: abgelehnt: %1").arg(message.left(700).replace('\n', " | ")));
             const QJsonArray proposalActions = agentProposalActions(proposal);
+            const QJsonObject repairGuidance = validationRepairGuidance(message);
+            if (proposalCreatesMissingLayerBeforeUse(proposalActions, repairGuidance)) {
+                QJsonObject readyProposal = proposal;
+                QJsonArray warningValues;
+                warningValues.append(repairMojibakeText(message));
+                warningValues.append(QStringLiteral(
+                    "Der fehlende Layer wird in einem vorherigen Batch-Schritt mit layers.create erzeugt. "
+                    "Qt validiert und fuehrt diesen Schritt zuerst aus und prueft die abhaengige Aktion danach erneut mit BRX."));
+                readyProposal.insert(QStringLiteral("preflightWarnings"), warningValues);
+                readyProposal.insert(QStringLiteral("deferredRuntimePreflight"), true);
+                readyProposal.insert(QStringLiteral("preflightRepairGuidance"), repairGuidance);
+                appendBridgeLog(QString("BRX Preflight: Layer-Abhaengigkeit '%1' sicher bis zur Einzelaktionspruefung zurueckgestellt")
+                    .arg(repairGuidance.value(QStringLiteral("layerName")).toString()));
+                m_agentValidationRetries = 0;
+                setAgentBusy(false);
+                setAgentProposal(readyProposal);
+                return;
+            }
             if (proposalPreflightFailureCanBeDeferred(proposalActions, message)) {
                 QJsonObject readyProposal = proposal;
                 QJsonArray warningValues;
@@ -13640,6 +13693,13 @@ bool BricsCadPage::validateAgentAction(const QJsonObject& action, QString& error
             return false;
         }
     }
+    if (tool == QStringLiteral("layers.create")) {
+        const QString name = params.value(QStringLiteral("name")).toString().trimmed();
+        if (!hasBricsCadSubjectTopicLayerStructure(name)) {
+            errorMessage = "layers.create.params.name muss die Struktur 'Fachgebiet Thema' aus mindestens zwei Woertern besitzen; Sonderzeichen wie '-' und '_' sind verboten.";
+            return false;
+        }
+    }
 
     return validateToolParams(params, definition.value("inputSchema").toObject(), errorMessage);
 }
@@ -13663,6 +13723,10 @@ bool BricsCadPage::validateLayersEnsureManyParams(const QJsonObject& params, QSt
         const QString name = normalizedBricsCadLayerName(layer.value("name").toString());
         if (name.isEmpty()) {
             errorMessage = QString("layers.ensureMany.layers[%1].name fehlt").arg(i);
+            return false;
+        }
+        if (!hasBricsCadSubjectTopicLayerStructure(name)) {
+            errorMessage = QString("layers.ensureMany.layers[%1].name muss die Struktur 'Fachgebiet Thema' besitzen; '-' und '_' sind verboten").arg(i);
             return false;
         }
         if (layer.contains("colorIndex") && !layer.value("colorIndex").isNull()) {
