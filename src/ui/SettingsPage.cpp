@@ -47,6 +47,7 @@ SettingsPage::SettingsPage(ConfigManager& config, QWidget* parent)
     m_aiModel->addItem("openai/gpt-oss-20b", "openai/gpt-oss-20b");
     m_aiModel->addItem("openai/gpt-oss-120b", "openai/gpt-oss-120b");
     m_aiModel->addItem("google/gemma-4-26b-a4b-qat", "google/gemma-4-26b-a4b-qat");
+    m_aiModel->addItem("google/gemma-4-31b-qat", "google/gemma-4-31b-qat");
 
     const auto installComboPopup = [](QComboBox* combo) {
         auto* view = new QListView(combo);
@@ -211,7 +212,8 @@ void SettingsPage::updateAiProviderUi()
     const QString currentModel = m_aiModel->currentText().trimmed();
     const bool currentLooksLocal = currentModel == "openai/gpt-oss-20b"
         || currentModel == "openai/gpt-oss-120b"
-        || currentModel == "google/gemma-4-26b-a4b-qat";
+        || currentModel == "google/gemma-4-26b-a4b-qat"
+        || currentModel == "google/gemma-4-31b-qat";
     const bool currentLooksOfficial = currentModel == "gpt-5.5"
         || currentModel == "gpt-5.4"
         || currentModel == "gpt-4.1";
@@ -233,6 +235,7 @@ void SettingsPage::updateAiProviderUi()
         m_aiModel->addItem("openai/gpt-oss-20b", "openai/gpt-oss-20b");
         m_aiModel->addItem("openai/gpt-oss-120b", "openai/gpt-oss-120b");
         m_aiModel->addItem("google/gemma-4-26b-a4b-qat", "google/gemma-4-26b-a4b-qat");
+        m_aiModel->addItem("google/gemma-4-31b-qat", "google/gemma-4-31b-qat");
         m_aiBaseUrl->setPlaceholderText(QStringLiteral("http://192.168.0.67:1234/v1"));
         if (m_aiBaseUrl->text().trimmed().isEmpty()
             || m_aiBaseUrl->text().trimmed() == "https://api.openai.com/v1") {

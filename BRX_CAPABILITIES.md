@@ -1,6 +1,6 @@
 # BRX Capabilities Uebersicht
 
-Stand: 2026-06-24
+Stand: 2026-07-11
 
 Quelle:
 - `src/bricscad/BareboneBrxPlugin.cpp`: `kBridgeMethods`, `kBridgeCommands`
@@ -9,7 +9,7 @@ Quelle:
 Aktuelle Qt-Log-Zeile:
 
 ```text
-BRX-Capabilities geladen: 30 Methoden, 22 Commands, 31 Agent-Tools
+BRX-Capabilities geladen: 33 Methoden, 22 Commands, 34 Agent-Tools
 ```
 
 ## Begriffe
@@ -24,7 +24,7 @@ BRX-Capabilities geladen: 30 Methoden, 22 Commands, 31 Agent-Tools
 - Direkte BricsCAD-DB-Schreibvorgaenge sind fuer die AI verboten. Vorschlaege duerfen nur die von Qt angebotenen `tools[].name` verwenden; keine AcDb-/LayerTable-/EntityTable-Mutationen und keine Pseudo-Tools fuer Datenbankwrites.
 - Native Commands mit `acedCommand` duerfen im BRX nur im BricsCAD Command Context laufen. Barebone-Qt/BRX plant Layer, Extrude, BIMClassify, Undo und Redo deshalb ueber `beginExecuteInCommandContext`; ein Guard blockiert versehentliche Native-Command-Ausfuehrung im Application Context.
 
-## Methoden (30)
+## Methoden (33)
 
 | # | Methode | Art | Risiko | Modul/Zweck |
 |---:|---|---|---|---|
@@ -58,8 +58,11 @@ BRX-Capabilities geladen: 30 Methoden, 22 Commands, 31 Agent-Tools
 | 28 | `measurement.length` | query | readOnly | Kurvenlaengen fuer Entities berechnen. |
 | 29 | `measurement.area` | query | readOnly | Flaechen geschlossener Kurven und Kreise berechnen. |
 | 30 | `undo.redo` | action | modifiesDrawing | Redo ausfuehren, sofern BricsCAD es erlaubt. |
+| 31 | `pipes.validateNetwork` | query | readOnly | Offene Polylinien als zusammenhaengendes Rohrnetz mit Knoten, Enden und T-Abzweigungen validieren. |
+| 32 | `pipes.createNetworkSolids` | action | modifiesDrawing | Zylindrische Rohrsegmente entlang validierter Polylinien erzeugen. |
+| 33 | `annotations.createRoomDimensions` | action | modifiesDrawing | Laengen-/Breitenbemassung und Raumstempel fuer rechteckige Raumkonturen erzeugen. |
 
-## BRX-Action-Methoden (19, alle direkte AI-Tools)
+## BRX-Action-Methoden (21, alle direkte AI-Tools)
 
 Diese 19 Methoden sind im BRX als `kind=action` vorhanden und werden dem AI-Agenten direkt angeboten. Zusaetzlich bietet Qt das virtuelle Agent-Tool `layers.ensureMany` an. Read-only BRX-Methoden wie `capabilities.list`, `actions.list`, `actions.validate`, `geometry.query` und Messfunktionen sind ebenfalls freigegebene Agent-Tools fuer Kontext, Diagnose und Try-before-fail. Read-only Tools duerfen bei Tabellen-/Datenfragen automatisch laufen; mutierende AI-Tools laufen vor der Anzeige zur Nutzerbestaetigung durch lokale Qt-Validierung und BRX-Preflight via `actions.validate`.
 

@@ -380,6 +380,57 @@ QString lessonIdFromValue(const QJsonValue& value)
     return id;
 }
 
+bool isProtectedWorkflow(const QJsonObject& lesson)
+{
+    return lesson.value(QStringLiteral("updateProtected")).toBool(false)
+        || lesson.value(QStringLiteral("source")).toString() == QStringLiteral("canonical_building_workflow");
+}
+
+bool isAiOwnedWorkflow(const QJsonObject& lesson)
+{
+    if (isProtectedWorkflow(lesson)) {
+        return false;
+    }
+    const QString source = lesson.value(QStringLiteral("source")).toString().trimmed();
+    return source == QStringLiteral("ai_runtime")
+        || source == QStringLiteral("brx_runtime")
+        || source == QStringLiteral("local_ai")
+        || lesson.value(QStringLiteral("id")).toString().startsWith(QStringLiteral("ai_"));
+}
+
+QJsonObject normalizedAiWorkflow(QJsonObject lesson, const QString& now)
+{
+    const QString title = repairLearningText(lesson.value(QStringLiteral("title")).toString(
+        lesson.value(QStringLiteral("topic")).toString(
+            lesson.value(QStringLiteral("intent")).toString()))).trimmed();
+    lesson.insert(QStringLiteral("title"), title);
+    lesson.insert(QStringLiteral("topic"), lesson.value(QStringLiteral("topic")).toString(title));
+    lesson.insert(QStringLiteral("description"), lesson.value(QStringLiteral("description")).toString(
+        lesson.value(QStringLiteral("intent")).toString()));
+    lesson.insert(QStringLiteral("status"), QStringLiteral("active"));
+    lesson.insert(QStringLiteral("source"), QStringLiteral("ai_runtime"));
+    lesson.insert(QStringLiteral("updateProtected"), false);
+    lesson.insert(QStringLiteral("intentPatterns"), lesson.value(QStringLiteral("intentPatterns")).toArray());
+    lesson.insert(QStringLiteral("assumptions"), lesson.value(QStringLiteral("assumptions")).toArray());
+    lesson.insert(QStringLiteral("requiredSlots"), lesson.value(QStringLiteral("requiredSlots")).toArray());
+    lesson.insert(QStringLiteral("knownSlotValues"), lesson.value(QStringLiteral("knownSlotValues")).toObject());
+    lesson.insert(QStringLiteral("derivedValues"), lesson.value(QStringLiteral("derivedValues")).toObject());
+    lesson.insert(QStringLiteral("strategy"), lesson.value(QStringLiteral("strategy")).toArray());
+    lesson.insert(QStringLiteral("executionBatches"), lesson.value(QStringLiteral("executionBatches")).toArray());
+    QJsonArray validationExamples = lesson.value(QStringLiteral("validationExamples")).toArray();
+    if (validationExamples.isEmpty()) {
+        validationExamples = lesson.value(QStringLiteral("successfulExamples")).toArray();
+    }
+    lesson.insert(QStringLiteral("validationExamples"), validationExamples);
+    lesson.remove(QStringLiteral("successfulExamples"));
+    lesson.insert(QStringLiteral("knownFailures"), lesson.value(QStringLiteral("knownFailures")).toArray());
+    lesson.insert(QStringLiteral("repairRules"), lesson.value(QStringLiteral("repairRules")).toArray());
+    lesson.insert(QStringLiteral("recommendedTools"), lesson.value(QStringLiteral("recommendedTools")).toArray());
+    lesson.insert(QStringLiteral("createdAt"), lesson.value(QStringLiteral("createdAt")).toString(now));
+    lesson.insert(QStringLiteral("updatedAt"), now);
+    return lesson;
+}
+
 } // namespace
 
 void BricsCadLearningAgent::setProjectRootPath(const QString& path)
@@ -579,21 +630,26 @@ QJsonObject BricsCadLearningAgent::compactExample(const QJsonObject& example, co
 
 QJsonObject BricsCadLearningAgent::compactLesson(const QJsonObject& lesson, bool detailed)
 {
+    const QString title = lesson.value(QStringLiteral("title")).toString(
+        lesson.value(QStringLiteral("topic")).toString(lesson.value(QStringLiteral("id")).toString()));
     QJsonObject compact{
         {QStringLiteral("id"), lesson.value(QStringLiteral("id")).toString()},
-        {QStringLiteral("title"), lesson.value(QStringLiteral("topic")).toString()},
-        {QStringLiteral("topic"), lesson.value(QStringLiteral("topic")).toString()},
+        {QStringLiteral("title"), title},
+        {QStringLiteral("topic"), lesson.value(QStringLiteral("topic")).toString(title)},
         {QStringLiteral("intent"), lesson.value(QStringLiteral("intent")).toString().left(detailed ? 900 : 260)},
         {QStringLiteral("description"), lesson.value(QStringLiteral("intent")).toString().left(detailed ? 900 : 260)},
         {QStringLiteral("status"), lesson.value(QStringLiteral("status")).toString(QStringLiteral("active"))},
         {QStringLiteral("kind"), QStringLiteral("learning")},
         {QStringLiteral("source"), lesson.value(QStringLiteral("source")).toString()},
+        {QStringLiteral("updateProtected"), isProtectedWorkflow(lesson)},
+        {QStringLiteral("aiOwned"), isAiOwnedWorkflow(lesson)},
+        {QStringLiteral("readOnly"), isProtectedWorkflow(lesson)},
         {QStringLiteral("sourceFile"), lesson.value(QStringLiteral("sourceFile")).toString()},
         {QStringLiteral("recommendedTools"), firstObjects(lesson.value(QStringLiteral("recommendedTools")).toArray(), detailed ? 18 : 8)},
         {QStringLiteral("intentPatterns"), firstObjects(lesson.value(QStringLiteral("intentPatterns")).toArray(), detailed ? 8 : 3)},
         {QStringLiteral("knownFailures"), firstObjects(lesson.value(QStringLiteral("knownFailures")).toArray(), detailed ? 8 : 3)},
         {QStringLiteral("repairRules"), firstObjects(lesson.value(QStringLiteral("repairRules")).toArray(), detailed ? 8 : 3)},
-        {QStringLiteral("successfulExamples"), firstObjects(lesson.value(QStringLiteral("successfulExamples")).toArray(), detailed ? 3 : 1)},
+        {QStringLiteral("validationExamples"), firstObjects(lesson.value(QStringLiteral("validationExamples")).toArray(), detailed ? 3 : 1)},
         {QStringLiteral("strategy"), firstObjects(lesson.value(QStringLiteral("strategy")).toArray(), detailed ? 12 : 4)},
         {QStringLiteral("confidence"), lesson.value(QStringLiteral("confidence")).toDouble()},
         {QStringLiteral("usageCount"), lesson.value(QStringLiteral("usageCount")).toInt()},
@@ -610,6 +666,8 @@ QJsonObject BricsCadLearningAgent::compactLesson(const QJsonObject& lesson, bool
         compact.insert(QStringLiteral("executionBatches"), firstObjects(lesson.value(QStringLiteral("executionBatches")).toArray(), 8));
         compact.insert(QStringLiteral("assumptions"), firstObjects(lesson.value(QStringLiteral("assumptions")).toArray(), 10));
         compact.insert(QStringLiteral("knownSlotValues"), lesson.value(QStringLiteral("knownSlotValues")).toObject());
+        compact.insert(QStringLiteral("requiredSlots"), lesson.value(QStringLiteral("requiredSlots")).toArray());
+        compact.insert(QStringLiteral("derivedValues"), lesson.value(QStringLiteral("derivedValues")).toObject());
     }
     return compact;
 }
@@ -651,7 +709,7 @@ QJsonArray BricsCadLearningAgent::learningIndex() const
         index.append(row);
 
         int exampleIndex = 0;
-        for (const QJsonValue& exampleValue : lesson.value(QStringLiteral("successfulExamples")).toArray()) {
+        for (const QJsonValue& exampleValue : lesson.value(QStringLiteral("validationExamples")).toArray()) {
             QJsonObject example = exampleValue.toObject();
             if (example.value(QStringLiteral("id")).toString().trimmed().isEmpty()) {
                 example.insert(QStringLiteral("id"), QStringLiteral("%1_example_%2")
@@ -717,6 +775,7 @@ QString BricsCadLearningAgent::lessonSearchText(const QJsonObject& lesson)
     for (const QString& key : {
              QStringLiteral("id"),
              QStringLiteral("topic"),
+             QStringLiteral("title"),
              QStringLiteral("intent"),
              QStringLiteral("intentPatterns"),
              QStringLiteral("promptExamples"),
@@ -725,6 +784,11 @@ QString BricsCadLearningAgent::lessonSearchText(const QJsonObject& lesson)
              QStringLiteral("knownFailures"),
              QStringLiteral("repairRules"),
              QStringLiteral("validActionShapes"),
+             QStringLiteral("executionBatches"),
+             QStringLiteral("validationExamples"),
+             QStringLiteral("requiredSlots"),
+             QStringLiteral("knownSlotValues"),
+             QStringLiteral("derivedValues"),
          }) {
         appendValue(lesson.value(key), appendValue);
     }
@@ -834,12 +898,23 @@ QJsonObject BricsCadLearningAgent::contextForPrompt(const QString& prompt, int m
     }
 
     return QJsonObject{
-        {QStringLiteral("schema"), QStringLiteral("barebone.agent.bricscad-learning-context.v1")},
+        {QStringLiteral("schema"), QStringLiteral("barebone.agent.bricscad-learning-context.v2")},
         {QStringLiteral("metadata"), metadata()},
         {QStringLiteral("policy"), policy()},
         {QStringLiteral("lessons"), lessons},
         {QStringLiteral("toolProfiles"), tools},
         {QStringLiteral("repairRules"), firstObjects(m_document.value(QStringLiteral("repairRules")).toArray(), 8)},
+        {QStringLiteral("workflowStructure"), QJsonObject{
+            {QStringLiteral("requiredFields"), QJsonArray{
+                QStringLiteral("id"), QStringLiteral("title"), QStringLiteral("intent"), QStringLiteral("intentPatterns"),
+                QStringLiteral("assumptions"), QStringLiteral("requiredSlots"), QStringLiteral("knownSlotValues"),
+                QStringLiteral("derivedValues"), QStringLiteral("strategy"), QStringLiteral("executionBatches"),
+                QStringLiteral("validationExamples"), QStringLiteral("knownFailures"), QStringLiteral("repairRules"),
+                QStringLiteral("recommendedTools"), QStringLiteral("status"), QStringLiteral("source"),
+                QStringLiteral("updateProtected"), QStringLiteral("createdAt"), QStringLiteral("updatedAt")}},
+            {QStringLiteral("updatePolicy"), QStringLiteral("Workflows mit updateProtected=true oder source=canonical_building_workflow sind read-only. Die lokale AI darf nur source=ai_runtime und updateProtected=false anlegen oder aktualisieren.")},
+            {QStringLiteral("executionPolicy"), QStringLiteral("executionBatches muessen sequential, stopOnFailure=true und konkrete steps mit tool und paramsTemplate enthalten; validationExamples enthalten platzhalterfreie actions.")},
+        }},
         {QStringLiteral("selectionPolicy"), QStringLiteral("Nutze diese Lessons als kompaktes Erfahrungswissen, nicht als starre Rezepte. Pruefe vor der Anwendung, ob Prompt, Zeichnungskontext und Berechnung wirklich zur Lesson passen. confidence, usageCount, successCount, failureCount, complaintCount und lastOutcome sind Zuverlaessigkeitssignale: erfolgreiche, haeufig bestaetigte Lessons bevorzugen; Lessons mit Fehlern oder Nutzerkritik vorsichtig pruefen. Uebernimm feste Filter wie layer=0, Handles, Namen, Winkel oder Beispielmasse nur, wenn der Nutzer sie im aktuellen Prompt nennt. Bei selbst erzeugten Objekten muessen Folgeschritte exakte Handles, lastResult/lastExtruded oder autoHandlesFromBatch nutzen; keine breiten currentSpace/Layer-Selektoren auf bestehende Zeichnungsobjekte. BRX Runtime-Capabilities bleiben verbindlich. Erst read-only pruefen, Defaults ableiten, Berechnung plausibilisieren, validieren, dann gezielt rueckfragen.")},
     };
 }
@@ -921,6 +996,9 @@ int BricsCadLearningAgent::matchingLessonIndex(const QJsonObject& lesson, const 
         if (!id.isEmpty() && existing.value(QStringLiteral("id")).toString() == id) {
             return i;
         }
+        if (isProtectedWorkflow(existing)) {
+            continue;
+        }
 
         int score = 0;
         const QString existingTopic = normalizedText(existing.value(QStringLiteral("topic")).toString());
@@ -954,7 +1032,9 @@ void BricsCadLearningAgent::refreshMetadata()
     const QJsonArray lessons = m_document.value(QStringLiteral("lessons")).toArray();
     int active = 0;
     int deprecated = 0;
-    int examples = m_document.value(QStringLiteral("successfulExamples")).toArray().size();
+    int protectedCount = 0;
+    int aiOwnedCount = 0;
+    int examples = 0;
     for (const QJsonValue& value : lessons) {
         const QJsonObject lesson = value.toObject();
         const QString status = lesson.value(QStringLiteral("status")).toString(QStringLiteral("active"));
@@ -963,15 +1043,23 @@ void BricsCadLearningAgent::refreshMetadata()
         } else if (status == QStringLiteral("deprecated")) {
             ++deprecated;
         }
-        examples += lesson.value(QStringLiteral("successfulExamples")).toArray().size();
+        if (isProtectedWorkflow(lesson)) {
+            ++protectedCount;
+        } else if (isAiOwnedWorkflow(lesson)) {
+            ++aiOwnedCount;
+        }
+        examples += lesson.value(QStringLiteral("validationExamples")).toArray().size();
     }
 
     QJsonObject meta = m_document.value(QStringLiteral("metadata")).toObject();
     meta.insert(QStringLiteral("lessonCount"), lessons.size());
     meta.insert(QStringLiteral("activeCount"), active);
     meta.insert(QStringLiteral("deprecatedCount"), deprecated);
+    meta.insert(QStringLiteral("protectedWorkflowCount"), protectedCount);
+    meta.insert(QStringLiteral("aiOwnedWorkflowCount"), aiOwnedCount);
     meta.insert(QStringLiteral("repairRuleCount"), m_document.value(QStringLiteral("repairRules")).toArray().size());
     meta.insert(QStringLiteral("successfulExampleCount"), examples);
+    meta.insert(QStringLiteral("validationExampleCount"), examples);
     meta.insert(QStringLiteral("toolProfileCount"), m_document.value(QStringLiteral("toolProfiles")).toArray().size());
     m_document.insert(QStringLiteral("metadata"), meta);
     m_document.insert(QStringLiteral("updatedAt"), QDateTime::currentDateTimeUtc().toString(Qt::ISODate));
@@ -1016,13 +1104,19 @@ bool BricsCadLearningAgent::upsertLesson(QJsonObject lesson, QString* appliedCha
     lesson.insert(QStringLiteral("intent"), intent);
     lesson.insert(QStringLiteral("description"), intent);
     lesson.insert(QStringLiteral("recommendedTools"), recommendedTools);
-    lesson.insert(QStringLiteral("status"), lesson.value(QStringLiteral("status")).toString(QStringLiteral("active")));
-    lesson.insert(QStringLiteral("source"), lesson.value(QStringLiteral("source")).toString(QStringLiteral("ai_runtime")));
     const QString now = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+    lesson = normalizedAiWorkflow(lesson, now);
 
     const int existingIndex = matchingLessonIndex(lesson, lessons);
     if (existingIndex >= 0) {
         QJsonObject existing = lessons.at(existingIndex).toObject();
+        if (!isAiOwnedWorkflow(existing)) {
+            if (errorMessage) {
+                *errorMessage = QStringLiteral("Workflow ist schreibgeschuetzt und darf nicht durch die lokale AI aktualisiert werden: %1")
+                    .arg(existing.value(QStringLiteral("id")).toString());
+            }
+            return false;
+        }
         if (intent.size() > existing.value(QStringLiteral("intent")).toString().size()) {
             existing.insert(QStringLiteral("intent"), intent);
             existing.insert(QStringLiteral("description"), intent);
@@ -1045,7 +1139,7 @@ bool BricsCadLearningAgent::upsertLesson(QJsonObject lesson, QString* appliedCha
         for (const QString& key : {
                  QStringLiteral("validActionShapes"),
                  QStringLiteral("executionBatches"),
-                 QStringLiteral("successfulExamples"),
+                 QStringLiteral("validationExamples"),
              }) {
             existing.insert(key, mergedObjectArray(existing.value(key).toArray(), lesson.value(key).toArray()));
         }
@@ -1072,6 +1166,8 @@ bool BricsCadLearningAgent::upsertLesson(QJsonObject lesson, QString* appliedCha
             existing.insert(QStringLiteral("confidence"), boundedConfidence(std::max(currentConfidence, incomingConfidence)));
         }
         existing.insert(QStringLiteral("updatedAt"), now);
+        existing.insert(QStringLiteral("source"), QStringLiteral("ai_runtime"));
+        existing.insert(QStringLiteral("updateProtected"), false);
         existing.insert(QStringLiteral("usageCount"), existing.value(QStringLiteral("usageCount")).toInt() + 1);
         lessons.replace(existingIndex, existing);
         if (appliedChange) {
@@ -1080,7 +1176,6 @@ bool BricsCadLearningAgent::upsertLesson(QJsonObject lesson, QString* appliedCha
     } else {
         lesson.insert(QStringLiteral("id"), generatedLessonId(lesson, lessons));
         lesson.insert(QStringLiteral("createdAt"), lesson.value(QStringLiteral("createdAt")).toString(now));
-        lesson.insert(QStringLiteral("updatedAt"), now);
         lesson.insert(QStringLiteral("usageCount"), lesson.value(QStringLiteral("usageCount")).toInt(0));
         lesson.insert(QStringLiteral("confidence"), lesson.value(QStringLiteral("confidence")).toDouble(0.55));
         lessons.append(lesson);
@@ -1326,6 +1421,9 @@ bool BricsCadLearningAgent::recordLessonUse(const QJsonArray& lessonIds, const Q
         if (!ids.contains(id)) {
             continue;
         }
+        if (isProtectedWorkflow(lesson)) {
+            continue;
+        }
         const QStringList lessonTools = jsonStringArray(lesson.value(QStringLiteral("recommendedTools")).toArray());
         if (!eventTools.isEmpty() && !lessonTools.isEmpty()) {
             bool sharesTool = false;
@@ -1506,16 +1604,24 @@ bool BricsCadLearningAgent::upsertRuntimeLessonFromEvent(
     assumptions.append(QStringLiteral("Bei vorhandenen Objekten bevorzugt selector.scope=handles verwenden, wenn ein Handle genannt oder zuvor gelesen wurde."));
 
     QJsonArray validActionShapes = compactRuntimeActions(event.value(QStringLiteral("actions")).toArray());
-    QJsonArray successfulExamples;
+    QJsonArray validationExamples;
     if (!validActionShapes.isEmpty()) {
-        successfulExamples.append(QJsonObject{
+        QJsonArray validationActions;
+        for (const QJsonValue& value : validActionShapes) {
+            const QJsonObject step = value.toObject();
+            validationActions.append(QJsonObject{
+                {QStringLiteral("tool"), step.value(QStringLiteral("tool")).toString()},
+                {QStringLiteral("params"), step.value(QStringLiteral("paramsTemplate")).toObject()},
+            });
+        }
+        validationExamples.append(QJsonObject{
             {QStringLiteral("id"), QStringLiteral("runtime_example_%1").arg(QDateTime::currentMSecsSinceEpoch())},
             {QStringLiteral("title"), QStringLiteral("Aus erfolgreicher BRX-Ausfuehrung")},
             {QStringLiteral("prompt"), prompt},
             {QStringLiteral("focusedTopic"), focusTopic},
             {QStringLiteral("summary"), summary},
             {QStringLiteral("tools"), recommendedTools},
-            {QStringLiteral("actions"), validActionShapes},
+            {QStringLiteral("actions"), validationActions},
             {QStringLiteral("source"), QStringLiteral("brx_runtime")},
             {QStringLiteral("createdAt"), QDateTime::currentDateTimeUtc().toString(Qt::ISODate)},
         });
@@ -1533,9 +1639,22 @@ bool BricsCadLearningAgent::upsertRuntimeLessonFromEvent(
         {QStringLiteral("strategy"), strategy},
         {QStringLiteral("assumptions"), assumptions},
         {QStringLiteral("validActionShapes"), validActionShapes},
-        {QStringLiteral("successfulExamples"), successfulExamples},
+        {QStringLiteral("requiredSlots"), QJsonArray{}},
+        {QStringLiteral("knownSlotValues"), QJsonObject{}},
+        {QStringLiteral("derivedValues"), QJsonObject{}},
+        {QStringLiteral("executionBatches"), validActionShapes.isEmpty() ? QJsonArray{} : QJsonArray{QJsonObject{
+            {QStringLiteral("id"), QStringLiteral("ai_runtime_actions")},
+            {QStringLiteral("title"), topic},
+            {QStringLiteral("mode"), QStringLiteral("sequential")},
+            {QStringLiteral("stopOnFailure"), true},
+            {QStringLiteral("steps"), validActionShapes},
+        }}},
+        {QStringLiteral("validationExamples"), validationExamples},
+        {QStringLiteral("knownFailures"), QJsonArray{}},
+        {QStringLiteral("repairRules"), QJsonArray{}},
         {QStringLiteral("status"), QStringLiteral("active")},
         {QStringLiteral("source"), QStringLiteral("brx_runtime")},
+        {QStringLiteral("updateProtected"), false},
         {QStringLiteral("createdAt"), now},
         {QStringLiteral("updatedAt"), now},
         {QStringLiteral("usageCount"), 1},
@@ -1594,6 +1713,12 @@ bool BricsCadLearningAgent::deprecateLesson(const QString& id, QString* errorMes
         QJsonObject lesson = lessons.at(i).toObject();
         if (lesson.value(QStringLiteral("id")).toString() != trimmed) {
             continue;
+        }
+        if (isProtectedWorkflow(lesson)) {
+            if (errorMessage) {
+                *errorMessage = QStringLiteral("Workflow ist schreibgeschuetzt und kann nicht deaktiviert werden: %1").arg(trimmed);
+            }
+            return false;
         }
         lesson.insert(QStringLiteral("status"), QStringLiteral("deprecated"));
         lesson.insert(QStringLiteral("updatedAt"), QDateTime::currentDateTimeUtc().toString(Qt::ISODate));

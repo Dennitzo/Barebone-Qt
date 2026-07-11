@@ -16,8 +16,8 @@
   "learningUpdate": {
     "optional": true,
     "bricscadOnly": true,
-    "policy": "Optionales Metadatum, kein Antworttyp. Nur senden, wenn aus erfolgreicher Ausfuehrung, Reparatur oder bestaetigtem Nutzerfeedback wiederverwendbares BRX-Wissen entstanden ist. Nutze lessons[], repairRules[] oder successfulExamples[]. Qt validiert Toolnamen und merged Duplikate.",
-    "lessonFields": ["topic", "intent", "intentPatterns", "recommendedTools", "validActionShapes", "repairRules", "successfulExamples"]
+    "policy": "Optionales Metadatum, kein Antworttyp. Kuratierte Workflows mit updateProtected=true oder source=canonical_building_workflow sind unveraenderlich. Die lokale AI darf nur eigene Workflows mit source=ai_runtime und updateProtected=false anlegen oder aktualisieren. Neue Workflows verwenden dieselbe kanonische Struktur wie brx-learning.json.",
+    "lessonFields": ["id", "title", "intent", "intentPatterns", "assumptions", "requiredSlots", "knownSlotValues", "derivedValues", "strategy", "executionBatches", "validationExamples", "knownFailures", "repairRules", "recommendedTools", "status", "source", "updateProtected"]
   },
   "message": {
     "required": ["type", "message"]

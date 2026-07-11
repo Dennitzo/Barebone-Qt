@@ -63,7 +63,8 @@ QString ConfigManager::aiModel() const
     if (!local
         && (value == QString::fromLatin1(kDefaultAiModel)
             || value == QStringLiteral("openai/gpt-oss-120b")
-            || value == QStringLiteral("google/gemma-4-26b-a4b-qat"))) {
+            || value == QStringLiteral("google/gemma-4-26b-a4b-qat")
+            || value == QStringLiteral("google/gemma-4-31b-qat"))) {
         return QString::fromLatin1(kDefaultOfficialAiModel);
     }
     return value.isEmpty() ? fallback : value;

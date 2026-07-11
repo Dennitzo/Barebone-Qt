@@ -2310,6 +2310,7 @@
         workflowEmpty: "Wähle einen Workflow aus. Danach kannst du ihn als Kontext im Chat nutzen.",
         learningEmpty: "Waehle einen BRX-Learning-Eintrag aus, um Details, Gewichtung, Tools, Lessons, Repair-Regeln oder Beispiele anzuzeigen.",
         selectWorkflow: "Workflow auswählen",
+        executeWorkflow: "Workflow ausführen",
         copy: "Kopieren",
         copied: "Kopiert",
         copyFailed: "Kopieren fehlgeschlagen",
@@ -2423,6 +2424,7 @@
         workflowEmpty: "Select a workflow. It will be used as context in chat.",
         learningEmpty: "Select a BRX learning entry to inspect details, weighting, tools, lessons, repair rules, or examples.",
         selectWorkflow: "Select workflow",
+        executeWorkflow: "Run workflow",
         copy: "Copy",
         copied: "Copied",
         copyFailed: "Copy failed",
@@ -3673,11 +3675,11 @@
     function updateWorkflowSelectButton() {
       const hasPreview = !!(workflowPreview && workflowPreview.id);
       if (workflowSelect) {
-        const canSelect = hasPreview && !isBrxLearningWorkspace();
-        workflowSelect.hidden = isBrxLearningWorkspace();
+        const canSelect = hasPreview;
+        workflowSelect.hidden = false;
         workflowSelect.disabled = !canSelect;
         workflowSelect.setAttribute("aria-disabled", canSelect ? "false" : "true");
-        workflowSelect.textContent = t("selectWorkflow");
+        workflowSelect.textContent = isBrxLearningWorkspace() ? t("executeWorkflow") : t("selectWorkflow");
         workflowSelect.title = workflowSelect.textContent;
       }
       if (workflowDelete) {
@@ -3714,21 +3716,29 @@
     }
 
     function activateWorkflowPreview() {
-      if (isBrxLearningWorkspace()) {
-        input.focus();
-        return;
-      }
       if (!workflowPreview || !workflowPreview.id) {
         workflowSearch.focus();
         return;
       }
+      const executeInBricsCad = isBrxLearningWorkspace();
+      const workflowToExecute = normalizeWorkflow(workflowPreview);
       pendingWorkflowSessionOpenMode = isGeneralWorkflowWorkspace() ? "general" : "";
       if (bridge && typeof bridge.selectWorkflow === "function") {
-        bridge.selectWorkflow(workflowPreview.id);
+        bridge.selectWorkflow(workflowToExecute.id);
       } else {
-        applySelectedWorkflowFromQt(workflowPreview);
+        applySelectedWorkflowFromQt(workflowToExecute);
       }
       closeWorkflowOverlay();
+      if (executeInBricsCad) {
+        addMessage({
+          speaker: "Barebone-Qt",
+          message: workflowCompactMarkdownForChat(workflowToExecute),
+          time: nowTime()
+        });
+        input.value = `Führe den Workflow „${workflowToExecute.title || workflowToExecute.id}“ (${workflowToExecute.id}) jetzt in BricsCAD aus. Prüfe die aktuellen Zeichnungsdaten und berechneten Positionen zuerst. Erzeuge anschließend einen Workflow-ausführen-Vorschlag zur Bestätigung. Noch gewünschte Änderungen an Maßen, Layern oder Schritten berücksichtige aus diesem Prompt.`;
+        submitPrompt();
+        return;
+      }
       input.focus();
     }
 
@@ -4433,7 +4443,7 @@
           selectedWorkflow = workflow;
         }
       }
-      const canShowWorkflow = trainingMode;
+      const canShowWorkflow = trainingMode || isBrxLearningWorkspace();
       if (!canShowWorkflow || !selectedWorkflow || !selectedWorkflow.id) {
         activeWorkflow.classList.remove("visible");
         activeWorkflowName.textContent = t("workflowActive");
@@ -8312,16 +8322,20 @@
         { trainingMode: false });
       sessions.unshift(session);
       activeSessionId = session.id;
-      if (isGeneralWorkflowWorkspace()) {
-        selectedWorkflow = null;
-        if (bridge && typeof bridge.clearSelectedWorkflow === "function") {
-          bridge.clearSelectedWorkflow();
-        }
+      sessionDocuments.set(session.id, []);
+      documentsLoading = 0;
+      selectedWorkflow = null;
+      workflowPreview = null;
+      pendingWorkflowSessionOpenMode = "";
+      if (bridge && typeof bridge.clearSelectedWorkflow === "function") {
+        bridge.clearSelectedWorkflow();
       }
       persistSessions({ rememberScroll: false });
       renderSessionList();
       prepareSessionOpenScroll();
       renderActiveSession();
+      renderActiveWorkflow();
+      renderDocumentContext();
       renderModeSelection();
       syncActiveSessionToQt();
       syncTrainingModeToQt();

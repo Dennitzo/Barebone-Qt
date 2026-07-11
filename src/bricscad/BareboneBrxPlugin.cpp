@@ -109,6 +109,23 @@ const BridgeMethodDescriptor kBridgeMethods[] = {
 })JSON",
         nullptr,
     },
+    {
+        "pipes.validateNetwork", "query", "readOnly",
+        "Validiert Konnektivitaet und offene Enden eines Rohrnetzes aus offenen Polylinien.",
+        R"({"type":"object","required":["system"],"properties":{"system":{"type":"string"},"selector":{"type":"object"},"startNode":{"type":"object"},"endNodes":{"type":"array"},"teeNodes":{"type":"array"},"minimumClearanceMm":{"type":"number","minimum":0},"avoidLayers":{"type":"array","items":{"type":"string"}}}})", nullptr,
+    },
+    {
+        "pipes.createNetworkSolids", "action", "modifiesDrawing",
+        "Erzeugt zylindrische Rohrsegmente entlang validierter offener Polylinien.",
+        R"({"type":"object","required":["system","selector","diameterMm","targetLayer"],"properties":{"system":{"type":"string"},"selector":{"type":"object"},"diameterMm":{"type":"number","exclusiveMinimum":0},"targetLayer":{"type":"string"},"connectionMode":{"enum":["elbows_and_tees"]},"saveBefore":{"type":"boolean"}}})",
+        R"({"method":"pipes.createNetworkSolids","required":["system","selector","diameterMm","targetLayer"]})",
+    },
+    {
+        "annotations.createRoomDimensions", "action", "modifiesDrawing",
+        "Erzeugt Laengen- und Breitenbemassung sowie einen Raumstempel fuer rechteckige Raumkonturen.",
+        R"({"type":"object","required":["selector","roomHeightMm","dimensionLayer","labelLayer"],"properties":{"selector":{"type":"object"},"roomNames":{"type":"array","items":{"type":"string"}},"roomHeightMm":{"type":"number","exclusiveMinimum":0},"dimensionLayer":{"type":"string"},"labelLayer":{"type":"string"},"textHeightMm":{"type":"number","exclusiveMinimum":0},"offsetMm":{"type":"number","minimum":0},"saveBefore":{"type":"boolean"}}})",
+        R"({"method":"annotations.createRoomDimensions","required":["selector","roomHeightMm","dimensionLayer","labelLayer"]})",
+    },
     {"commands.list", "query", "readOnly", "Liefert eine Low-Level-Startliste nativer BricsCAD-Kommandos und zugehoeriger Bridge-Tools.", nullptr, nullptr},
     {"layers.list", "query", "readOnly", "Listet Layer der aktiven Zeichnung.", nullptr, nullptr},
     {
@@ -1566,6 +1583,8 @@ bool requiresCommandContext(const std::string& request)
         "BIMCLASSIFYSELECTOR",
         "UNDO",
         "REDO",
+        "PIPESCREATESOLIDS",
+        "ROOMDIMENSIONS",
     };
     static constexpr const char* kApplicationContextRequests[] = {
         "LAYERS",
@@ -1576,6 +1595,7 @@ bool requiresCommandContext(const std::string& request)
         "MEASUREBBOX",
         "MEASURELENGTH",
         "MEASUREAREA",
+        "PIPESVALIDATE",
     };
     if (commandNameInList(command, kCommandContextRequests, sizeof(kCommandContextRequests) / sizeof(kCommandContextRequests[0]))) {
         return true;
@@ -4812,6 +4832,18 @@ bool validateActionObject(
         }
     } else if (result.tool == "command.execute") {
         validateCommandExecuteParams(paramsJson, result);
+    } else if (result.tool == "pipes.createNetworkSolids") {
+        AcDbObjectIdArray ids;
+        validateSelectorForAction(state, paramsJson, result.tool, true, &ids, result.errors, result.missing, debugLines);
+        if (jsonStringProperty(paramsJson, "system").value_or("").empty()) addUniqueMessage(result.missing, "pipes.createNetworkSolids.params.system");
+        if (jsonStringProperty(paramsJson, "targetLayer").value_or("").empty()) addUniqueMessage(result.missing, "pipes.createNetworkSolids.params.targetLayer");
+        if (jsonDoubleProperty(paramsJson, "diameterMm").value_or(0.0) <= 0.0) addUniqueMessage(result.errors, "pipes.createNetworkSolids.params.diameterMm muss > 0 sein");
+    } else if (result.tool == "annotations.createRoomDimensions") {
+        AcDbObjectIdArray ids;
+        validateSelectorForAction(state, paramsJson, result.tool, true, &ids, result.errors, result.missing, debugLines);
+        if (jsonStringProperty(paramsJson, "dimensionLayer").value_or("").empty()) addUniqueMessage(result.missing, "annotations.createRoomDimensions.params.dimensionLayer");
+        if (jsonStringProperty(paramsJson, "labelLayer").value_or("").empty()) addUniqueMessage(result.missing, "annotations.createRoomDimensions.params.labelLayer");
+        if (jsonDoubleProperty(paramsJson, "roomHeightMm").value_or(0.0) <= 0.0) addUniqueMessage(result.errors, "annotations.createRoomDimensions.params.roomHeightMm muss > 0 sein");
     } else if (result.tool == "capabilities.list"
         || result.tool == "actions.list"
         || result.tool == "actions.validate"
@@ -4822,7 +4854,8 @@ bool validateActionObject(
         || result.tool == "entity.describe"
         || result.tool == "measurement.bbox"
         || result.tool == "measurement.length"
-        || result.tool == "measurement.area") {
+        || result.tool == "measurement.area"
+        || result.tool == "pipes.validateNetwork") {
         addUniqueMessage(result.hints, result.tool + " ist read-only und veraendert die Zeichnung nicht");
     } else {
         addUniqueMessage(result.errors, "Unbekannte oder nicht validierbare Action: " + result.tool);
@@ -6272,6 +6305,285 @@ std::string createGeometryInApplicationContext(const std::string& paramsJson)
     return response.str();
 }
 
+struct PipeSegment {
+    AcGePoint3d start;
+    AcGePoint3d end;
+};
+
+std::vector<PipeSegment> pipeSegmentsFromParams(
+    const std::string& paramsJson,
+    AcDbDatabase* database,
+    std::vector<std::string>& debugLines)
+{
+    std::vector<PipeSegment> segments;
+    const std::string selector = jsonObjectProperty(paramsJson, "selector").value_or("{}");
+    const AcDbObjectIdArray ids = selectorObjectIds(selector, database, debugLines);
+    for (int idIndex = 0; idIndex < ids.length(); ++idIndex) {
+        AcDbEntity* entity = nullptr;
+        if (acdbOpenObject(entity, ids.at(idIndex), AcDb::kForRead) != Acad::eOk || entity == nullptr) {
+            continue;
+        }
+        AcDbPolyline* polyline = AcDbPolyline::cast(entity);
+        if (polyline == nullptr || polyline->isClosed() || polyline->numVerts() < 2) {
+            entity->close();
+            continue;
+        }
+        for (unsigned int i = 1; i < polyline->numVerts(); ++i) {
+            AcGePoint3d start;
+            AcGePoint3d end;
+            if (polyline->getPointAt(i - 1, start) == Acad::eOk
+                && polyline->getPointAt(i, end) == Acad::eOk
+                && start.distanceTo(end) > kRectangleTolerance) {
+                segments.push_back(PipeSegment{start, end});
+            }
+        }
+        entity->close();
+    }
+    appendDebug(debugLines, "Pipe segments read=" + std::to_string(segments.size()));
+    return segments;
+}
+
+bool pipePointsEqual(const AcGePoint3d& a, const AcGePoint3d& b, double tolerance = 1.0e-3)
+{
+    return a.distanceTo(b) <= tolerance;
+}
+
+std::string validatePipeNetworkInApplicationContext(const std::string& paramsJson)
+{
+    std::vector<std::string> debugLines;
+    AcDbDatabase* database = workingDatabase();
+    if (database == nullptr) {
+        return errorResponse("Keine aktive BricsCAD Zeichnung gefunden");
+    }
+    const std::vector<PipeSegment> segments = pipeSegmentsFromParams(paramsJson, database, debugLines);
+    if (segments.empty()) {
+        return errorResponse("pipes.validateNetwork findet keine offenen Polyliniensegmente");
+    }
+
+    std::vector<AcGePoint3d> nodes;
+    std::vector<int> degrees;
+    auto nodeIndex = [&](const AcGePoint3d& point) {
+        for (std::size_t i = 0; i < nodes.size(); ++i) {
+            if (pipePointsEqual(nodes[i], point)) {
+                return static_cast<int>(i);
+            }
+        }
+        nodes.push_back(point);
+        degrees.push_back(0);
+        return static_cast<int>(nodes.size() - 1);
+    };
+    std::vector<std::pair<int, int>> edges;
+    for (const PipeSegment& segment : segments) {
+        const int a = nodeIndex(segment.start);
+        const int b = nodeIndex(segment.end);
+        ++degrees[a];
+        ++degrees[b];
+        edges.emplace_back(a, b);
+    }
+    std::vector<bool> reached(nodes.size(), false);
+    std::vector<int> pending{0};
+    reached[0] = true;
+    while (!pending.empty()) {
+        const int current = pending.back();
+        pending.pop_back();
+        for (const auto& edge : edges) {
+            const int next = edge.first == current ? edge.second : (edge.second == current ? edge.first : -1);
+            if (next >= 0 && !reached[next]) {
+                reached[next] = true;
+                pending.push_back(next);
+            }
+        }
+    }
+    const int components = std::count(reached.cbegin(), reached.cend(), false) + 1;
+    const int openEnds = static_cast<int>(std::count(degrees.cbegin(), degrees.cend(), 1));
+    const int teeNodes = static_cast<int>(std::count_if(degrees.cbegin(), degrees.cend(), [](int degree) { return degree >= 3; }));
+    const bool connected = components == 1;
+    std::ostringstream result;
+    result << "RESULT\t{\"schema\":\"barebone.bricscad.pipes.validate-network.result.v1\""
+        << ",\"valid\":" << (connected ? "true" : "false")
+        << ",\"connected\":" << (connected ? "true" : "false")
+        << ",\"segments\":" << segments.size()
+        << ",\"nodes\":" << nodes.size()
+        << ",\"openEnds\":" << openEnds
+        << ",\"teeNodes\":" << teeNodes
+        << ",\"components\":" << components << "}\n";
+    return result.str();
+}
+
+std::string createPipeNetworkSolidsInApplicationContext(const std::string& paramsJson)
+{
+    std::vector<std::string> debugLines;
+    AcDbDatabase* database = workingDatabase();
+    if (database == nullptr) {
+        return errorResponse("Keine aktive BricsCAD Zeichnung gefunden");
+    }
+    const double diameter = jsonDoubleProperty(paramsJson, "diameterMm").value_or(0.0);
+    const std::string layerName = jsonStringProperty(paramsJson, "targetLayer").value_or("");
+    if (diameter <= kRectangleTolerance || layerName.empty()) {
+        return errorResponse("pipes.createNetworkSolids braucht diameterMm > 0 und targetLayer");
+    }
+    const std::vector<PipeSegment> segments = pipeSegmentsFromParams(paramsJson, database, debugLines);
+    if (segments.empty()) {
+        return errorResponse("Keine validierten Polyliniensegmente gefunden");
+    }
+    AcDbBlockTableRecord* space = nullptr;
+    if (acdbOpenObject(space, database->currentSpaceId(), AcDb::kForWrite) != Acad::eOk || space == nullptr) {
+        return errorResponse("Modellbereich konnte nicht geoeffnet werden");
+    }
+    AcDbObjectIdArray createdIds;
+    for (const PipeSegment& segment : segments) {
+        const AcGeVector3d direction = segment.end - segment.start;
+        const double length = direction.length();
+        auto* solid = new AcDb3dSolid();
+        solid->setDatabaseDefaults(database);
+        Acad::ErrorStatus status = solid->createFrustum(length, diameter / 2.0, diameter / 2.0, diameter / 2.0);
+        if (status == Acad::eOk) {
+            const AcGeVector3d unit = direction.normal();
+            const double dot = std::clamp(AcGeVector3d::kZAxis.dotProduct(unit), -1.0, 1.0);
+            const double angle = std::acos(dot);
+            AcGeVector3d axis = AcGeVector3d::kZAxis.crossProduct(unit);
+            if (axis.length() > kRectangleTolerance) {
+                solid->transformBy(AcGeMatrix3d::rotation(angle, axis.normal(), AcGePoint3d::kOrigin));
+            } else if (dot < 0.0) {
+                solid->transformBy(AcGeMatrix3d::rotation(3.14159265358979323846, AcGeVector3d::kXAxis, AcGePoint3d::kOrigin));
+            }
+            solid->transformBy(AcGeMatrix3d::translation(segment.start - AcGePoint3d::kOrigin));
+            status = solid->setLayer(utf8ToAchar(layerName).c_str());
+        }
+        AcDbObjectId id;
+        if (status == Acad::eOk) {
+            status = space->appendAcDbEntity(id, solid);
+        }
+        if (status == Acad::eOk) {
+            solid->close();
+            createdIds.append(id);
+        } else {
+            delete solid;
+        }
+    }
+    std::vector<AcGePoint3d> fittingPoints;
+    std::vector<int> fittingDegrees;
+    auto addFittingEndpoint = [&](const AcGePoint3d& point) {
+        for (std::size_t i = 0; i < fittingPoints.size(); ++i) {
+            if (pipePointsEqual(fittingPoints[i], point)) {
+                ++fittingDegrees[i];
+                return;
+            }
+        }
+        fittingPoints.push_back(point);
+        fittingDegrees.push_back(1);
+    };
+    for (const PipeSegment& segment : segments) {
+        addFittingEndpoint(segment.start);
+        addFittingEndpoint(segment.end);
+    }
+    int fittings = 0;
+    for (std::size_t i = 0; i < fittingPoints.size(); ++i) {
+        if (fittingDegrees[i] < 2) continue;
+        auto* fitting = new AcDb3dSolid();
+        fitting->setDatabaseDefaults(database);
+        Acad::ErrorStatus status = fitting->createSphere(diameter / 2.0);
+        if (status == Acad::eOk) status = fitting->transformBy(AcGeMatrix3d::translation(fittingPoints[i] - AcGePoint3d::kOrigin));
+        if (status == Acad::eOk) status = fitting->setLayer(utf8ToAchar(layerName).c_str());
+        AcDbObjectId id;
+        if (status == Acad::eOk) status = space->appendAcDbEntity(id, fitting);
+        if (status == Acad::eOk) {
+            fitting->close();
+            createdIds.append(id);
+            ++fittings;
+        } else {
+            delete fitting;
+        }
+    }
+    space->close();
+    rememberLastResult(createdIds, "pipes.createNetworkSolids", debugLines);
+    std::ostringstream result;
+    result << "RESULT\t{\"schema\":\"barebone.bricscad.pipes.create-network-solids.result.v1\",\"created\":"
+        << createdIds.length() << ",\"segments\":" << segments.size() << ",\"fittings\":" << fittings
+        << ",\"diameterMm\":" << diameter << ",\"handles\":[";
+    for (int i = 0; i < createdIds.length(); ++i) {
+        if (i) result << ',';
+        result << '\"' << jsonEscape(objectHandleText(createdIds.at(i))) << '\"';
+    }
+    result << "]}\n";
+    return result.str();
+}
+
+std::string createRoomDimensionsInApplicationContext(const std::string& paramsJson)
+{
+    std::vector<std::string> debugLines;
+    AcDbDatabase* database = workingDatabase();
+    if (database == nullptr) return errorResponse("Keine aktive BricsCAD Zeichnung gefunden");
+    const std::string selector = jsonObjectProperty(paramsJson, "selector").value_or("{}");
+    const AcDbObjectIdArray roomIds = selectorObjectIds(selector, database, debugLines);
+    const std::string dimensionLayer = jsonStringProperty(paramsJson, "dimensionLayer").value_or("");
+    const std::string labelLayer = jsonStringProperty(paramsJson, "labelLayer").value_or("");
+    const double roomHeight = jsonDoubleProperty(paramsJson, "roomHeightMm").value_or(0.0);
+    const double textHeight = jsonDoubleProperty(paramsJson, "textHeightMm").value_or(180.0);
+    const double offset = jsonDoubleProperty(paramsJson, "offsetMm").value_or(300.0);
+    const std::vector<std::string> roomNames = jsonArrayProperty(paramsJson, "roomNames").has_value()
+        ? jsonStringArrayValues(*jsonArrayProperty(paramsJson, "roomNames")) : std::vector<std::string>{};
+    if (roomIds.isEmpty() || dimensionLayer.empty() || labelLayer.empty() || roomHeight <= 0.0) {
+        return errorResponse("annotations.createRoomDimensions braucht Raumhandles, roomHeightMm und beide Layer");
+    }
+    AcDbBlockTableRecord* space = nullptr;
+    if (acdbOpenObject(space, database->currentSpaceId(), AcDb::kForWrite) != Acad::eOk || space == nullptr) {
+        return errorResponse("Modellbereich konnte nicht geoeffnet werden");
+    }
+    AcDbObjectIdArray createdIds;
+    int annotated = 0;
+    for (int i = 0; i < roomIds.length(); ++i) {
+        AcDbEntity* room = nullptr;
+        if (acdbOpenObject(room, roomIds.at(i), AcDb::kForRead) != Acad::eOk || room == nullptr) continue;
+        AcDbPolyline* rectangle = AcDbPolyline::cast(room);
+        AcDbExtents extents;
+        if (rectangle == nullptr || !isRectanglePolyline(rectangle) || room->getGeomExtents(extents) != Acad::eOk) {
+            room->close();
+            continue;
+        }
+        room->close();
+        const AcGePoint3d min = extents.minPoint();
+        const AcGePoint3d max = extents.maxPoint();
+        const double length = max.x - min.x;
+        const double width = max.y - min.y;
+        const std::string name = i < static_cast<int>(roomNames.size()) ? roomNames[i] : "Raum " + std::to_string(i + 1);
+        std::vector<AcDbEntity*> entities;
+        entities.push_back(new AcDbAlignedDimension(
+            AcGePoint3d(min.x, min.y, min.z), AcGePoint3d(max.x, min.y, min.z), AcGePoint3d((min.x + max.x) / 2.0, min.y - offset, min.z)));
+        entities.push_back(new AcDbAlignedDimension(
+            AcGePoint3d(min.x, min.y, min.z), AcGePoint3d(min.x, max.y, min.z), AcGePoint3d(min.x - offset, (min.y + max.y) / 2.0, min.z)));
+        auto* label = new AcDbMText();
+        label->setLocation(AcGePoint3d((min.x + max.x) / 2.0, (min.y + max.y) / 2.0, min.z));
+        label->setTextHeight(textHeight);
+        const std::string labelText = name + "\\PL=" + std::to_string(static_cast<int>(std::round(length)))
+            + " mm  B=" + std::to_string(static_cast<int>(std::round(width)))
+            + " mm\\PH=" + std::to_string(static_cast<int>(std::round(roomHeight)))
+            + " mm  A=" + std::to_string(length * width / 1000000.0) + " m2";
+        const std::basic_string<ACHAR> nativeText = utf8ToAchar(labelText);
+        label->setContents(nativeText.c_str());
+        entities.push_back(label);
+        for (std::size_t entityIndex = 0; entityIndex < entities.size(); ++entityIndex) {
+            AcDbEntity* entity = entities[entityIndex];
+            entity->setDatabaseDefaults(database);
+            entity->setLayer(utf8ToAchar(entityIndex < 2 ? dimensionLayer : labelLayer).c_str());
+            AcDbObjectId id;
+            if (space->appendAcDbEntity(id, entity) == Acad::eOk) {
+                entity->close();
+                createdIds.append(id);
+            } else {
+                delete entity;
+            }
+        }
+        ++annotated;
+    }
+    space->close();
+    rememberLastResult(createdIds, "annotations.createRoomDimensions", debugLines);
+    std::ostringstream result;
+    result << "RESULT\t{\"schema\":\"barebone.bricscad.annotations.room-dimensions.result.v1\",\"rooms\":"
+        << annotated << ",\"created\":" << createdIds.length() << "}\n";
+    return result.str();
+}
+
 std::string postNativeCommandLineInApplicationContext(const std::string& commandLineUtf8, bool saveBefore)
 {
     std::vector<std::string> debugLines;
@@ -7257,6 +7569,21 @@ std::string handlePluginRequestInApplicationContext(const std::string& request)
         return extrudeProfilesInApplicationContext(paramsJson);
     }
 
+    if (command == "PIPESVALIDATE") {
+        const std::string paramsJson = parts.size() >= 2 ? percentDecode(parts[1]) : "{}";
+        return validatePipeNetworkInApplicationContext(paramsJson);
+    }
+
+    if (command == "PIPESCREATESOLIDS") {
+        const std::string paramsJson = parts.size() >= 2 ? percentDecode(parts[1]) : "{}";
+        return createPipeNetworkSolidsInApplicationContext(paramsJson);
+    }
+
+    if (command == "ROOMDIMENSIONS") {
+        const std::string paramsJson = parts.size() >= 2 ? percentDecode(parts[1]) : "{}";
+        return createRoomDimensionsInApplicationContext(paramsJson);
+    }
+
     if (command == "POSTCOMMAND") {
         if (parts.size() < 2) {
             return errorResponse("POSTCOMMAND erwartet commandLine");
@@ -7509,6 +7836,15 @@ std::string jsonResponseForBridgeRequest(const std::string& line)
 
     if (method == "geometry.move") {
         return dispatchJsonParamsMethod("GEOMETRYMOVE");
+    }
+    if (method == "pipes.validateNetwork") {
+        return dispatchJsonParamsMethod("PIPESVALIDATE");
+    }
+    if (method == "pipes.createNetworkSolids") {
+        return dispatchJsonParamsMethod("PIPESCREATESOLIDS");
+    }
+    if (method == "annotations.createRoomDimensions") {
+        return dispatchJsonParamsMethod("ROOMDIMENSIONS");
     }
     if (method == "geometry.copy") {
         return dispatchJsonParamsMethod("GEOMETRYCOPY");
