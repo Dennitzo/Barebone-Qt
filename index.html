@@ -1760,15 +1760,6 @@
       gap: 4px;
     }
 
-    .workflow-group-title {
-      padding: 10px 12px 4px;
-      color: var(--text-muted);
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: .08em;
-      text-transform: uppercase;
-    }
-
     .workflow-item {
       width: 100%;
       border: 0;
@@ -2320,6 +2311,7 @@
         learningEmpty: "Waehle einen BRX-Learning-Eintrag aus, um Details, Gewichtung, Tools, Lessons, Repair-Regeln oder Beispiele anzuzeigen.",
         selectWorkflow: "Workflow auswählen",
         executeWorkflow: "Workflow direkt testen",
+        informationOnly: "Informationseintrag",
         copy: "Kopieren",
         copied: "Kopiert",
         copyFailed: "Kopieren fehlgeschlagen",
@@ -2434,6 +2426,7 @@
         learningEmpty: "Select a BRX learning entry to inspect details, weighting, tools, lessons, repair rules, or examples.",
         selectWorkflow: "Select workflow",
         executeWorkflow: "Test workflow directly",
+        informationOnly: "Information only",
         copy: "Copy",
         copied: "Copied",
         copyFailed: "Copy failed",
@@ -3100,12 +3093,10 @@
     }
 
     function workflowTimestampValue(workflow) {
-      const value = String(workflow?.modifiedAt || workflow?.updatedAt || workflow?.createdAt || "").trim();
-      if (!value) {
-        return 0;
-      }
-      const timestamp = Date.parse(value);
-      return Number.isFinite(timestamp) ? timestamp : 0;
+      return [workflow?.createdAt, workflow?.updatedAt, workflow?.modifiedAt]
+        .map((value) => Date.parse(String(value || "").trim()))
+        .filter((timestamp) => Number.isFinite(timestamp))
+        .reduce((latest, timestamp) => Math.max(latest, timestamp), 0);
     }
 
     function workflowTitleValue(workflow) {
@@ -3115,6 +3106,15 @@
     function workflowLearningKind(workflow) {
       const kind = String(workflow?.kind || "").trim();
       return kind === "learning" ? "lesson" : kind;
+    }
+
+    function isAiRuntimeWorkflow(workflow) {
+      const source = String(workflow?.source || "").trim().toLowerCase();
+      return workflow?.aiOwned === true
+        || source === "ai_runtime"
+        || source === "brx_runtime"
+        || source === "local_ai"
+        || String(workflow?.id || "").startsWith("ai_");
     }
 
     function isWorkflowLearningEntry(workflow) {
@@ -3685,11 +3685,14 @@
     function updateWorkflowSelectButton() {
       const hasPreview = !!(workflowPreview && workflowPreview.id);
       if (workflowSelect) {
-        const canSelect = hasPreview;
+        const canSelect = hasPreview
+          && (!isBrxLearningWorkspace() || workflowLearningKind(workflowPreview) === "lesson");
         workflowSelect.hidden = false;
         workflowSelect.disabled = !canSelect;
         workflowSelect.setAttribute("aria-disabled", canSelect ? "false" : "true");
-        workflowSelect.textContent = isBrxLearningWorkspace() ? t("executeWorkflow") : t("selectWorkflow");
+        workflowSelect.textContent = isBrxLearningWorkspace() && hasPreview && !canSelect
+          ? t("informationOnly")
+          : (isBrxLearningWorkspace() ? t("executeWorkflow") : t("selectWorkflow"));
         workflowSelect.title = workflowSelect.textContent;
       }
       if (workflowDelete) {
@@ -3730,6 +3733,10 @@
         workflowSearch.focus();
         return;
       }
+      if (isBrxLearningWorkspace() && workflowLearningKind(workflowPreview) !== "lesson") {
+        workflowSearch.focus();
+        return;
+      }
       const executeInBricsCad = isBrxLearningWorkspace();
       const workflowToExecute = normalizeWorkflow(workflowPreview);
       pendingWorkflowSessionOpenMode = isGeneralWorkflowWorkspace() ? "general" : "";
@@ -3740,6 +3747,23 @@
       }
       closeWorkflowOverlay();
       if (executeInBricsCad) {
+        const knownSlotValues = workflowToExecute.knownSlotValues && typeof workflowToExecute.knownSlotValues === "object"
+          ? workflowToExecute.knownSlotValues
+          : {};
+        const testDefaults = workflowToExecute.testDefaults && typeof workflowToExecute.testDefaults === "object"
+          ? workflowToExecute.testDefaults
+          : {};
+        const unresolvedSlots = (Array.isArray(workflowToExecute.requiredSlots) ? workflowToExecute.requiredSlots : [])
+          .map((slot) => typeof slot === "string" ? { name: slot, requiredForExecution: true } : slot)
+          .filter((slot) => slot && slot.name && slot.requiredForExecution !== false)
+          .filter((slot) => !Object.prototype.hasOwnProperty.call(knownSlotValues, slot.name)
+            && !Object.prototype.hasOwnProperty.call(testDefaults, slot.name));
+        if (unresolvedSlots.length) {
+          const slotNames = unresolvedSlots.map((slot) => slot.name).join(", ");
+          input.value = `Führe den ausgewählten Workflow "${workflowToExecute.title}" aus. Frage die fehlenden Pflichtangaben gezielt ab: ${slotNames}. Verwende keine Testwerte als Produktionswerte.`;
+          requestAnimationFrame(() => submitPrompt());
+          return;
+        }
         if (bridge && typeof bridge.runWorkflowTest === "function") {
           bridge.runWorkflowTest(workflowToExecute.id);
         } else {
@@ -3895,33 +3919,7 @@
         return;
       }
 
-      const disciplineLabels = {
-        architecture: "Architektur",
-        drinking_water: "Trinkwasser",
-        heating: "Heizung",
-        ventilation: "Lüftung",
-        documentation: "Dokumentation"
-      };
-      const disciplineOrder = Object.keys(disciplineLabels);
-      const rendered = isBrxLearningWorkspace()
-        ? visible.slice().sort((left, right) => {
-            const leftRank = disciplineOrder.indexOf(String(left.discipline || ""));
-            const rightRank = disciplineOrder.indexOf(String(right.discipline || ""));
-            const normalizedLeft = leftRank < 0 ? disciplineOrder.length : leftRank;
-            const normalizedRight = rightRank < 0 ? disciplineOrder.length : rightRank;
-            return normalizedLeft - normalizedRight || workflowTitleValue(left).localeCompare(workflowTitleValue(right), "de-DE");
-          })
-        : visible;
-      let previousDiscipline = null;
-      rendered.forEach((workflow) => {
-        const discipline = String(workflow.discipline || "");
-        if (isBrxLearningWorkspace() && discipline && discipline !== previousDiscipline) {
-          const group = document.createElement("div");
-          group.className = "workflow-group-title";
-          group.textContent = disciplineLabels[discipline] || discipline;
-          workflowList.appendChild(group);
-          previousDiscipline = discipline;
-        }
+      visible.forEach((workflow) => {
         const item = document.createElement("button");
         item.type = "button";
         item.className = "workflow-item";
@@ -4494,11 +4492,22 @@
     }
 
     function applyWorkflowListFromQt(list) {
+      const previousWorkflowsById = new Map(workflows.map((workflow) => [workflow.id, workflow]));
       workflows = Array.isArray(list)
         ? list
           .map(isGeneralWorkflowWorkspace() ? normalizeWorkflowListEntry : normalizeWorkflow)
           .filter((workflow) => workflow.id)
         : [];
+      const revealNewestAiWorkflow = isBrxLearningWorkspace()
+        && workflowSortMode === "newest"
+        && !workflowSearch.value.trim()
+        && workflows.some((workflow) => {
+          if (!isAiRuntimeWorkflow(workflow)) {
+            return false;
+          }
+          const previous = previousWorkflowsById.get(workflow.id);
+          return !previous || workflowTimestampValue(workflow) > workflowTimestampValue(previous);
+        });
       if (workflowPreview && workflowPreview.id) {
         const preview = workflows.find((workflow) => workflow.id === workflowPreview.id);
         if (preview) {
@@ -4517,7 +4526,7 @@
       const workflowListScrollTop = workflowList ? workflowList.scrollTop : 0;
       renderWorkflowList();
       if (workflowList) {
-        workflowList.scrollTop = workflowListScrollTop;
+        workflowList.scrollTop = revealNewestAiWorkflow ? 0 : workflowListScrollTop;
       }
       if (isGeneralWorkflowWorkspace() && selectedWorkflow && !workflows.some((workflow) => workflow.id === selectedWorkflow.id)) {
         selectedWorkflow = null;

@@ -82,3 +82,9 @@ The bridge protocol uses request IDs and versioned result payloads. `rectangles.
 ```
 
 For AI-assisted workflows, Barebone-Qt now uses live BRX capabilities instead of a generated tool registry. Read-only context methods such as `geometry.query`, `selection.describe`, and `entity.describe` can fetch current drawing data on demand; drawing-changing actions still require a user-confirmed tool proposal before Barebone-Qt forwards them to BRX.
+
+### BRX BIM tools
+
+The BRX V26 plugin exposes dedicated BIM tools for querying classified objects, setting the editor selection, moving whole BIM entities, and rotating them: `bim.objects.query`, `bim.selection.set`, `bim.move`, and `bim.rotate`. A compact read-only BIM snapshot is included in relevant BricsCAD AI requests; complete qualified BIM/IFC/Quantity properties are fetched only on demand.
+
+These tools target the pinned BRX SDK `26.1.05.0` and require an x64 Visual Studio 2022 (`v143`) build. At runtime, BricsCAD must expose the BIM feature for the active license and `RUNASLEVEL`; unavailable BIM APIs are reported through `capabilities.list` and rejected before execution. The implementation uses `BimClassification` and the BRX Generic Properties API from `brx26.lib`; `Ice.lib` is not required because IFC import/export is outside this feature.

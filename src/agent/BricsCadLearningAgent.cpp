@@ -39,6 +39,54 @@ QString clippedText(QString text, int maxChars)
     return text;
 }
 
+QString conciseLearningTitle(QString candidate, const QString& fallback)
+{
+    candidate = clippedText(candidate, 120).simplified();
+    const QString normalized = candidate.toLower();
+    if (candidate.isEmpty()
+        || normalized == QStringLiteral("aus erfolgreicher brx-ausfuehrung")
+        || normalized == QStringLiteral("aus erfolgreicher brx-ausführung")
+        || normalized.startsWith(QStringLiteral("aus erfolgreicher brx-ausfuehrung gelernt"))) {
+        candidate = clippedText(fallback, 120).simplified();
+    }
+    QStringList words = candidate.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
+    if (words.size() > 6) {
+        words = words.mid(0, 6);
+    }
+    candidate = words.join(QLatin1Char(' '));
+    if (candidate.size() > 72) {
+        candidate = candidate.left(69).trimmed() + QStringLiteral("...");
+    }
+    return candidate.isEmpty() ? QStringLiteral("BRX-Ausfuehrung dokumentieren") : candidate;
+}
+
+QString conciseExecutionDescription(
+    const QString& title,
+    const QString& preferredDescription,
+    const QString& prompt,
+    const QString& summary)
+{
+    QString description = clippedText(preferredDescription, 280);
+    if (description.isEmpty()) {
+        const QString shortPrompt = clippedText(prompt, 135);
+        const QString shortSummary = clippedText(summary, 120);
+        if (!shortPrompt.isEmpty() && !shortSummary.isEmpty()) {
+            description = QStringLiteral("Fuehrt die Aufgabe „%1“ in BricsCAD aus. Ergebnis: %2")
+                .arg(shortPrompt, shortSummary);
+        } else if (!shortPrompt.isEmpty()) {
+            description = QStringLiteral("Fuehrt die Aufgabe „%1“ mit den bestaetigten BRX-Aktionen aus.")
+                .arg(shortPrompt);
+        } else if (!shortSummary.isEmpty()) {
+            description = QStringLiteral("Dokumentiert die bestaetigte BRX-Ausfuehrung. Ergebnis: %1")
+                .arg(shortSummary);
+        }
+    }
+    if (description.isEmpty()) {
+        description = QStringLiteral("Dokumentiert die erfolgreiche Ausfuehrung „%1“ in BricsCAD.").arg(title);
+    }
+    return clippedText(description, 280);
+}
+
 void appendStringUnique(QJsonArray& array, const QString& value)
 {
     const QString trimmed = value.trimmed();
@@ -342,7 +390,7 @@ QJsonArray runtimeConversationPrompts(const QJsonObject& event)
 
 QJsonArray cappedOutcomeHistory(QJsonArray history, QJsonObject event, int maxCount = 20)
 {
-    event.insert(QStringLiteral("at"), event.value(QStringLiteral("at")).toString(QDateTime::currentDateTimeUtc().toString(Qt::ISODate)));
+    event.insert(QStringLiteral("at"), event.value(QStringLiteral("at")).toString(QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs)));
     const QString prompt = event.value(QStringLiteral("prompt")).toString();
     if (prompt.size() > 700) {
         event.insert(QStringLiteral("prompt"), prompt.left(700));
@@ -400,13 +448,16 @@ bool isAiOwnedWorkflow(const QJsonObject& lesson)
 
 QJsonObject normalizedAiWorkflow(QJsonObject lesson, const QString& now)
 {
-    const QString title = repairLearningText(lesson.value(QStringLiteral("title")).toString(
-        lesson.value(QStringLiteral("topic")).toString(
-            lesson.value(QStringLiteral("intent")).toString()))).trimmed();
+    const QString fallbackTitle = lesson.value(QStringLiteral("topic")).toString(
+        lesson.value(QStringLiteral("intent")).toString());
+    const QString title = conciseLearningTitle(
+        repairLearningText(lesson.value(QStringLiteral("title")).toString()), fallbackTitle);
     lesson.insert(QStringLiteral("title"), title);
-    lesson.insert(QStringLiteral("topic"), lesson.value(QStringLiteral("topic")).toString(title));
-    lesson.insert(QStringLiteral("description"), lesson.value(QStringLiteral("description")).toString(
-        lesson.value(QStringLiteral("intent")).toString()));
+    lesson.insert(QStringLiteral("topic"), conciseLearningTitle(
+        lesson.value(QStringLiteral("topic")).toString(), title));
+    lesson.insert(QStringLiteral("description"), clippedText(
+        lesson.value(QStringLiteral("description")).toString(
+            lesson.value(QStringLiteral("intent")).toString()), 360));
     lesson.insert(QStringLiteral("status"), QStringLiteral("active"));
     lesson.insert(QStringLiteral("source"), QStringLiteral("ai_runtime"));
     lesson.insert(QStringLiteral("updateProtected"), false);
@@ -582,6 +633,8 @@ QJsonObject BricsCadLearningAgent::compactToolProfile(const QJsonObject& profile
         {QStringLiteral("semanticConstraints"), firstObjects(profile.value(QStringLiteral("semanticConstraints")).toArray(), 4)},
         {QStringLiteral("unsupportedOperations"), firstObjects(profile.value(QStringLiteral("unsupportedOperations")).toArray(), 4)},
         {QStringLiteral("examples"), firstObjects(profile.value(QStringLiteral("examples")).toArray(), 3)},
+        {QStringLiteral("createdAt"), profile.value(QStringLiteral("createdAt")).toString()},
+        {QStringLiteral("updatedAt"), profile.value(QStringLiteral("updatedAt")).toString()},
     };
     return compact;
 }
@@ -601,6 +654,7 @@ QJsonObject BricsCadLearningAgent::compactRepairRule(const QJsonObject& rule, co
         {QStringLiteral("instruction"), rule.value(QStringLiteral("instruction")).toString()},
         {QStringLiteral("recommendedTools"), firstObjects(rule.value(QStringLiteral("tools")).toArray(), 12)},
         {QStringLiteral("source"), rule.value(QStringLiteral("source")).toString()},
+        {QStringLiteral("createdAt"), rule.value(QStringLiteral("createdAt")).toString()},
         {QStringLiteral("updatedAt"), rule.value(QStringLiteral("updatedAt")).toString()},
         {QStringLiteral("learningMetadata"), metadata},
     };
@@ -623,6 +677,7 @@ QJsonObject BricsCadLearningAgent::compactExample(const QJsonObject& example, co
         {QStringLiteral("recommendedTools"), tools},
         {QStringLiteral("actions"), firstObjects(example.value(QStringLiteral("actions")).toArray(), 8)},
         {QStringLiteral("source"), example.value(QStringLiteral("source")).toString()},
+        {QStringLiteral("createdAt"), example.value(QStringLiteral("createdAt")).toString()},
         {QStringLiteral("updatedAt"), example.value(QStringLiteral("updatedAt")).toString(example.value(QStringLiteral("createdAt")).toString())},
         {QStringLiteral("learningMetadata"), metadata},
     };
@@ -637,7 +692,8 @@ QJsonObject BricsCadLearningAgent::compactLesson(const QJsonObject& lesson, bool
         {QStringLiteral("title"), title},
         {QStringLiteral("topic"), lesson.value(QStringLiteral("topic")).toString(title)},
         {QStringLiteral("intent"), lesson.value(QStringLiteral("intent")).toString().left(detailed ? 900 : 260)},
-        {QStringLiteral("description"), lesson.value(QStringLiteral("intent")).toString().left(detailed ? 900 : 260)},
+        {QStringLiteral("description"), lesson.value(QStringLiteral("description")).toString(
+            lesson.value(QStringLiteral("intent")).toString()).left(detailed ? 900 : 260)},
         {QStringLiteral("status"), lesson.value(QStringLiteral("status")).toString(QStringLiteral("active"))},
         {QStringLiteral("kind"), QStringLiteral("learning")},
         {QStringLiteral("source"), lesson.value(QStringLiteral("source")).toString()},
@@ -658,6 +714,7 @@ QJsonObject BricsCadLearningAgent::compactLesson(const QJsonObject& lesson, bool
         {QStringLiteral("positiveFeedbackCount"), lesson.value(QStringLiteral("positiveFeedbackCount")).toInt()},
         {QStringLiteral("lastOutcome"), lesson.value(QStringLiteral("lastOutcome")).toString()},
         {QStringLiteral("lastOutcomeAt"), lesson.value(QStringLiteral("lastOutcomeAt")).toString()},
+        {QStringLiteral("createdAt"), lesson.value(QStringLiteral("createdAt")).toString()},
         {QStringLiteral("updatedAt"), lesson.value(QStringLiteral("updatedAt")).toString()},
         {QStringLiteral("discipline"), lesson.value(QStringLiteral("discipline")).toString()},
         {QStringLiteral("dependsOn"), lesson.value(QStringLiteral("dependsOn")).toArray()},
@@ -935,7 +992,7 @@ QJsonObject BricsCadLearningAgent::contextForPrompt(const QString& prompt, int m
         {QStringLiteral("legacyWorkflowAliasCandidates"), aliasCandidates},
         {QStringLiteral("workflowStructure"), QJsonObject{
             {QStringLiteral("requiredFields"), QJsonArray{
-                QStringLiteral("id"), QStringLiteral("title"), QStringLiteral("intent"), QStringLiteral("intentPatterns"), QStringLiteral("discipline"),
+                QStringLiteral("id"), QStringLiteral("title"), QStringLiteral("description"), QStringLiteral("intent"), QStringLiteral("intentPatterns"), QStringLiteral("discipline"),
                 QStringLiteral("dependsOn"), QStringLiteral("requiredArtifacts"), QStringLiteral("producesArtifacts"), QStringLiteral("requiredContext"),
                 QStringLiteral("assumptions"), QStringLiteral("requiredSlots"), QStringLiteral("knownSlotValues"),
                 QStringLiteral("derivedValues"), QStringLiteral("strategy"), QStringLiteral("executionBatches"),
@@ -1093,27 +1150,27 @@ void BricsCadLearningAgent::refreshMetadata()
     meta.insert(QStringLiteral("validationExampleCount"), examples);
     meta.insert(QStringLiteral("toolProfileCount"), m_document.value(QStringLiteral("toolProfiles")).toArray().size());
     m_document.insert(QStringLiteral("metadata"), meta);
-    m_document.insert(QStringLiteral("updatedAt"), QDateTime::currentDateTimeUtc().toString(Qt::ISODate));
+    m_document.insert(QStringLiteral("updatedAt"), QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
 }
 
 bool BricsCadLearningAgent::upsertLesson(QJsonObject lesson, QString* appliedChange, QString* errorMessage)
 {
-    QString topic = lesson.value(QStringLiteral("topic")).toString(
-        lesson.value(QStringLiteral("title")).toString()).trimmed();
+    const QString rawTopic = lesson.value(QStringLiteral("title")).toString(
+        lesson.value(QStringLiteral("topic")).toString()).trimmed();
     QString intent = lesson.value(QStringLiteral("intent")).toString(
         lesson.value(QStringLiteral("description")).toString()).trimmed();
-    if (topic.isEmpty() && intent.isEmpty()) {
+    if (rawTopic.isEmpty() && intent.isEmpty()) {
         if (errorMessage) {
             *errorMessage = QStringLiteral("Learning-Lesson ohne topic/title oder intent wurde abgelehnt.");
         }
         return false;
     }
-    if (topic.isEmpty()) {
-        topic = intent.left(90).trimmed();
-    }
+    const QString topic = conciseLearningTitle(rawTopic, intent);
     if (intent.isEmpty()) {
         intent = topic;
     }
+    const QString description = clippedText(
+        lesson.value(QStringLiteral("description")).toString(intent), 360);
 
     QJsonArray recommendedTools;
     for (const QString& tool : jsonStringArray(lesson.value(QStringLiteral("recommendedTools")).toArray())) {
@@ -1133,9 +1190,9 @@ bool BricsCadLearningAgent::upsertLesson(QJsonObject lesson, QString* appliedCha
     lesson.insert(QStringLiteral("topic"), topic);
     lesson.insert(QStringLiteral("title"), topic);
     lesson.insert(QStringLiteral("intent"), intent);
-    lesson.insert(QStringLiteral("description"), intent);
+    lesson.insert(QStringLiteral("description"), description);
     lesson.insert(QStringLiteral("recommendedTools"), recommendedTools);
-    const QString now = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+    const QString now = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
     lesson = normalizedAiWorkflow(lesson, now);
 
     const int existingIndex = matchingLessonIndex(lesson, lessons);
@@ -1150,9 +1207,14 @@ bool BricsCadLearningAgent::upsertLesson(QJsonObject lesson, QString* appliedCha
         }
         if (intent.size() > existing.value(QStringLiteral("intent")).toString().size()) {
             existing.insert(QStringLiteral("intent"), intent);
-            existing.insert(QStringLiteral("description"), intent);
         }
-        if (topic.size() > existing.value(QStringLiteral("topic")).toString().size()) {
+        if (!description.isEmpty()) {
+            existing.insert(QStringLiteral("description"), description);
+        }
+        const QString existingTitle = existing.value(QStringLiteral("title")).toString(
+            existing.value(QStringLiteral("topic")).toString());
+        if (existingTitle.isEmpty()
+            || existingTitle.startsWith(QStringLiteral("Aus erfolgreicher BRX-Ausfuehrung"), Qt::CaseInsensitive)) {
             existing.insert(QStringLiteral("topic"), topic);
             existing.insert(QStringLiteral("title"), topic);
         }
@@ -1251,7 +1313,9 @@ bool BricsCadLearningAgent::upsertRepairRule(QJsonObject rule, QString* appliedC
     rule.insert(QStringLiteral("source"), rule.value(QStringLiteral("source")).toString(QStringLiteral("ai_runtime")));
     const QString id = rule.value(QStringLiteral("id")).toString(slugText(rule.value(QStringLiteral("topic")).toString(failure))).trimmed();
     rule.insert(QStringLiteral("id"), id.isEmpty() ? QStringLiteral("ai_repair_rule") : id);
-    rule.insert(QStringLiteral("updatedAt"), QDateTime::currentDateTimeUtc().toString(Qt::ISODate));
+    const QString now = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+    rule.insert(QStringLiteral("createdAt"), rule.value(QStringLiteral("createdAt")).toString(now));
+    rule.insert(QStringLiteral("updatedAt"), now);
 
     QJsonArray rules = m_document.value(QStringLiteral("repairRules")).toArray();
     for (int i = 0; i < rules.size(); ++i) {
@@ -1304,7 +1368,9 @@ bool BricsCadLearningAgent::appendSuccessfulExample(QJsonObject example, QString
         example.insert(QStringLiteral("id"), QStringLiteral("ai_example_%1").arg(QDateTime::currentMSecsSinceEpoch()));
     }
     example.insert(QStringLiteral("source"), example.value(QStringLiteral("source")).toString(QStringLiteral("ai_runtime")));
-    example.insert(QStringLiteral("createdAt"), example.value(QStringLiteral("createdAt")).toString(QDateTime::currentDateTimeUtc().toString(Qt::ISODate)));
+    const QString now = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+    example.insert(QStringLiteral("createdAt"), example.value(QStringLiteral("createdAt")).toString(now));
+    example.insert(QStringLiteral("updatedAt"), now);
 
     QJsonArray examples = m_document.value(QStringLiteral("successfulExamples")).toArray();
     examples = mergedObjectArray(examples, QJsonArray{example}, 200);
@@ -1449,7 +1515,7 @@ bool BricsCadLearningAgent::recordLessonUse(const QJsonArray& lessonIds, const Q
     QStringList changes;
     const QString outcome = normalizedOutcome(event.value(QStringLiteral("outcome")).toString());
     const QStringList eventTools = jsonStringArray(event.value(QStringLiteral("tools")).toArray());
-    const QString now = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+    const QString now = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
     const double delta = confidenceDeltaForOutcome(outcome);
     bool changed = false;
 
@@ -1613,9 +1679,18 @@ bool BricsCadLearningAgent::upsertRuntimeLessonFromEvent(
         intentSource += QLatin1Char(' ') + value.toString();
     }
 
-    const QString topic = runtimeTopicForTool(primaryTool, intentSource);
+    const QString fallbackTopic = runtimeTopicForTool(primaryTool, intentSource);
+    const QString title = conciseLearningTitle(
+        event.value(QStringLiteral("proposalTitle")).toString().trimmed(),
+        focusTopic.isEmpty() ? fallbackTopic : focusTopic);
+    const QString description = conciseExecutionDescription(
+        title,
+        event.value(QStringLiteral("proposalDescription")).toString(),
+        prompt,
+        summary);
+    const QString topic = title;
     QStringList intentLines;
-    intentLines << QStringLiteral("Aus erfolgreicher BRX-Ausfuehrung gelernt: %1.").arg(topic);
+    intentLines << description;
     if (!prompt.isEmpty()) {
         intentLines << QStringLiteral("Aktueller Prompt: %1").arg(prompt);
     }
@@ -1654,23 +1729,24 @@ bool BricsCadLearningAgent::upsertRuntimeLessonFromEvent(
         }
         validationExamples.append(QJsonObject{
             {QStringLiteral("id"), QStringLiteral("runtime_example_%1").arg(QDateTime::currentMSecsSinceEpoch())},
-            {QStringLiteral("title"), QStringLiteral("Aus erfolgreicher BRX-Ausfuehrung")},
+            {QStringLiteral("title"), title},
+            {QStringLiteral("description"), description},
             {QStringLiteral("prompt"), prompt},
             {QStringLiteral("focusedTopic"), focusTopic},
             {QStringLiteral("summary"), summary},
             {QStringLiteral("tools"), recommendedTools},
             {QStringLiteral("actions"), validationActions},
             {QStringLiteral("source"), QStringLiteral("brx_runtime")},
-            {QStringLiteral("createdAt"), QDateTime::currentDateTimeUtc().toString(Qt::ISODate)},
+            {QStringLiteral("createdAt"), QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs)},
         });
     }
 
-    const QString now = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+    const QString now = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
     QJsonObject lesson{
         {QStringLiteral("topic"), topic},
-        {QStringLiteral("title"), topic},
+        {QStringLiteral("title"), title},
         {QStringLiteral("intent"), intentLines.join(QLatin1Char('\n'))},
-        {QStringLiteral("description"), intentLines.join(QLatin1Char('\n'))},
+        {QStringLiteral("description"), description},
         {QStringLiteral("intentPatterns"), intentPatterns},
         {QStringLiteral("promptExamples"), intentPatterns},
         {QStringLiteral("recommendedTools"), recommendedTools},
@@ -1759,7 +1835,7 @@ bool BricsCadLearningAgent::deprecateLesson(const QString& id, QString* errorMes
             return false;
         }
         lesson.insert(QStringLiteral("status"), QStringLiteral("deprecated"));
-        lesson.insert(QStringLiteral("updatedAt"), QDateTime::currentDateTimeUtc().toString(Qt::ISODate));
+        lesson.insert(QStringLiteral("updatedAt"), QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
         lessons.replace(i, lesson);
         found = true;
         break;
@@ -1787,7 +1863,7 @@ bool BricsCadLearningAgent::deprecateLesson(const QString& id, QString* errorMes
     meta.insert(QStringLiteral("activeCount"), active);
     meta.insert(QStringLiteral("deprecatedCount"), deprecated);
     m_document.insert(QStringLiteral("metadata"), meta);
-    m_document.insert(QStringLiteral("updatedAt"), QDateTime::currentDateTimeUtc().toString(Qt::ISODate));
+    m_document.insert(QStringLiteral("updatedAt"), QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
 
     if (!saveProjectDocument(errorMessage)) {
         return false;

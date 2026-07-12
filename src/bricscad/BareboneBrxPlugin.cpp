@@ -11,6 +11,7 @@
 
 #include "arxHeaders.h"
 #include "AcDb/AcDbSymbolUtilities_Services.h"
+#include "BimTools.h"
 
 #include <algorithm>
 #include <atomic>
@@ -21,6 +22,7 @@
 #include <cstring>
 #include <fstream>
 #include <iomanip>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -31,6 +33,8 @@
 #include <vector>
 
 namespace {
+
+namespace BimTools = Barebone::Brx::BimTools;
 
 constexpr const char* kQtBridgeHost = "127.0.0.1";
 constexpr unsigned short kQtBridgePort = 47626;
@@ -83,9 +87,10 @@ std::string jsonEscape(const std::string& value);
 constexpr const char* kSelectorSchema = R"({
 "type":"object",
 "properties":{
-  "scope":{"type":"string","enum":["currentSpace","selection","handles","lastResult","lastExtruded"]},
+  "scope":{"type":"string","enum":["currentSpace","selection","handles","names","lastResult","lastExtruded"]},
   "layer":{"type":"string"},
   "handles":{"type":"array","items":{"type":"string"}},
+  "names":{"type":"array","items":{"type":"string"}},
   "kind":{"type":"string","enum":["polyline","solid","entity"]},
   "shape":{"type":"string","enum":["rectangle"]}
 }
@@ -182,19 +187,94 @@ const BridgeMethodDescriptor kBridgeMethods[] = {
         "entity.describe",
         "query",
         "readOnly",
-        "Beschreibt konkrete Entities per Handle-Liste.",
+        "Beschreibt konkrete Entities per Datenbank-Handle oder BIM-Objektname inklusive BIM-Typ, Komponentenart, GUID und Properties.",
         R"JSON({
 "type":"object",
-"required":["handles"],
 "properties":{
   "handle":{"type":"string"},
   "handles":{"type":"array","items":{"type":"string"}},
+  "name":{"type":"string"},
   "include":{"type":"array","items":{"type":"string"}},
   "limit":{"type":"number","minimum":1}
 },
-"oneOfRequired":[["handle"],["handles"]]
+"oneOfRequired":[["handle"],["handles"],["name"]]
 })JSON",
         nullptr,
+    },
+    {
+        "bim.objects.query",
+        "query",
+        "readOnly",
+        "Liest BRX-V26-BIM-Objekte per aktuellem Raum, Auswahl, exakten Handles oder exakten BIM-Namen und liefert optionale typisierte Generic Properties sowie Tabellen.",
+        R"JSON({
+"type":"object",
+"properties":{
+  "selector":{"type":"object","properties":{"scope":{"enum":["currentSpace","selection","handles","names"]},"handles":{"type":"array","items":{"type":"string"}},"names":{"type":"array","items":{"type":"string"}}}},
+  "classification":{"type":"string"},
+  "classifications":{"type":"array","items":{"type":"string"}},
+  "include":{"type":"array","items":{"enum":["core","geometry","properties"]}},
+  "offset":{"type":"number","minimum":0},
+  "limit":{"type":"number","minimum":1,"maximum":500}
+}
+})JSON",
+        nullptr,
+    },
+    {
+        "bim.selection.set",
+        "action",
+        "modifiesEditorState",
+        "Setzt die Pickfirst-Auswahl ausschliesslich aus BRX-klassifizierten BIM-Objekten per exaktem Namen oder Datenbank-Handle.",
+        R"JSON({
+"type":"object","required":["selector"],
+"properties":{
+  "selector":{"type":"object","properties":{"scope":{"enum":["handles","names"]},"handles":{"type":"array","items":{"type":"string"}},"names":{"type":"array","items":{"type":"string"}}}},
+  "allMatches":{"type":"boolean"},
+  "resolvedHandles":{"type":"array","items":{"type":"string"}},
+  "targetFingerprints":{"type":"array","items":{"type":"object"}},
+  "reason":{"type":"string"}
+}
+})JSON",
+        R"JSON({"method":"bim.selection.set","required":["selector"],"bodySchema":{"selector":"scope=handles|names; exact BIM names and database handles","allMatches":"required true for ambiguous names"},"examples":[{"selector":{"scope":"names","names":["Outer Wall"]}},{"selector":{"scope":"handles","handles":["A7","A8"]}}]})JSON",
+    },
+    {
+        "bim.move",
+        "action",
+        "modifiesDrawing",
+        "Verschiebt BRX-klassifizierte BIM-Objekte atomar in WCS; Eingaben sind standardmaessig Millimeter oder explizit Zeichnungseinheiten.",
+        R"JSON({
+"type":"object","required":["selector","vector"],
+"properties":{
+  "selector":{"type":"object","properties":{"scope":{"enum":["selection","handles","names"]},"handles":{"type":"array","items":{"type":"string"}},"names":{"type":"array","items":{"type":"string"}}}},
+  "vector":{"type":"object","required":["x","y","z"],"properties":{"x":{"type":"number"},"y":{"type":"number"},"z":{"type":"number"}}},
+  "units":{"enum":["mm","drawing"],"default":"mm"},
+  "resolvedHandles":{"type":"array","items":{"type":"string"}},
+  "targetFingerprints":{"type":"array","items":{"type":"object"}},
+  "saveBefore":{"type":"boolean"},"reason":{"type":"string"}
+}
+})JSON",
+        R"JSON({"method":"bim.move","required":["selector","vector"],"bodySchema":{"selector":"BIM selector","vector":"finite non-zero WCS {x,y,z}","units":"mm default or drawing","saveBefore":"boolean default true"},"examples":[{"selector":{"scope":"handles","handles":["A7"]},"vector":{"x":100,"y":0,"z":0},"units":"mm"}]})JSON",
+    },
+    {
+        "bim.rotate",
+        "action",
+        "modifiesDrawing",
+        "Rotiert BRX-klassifizierte BIM-Objekte atomar um eine WCS-Achse; Standardachse ist WCS-Z.",
+        R"JSON({
+"type":"object","required":["selector"],
+"properties":{
+  "selector":{"type":"object","properties":{"scope":{"enum":["selection","handles","names"]},"handles":{"type":"array","items":{"type":"string"}},"names":{"type":"array","items":{"type":"string"}}}},
+  "angleDeg":{"type":"number"},"angleRad":{"type":"number"},
+  "basePoint":{"type":"object","required":["x","y","z"],"properties":{"x":{"type":"number"},"y":{"type":"number"},"z":{"type":"number"}}},
+  "basePointMode":{"enum":["eachEntityCenter","selectionCenter"]},
+  "axis":{"type":"object","required":["x","y","z"],"properties":{"x":{"type":"number"},"y":{"type":"number"},"z":{"type":"number"}}},
+  "units":{"enum":["mm","drawing"],"default":"mm"},
+  "resolvedHandles":{"type":"array","items":{"type":"string"}},
+  "targetFingerprints":{"type":"array","items":{"type":"object"}},
+  "saveBefore":{"type":"boolean"},"reason":{"type":"string"}
+},
+"oneOfRequired":[["angleDeg"],["angleRad"]],"oneOfRequiredBase":[["basePoint"],["basePointMode"]]
+})JSON",
+        R"JSON({"method":"bim.rotate","required":["selector"],"oneOfRequired":[["angleDeg"],["angleRad"]],"bodySchema":{"selector":"BIM selector","basePoint":"WCS point or basePointMode","basePointMode":"eachEntityCenter|selectionCenter","axis":"WCS-Z default","units":"mm default or drawing","saveBefore":"boolean default true"},"examples":[{"selector":{"scope":"handles","handles":["A7"]},"basePointMode":"eachEntityCenter","angleDeg":90}]})JSON",
     },
     {
         "geometry.create",
@@ -898,6 +978,17 @@ const char* methodCategory(const char* name)
     return "bridge";
 }
 
+bool isStructuredBimTool(const char* name)
+{
+    if (name == nullptr) return false;
+    const std::string method(name);
+    return method == "bim.objects.query"
+        || method == "bim.selection.set"
+        || method == "bim.move"
+        || method == "bim.rotate"
+        || method == "bim.classify";
+}
+
 void appendMethodDescriptor(std::ostringstream& out, const BridgeMethodDescriptor& method, bool isLast)
 {
     out << "{\"name\":\"" << jsonEscape(method.name)
@@ -910,6 +1001,11 @@ void appendMethodDescriptor(std::ostringstream& out, const BridgeMethodDescripto
     }
     if (method.apiPost != nullptr) {
         out << ",\"apiDoc\":{\"transport\":\"bridge-json\",\"post\":" << method.apiPost << "}";
+    }
+    if (isStructuredBimTool(method.name)) {
+        const BimTools::Availability bimAvailability = BimTools::availability();
+        out << ",\"available\":" << (bimAvailability.available ? "true" : "false")
+            << ",\"availability\":" << BimTools::availabilityJson(bimAvailability);
     }
     out << ",\"resultSchema\":\"barebone.bricscad." << jsonEscape(method.name) << ".result.v1\"";
     if (std::strcmp(method.risk, "modifiesDrawing") == 0) {
@@ -1593,6 +1689,7 @@ bool requiresCommandContext(const std::string& request)
         "GEOMETRYSCALE",
         "GEOMETRYDELETE",
         "SELECTIONSET",
+        "BIMSELECTIONSET",
         "ENTITYSETLAYER",
         "ENTITYSETNAME",
         "LAYERCREATE",
@@ -1611,6 +1708,8 @@ bool requiresCommandContext(const std::string& request)
         "ROOMDIMENSIONS",
     };
     static constexpr const char* kApplicationContextRequests[] = {
+        "CAPABILITIES",
+        "ACTIONS",
         "LAYERS",
         "ACTIONVALIDATE",
         "GEOMETRYQUERY",
@@ -2114,8 +2213,8 @@ std::string jsonCapabilitiesResponse(int id)
         << "\"paramsSchema\":{\"type\":\"object\",\"properties\":{\"selector\":{\"type\":\"object\",\"properties\":{\"scope\":{\"enum\":[\"currentSpace\",\"selection\",\"handles\",\"lastResult\",\"lastExtruded\"]},\"layer\":{\"type\":\"string\"},\"handles\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"kind\":{\"enum\":[\"polyline\",\"solid\",\"entity\"]},\"shape\":{\"enum\":[\"rectangle\"]}}},\"filters\":{\"type\":\"object\",\"properties\":{\"layer\":{\"type\":\"string\"},\"layers\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"kind\":{\"enum\":[\"polyline\",\"solid\",\"entity\"]},\"kinds\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"shape\":{\"enum\":[\"rectangle\"]},\"shapes\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"types\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}}},\"include\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"limit\":{\"type\":\"number\",\"minimum\":1}}}},"
         << "{\"name\":\"selection.describe\",\"kind\":\"query\",\"risk\":\"readOnly\",\"description\":\"Beschreibt die aktuelle BricsCAD-Auswahl mit Handles, Typen, Layern und optionaler Geometrie.\","
         << "\"paramsSchema\":{\"type\":\"object\",\"properties\":{\"include\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"limit\":{\"type\":\"number\",\"minimum\":1}}}},"
-        << "{\"name\":\"entity.describe\",\"kind\":\"query\",\"risk\":\"readOnly\",\"description\":\"Beschreibt konkrete Entities per Handle-Liste.\","
-        << "\"paramsSchema\":{\"type\":\"object\",\"properties\":{\"handle\":{\"type\":\"string\"},\"handles\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"include\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"limit\":{\"type\":\"number\",\"minimum\":1}}}},"
+        << "{\"name\":\"entity.describe\",\"kind\":\"query\",\"risk\":\"readOnly\",\"description\":\"Beschreibt konkrete Entities per Handle oder BIM-Objektname inklusive BIM-Daten.\","
+        << "\"paramsSchema\":{\"type\":\"object\",\"properties\":{\"handle\":{\"type\":\"string\"},\"handles\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"name\":{\"type\":\"string\"},\"include\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"limit\":{\"type\":\"number\",\"minimum\":1}}}},"
         << "{\"name\":\"geometry.create\",\"kind\":\"action\",\"risk\":\"modifiesDrawing\",\"description\":\"Erzeugt neue Grundgeometrie direkt ueber die BRX API. Die Aktion ist atomar und benoetigt alle Zeichenoptionen im POST-Body.\","
         << "\"paramsSchema\":{\"type\":\"object\",\"required\":[\"geometry\"],\"properties\":{\"geometry\":{\"enum\":[\"point\",\"rectangle\",\"line\",\"polyline\",\"circle\",\"arc\",\"box\"]},\"layer\":{\"type\":\"string\"},\"position\":{\"type\":\"object\",\"properties\":{\"x\":{\"type\":\"number\"},\"y\":{\"type\":\"number\"},\"z\":{\"type\":\"number\"}}},\"point\":{\"type\":\"object\",\"properties\":{\"x\":{\"type\":\"number\"},\"y\":{\"type\":\"number\"},\"z\":{\"type\":\"number\"}}},\"origin\":{\"type\":\"object\",\"properties\":{\"x\":{\"type\":\"number\"},\"y\":{\"type\":\"number\"},\"z\":{\"type\":\"number\"}}},\"center\":{\"type\":\"object\",\"properties\":{\"x\":{\"type\":\"number\"},\"y\":{\"type\":\"number\"},\"z\":{\"type\":\"number\"}}},\"radius\":{\"type\":\"number\"},\"radiusMm\":{\"type\":\"number\"},\"startAngle\":{\"type\":\"number\"},\"endAngle\":{\"type\":\"number\"},\"startAngleDeg\":{\"type\":\"number\"},\"endAngleDeg\":{\"type\":\"number\"},\"width\":{\"type\":\"number\"},\"widthMm\":{\"type\":\"number\"},\"x\":{\"type\":\"number\"},\"depth\":{\"type\":\"number\"},\"length\":{\"type\":\"number\"},\"lengthMm\":{\"type\":\"number\"},\"depthMm\":{\"type\":\"number\"},\"y\":{\"type\":\"number\"},\"height\":{\"type\":\"number\"},\"heightMm\":{\"type\":\"number\"},\"z\":{\"type\":\"number\"},\"start\":{\"type\":\"object\",\"properties\":{\"x\":{\"type\":\"number\"},\"y\":{\"type\":\"number\"},\"z\":{\"type\":\"number\"}}},\"end\":{\"type\":\"object\",\"properties\":{\"x\":{\"type\":\"number\"},\"y\":{\"type\":\"number\"},\"z\":{\"type\":\"number\"}}},\"points\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"x\":{\"type\":\"number\"},\"y\":{\"type\":\"number\"},\"z\":{\"type\":\"number\"}}}},\"closed\":{\"type\":\"boolean\"},\"saveBefore\":{\"type\":\"boolean\"},\"reason\":{\"type\":\"string\"}}},"
         << "\"apiDoc\":{\"transport\":\"bridge-json\",\"post\":{\"method\":\"geometry.create\",\"required\":[\"geometry\"],\"bodySchema\":{\"type\":\"object\",\"properties\":{\"geometry\":\"point|rectangle|line|polyline|circle|arc|box\",\"layer\":\"string optional\",\"position/point\":\"{x,y,z} for point\",\"origin\":\"{x,y,z} for rectangle/box\",\"center\":\"{x,y,z} for circle/arc\",\"radius\":\"circle/arc radius\",\"startAngleDeg/endAngleDeg\":\"arc angles in degrees\",\"width/x\":\"rectangle or box width\",\"depth/y\":\"rectangle or box depth/length\",\"height/z\":\"box height\",\"start\":\"{x,y,z} for line\",\"end\":\"{x,y,z} for line\",\"points\":\"array of {x,y,z} for polyline\",\"closed\":\"boolean for polyline\",\"saveBefore\":\"boolean default true\"}},\"examples\":[{\"geometry\":\"box\",\"origin\":{\"x\":0,\"y\":0,\"z\":0},\"width\":100,\"depth\":100,\"height\":100,\"layer\":\"0\",\"saveBefore\":true},{\"geometry\":\"circle\",\"center\":{\"x\":0,\"y\":0,\"z\":0},\"radius\":50,\"layer\":\"0\"},{\"geometry\":\"arc\",\"center\":{\"x\":0,\"y\":0,\"z\":0},\"radius\":50,\"startAngleDeg\":0,\"endAngleDeg\":90},{\"geometry\":\"rectangle\",\"origin\":{\"x\":0,\"y\":0,\"z\":0},\"width\":100,\"depth\":100,\"layer\":\"0\",\"saveBefore\":true},{\"geometry\":\"line\",\"start\":{\"x\":0,\"y\":0,\"z\":0},\"end\":{\"x\":100,\"y\":0,\"z\":0},\"layer\":\"0\"},{\"geometry\":\"polyline\",\"points\":[{\"x\":0,\"y\":0,\"z\":0},{\"x\":100,\"y\":0,\"z\":0},{\"x\":100,\"y\":50,\"z\":0}],\"closed\":false},{\"geometry\":\"point\",\"position\":{\"x\":0,\"y\":0,\"z\":0}}]}}},"
@@ -2209,6 +2308,9 @@ std::string jsonActionsResponseFromDescriptors(int id)
     for (std::size_t i = 0; i < bridgeMethodCount(); ++i) {
         const BridgeMethodDescriptor& method = kBridgeMethods[i];
         if (std::strcmp(method.kind, "action") != 0 || method.apiPost == nullptr) {
+            continue;
+        }
+        if (isStructuredBimTool(method.name) && !BimTools::availability().available) {
             continue;
         }
         if (!first) {
@@ -2306,6 +2408,15 @@ std::string bimClassCommandOption(const std::string& bimClass)
     if (bimClass == "BIMWall") {
         return "_Wall";
     }
+    if (bimClass == "BIMColumn") {
+        return "_Column";
+    }
+    if (bimClass == "BIMSlab") {
+        return "_Slab";
+    }
+    if (bimClass == "BIMBeam") {
+        return "_Beam";
+    }
     return {};
 }
 
@@ -2326,10 +2437,11 @@ std::string jsonResponseFromProtocol(int id, const std::string& method, const st
             continue;
         }
         const std::string resultJson = line.substr(7);
+        const bool resultOk = jsonBoolProperty(resultJson, "success").value_or(true);
         std::ostringstream response;
         response << "{\"id\":" << id
             << ",\"type\":\"response\""
-            << ",\"ok\":true"
+            << ",\"ok\":" << (resultOk ? "true" : "false")
             << ",\"result\":" << resultJson
             << ",\"debug\":" << jsonDebugArray(debugLines)
             << "}\n";
@@ -2420,11 +2532,12 @@ std::string jsonResponseFromProtocol(int id, const std::string& method, const st
         const std::string bimClass = percentDecode(protocolStringValue(parts, "CLASS"));
         const bool saveBefore = protocolIntValue(parts, "SAVE_BEFORE") != 0;
         const bool savedBefore = protocolIntValue(parts, "SAVED_BEFORE") != 0;
+        const bool classifyOk = (found > 0 && classified == found && errors == 0);
 
         std::ostringstream response;
         response << "{\"id\":" << id
             << ",\"type\":\"response\""
-            << ",\"ok\":true"
+            << ",\"ok\":" << (classifyOk ? "true" : "false")
             << ",\"result\":{\"schema\":\"barebone.bricscad.bim.classify.result.v1\""
             << ",\"target\":\"" << jsonEscape(target) << "\""
             << ",\"class\":\"" << jsonEscape(bimClass) << "\""
@@ -3179,6 +3292,34 @@ bool objectIdFromHandleText(const std::string& handleText, AcDbObjectId& objectI
     return acdbGetObjectId(objectId, entityName) == Acad::eOk && !objectId.isNull();
 }
 
+AcDbObjectIdArray bimObjectIdsFromName(const std::string& requestedName, AcDbDatabase* database, std::vector<std::string>& debugLines)
+{
+    if (requestedName.empty() || database == nullptr) return {};
+    BimTools::Selector selector;
+    selector.scope = BimTools::SelectorScope::Names;
+    selector.names.push_back(requestedName);
+    BimTools::ResolveResult resolved = BimTools::resolve(database, selector, BimTools::ResolvePurpose::Query);
+    for (const std::string& line : resolved.debug) appendDebug(debugLines, line);
+    for (const BimTools::TargetError& error : resolved.errors) {
+        appendDebug(debugLines, "BIM exact-name lookup " + error.code + ": " + error.message);
+    }
+    return resolved.ids;
+}
+
+void appendBimDataJson(std::ostringstream& json, const AcDbObjectId& entityId, std::vector<std::string>& debugLines)
+{
+    BimTools::ObjectData object;
+    std::string error;
+    if (!BimTools::readObject(entityId, true, true, object, error)) {
+        json << ",\"bim\":{\"classified\":false,\"type\":null,\"name\":null,\"description\":null,\"guid\":null,\"blockName\":null,\"componentType\":null,\"properties\":[]}";
+        appendDebug(debugLines, "BIM describe handle=" + objectHandleText(entityId) + " skipped: " + error);
+        return;
+    }
+    json << ",\"bim\":" << BimTools::bimDataJson(object, true);
+    appendDebug(debugLines, "BIM describe handle=" + object.handle
+        + " type='" + object.bimType + "' properties=" + std::to_string(object.properties.size()));
+}
+
 AcDbObjectIdArray selectionSetObjectIds(const ACHAR* mode, const char* label, std::vector<std::string>* debugLines)
 {
     AcDbObjectIdArray ids;
@@ -3266,7 +3407,7 @@ AcDbObjectIdArray pickfirstObjectIds(std::vector<std::string>* debugLines = null
 bool curveLength(AcDbEntity* entity, double& length);
 bool entityArea(AcDbEntity* entity, double& area);
 
-void appendEntityJson(std::ostringstream& json, const AcDbObjectId& entityId, bool includeGeometry, bool includeMetrics, std::vector<std::string>& debugLines)
+void appendEntityJson(std::ostringstream& json, const AcDbObjectId& entityId, bool includeGeometry, bool includeMetrics, bool includeBim, std::vector<std::string>& debugLines)
 {
     AcDbEntity* entity = nullptr;
     const Acad::ErrorStatus openStatus = acdbOpenObject(entity, entityId, AcDb::kForRead);
@@ -3302,6 +3443,7 @@ void appendEntityJson(std::ostringstream& json, const AcDbObjectId& entityId, bo
     appendBoundsJson(json, bounds);
     json << ",\"dimensions\":";
     appendDimensionsJson(json, bounds);
+    if (includeBim) appendBimDataJson(json, entityId, debugLines);
 
     if (includeMetrics) {
         double length = 0.0;
@@ -3592,6 +3734,8 @@ std::string objectsProtocolResponse(
         || stringVectorContains(include, "perimeter")
         || stringVectorContains(include, "height")
         || stringVectorContains(include, "volume");
+    const bool includeBim = includeGeometryDefault || stringVectorContains(include, "bim")
+        || stringVectorContains(include, "properties") || stringVectorContains(include, "classification");
     const int limit = std::max(1, jsonIntProperty(paramsJson, "limit").value_or(500));
 
     std::ostringstream response;
@@ -3603,7 +3747,7 @@ std::string objectsProtocolResponse(
         }
 
         std::ostringstream objectJson;
-        appendEntityJson(objectJson, id, includeGeometry, includeMetrics, debugLines);
+        appendEntityJson(objectJson, id, includeGeometry, includeMetrics, includeBim, debugLines);
         response << "OBJECT\t" << objectJson.str() << "\n";
         ++count;
     }
@@ -3641,6 +3785,7 @@ std::string selectionDescribeInApplicationContext(const std::string& paramsJson)
 
 std::string entityDescribeInApplicationContext(const std::string& paramsJson)
 {
+    std::vector<std::string> debugLines;
     AcDbObjectIdArray ids;
     const std::optional<std::string> handlesArray = jsonArrayProperty(paramsJson, "handles");
     for (const std::string& handle : handlesArray.has_value() ? jsonStringArrayValues(*handlesArray) : std::vector<std::string>{}) {
@@ -3656,7 +3801,10 @@ std::string entityDescribeInApplicationContext(const std::string& paramsJson)
             ids.append(id);
         }
     }
-    return objectsProtocolResponse(ids, paramsJson, "{}", true);
+    if (ids.isEmpty()) {
+        ids = bimObjectIdsFromName(jsonStringProperty(paramsJson, "name").value_or(""), workingDatabase(), debugLines);
+    }
+    return objectsProtocolResponse(ids, paramsJson, "{}", true, debugLines);
 }
 
 struct JsonPoint3d {
@@ -3738,6 +3886,78 @@ std::string selectorJsonFromParams(const std::string& paramsJson)
     return {};
 }
 
+void appendUniqueString(std::vector<std::string>& values, const std::string& value)
+{
+    if (!value.empty() && std::find(values.begin(), values.end(), value) == values.end()) {
+        values.push_back(value);
+    }
+}
+
+void appendJsonStringArrayProperty(std::vector<std::string>& values, const std::string& json, const std::string& key)
+{
+    const std::optional<std::string> array = jsonArrayProperty(json, key);
+    if (!array.has_value()) return;
+    for (const std::string& value : jsonStringArrayValues(*array)) appendUniqueString(values, value);
+}
+
+BimTools::Selector bimSelectorFromParams(const std::string& paramsJson)
+{
+    BimTools::Selector selector;
+    const std::string selectorJson = jsonObjectProperty(paramsJson, "selector").value_or("{}");
+    const std::string scope = toUpperAscii(trim(jsonStringProperty(selectorJson, "scope").value_or("")));
+
+    appendJsonStringArrayProperty(selector.handles, selectorJson, "handles");
+    appendJsonStringArrayProperty(selector.handles, paramsJson, "handles");
+    appendUniqueString(selector.handles, jsonStringProperty(selectorJson, "handle").value_or(""));
+    appendUniqueString(selector.handles, jsonStringProperty(paramsJson, "handle").value_or(""));
+    appendJsonStringArrayProperty(selector.names, selectorJson, "names");
+    appendJsonStringArrayProperty(selector.names, paramsJson, "names");
+    appendUniqueString(selector.names, jsonStringProperty(selectorJson, "name").value_or(""));
+    appendUniqueString(selector.names, jsonStringProperty(paramsJson, "name").value_or(""));
+
+    if (scope == "SELECTION") selector.scope = BimTools::SelectorScope::Selection;
+    else if (scope == "HANDLES") selector.scope = BimTools::SelectorScope::Handles;
+    else if (scope == "NAMES") selector.scope = BimTools::SelectorScope::Names;
+    else if (scope == "CURRENTSPACE") selector.scope = BimTools::SelectorScope::CurrentSpace;
+    else if (!selector.handles.empty()) selector.scope = BimTools::SelectorScope::Handles;
+    else if (!selector.names.empty()) selector.scope = BimTools::SelectorScope::Names;
+
+    appendUniqueString(selector.classifications, jsonStringProperty(selectorJson, "classification").value_or(""));
+    appendUniqueString(selector.classifications, jsonStringProperty(paramsJson, "classification").value_or(""));
+    appendJsonStringArrayProperty(selector.classifications, selectorJson, "classifications");
+    appendJsonStringArrayProperty(selector.classifications, paramsJson, "classifications");
+    if (const std::optional<std::string> filters = jsonObjectProperty(paramsJson, "filters"); filters.has_value()) {
+        appendUniqueString(selector.classifications, jsonStringProperty(*filters, "classification").value_or(""));
+        appendJsonStringArrayProperty(selector.classifications, *filters, "classifications");
+    }
+
+    selector.allMatches = jsonBoolProperty(paramsJson, "allMatches").value_or(
+        jsonBoolProperty(selectorJson, "allMatches").value_or(false));
+    appendJsonStringArrayProperty(selector.expectedResolvedHandles, paramsJson, "resolvedHandles");
+
+    if (const std::optional<std::string> fingerprints = jsonArrayProperty(paramsJson, "targetFingerprints"); fingerprints.has_value()) {
+        for (const std::string& item : jsonObjectArrayValues(*fingerprints)) {
+            BimTools::Fingerprint fingerprint;
+            fingerprint.handle = jsonStringProperty(item, "handle").value_or("");
+            fingerprint.guid = jsonStringProperty(item, "guid").value_or("");
+            fingerprint.bimType = jsonStringProperty(item, "bimType").value_or(
+                jsonStringProperty(item, "classification").value_or(""));
+            if (!fingerprint.handle.empty()) selector.expectedFingerprints.push_back(std::move(fingerprint));
+        }
+    }
+    return selector;
+}
+
+std::string bimSelectorScopeName(const BimTools::Selector& selector)
+{
+    switch (selector.scope) {
+    case BimTools::SelectorScope::Selection: return "selection";
+    case BimTools::SelectorScope::Handles: return "handles";
+    case BimTools::SelectorScope::Names: return "names";
+    default: return "currentSpace";
+    }
+}
+
 std::string handlesJsonArray(const AcDbObjectIdArray& ids)
 {
     std::ostringstream json;
@@ -3798,14 +4018,6 @@ bool prepareMutation(
         return false;
     }
 
-    savedBefore = false;
-    if (saveBefore) {
-        if (!saveWorkingDatabaseBeforeAction(database, debugLines, errorMessage)) {
-            return false;
-        }
-        savedBefore = true;
-    }
-
     const bool applicationContext = acDocManager != nullptr && acDocManager->isApplicationContext();
     if (applicationContext) {
         docLock = std::make_unique<AcAxDocLock>(database);
@@ -3816,6 +4028,13 @@ bool prepareMutation(
         appendDebug(debugLines, "Document lock: " + errorStatusText(docLock->lockStatus()));
     } else {
         appendDebug(debugLines, "Command context active; explicit document lock skipped");
+    }
+    savedBefore = false;
+    if (saveBefore) {
+        if (!saveWorkingDatabaseBeforeAction(database, debugLines, errorMessage)) {
+            return false;
+        }
+        savedBefore = true;
     }
     return true;
 }
@@ -4033,20 +4252,137 @@ struct ActionValidationState {
     std::string plannedLastResultKind;
     std::string plannedLastResultShape;
     bool plannedLastExtrudedSolids = false;
+    bool latestBimQueryReady = false;
+    std::vector<std::string> latestBimQueryHandles;
+    BimTools::Selector latestBimQuerySelector;
 };
 
 struct ActionValidationResult {
     std::string tool;
+    int clientActionIndex = -1;
     std::vector<std::string> errors;
     std::vector<std::string> missing;
     std::vector<std::string> warnings;
     std::vector<std::string> hints;
+    std::vector<std::string> resolvedHandles;
+    std::vector<BimTools::Fingerprint> targetFingerprints;
 
     bool valid() const
     {
         return errors.empty() && missing.empty();
     }
 };
+
+bool hasExplicitBimSelector(const std::string& paramsJson)
+{
+    return jsonObjectProperty(paramsJson, "selector").has_value()
+        || jsonArrayProperty(paramsJson, "handles").has_value()
+        || jsonStringProperty(paramsJson, "handle").has_value()
+        || jsonArrayProperty(paramsJson, "names").has_value()
+        || jsonStringProperty(paramsJson, "name").has_value();
+}
+
+bool hasBimValidationArtifacts(const std::string& paramsJson, std::string& error)
+{
+    const std::optional<std::string> handlesJson = jsonArrayProperty(paramsJson, "resolvedHandles");
+    const std::optional<std::string> fingerprintsJson = jsonArrayProperty(paramsJson, "targetFingerprints");
+    const std::vector<std::string> handles = handlesJson.has_value()
+        ? jsonStringArrayValues(*handlesJson)
+        : std::vector<std::string>{};
+    const std::vector<std::string> fingerprints = fingerprintsJson.has_value()
+        ? jsonObjectArrayValues(*fingerprintsJson)
+        : std::vector<std::string>{};
+    if (handles.empty() || fingerprints.empty()) {
+        error = "Ausfuehrung braucht nichtleere resolvedHandles und targetFingerprints aus actions.validate";
+        return false;
+    }
+    return true;
+}
+
+void appendBimResolveValidation(
+    const BimTools::ResolveResult& resolved,
+    ActionValidationResult& result)
+{
+    for (const BimTools::TargetError& error : resolved.errors) {
+        addUniqueMessage(result.errors, error.code + (error.target.empty() ? std::string() : " [" + error.target + "]") + ": " + error.message);
+    }
+    result.targetFingerprints = resolved.fingerprints;
+    for (const BimTools::Fingerprint& fingerprint : resolved.fingerprints) {
+        appendUniqueString(result.resolvedHandles, fingerprint.handle);
+    }
+}
+
+bool bimSelectorForActionValidation(
+    const ActionValidationState& state,
+    const std::string& paramsJson,
+    const std::string& tool,
+    BimTools::ResolvePurpose purpose,
+    BimTools::Selector& selector,
+    ActionValidationResult& result)
+{
+    const bool autoFromQuery = jsonBoolProperty(paramsJson, "autoBimHandlesFromLastQuery").value_or(false);
+    if (!autoFromQuery) {
+        if (!hasExplicitBimSelector(paramsJson)) {
+            addUniqueMessage(result.missing, tool + ".params.selector");
+            return false;
+        }
+        selector = bimSelectorFromParams(paramsJson);
+        return true;
+    }
+
+    if (!state.latestBimQueryReady) {
+        addUniqueMessage(result.missing, tool + ".params.autoBimHandlesFromLastQuery braucht eine vorherige gueltige bim.objects.query-Aktion");
+        return false;
+    }
+    if (state.latestBimQueryHandles.empty()) {
+        addUniqueMessage(result.errors, tool + " kann nicht ausgefuehrt werden: die vorherige bim.objects.query-Seite enthaelt keine BIM-Objekte");
+        return false;
+    }
+
+    selector = bimSelectorFromParams(paramsJson);
+    if (state.latestBimQuerySelector.scope == BimTools::SelectorScope::Names) {
+        BimTools::Selector provenanceSelector = state.latestBimQuerySelector;
+        provenanceSelector.allMatches = selector.allMatches;
+        const BimTools::ResolveResult provenance = BimTools::resolve(state.database, provenanceSelector, purpose);
+        bool ambiguous = false;
+        for (const BimTools::TargetError& error : provenance.errors) {
+            if (error.code != "ambiguousName") continue;
+            ambiguous = true;
+            addUniqueMessage(result.errors, error.code
+                + (error.target.empty() ? std::string() : " [" + error.target + "]")
+                + ": " + error.message);
+        }
+        if (ambiguous) return false;
+    }
+    selector.scope = BimTools::SelectorScope::Handles;
+    selector.handles = state.latestBimQueryHandles;
+    selector.names.clear();
+    return true;
+}
+
+void validateBimUnits(
+    AcDbDatabase* database,
+    const std::string& paramsJson,
+    const std::string& tool,
+    ActionValidationResult& result)
+{
+    const std::string units = toUpperAscii(trim(jsonStringProperty(paramsJson, "units").value_or("mm")));
+    if (units != "MM" && units != "DRAWING") {
+        addUniqueMessage(result.errors, tool + ".params.units muss mm oder drawing sein");
+        return;
+    }
+    if (units == "MM") {
+        if (database == nullptr || database->insunits() == AcDb::kUnitsUndefined) {
+            addUniqueMessage(result.errors, tool + " kann mm nicht verwenden, solange INSUNITS undefiniert ist; Zeichnungseinheit setzen oder units=drawing verwenden");
+            return;
+        }
+        double factor = 0.0;
+        const Acad::ErrorStatus status = acdbGetUnitsConversion(AcDb::kUnitsMillimeters, database->insunits(), factor);
+        if (status != Acad::eOk || !std::isfinite(factor) || factor <= 0.0) {
+            addUniqueMessage(result.errors, tool + " Millimeter-Konvertierung ist fuer die Zeichnungseinheit nicht verfuegbar");
+        }
+    }
+}
 
 bool layerExistsInDatabase(AcDbDatabase* database, const std::string& layerName)
 {
@@ -4137,27 +4473,38 @@ bool hasJsonPointValue(
     const std::string& key,
     const std::string& path,
     std::vector<std::string>& errors,
-    std::vector<std::string>& missing)
+    std::vector<std::string>& missing,
+    bool requireZ = false,
+    bool allowArray = true)
 {
     if (const std::optional<std::string> point = jsonObjectProperty(object, key); point.has_value()) {
         const bool hasX = finiteJsonNumberProperty(*point, "x").has_value();
         const bool hasY = finiteJsonNumberProperty(*point, "y").has_value();
+        const bool hasZ = finiteJsonNumberProperty(*point, "z").has_value();
         if (!hasX) {
             addUniqueMessage(missing, path + ".x");
         }
         if (!hasY) {
             addUniqueMessage(missing, path + ".y");
         }
+        if (requireZ && !hasZ) {
+            addUniqueMessage(missing, path + ".z");
+        }
         if (jsonDoubleProperty(*point, "z").has_value() && !finiteJsonNumberProperty(*point, "z").has_value()) {
             addUniqueMessage(errors, path + ".z muss eine gueltige Zahl sein");
         }
-        return hasX && hasY;
+        return hasX && hasY && (!requireZ || hasZ);
     }
 
     if (const std::optional<std::string> pointArray = jsonArrayProperty(object, key); pointArray.has_value()) {
+        if (!allowArray) {
+            addUniqueMessage(errors, path + " muss ein Objekt {x,y,z} sein");
+            return false;
+        }
         const std::vector<double> values = jsonNumberArrayValues(*pointArray);
-        if (values.size() < 2) {
-            addUniqueMessage(missing, path + " braucht mindestens [x,y]");
+        const std::size_t requiredCount = requireZ ? 3 : 2;
+        if (values.size() < requiredCount) {
+            addUniqueMessage(missing, path + (requireZ ? " braucht [x,y,z]" : " braucht mindestens [x,y]"));
             return false;
         }
         for (double value : values) {
@@ -4617,6 +4964,13 @@ void validateCommandExecuteParams(const std::string& paramsJson, ActionValidatio
         addUniqueMessage(result.errors, "command.execute command '" + commandName + "' ist nicht in commands.list freigegeben");
         return;
     }
+    if (commandName == "BIMCLASSIFY") {
+        const BimTools::Availability state = BimTools::availability();
+        if (!state.available) {
+            addUniqueMessage(result.errors, "bim.classify nicht verfuegbar: " + state.reason);
+            return;
+        }
+    }
     if (!nativeCommandLineHasArguments(commandLine) && !commandExecuteAllowsNoArguments(commandName)) {
         addUniqueMessage(result.missing, "command.execute.params.commandLine braucht vollstaendige Argumente fuer " + commandName);
     }
@@ -4629,6 +4983,7 @@ bool validateActionObject(
     ActionValidationResult& result,
     std::vector<std::string>& debugLines)
 {
+    result.clientActionIndex = jsonIntProperty(actionJson, "clientActionIndex").value_or(-1);
     result.tool = jsonStringProperty(actionJson, "tool").value_or(
         jsonStringProperty(actionJson, "method").value_or(
             jsonStringProperty(actionJson, "operation").value_or("")));
@@ -4639,10 +4994,17 @@ bool validateActionObject(
         addUniqueMessage(result.missing, "action.tool");
         return false;
     }
+    if (isStructuredBimTool(result.tool.c_str())) {
+        const BimTools::Availability state = BimTools::availability();
+        if (!state.available) {
+            addUniqueMessage(result.errors, "bimUnavailable: " + state.reason);
+            return false;
+        }
+    }
 
     const std::optional<std::string> params = jsonObjectProperty(actionJson, "params");
     std::string paramsJson = params.value_or("{}");
-    if (!params.has_value() && result.tool != "document.save") {
+    if (!params.has_value() && result.tool != "document.save" && result.tool != "bim.objects.query") {
         addUniqueMessage(result.missing, result.tool + ".params");
     }
 
@@ -4708,6 +5070,98 @@ bool validateActionObject(
         validateLayerBatchParams(paramsJson, state, result, debugLines);
     } else if (result.tool == "geometry.create") {
         validateGeometryCreateParams(state, paramsJson, result);
+    } else if (result.tool == "bim.objects.query") {
+        state.latestBimQueryReady = false;
+        state.latestBimQueryHandles.clear();
+        state.latestBimQuerySelector = BimTools::Selector{};
+        const int offset = jsonIntProperty(paramsJson, "offset").value_or(0);
+        const int limit = jsonIntProperty(paramsJson, "limit").value_or(100);
+        if (offset < 0) addUniqueMessage(result.errors, "bim.objects.query.params.offset muss >= 0 sein");
+        if (limit < 1 || limit > 500) addUniqueMessage(result.errors, "bim.objects.query.params.limit muss 1..500 sein");
+        if (result.valid()) {
+            const BimTools::Selector selector = bimSelectorFromParams(paramsJson);
+            const BimTools::ResolveResult resolved = BimTools::resolve(state.database, selector, BimTools::ResolvePurpose::Query);
+            for (const BimTools::TargetError& error : resolved.errors) {
+                addUniqueMessage(result.errors, error.code + (error.target.empty() ? std::string() : " [" + error.target + "]") + ": " + error.message);
+            }
+            if (resolved.success && result.valid()) {
+                const std::size_t begin = std::min<std::size_t>(static_cast<std::size_t>(offset), resolved.fingerprints.size());
+                const std::size_t end = std::min<std::size_t>(resolved.fingerprints.size(), begin + static_cast<std::size_t>(limit));
+                for (std::size_t i = begin; i < end; ++i) {
+                    appendUniqueString(state.latestBimQueryHandles, resolved.fingerprints[i].handle);
+                }
+                state.latestBimQueryReady = true;
+                state.latestBimQuerySelector = selector;
+                addUniqueMessage(result.hints, "bim.objects.query Preflight-Seite enthaelt "
+                    + std::to_string(state.latestBimQueryHandles.size()) + " exakte Handle(s) fuer autoBimHandlesFromLastQuery");
+            }
+        }
+        addUniqueMessage(result.hints, "bim.objects.query ist read-only; include=properties laedt typisierte BrxDbProperties gezielt nach");
+    } else if (result.tool == "bim.selection.set") {
+        BimTools::Selector selector;
+        if (bimSelectorForActionValidation(
+                state, paramsJson, result.tool, BimTools::ResolvePurpose::SelectionMutation, selector, result)) {
+            if (selector.scope == BimTools::SelectorScope::CurrentSpace || selector.scope == BimTools::SelectorScope::Selection) {
+                addUniqueMessage(result.errors, "bim.selection.set erlaubt ausschliesslich scope=handles|names");
+            } else {
+                const BimTools::ResolveResult resolved = BimTools::resolve(state.database, selector, BimTools::ResolvePurpose::SelectionMutation);
+                appendBimResolveValidation(resolved, result);
+            }
+        }
+    } else if (result.tool == "bim.move") {
+        BimTools::Selector selector;
+        if (bimSelectorForActionValidation(
+                state, paramsJson, result.tool, BimTools::ResolvePurpose::DrawingMutation, selector, result)) {
+            if (selector.scope == BimTools::SelectorScope::CurrentSpace) {
+                addUniqueMessage(result.errors, "bim.move erlaubt scope=selection|handles|names, nicht currentSpace");
+            } else {
+                const BimTools::ResolveResult resolved = BimTools::resolve(state.database, selector, BimTools::ResolvePurpose::DrawingMutation);
+                appendBimResolveValidation(resolved, result);
+            }
+        }
+        if (hasJsonPointValue(paramsJson, "vector", "bim.move.params.vector", result.errors, result.missing, true, false)) {
+            const JsonPoint3d vector = jsonPointProperty(paramsJson, "vector");
+            if (std::sqrt(vector.x * vector.x + vector.y * vector.y + vector.z * vector.z) <= kRectangleTolerance) {
+                addUniqueMessage(result.errors, "bim.move.params.vector darf kein Nullvektor sein");
+            }
+        }
+        validateBimUnits(state.database, paramsJson, result.tool, result);
+    } else if (result.tool == "bim.rotate") {
+        BimTools::Selector selector;
+        if (bimSelectorForActionValidation(
+                state, paramsJson, result.tool, BimTools::ResolvePurpose::DrawingMutation, selector, result)) {
+            if (selector.scope == BimTools::SelectorScope::CurrentSpace) {
+                addUniqueMessage(result.errors, "bim.rotate erlaubt scope=selection|handles|names, nicht currentSpace");
+            } else {
+                const BimTools::ResolveResult resolved = BimTools::resolve(state.database, selector, BimTools::ResolvePurpose::DrawingMutation);
+                appendBimResolveValidation(resolved, result);
+            }
+        }
+        const double angle = jsonAngleRadians(paramsJson, "angleRad", "angleDeg", 0.0);
+        if (!std::isfinite(angle) || std::abs(angle) <= kRectangleTolerance) {
+            addUniqueMessage(result.missing, "bim.rotate.params.angleDeg oder angleRad ungleich null");
+        }
+        const std::string baseMode = toUpperAscii(trim(jsonStringProperty(paramsJson, "basePointMode").value_or("")));
+        const bool hasBasePoint = jsonObjectProperty(paramsJson, "basePoint").has_value()
+            || jsonArrayProperty(paramsJson, "basePoint").has_value();
+        if (!baseMode.empty() && hasBasePoint) {
+            addUniqueMessage(result.errors, "bim.rotate erlaubt entweder basePoint oder basePointMode, nicht beides");
+        }
+        if (!baseMode.empty()) {
+            if (baseMode != "EACHENTITYCENTER" && baseMode != "SELECTIONCENTER") {
+                addUniqueMessage(result.errors, "bim.rotate.params.basePointMode muss eachEntityCenter oder selectionCenter sein");
+            }
+        } else {
+            hasJsonPointValue(paramsJson, "basePoint", "bim.rotate.params.basePoint", result.errors, result.missing, true, false);
+        }
+        if ((jsonObjectProperty(paramsJson, "axis").has_value() || jsonArrayProperty(paramsJson, "axis").has_value())
+            && hasJsonPointValue(paramsJson, "axis", "bim.rotate.params.axis", result.errors, result.missing, true, false)) {
+            const JsonPoint3d axis = jsonPointProperty(paramsJson, "axis");
+            if (std::sqrt(axis.x * axis.x + axis.y * axis.y + axis.z * axis.z) <= kRectangleTolerance) {
+                addUniqueMessage(result.errors, "bim.rotate.params.axis darf kein Nullvektor sein");
+            }
+        }
+        validateBimUnits(state.database, paramsJson, result.tool, result);
     } else if (result.tool == "geometry.move") {
         AcDbObjectIdArray ids;
         validateSelectorForAction(state, paramsJson, result.tool, true, &ids, result.errors, result.missing, debugLines);
@@ -4901,12 +5355,15 @@ std::string actionValidationResultJson(const ActionValidationResult& result, int
 {
     std::ostringstream json;
     json << "{\"index\":" << index
+        << ",\"clientActionIndex\":" << result.clientActionIndex
         << ",\"tool\":\"" << jsonEscape(result.tool) << "\""
         << ",\"valid\":" << (result.valid() ? "true" : "false")
         << ",\"errors\":" << jsonDebugArray(result.errors)
         << ",\"missing\":" << jsonDebugArray(result.missing)
         << ",\"warnings\":" << jsonDebugArray(result.warnings)
         << ",\"hints\":" << jsonDebugArray(result.hints)
+        << ",\"resolvedHandles\":" << jsonDebugArray(result.resolvedHandles)
+        << ",\"targetFingerprints\":" << BimTools::fingerprintsJson(result.targetFingerprints)
         << '}';
     return json.str();
 }
@@ -5001,6 +5458,224 @@ std::string validateActionsInApplicationContext(const std::string& paramsJson)
         << ",\"actions\":" << actionResults.str()
         << '}';
     return okJsonResultResponse(json.str(), debugLines);
+}
+
+std::string bimObjectsQueryInApplicationContext(const std::string& paramsJson)
+{
+    BimTools::QueryRequest request;
+    request.selector = bimSelectorFromParams(paramsJson);
+    request.offset = static_cast<std::size_t>(std::max(0, jsonIntProperty(paramsJson, "offset").value_or(0)));
+    request.limit = static_cast<std::size_t>(std::max(1, jsonIntProperty(paramsJson, "limit").value_or(100)));
+
+    const std::optional<std::string> includeArray = jsonArrayProperty(paramsJson, "include");
+    if (includeArray.has_value()) {
+        const std::vector<std::string> include = jsonStringArrayValues(*includeArray);
+        request.includeGeometry = stringVectorContains(include, "geometry");
+        request.includeProperties = stringVectorContains(include, "properties");
+    } else if (const std::optional<std::string> includeText = jsonStringProperty(paramsJson, "include"); includeText.has_value()) {
+        const std::string normalized = toUpperAscii(*includeText);
+        request.includeGeometry = normalized.find("GEOMETRY") != std::string::npos;
+        request.includeProperties = normalized.find("PROPERTIES") != std::string::npos;
+    }
+
+    AcDbDatabase* database = workingDatabase();
+    BimTools::QueryResult result;
+    result.availability = BimTools::availability();
+    result.offset = request.offset;
+    result.limit = request.limit;
+    std::vector<std::string> debugLines;
+    const int requestedOffset = jsonIntProperty(paramsJson, "offset").value_or(0);
+    const int requestedLimit = jsonIntProperty(paramsJson, "limit").value_or(100);
+    if (requestedOffset < 0) {
+        result.errors.push_back({"offset", "invalidOffset", "offset muss >= 0 sein"});
+        return okJsonResultResponse(BimTools::queryResultJson(result), debugLines);
+    }
+    if (requestedLimit < 1 || requestedLimit > 500) {
+        result.errors.push_back({"limit", "invalidLimit", "limit muss 1..500 sein"});
+        return okJsonResultResponse(BimTools::queryResultJson(result), debugLines);
+    }
+    if (database == nullptr) {
+        result.errors.push_back({"database", "noDatabase", "Keine aktive BricsCAD-Zeichnung gefunden"});
+        return okJsonResultResponse(BimTools::queryResultJson(result), debugLines);
+    }
+
+    std::unique_ptr<AcAxDocLock> docLock;
+    if (acDocManager != nullptr && acDocManager->isApplicationContext()) {
+        docLock = std::make_unique<AcAxDocLock>(database);
+        if (docLock->lockStatus() != Acad::eOk) {
+            result.errors.push_back({"database", "documentLockFailed", errorStatusText(docLock->lockStatus())});
+            return okJsonResultResponse(BimTools::queryResultJson(result), debugLines);
+        }
+    }
+
+    result = BimTools::query(database, request);
+    debugLines = result.debug;
+    return okJsonResultResponse(BimTools::queryResultJson(result), debugLines);
+}
+
+BimTools::OperationResult bimOperationFailure(
+    const std::string& operation,
+    const std::string& target,
+    const std::string& code,
+    const std::string& message)
+{
+    BimTools::OperationResult result;
+    result.operation = operation;
+    result.availability = BimTools::availability();
+    result.errors.push_back({target, code, message});
+    return result;
+}
+
+std::string bimSelectionSetInApplicationContext(const std::string& paramsJson)
+{
+    std::vector<std::string> debugLines;
+    AcDbDatabase* database = workingDatabase();
+    if (!hasExplicitBimSelector(paramsJson)) {
+        const BimTools::OperationResult result = bimOperationFailure("selection.set", "selector", "missingSelector", "bim.selection.set braucht selector, handles oder names");
+        return okJsonResultResponse(BimTools::operationResultJson(result, false, false), debugLines);
+    }
+    std::string validationArtifactsError;
+    if (!hasBimValidationArtifacts(paramsJson, validationArtifactsError)) {
+        const BimTools::OperationResult result = bimOperationFailure(
+            "selection.set", "validation", "preflightArtifactsRequired", validationArtifactsError);
+        return okJsonResultResponse(BimTools::operationResultJson(result, false, false), debugLines);
+    }
+    const BimTools::Selector selector = bimSelectorFromParams(paramsJson);
+    if (selector.scope == BimTools::SelectorScope::CurrentSpace || selector.scope == BimTools::SelectorScope::Selection) {
+        const BimTools::OperationResult result = bimOperationFailure("selection.set", "selector", "unsafeScope", "bim.selection.set erlaubt ausschliesslich scope=handles|names");
+        return okJsonResultResponse(BimTools::operationResultJson(result, false, false), debugLines);
+    }
+
+    std::unique_ptr<AcAxDocLock> docLock;
+    if (database != nullptr && acDocManager != nullptr && acDocManager->isApplicationContext()) {
+        docLock = std::make_unique<AcAxDocLock>(database);
+        if (docLock->lockStatus() != Acad::eOk) {
+            const BimTools::OperationResult result = bimOperationFailure("selection.set", "database", "documentLockFailed", errorStatusText(docLock->lockStatus()));
+            return okJsonResultResponse(BimTools::operationResultJson(result, false, false), debugLines);
+        }
+    }
+
+    BimTools::OperationResult result = BimTools::setSelection(database, selector);
+    debugLines = result.debug;
+    if (result.success) rememberSelectionSnapshot(result.affectedIds, "bim.selection.set", &debugLines);
+    return okJsonResultResponse(BimTools::operationResultJson(result, false, false), debugLines);
+}
+
+std::string bimTransformInApplicationContext(const std::string& paramsJson, BimTools::TransformKind kind)
+{
+    const std::string operation = kind == BimTools::TransformKind::Move ? "move" : "rotate";
+    std::vector<std::string> debugLines;
+    if (!hasExplicitBimSelector(paramsJson)) {
+        const BimTools::OperationResult result = bimOperationFailure(operation, "selector", "missingSelector", "bim." + operation + " braucht selector, handles oder names");
+        return okJsonResultResponse(BimTools::operationResultJson(result, false, false), debugLines);
+    }
+    std::string validationArtifactsError;
+    if (!hasBimValidationArtifacts(paramsJson, validationArtifactsError)) {
+        const BimTools::OperationResult result = bimOperationFailure(
+            operation, "validation", "preflightArtifactsRequired", validationArtifactsError);
+        return okJsonResultResponse(BimTools::operationResultJson(result, false, false), debugLines);
+    }
+
+    BimTools::TransformRequest request;
+    request.kind = kind;
+    request.selector = bimSelectorFromParams(paramsJson);
+    request.units = jsonStringProperty(paramsJson, "units").value_or("mm");
+    if (request.selector.scope == BimTools::SelectorScope::CurrentSpace) {
+        const BimTools::OperationResult result = bimOperationFailure(operation, "selector", "unsafeScope", "bim." + operation + " erlaubt scope=selection|handles|names, nicht currentSpace");
+        return okJsonResultResponse(BimTools::operationResultJson(result, false, false), debugLines);
+    }
+
+    if (kind == BimTools::TransformKind::Move) {
+        if (!jsonObjectProperty(paramsJson, "vector").has_value()) {
+            const BimTools::OperationResult result = bimOperationFailure(operation, "vector", "missingVector", "bim.move braucht vector={x,y,z}");
+            return okJsonResultResponse(BimTools::operationResultJson(result, false, false), debugLines);
+        }
+        const JsonPoint3d vector = jsonPointProperty(paramsJson, "vector");
+        request.vector = AcGeVector3d(vector.x, vector.y, vector.z);
+    } else {
+        if (jsonArrayProperty(paramsJson, "axis").has_value()
+            || jsonArrayProperty(paramsJson, "basePoint").has_value()) {
+            const BimTools::OperationResult result = bimOperationFailure(
+                operation, "rotationPoint", "invalidPointShape", "bim.rotate akzeptiert axis/basePoint nur als Objekt {x,y,z}");
+            return okJsonResultResponse(BimTools::operationResultJson(result, false, false), debugLines);
+        }
+        request.angleRadians = jsonAngleRadians(paramsJson, "angleRad", "angleDeg", 0.0);
+        const JsonPoint3d axis = jsonPointProperty(paramsJson, "axis", JsonPoint3d{0.0, 0.0, 1.0});
+        request.axis = AcGeVector3d(axis.x, axis.y, axis.z);
+        const std::string baseMode = toUpperAscii(trim(jsonStringProperty(paramsJson, "basePointMode").value_or("")));
+        if (!baseMode.empty() && jsonObjectProperty(paramsJson, "basePoint").has_value()) {
+            const BimTools::OperationResult result = bimOperationFailure(
+                operation, "basePoint", "exclusiveBasePoint", "bim.rotate erlaubt entweder basePoint oder basePointMode, nicht beides");
+            return okJsonResultResponse(BimTools::operationResultJson(result, false, false), debugLines);
+        }
+        if (baseMode == "EACHENTITYCENTER") request.baseMode = BimTools::RotationBaseMode::EachEntityCenter;
+        else if (baseMode == "SELECTIONCENTER") request.baseMode = BimTools::RotationBaseMode::SelectionCenter;
+        else if (!baseMode.empty()) {
+            const BimTools::OperationResult result = bimOperationFailure(operation, "basePointMode", "invalidBasePointMode", "basePointMode muss eachEntityCenter oder selectionCenter sein");
+            return okJsonResultResponse(BimTools::operationResultJson(result, false, false), debugLines);
+        } else {
+            request.baseMode = BimTools::RotationBaseMode::Explicit;
+            request.hasExplicitBasePoint = jsonObjectProperty(paramsJson, "basePoint").has_value();
+            const JsonPoint3d basePoint = jsonPointProperty(paramsJson, "basePoint");
+            request.basePoint = AcGePoint3d(basePoint.x, basePoint.y, basePoint.z);
+        }
+    }
+
+    const bool saveBefore = jsonBoolProperty(paramsJson, "saveBefore").value_or(true);
+    bool savedBefore = false;
+    AcDbDatabase* database = workingDatabase();
+    if (database == nullptr) {
+        const BimTools::OperationResult result = bimOperationFailure(operation, "database", "noDatabase", "Keine aktive BricsCAD-Zeichnung gefunden");
+        return okJsonResultResponse(BimTools::operationResultJson(result, saveBefore, false), debugLines);
+    }
+    const BimTools::Availability availability = BimTools::availability();
+    if (!availability.available) {
+        const BimTools::OperationResult result = bimOperationFailure(operation, "bim", "bimUnavailable", availability.reason);
+        return okJsonResultResponse(BimTools::operationResultJson(result, saveBefore, false), debugLines);
+    }
+
+    std::unique_ptr<AcAxDocLock> docLock;
+    if (acDocManager != nullptr && acDocManager->isApplicationContext()) {
+        docLock = std::make_unique<AcAxDocLock>(database);
+        if (docLock->lockStatus() != Acad::eOk) {
+            const BimTools::OperationResult result = bimOperationFailure(
+                operation, "database", "documentLockFailed", errorStatusText(docLock->lockStatus()));
+            return okJsonResultResponse(BimTools::operationResultJson(result, saveBefore, false), debugLines);
+        }
+        appendDebug(debugLines, "BIM transform document lock: " + errorStatusText(docLock->lockStatus()));
+    }
+
+    ActionValidationState validationState;
+    validationState.database = database;
+    ActionValidationResult validation;
+    const std::string tool = kind == BimTools::TransformKind::Move ? "bim.move" : "bim.rotate";
+    validateActionObject("{\"tool\":\"" + tool + "\",\"params\":" + paramsJson + "}", validationState, validation, debugLines);
+    if (!validation.valid()) {
+        BimTools::OperationResult result = bimOperationFailure(operation, "preflight", "validationFailed", "BIM-Ausfuehrungs-Preflight fehlgeschlagen");
+        for (const std::string& error : validation.errors) {
+            result.errors.push_back({"preflight", "invalidTargetOrParams", error});
+        }
+        for (const std::string& missing : validation.missing) {
+            result.errors.push_back({"preflight", "missingParam", missing});
+        }
+        result.debug = debugLines;
+        return okJsonResultResponse(BimTools::operationResultJson(result, saveBefore, false), debugLines);
+    }
+
+    if (saveBefore) {
+        std::string saveError;
+        if (!saveWorkingDatabaseBeforeAction(database, debugLines, saveError)) {
+            BimTools::OperationResult result = bimOperationFailure(operation, "database", "saveBeforeFailed", saveError);
+            result.debug = debugLines;
+            return okJsonResultResponse(BimTools::operationResultJson(result, true, false), debugLines);
+        }
+        savedBefore = true;
+    }
+
+    BimTools::OperationResult result = BimTools::transform(database, request);
+    debugLines.insert(debugLines.end(), result.debug.begin(), result.debug.end());
+    if (result.success) rememberLastResult(result.affectedIds, "bim." + operation, debugLines);
+    return okJsonResultResponse(BimTools::operationResultJson(result, saveBefore, savedBefore), debugLines);
 }
 
 JsonPoint3d actionVectorFromParams(const std::string& paramsJson)
@@ -6844,6 +7519,13 @@ std::string postNativeCommandLineInApplicationContext(const std::string& command
         return fail("commandLine ist zu lang");
     }
 
+    if (nativeCommandNameFromLine(commandLine) == "BIMCLASSIFY") {
+        const BimTools::Availability state = BimTools::availability();
+        if (!state.available) {
+            return fail("bim.classify nicht verfuegbar: " + state.reason);
+        }
+    }
+
     AcDbDatabase* database = workingDatabase();
     if (database == nullptr) {
         return fail("Keine aktive BricsCAD Zeichnung gefunden");
@@ -7018,42 +7700,24 @@ std::string undoLastActionInApplicationContext(int steps, bool saveBefore)
         appendDebugResponse(response, debugLines);
         return response.str();
     };
-
-    if (steps < 1) {
-        return fail("steps muss mindestens 1 sein");
-    }
-
-    appendDebug(debugLines, "UNDO request requested=" + std::to_string(steps)
-        + " saveBefore=" + (saveBefore ? "true" : "false"));
-
+    if (steps < 1) return fail("steps muss mindestens 1 sein");
     AcDbDatabase* database = workingDatabase();
-    if (database == nullptr) {
-        return fail("Keine aktive BricsCAD Zeichnung gefunden");
-    }
-
+    if (database == nullptr) return fail("Keine aktive BricsCAD Zeichnung gefunden");
     bool savedBefore = false;
     if (saveBefore) {
         std::string saveError;
-        if (!saveWorkingDatabaseBeforeAction(database, debugLines, saveError)) {
-            return fail(saveError);
-        }
+        if (!saveWorkingDatabaseBeforeAction(database, debugLines, saveError)) return fail(saveError);
         savedBefore = true;
     }
-
     const int commandStatus = runNativeUndoCommand(steps, debugLines);
     const bool succeeded = commandStatus == RTNORM;
-    const int undone = succeeded ? steps : 0;
-    const int errors = succeeded ? 0 : 1;
-
     std::ostringstream response;
-    response << "OK"
-        << "\tREQUESTED\t" << steps
-        << "\tUNDONE\t" << undone
-        << "\tERRORS\t" << errors
+    response << "OK\tREQUESTED\t" << steps
+        << "\tUNDONE\t" << (succeeded ? steps : 0)
+        << "\tERRORS\t" << (succeeded ? 0 : 1)
         << "\tSUCCEEDED\t" << (succeeded ? 1 : 0)
         << "\tSAVE_BEFORE\t" << (saveBefore ? 1 : 0)
-        << "\tSAVED_BEFORE\t" << (savedBefore ? 1 : 0)
-        << "\n";
+        << "\tSAVED_BEFORE\t" << (savedBefore ? 1 : 0) << "\n";
     appendDebugResponse(response, debugLines);
     return response.str();
 }
@@ -7068,46 +7732,25 @@ std::string redoLastActionInApplicationContext(int steps, bool saveBefore)
         appendDebugResponse(response, debugLines);
         return response.str();
     };
-
-    if (steps < 1) {
-        return fail("steps muss mindestens 1 sein");
-    }
-
+    if (steps < 1) return fail("steps muss mindestens 1 sein");
     AcDbDatabase* database = workingDatabase();
-    if (database == nullptr) {
-        return fail("Keine aktive BricsCAD Zeichnung gefunden");
-    }
-
+    if (database == nullptr) return fail("Keine aktive BricsCAD Zeichnung gefunden");
     bool savedBefore = false;
     if (saveBefore) {
         std::string saveError;
-        if (!saveWorkingDatabaseBeforeAction(database, debugLines, saveError)) {
-            return fail(saveError);
-        }
+        if (!saveWorkingDatabaseBeforeAction(database, debugLines, saveError)) return fail(saveError);
         savedBefore = true;
     }
-
     const int commandStatus = runNativeRedoCommand(steps, debugLines);
     const bool succeeded = commandStatus == RTNORM;
-    const int redone = succeeded ? steps : 0;
-    const int errors = succeeded ? 0 : 1;
-
-    AcDbObjectIdArray affected;
-    AcDbObjectIdArray failed;
     std::ostringstream json;
     json << "{\"schema\":\"barebone.bricscad.undo.redo.result.v1\""
-        << ",\"summary\":\"undo.redo redone=" << redone << " requested=" << steps << "\""
-        << ",\"requested\":" << steps
-        << ",\"redone\":" << redone
-        << ",\"errors\":" << errors
-        << ",\"succeeded\":" << (succeeded ? "true" : "false")
-        << ",\"affectedHandles\":[]"
-        << ",\"failedHandles\":[]"
-        << ",\"warnings\":[]"
-        << ",\"timeMs\":0"
+        << ",\"summary\":\"undo.redo redone=" << (succeeded ? steps : 0) << " requested=" << steps << "\""
+        << ",\"requested\":" << steps << ",\"redone\":" << (succeeded ? steps : 0)
+        << ",\"errors\":" << (succeeded ? 0 : 1) << ",\"succeeded\":" << (succeeded ? "true" : "false")
+        << ",\"affectedHandles\":[],\"failedHandles\":[],\"warnings\":[],\"timeMs\":0"
         << ",\"saveBefore\":" << (saveBefore ? "true" : "false")
-        << ",\"savedBefore\":" << (savedBefore ? "true" : "false")
-        << '}';
+        << ",\"savedBefore\":" << (savedBefore ? "true" : "false") << '}';
     return okJsonResultResponse(json.str(), debugLines);
 }
 
@@ -7740,6 +8383,16 @@ std::string handlePluginRequestInApplicationContext(const std::string& request)
         return listLayersInApplicationContext();
     }
 
+    if (command == "CAPABILITIES") {
+        const int id = parts.size() >= 2 ? std::max(0, std::atoi(parts[1].c_str())) : 0;
+        return jsonCapabilitiesResponseFromDescriptors(id);
+    }
+
+    if (command == "ACTIONS") {
+        const int id = parts.size() >= 2 ? std::max(0, std::atoi(parts[1].c_str())) : 0;
+        return jsonActionsResponseFromDescriptors(id);
+    }
+
     if (command == "ACTIONVALIDATE") {
         const std::string paramsJson = parts.size() >= 2 ? percentDecode(parts[1]) : "{}";
         return validateActionsInApplicationContext(paramsJson);
@@ -7758,6 +8411,26 @@ std::string handlePluginRequestInApplicationContext(const std::string& request)
     if (command == "ENTITYDESCRIBE") {
         const std::string paramsJson = parts.size() >= 2 ? percentDecode(parts[1]) : "{}";
         return entityDescribeInApplicationContext(paramsJson);
+    }
+
+    if (command == "BIMOBJECTSQUERY") {
+        const std::string paramsJson = parts.size() >= 2 ? percentDecode(parts[1]) : "{}";
+        return bimObjectsQueryInApplicationContext(paramsJson);
+    }
+
+    if (command == "BIMSELECTIONSET") {
+        const std::string paramsJson = parts.size() >= 2 ? percentDecode(parts[1]) : "{}";
+        return bimSelectionSetInApplicationContext(paramsJson);
+    }
+
+    if (command == "BIMMOVE") {
+        const std::string paramsJson = parts.size() >= 2 ? percentDecode(parts[1]) : "{}";
+        return bimTransformInApplicationContext(paramsJson, BimTools::TransformKind::Move);
+    }
+
+    if (command == "BIMROTATE") {
+        const std::string paramsJson = parts.size() >= 2 ? percentDecode(parts[1]) : "{}";
+        return bimTransformInApplicationContext(paramsJson, BimTools::TransformKind::Rotate);
     }
 
     if (command == "GEOMETRYCREATE") {
@@ -7909,6 +8582,10 @@ std::string handlePluginRequestInApplicationContext(const std::string& request)
     }
 
     if (command == "BIMCLASSIFY") {
+        const BimTools::Availability state = BimTools::availability();
+        if (!state.available) {
+            return errorResponse("bim.classify nicht verfuegbar: " + state.reason);
+        }
         if (parts.size() < 2) {
             return errorResponse("BIMCLASSIFY erwartet eine BIM-Klasse");
         }
@@ -7919,6 +8596,10 @@ std::string handlePluginRequestInApplicationContext(const std::string& request)
     }
 
     if (command == "BIMCLASSIFYSELECTOR") {
+        const BimTools::Availability state = BimTools::availability();
+        if (!state.available) {
+            return errorResponse("bim.classify nicht verfuegbar: " + state.reason);
+        }
         if (parts.size() < 3) {
             return errorResponse("BIMCLASSIFYSELECTOR erwartet BIM-Klasse und Selector");
         }
@@ -8039,8 +8720,9 @@ std::string jsonResponseForBridgeRequest(const std::string& line)
     const std::string method = jsonStringProperty(line, "method").value_or("");
     appendBridgeUiLog("Qt -> BRX request id=" + std::to_string(id) + " method=" + (method.empty() ? std::string("<leer>") : method));
     if (method == "capabilities.list") {
+        const std::string response = dispatchPluginRequest("CAPABILITIES\t" + std::to_string(id));
         appendBridgeUiLog("BRX -> Qt response id=" + std::to_string(id) + " method=capabilities.list");
-        return jsonCapabilitiesResponseFromDescriptors(id);
+        return response;
     }
 
     if (method == "commands.list") {
@@ -8049,8 +8731,9 @@ std::string jsonResponseForBridgeRequest(const std::string& line)
     }
 
     if (method == "actions.list") {
+        const std::string response = dispatchPluginRequest("ACTIONS\t" + std::to_string(id));
         appendBridgeUiLog("BRX -> Qt response id=" + std::to_string(id) + " method=actions.list");
-        return jsonActionsResponseFromDescriptors(id);
+        return response;
     }
 
     if (method == "actions.validate") {
@@ -8064,6 +8747,16 @@ std::string jsonResponseForBridgeRequest(const std::string& line)
         request << "ACTIONVALIDATE\t" << percentEncode(*params);
         const std::string response = jsonResponseFromProtocol(id, method, dispatchPluginRequest(request.str()));
         appendBridgeUiLog("BRX -> Qt response id=" + std::to_string(id) + " method=actions.validate");
+        return response;
+    }
+
+    if (method == "bim.objects.query") {
+        const std::string params = jsonObjectProperty(line, "params").value_or("{}");
+        appendBridgeUiLog("Qt -> BRX bim.objects.query params=" + params);
+        std::ostringstream request;
+        request << "BIMOBJECTSQUERY\t" << percentEncode(params);
+        const std::string response = jsonResponseFromProtocol(id, method, dispatchPluginRequest(request.str()));
+        appendBridgeUiLog("BRX -> Qt response id=" + std::to_string(id) + " method=bim.objects.query");
         return response;
     }
 
@@ -8122,6 +8815,15 @@ std::string jsonResponseForBridgeRequest(const std::string& line)
 
     if (method == "geometry.move") {
         return dispatchJsonParamsMethod("GEOMETRYMOVE");
+    }
+    if (method == "bim.selection.set") {
+        return dispatchJsonParamsMethod("BIMSELECTIONSET");
+    }
+    if (method == "bim.move") {
+        return dispatchJsonParamsMethod("BIMMOVE");
+    }
+    if (method == "bim.rotate") {
+        return dispatchJsonParamsMethod("BIMROTATE");
     }
     if (method == "pipes.validateNetwork") {
         return dispatchJsonParamsMethod("PIPESVALIDATE");

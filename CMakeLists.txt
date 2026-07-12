@@ -138,7 +138,25 @@ if(BAREBONE_BUILD_BRX_PLUGIN)
 
     add_library(BareboneBrx MODULE
         src/bricscad/BareboneBrxPlugin.cpp
+        src/bricscad/BimTools.cpp
+        src/bricscad/BimTools.h
     )
+
+    if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
+        message(FATAL_ERROR "The BricsCAD BRX V26 plugin must be built for x64.")
+    endif()
+    if(MSVC_VERSION LESS 1930 OR MSVC_VERSION GREATER_EQUAL 1950)
+        message(FATAL_ERROR
+            "The BricsCAD BRX V26 plugin requires the Visual Studio 2022 v143 toolset "
+            "(MSVC_VERSION 1930..1949); active MSVC_VERSION=${MSVC_VERSION}.")
+    endif()
+    if(DEFINED CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION
+       AND CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION VERSION_LESS "10.0.19041.0")
+        message(FATAL_ERROR "The BricsCAD BRX V26 plugin requires Windows SDK 10.0.19041.0 or newer.")
+    endif()
+    if(CMAKE_SYSTEM_VERSION AND CMAKE_SYSTEM_VERSION VERSION_LESS "10.0.19041.0")
+        message(FATAL_ERROR "The BricsCAD BRX V26 plugin requires Windows SDK 10.0.19041.0 or newer.")
+    endif()
 
     target_compile_features(BareboneBrx PRIVATE cxx_std_20)
     target_compile_definitions(BareboneBrx PRIVATE

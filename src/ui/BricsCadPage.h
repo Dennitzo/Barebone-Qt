@@ -274,6 +274,7 @@ private:
     int m_repeatedAgentContextRequestCount = 0;
     QString m_lastAgentContextRequestSignature;
     bool m_agentContextLoopBlocked = false;
+    bool m_forceAgentReasoningOffNextRequest = false;
     int m_trainingValidationRetries = 0;
     int m_nextRequestId = 1;
     int m_operationGeneration = 1;
