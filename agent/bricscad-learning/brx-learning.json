@@ -33,8 +33,7 @@
                 "Die vier Aussenwandprofile liegen innerhalb der Kontur, ueberlappen sich nicht und beruehren sich nur an den Eckkanten."
             ],
             "createdAt": "2026-07-11T00:00:00Z",
-            "dependsOn": [
-            ],
+            "dependsOn": [],
             "derivedValues": {
                 "areaM2": "widthMm * lengthMm / 1000000",
                 "contourLengthMm": "contourBounds.max.y - contourBounds.min.y",
@@ -414,8 +413,7 @@
                 "Auch bei detail=summary muessen Extrusionshandles als lastResult bereitstehen; jede Extrusion nennt params.layer Grundriss Aussenwaende und wird direkt von entity.setLayer gefolgt.",
                 "Im kombinierten Batch ist createdGeometryHandleIndex 0 immer die Kontur. Fuer die vier Waende ausschliesslich 1, 2, 3 und 4 verwenden."
             ],
-            "requiredArtifacts": [
-            ],
+            "requiredArtifacts": [],
             "requiredContext": [
                 "layers"
             ],
@@ -1933,8 +1931,7 @@
                                 ],
                                 "limit": 20,
                                 "selector": {
-                                    "handles": [
-                                    ],
+                                    "handles": [],
                                     "kind": "entity",
                                     "layer": "Sanitaer Kaltwasserpunkte",
                                     "scope": "handles"
@@ -2011,8 +2008,7 @@
                                 "floorPlanBounds": "{{floorPlanBounds}}",
                                 "minimumClearanceMm": 100,
                                 "selector": {
-                                    "handles": [
-                                    ],
+                                    "handles": [],
                                     "kind": "polyline",
                                     "scope": "handles"
                                 },
@@ -2207,8 +2203,7 @@
                                 ],
                                 "limit": 20,
                                 "selector": {
-                                    "handles": [
-                                    ],
+                                    "handles": [],
                                     "kind": "entity",
                                     "layer": "Sanitaer Warmwasserpunkte",
                                     "scope": "handles"
@@ -2284,8 +2279,7 @@
                                 "floorPlanBounds": "{{floorPlanBounds}}",
                                 "minimumClearanceMm": 100,
                                 "selector": {
-                                    "handles": [
-                                    ],
+                                    "handles": [],
                                     "kind": "polyline",
                                     "scope": "handles"
                                 },
@@ -2564,8 +2558,7 @@
                                         "z": 0
                                     }
                                 },
-                                "teeNodes": [
-                                ]
+                                "teeNodes": []
                             },
                             "tool": "pipes.validateNetwork"
                         }
@@ -2877,8 +2870,7 @@
                                 ],
                                 "limit": 20,
                                 "selector": {
-                                    "handles": [
-                                    ],
+                                    "handles": [],
                                     "kind": "entity",
                                     "scope": "handles"
                                 }
@@ -3056,8 +3048,7 @@
                                 "floorPlanBounds": "{{floorPlanBounds}}",
                                 "minimumClearanceMm": 100,
                                 "selector": {
-                                    "handles": [
-                                    ],
+                                    "handles": [],
                                     "kind": "polyline",
                                     "scope": "handles"
                                 },
@@ -3336,8 +3327,7 @@
                                 ],
                                 "limit": 20,
                                 "selector": {
-                                    "handles": [
-                                    ],
+                                    "handles": [],
                                     "kind": "entity",
                                     "scope": "handles"
                                 }
@@ -3516,8 +3506,7 @@
                                 "floorPlanBounds": "{{floorPlanBounds}}",
                                 "minimumClearanceMm": 100,
                                 "selector": {
-                                    "handles": [
-                                    ],
+                                    "handles": [],
                                     "kind": "polyline",
                                     "scope": "handles"
                                 },
@@ -3808,8 +3797,7 @@
                                         "z": 0
                                     }
                                 },
-                                "teeNodes": [
-                                ]
+                                "teeNodes": []
                             },
                             "tool": "pipes.validateNetwork"
                         }
@@ -4169,8 +4157,7 @@
                                 ],
                                 "limit": 20,
                                 "selector": {
-                                    "handles": [
-                                    ],
+                                    "handles": [],
                                     "kind": "entity",
                                     "layer": "Lueftung Zuluftpunkte",
                                     "scope": "handles"
@@ -4352,8 +4339,7 @@
                                 "floorPlanBounds": "{{floorPlanBounds}}",
                                 "minimumClearanceMm": 400,
                                 "selector": {
-                                    "handles": [
-                                    ],
+                                    "handles": [],
                                     "kind": "polyline",
                                     "scope": "handles"
                                 },
@@ -4675,8 +4661,7 @@
                                 ],
                                 "limit": 20,
                                 "selector": {
-                                    "handles": [
-                                    ],
+                                    "handles": [],
                                     "kind": "entity",
                                     "layer": "Lueftung Abluftpunkte",
                                     "scope": "handles"
@@ -4859,8 +4844,7 @@
                                 "floorPlanBounds": "{{floorPlanBounds}}",
                                 "minimumClearanceMm": 400,
                                 "selector": {
-                                    "handles": [
-                                    ],
+                                    "handles": [],
                                     "kind": "polyline",
                                     "scope": "handles"
                                 },
@@ -5158,8 +5142,7 @@
                                         "z": 0
                                     }
                                 },
-                                "teeNodes": [
-                                ]
+                                "teeNodes": []
                             },
                             "tool": "pipes.validateNetwork"
                         }
@@ -5216,8 +5199,7 @@
                                 "autoRoomHandlesFromLastQuery": true,
                                 "includeObjects": true,
                                 "selector": {
-                                    "handles": [
-                                    ],
+                                    "handles": [],
                                     "kind": "polyline",
                                     "scope": "handles",
                                     "shape": "rectangle"
@@ -5231,8 +5213,7 @@
                             "paramsTemplate": {
                                 "autoRoomHandlesFromLastQuery": true,
                                 "selector": {
-                                    "handles": [
-                                    ],
+                                    "handles": [],
                                     "kind": "polyline",
                                     "scope": "handles",
                                     "shape": "rectangle"
@@ -5278,8 +5259,7 @@
                                 ],
                                 "saveBefore": true,
                                 "selector": {
-                                    "handles": [
-                                    ],
+                                    "handles": [],
                                     "kind": "polyline",
                                     "scope": "handles",
                                     "shape": "rectangle"
@@ -5357,8 +5337,7 @@
                                 "autoRoomHandlesFromLastQuery": true,
                                 "includeObjects": true,
                                 "selector": {
-                                    "handles": [
-                                    ],
+                                    "handles": [],
                                     "kind": "polyline",
                                     "scope": "handles",
                                     "shape": "rectangle"
@@ -5372,8 +5351,7 @@
                             "paramsTemplate": {
                                 "autoRoomHandlesFromLastQuery": true,
                                 "selector": {
-                                    "handles": [
-                                    ],
+                                    "handles": [],
                                     "kind": "polyline",
                                     "scope": "handles",
                                     "shape": "rectangle"
@@ -5693,250 +5671,9 @@
                 "Bei vorhandenen Objekten bevorzugt selector.scope=handles verwenden, wenn ein Handle genannt oder zuvor gelesen wurde."
             ],
             "complaintCount": 0,
-            "confidence": 0.66,
-            "createdAt": "2026-07-12T13:54:54Z",
-            "derivedValues": {
-            },
-            "description": "Verschiebt ein zuvor identifiziertes BIM-Fenster vertikal und bestätigt die erfolgreiche BRX-Transformation.",
-            "executionBatches": [
-                {
-                    "id": "ai_runtime_actions",
-                    "mode": "sequential",
-                    "steps": [
-                        {
-                            "paramsTemplate": {
-                                "selector": {
-                                    "handles": [
-                                        "FB8"
-                                    ],
-                                    "scope": "handles"
-                                },
-                                "vector": {
-                                    "x": 0,
-                                    "y": 0,
-                                    "z": 500
-                                }
-                            },
-                            "tool": "geometry.move"
-                        }
-                    ],
-                    "stopOnFailure": true,
-                    "title": "BIM-Fenster vertikal verschieben"
-                }
-            ],
-            "failureCount": 0,
-            "id": "ai_objekt_verschieben",
-            "intent": "BIM-Fenster vertikal verschieben. Aktueller Prompt: Verschiebe das BIM_WINDOW \"Window 11\" relativ mit z=500mm. Fokussierter Verlauf: Das Objekt 'Window 11' mit dem Handle 'FB8' und dem BIM-Typ 'BIM_WINDOW' wurde identifiziert. Ergebnis: Erledigt. geometry.move affected=1 failed=0. Nutze feste Handles, Namen, Koordinaten, Layer, Winkel oder Beispielwerte nur, wenn der Nutzer sie im aktuellen Prompt nennt oder sie per read-only Kontext erneut bestaetigt wurden.",
-            "intentPatterns": [
-                "Schau mal ob du BIM Type=\"Window\" und Component Type=\"BIM Block\" in der Zeichnung findest mit Handle \"Window 11\"",
-                "Gib dessen Daten als Tabelle aus bitte",
-                "Verschiebe das BIM_WINDOW \"Window 11\" relativ mit z=500mm",
-                "Verschieben von 'Window 11'",
-                "Objekt verschieben"
-            ],
-            "knownFailures": [
-            ],
-            "knownSlotValues": {
-            },
-            "lastOutcome": "execution_success",
-            "lastOutcomeAt": "2026-07-12T14:20:54Z",
-            "outcomeHistory": [
-                {
-                    "actionCount": 1,
-                    "actions": [
-                        {
-                            "params": {
-                                "selector": {
-                                    "handles": [
-                                        "FB8"
-                                    ],
-                                    "scope": "handles"
-                                },
-                                "vector": {
-                                    "x": 500,
-                                    "y": 0,
-                                    "z": 0
-                                }
-                            },
-                            "tool": "geometry.move"
-                        }
-                    ],
-                    "at": "2026-07-12T14:20:54Z",
-                    "confidenceAfter": 0.66,
-                    "confidenceDelta": 0.04,
-                    "executionStats": {
-                        "actionsCompleted": 1,
-                        "actionsRequested": 1,
-                        "failed": 0
-                    },
-                    "failureCount": 0,
-                    "focusedConversationContext": {
-                    },
-                    "outcome": "execution_success",
-                    "prompt": "Verschiebe das BIM_WINDOW \"Window 11\" relativ mit x=500mm",
-                    "proposalTitle": "",
-                    "recentConversation": [
-                        {
-                            "content": "Gib dessen Daten als Tabelle aus bitte",
-                            "index": 3,
-                            "role": "user"
-                        },
-                        {
-                            "content": "| Eigenschaft | Wert | | :--- | :--- | | Name | Window 11 | | Handle | FB8 | | BIM-Typ | `BIM_WINDOW` | | Component Type | `null` |",
-                            "index": 4,
-                            "role": "assistant"
-                        },
-                        {
-                            "content": "Verschiebe das BIM_WINDOW \"Window 11\" relativ mit z=500mm",
-                            "index": 5,
-                            "role": "user"
-                        },
-                        {
-                            "content": "Das Objekt wurde erfolgreich um $500 ext{ mm}$ in der Z-Achse verschoben. Es wurde 1 Aktion erfolgreich ausgefÃƒ¼hrt.",
-                            "index": 6,
-                            "role": "assistant"
-                        },
-                        {
-                            "content": "Verschiebe \"Window 11\" nun relativ mit x=1000mm",
-                            "index": 7,
-                            "role": "user"
-                        },
-                        {
-                            "content": "ja",
-                            "index": 8,
-                            "role": "user"
-                        },
-                        {
-                            "content": "Verstanden. Ich werde die Verschiebung des Fensters 'Window 11' (Handle FB8) um $1000 ext{ mm}$ in der X-Achse vornehmen.",
-                            "index": 9,
-                            "role": "assistant"
-                        },
-                        {
-                            "content": "Verschiebe das BIM_WINDOW \"Window 11\" relativ mit x=500mm",
-                            "index": 10,
-                            "role": "user"
-                        },
-                        {
-                            "content": "Fehler bei der AI Anfrage: provider=local http=400 Error transferring http://192.168.0.67:1234/v1/responses - server replied: Bad Request",
-                            "index": 11,
-                            "role": "assistant"
-                        },
-                        {
-                            "content": "Verschiebe das BIM_WINDOW \"Window 11\" relativ mit x=500mm",
-                            "index": 12,
-                            "role": "user"
-                        },
-                        {
-                            "content": "Verschiebe das BIM_WINDOW \"Window 11\" relativ mit x=500mm",
-                            "index": 13,
-                            "role": "user"
-                        },
-                        {
-                            "content": "Ich werde das Fenster 'Window 11' (Handle FB8) um $500 ext{ mm}$ in der X-Achse verschieben.",
-                            "index": 14,
-                            "role": "assistant"
-                        }
-                    ],
-                    "selectedLessonIds": [
-                        "ai_objekt_verschieben"
-                    ],
-                    "source": "brx_runtime",
-                    "summary": "Erledigt. geometry.move affected=1 failed=0.",
-                    "tools": [
-                        "geometry.move"
-                    ]
-                }
-            ],
-            "positiveFeedbackCount": 0,
-            "promptExamples": [
-                "Schau mal ob du BIM Type=\"Window\" und Component Type=\"BIM Block\" in der Zeichnung findest mit Handle \"Window 11\"",
-                "Gib dessen Daten als Tabelle aus bitte",
-                "Verschiebe das BIM_WINDOW \"Window 11\" relativ mit z=500mm",
-                "Verschieben von 'Window 11'",
-                "Objekt verschieben"
-            ],
-            "recommendedTools": [
-                "geometry.move"
-            ],
-            "repairRules": [
-            ],
-            "requiredSlots": [
-            ],
-            "source": "ai_runtime",
-            "status": "active",
-            "strategy": [
-                "Vor mutierenden Aktionen Zeichnungskontext oder Auswahl pruefen, wenn Handle, Layer, Position oder Objektart unklar sind.",
-                "Die Lesson ist Erfahrungswissen: Parameterform uebernehmen, Beispielwerte nicht blind wiederverwenden.",
-                "BRX actions.validate bleibt vor der Ausfuehrung verbindlich."
-            ],
-            "successCount": 2,
-            "title": "BIM-Fenster vertikal verschieben",
-            "topic": "Objekt verschieben",
-            "updateProtected": false,
-            "updatedAt": "2026-07-12T14:20:54Z",
-            "usageCount": 2,
-            "validActionShapes": [
-                {
-                    "paramsTemplate": {
-                        "selector": {
-                            "handles": [
-                                "FB8"
-                            ],
-                            "scope": "handles"
-                        },
-                        "vector": {
-                            "x": 0,
-                            "y": 0,
-                            "z": 500
-                        }
-                    },
-                    "tool": "geometry.move"
-                }
-            ],
-            "validationExamples": [
-                {
-                    "actions": [
-                        {
-                            "params": {
-                                "selector": {
-                                    "handles": [
-                                        "FB8"
-                                    ],
-                                    "scope": "handles"
-                                },
-                                "vector": {
-                                    "x": 0,
-                                    "y": 0,
-                                    "z": 500
-                                }
-                            },
-                            "tool": "geometry.move"
-                        }
-                    ],
-                    "createdAt": "2026-07-12T13:54:54Z",
-                    "focusedTopic": "Verschieben von 'Window 11'",
-                    "id": "runtime_example_1783864494095",
-                    "prompt": "Verschiebe das BIM_WINDOW \"Window 11\" relativ mit z=500mm",
-                    "source": "brx_runtime",
-                    "summary": "Erledigt. geometry.move affected=1 failed=0.",
-                    "title": "BIM-Fenster vertikal verschieben",
-                    "description": "Verschiebt das identifizierte BIM-Fenster um 500 mm nach oben.",
-                    "tools": [
-                        "geometry.move"
-                    ]
-                }
-            ]
-        },
-        {
-            "assumptions": [
-                "Feste Runtime-Werte aus successfulExamples sind Beispiele und muessen fuer neue Prompts neu aus Prompt oder Zeichnungskontext abgeleitet werden.",
-                "Bei vorhandenen Objekten bevorzugt selector.scope=handles verwenden, wenn ein Handle genannt oder zuvor gelesen wurde."
-            ],
-            "complaintCount": 0,
             "confidence": 0.62,
             "createdAt": "2026-07-12T19:17:06Z",
-            "derivedValues": {
-            },
+            "derivedValues": {},
             "description": "Erstellt und extrudiert ein Rechteck auf Layer 0 und klassifiziert den resultierenden Solid als BIM-Wand.",
             "executionBatches": [
                 {
@@ -5999,16 +5736,14 @@
             ],
             "failureCount": 0,
             "id": "ai_objekte_als_bim_klassifizieren",
-            "intent": "Rechteck als BIM-Wand klassifizieren.\nAktueller Prompt: Zeichne ein Rechteck in Layer \"0\", extrudiere es auf eine Höhe von z=2600mm, selektiere es danach erneut und klassifiziere es danach als BIM Wand per bim.classify.\nFokussierter Verlauf: Der Nutzer möchte in BricsCAD ein Rechteck im Layer \"0\" zeichnen, es auf eine Höhe von z=2600 mm extrudieren, anschließend erneut auswählen und als BIM-Wand klassifizieren.\nErgebnis: Erledigt. Ich habe 4 Aktionen in BricsCAD ausgefuehrt: rectangle erstellt; rectangles.extrude abgeschlossen; entity.setLayer affected=1 failed=0 layer=0; bim.classify abgeschlossen.\nNutze feste Handles, Namen, Koordinaten, Layer, Winkel oder Beispielwerte nur, wenn der Nutzer sie im aktuellen Prompt nennt oder sie per read-only Kontext erneut bestaetigt wurden.",
+            "intent": "Rechteck als BIM-Wand klassifizieren. Aktueller Prompt: Zeichne ein Rechteck in Layer \"0\", extrudiere es auf eine Höhe von z=2600mm, selektiere es danach erneut und klassifiziere es danach als BIM Wand per bim.classify. Fokussierter Verlauf: Der Nutzer möchte in BricsCAD ein Rechteck im Layer \"0\" zeichnen, es auf eine Höhe von z=2600 mm extrudieren, anschließend erneut auswählen und als BIM-Wand klassifizieren. Ergebnis: Erledigt. Ich habe 4 Aktionen in BricsCAD ausgefuehrt: rectangle erstellt; rectangles.extrude abgeschlossen; entity.setLayer affected=1 failed=0 layer=0; bim.classify abgeschlossen. Nutze feste Handles, Namen, Koordinaten, Layer, Winkel oder Beispielwerte nur, wenn der Nutzer sie im aktuellen Prompt nennt oder sie per read-only Kontext erneut bestaetigt wurden.",
             "intentPatterns": [
                 "Zeichne ein Rechteck in Layer \"0\", extrudiere es auf eine Höhe von z=2600mm, selektiere es danach erneut und klassifiziere es danach als BIM Wand per bim.classify",
                 "Rechteck extrudieren und klassifizieren",
                 "Objekte als BIM klassifizieren"
             ],
-            "knownFailures": [
-            ],
-            "knownSlotValues": {
-            },
+            "knownFailures": [],
+            "knownSlotValues": {},
             "lastOutcome": "execution_success",
             "lastOutcomeAt": "2026-07-12T19:17:06Z",
             "positiveFeedbackCount": 0,
@@ -6023,10 +5758,8 @@
                 "entity.setLayer",
                 "bim.classify"
             ],
-            "repairRules": [
-            ],
-            "requiredSlots": [
-            ],
+            "repairRules": [],
+            "requiredSlots": [],
             "source": "ai_runtime",
             "status": "active",
             "strategy": [
@@ -6145,13 +5878,13 @@
                         }
                     ],
                     "createdAt": "2026-07-12T19:17:06Z",
+                    "description": "Erstellt einen 2600 mm hohen Solid auf Layer 0 und klassifiziert ihn als BIM-Wand.",
                     "focusedTopic": "Rechteck extrudieren und klassifizieren",
                     "id": "runtime_example_1783883826845",
                     "prompt": "Zeichne ein Rechteck in Layer \"0\", extrudiere es auf eine Höhe von z=2600mm, selektiere es danach erneut und klassifiziere es danach als BIM Wand per bim.classify",
                     "source": "brx_runtime",
                     "summary": "Erledigt. Ich habe 4 Aktionen in BricsCAD ausgefuehrt: rectangle erstellt; rectangles.extrude abgeschlossen; entity.setLayer affected=1 failed=0 layer=0; bim.classify abgeschlossen.",
                     "title": "Rechteck als BIM-Wand klassifizieren",
-                    "description": "Erstellt einen 2600 mm hohen Solid auf Layer 0 und klassifiziert ihn als BIM-Wand.",
                     "tools": [
                         "geometry.create",
                         "rectangles.extrude",
@@ -6177,9 +5910,15 @@
                         {
                             "id": "query_bim_data",
                             "paramsTemplate": {
-                                "include": ["core", "geometry", "properties"],
+                                "include": [
+                                    "core",
+                                    "geometry",
+                                    "properties"
+                                ],
                                 "limit": 100,
-                                "selector": {"scope": "currentSpace"}
+                                "selector": {
+                                    "scope": "currentSpace"
+                                }
                             },
                             "title": "BIM-Objektdaten lesen",
                             "tool": "bim.objects.query"
@@ -6191,15 +5930,28 @@
             ],
             "id": "workflow_bim_objects_query",
             "intent": "BIM-Objekte der aktiven Zeichnung lesen und Identitaet, Klassifikation, Abmessungen und Properties tabellarisch ausgeben.",
-            "intentPatterns": ["Zeige alle BIM Objekte", "Gib BIM Daten als Tabelle aus", "Lies BIM Properties"],
-            "knownFailures": ["Ohne BIM-Lizenz oder passenden RUNASLEVEL ist die BIM-API nicht verfuegbar."],
+            "intentPatterns": [
+                "Zeige alle BIM Objekte",
+                "Gib BIM Daten als Tabelle aus",
+                "Lies BIM Properties"
+            ],
+            "knownFailures": [
+                "Ohne BIM-Lizenz oder passenden RUNASLEVEL ist die BIM-API nicht verfuegbar."
+            ],
             "knownSlotValues": {},
-            "recommendedTools": ["bim.objects.query"],
-            "repairRules": ["Nutze fuer BIM-Tabellen bim.objects.query statt geometry.query."],
+            "recommendedTools": [
+                "bim.objects.query"
+            ],
+            "repairRules": [
+                "Nutze fuer BIM-Tabellen bim.objects.query statt geometry.query."
+            ],
             "requiredSlots": [],
             "source": "canonical_bim_workflow",
             "status": "active",
-            "strategy": ["BIM-Objekte ueber BRX lesen.", "Kernfelder und qualifizierte Properties tabellarisch ausgeben."],
+            "strategy": [
+                "BIM-Objekte ueber BRX lesen.",
+                "Kernfelder und qualifizierte Properties tabellarisch ausgeben."
+            ],
             "testDefaults": {},
             "title": "BIM-Objektdaten und Tabellen",
             "topic": "BIM-Objektdaten und Tabellen",
@@ -6208,9 +5960,15 @@
             "validActionShapes": [
                 {
                     "paramsTemplate": {
-                        "include": ["core", "geometry", "properties"],
+                        "include": [
+                            "core",
+                            "geometry",
+                            "properties"
+                        ],
                         "limit": 100,
-                        "selector": {"scope": "currentSpace"}
+                        "selector": {
+                            "scope": "currentSpace"
+                        }
                     },
                     "tool": "bim.objects.query"
                 }
@@ -6219,7 +5977,16 @@
                 {
                     "actions": [
                         {
-                            "params": {"include": ["core", "geometry"], "limit": 100, "selector": {"scope": "currentSpace"}},
+                            "params": {
+                                "include": [
+                                    "core",
+                                    "geometry"
+                                ],
+                                "limit": 100,
+                                "selector": {
+                                    "scope": "currentSpace"
+                                }
+                            },
                             "tool": "bim.objects.query"
                         }
                     ],
@@ -6231,7 +5998,9 @@
             ]
         },
         {
-            "assumptions": ["bimSelector enthaelt einen exakten BIM-Namen oder Datenbank-Handle."],
+            "assumptions": [
+                "bimSelector enthaelt einen exakten BIM-Namen oder Datenbank-Handle."
+            ],
             "createdAt": "2026-07-12T20:00:00.001Z",
             "description": "Loest BIM-Objekte per Name oder Handle auf und setzt die sichtbare BricsCAD-Auswahl mit exakten Handles.",
             "discipline": "bim",
@@ -6242,13 +6011,22 @@
                     "steps": [
                         {
                             "id": "resolve_bim_target",
-                            "paramsTemplate": {"include": ["core"], "limit": 100, "selector": "{{bimSelector}}"},
+                            "paramsTemplate": {
+                                "include": [
+                                    "core"
+                                ],
+                                "limit": 100,
+                                "selector": "{{bimSelector}}"
+                            },
                             "title": "BIM-Ziel aufloesen",
                             "tool": "bim.objects.query"
                         },
                         {
                             "id": "select_resolved_bim",
-                            "paramsTemplate": {"allMatches": false, "autoBimHandlesFromLastQuery": true},
+                            "paramsTemplate": {
+                                "allMatches": false,
+                                "autoBimHandlesFromLastQuery": true
+                            },
                             "title": "BIM-Ziel auswaehlen",
                             "tool": "bim.selection.set"
                         }
@@ -6259,149 +6037,78 @@
             ],
             "id": "workflow_bim_selection",
             "intent": "Klassifizierte BIM-Objekte nach exaktem BIM-Namen oder Datenbank-Handle auswaehlen.",
-            "intentPatterns": ["Selektiere BIM Objekt nach Name", "Waehle BIM Handle aus", "Markiere die BIM Wand"],
-            "knownFailures": ["Mehrdeutige Namen brauchen explizite Handles oder allMatches."],
-            "knownSlotValues": {},
-            "recommendedTools": ["bim.objects.query", "bim.selection.set"],
-            "repairRules": ["Namen zuerst read-only aufloesen und autoBimHandlesFromLastQuery verwenden."],
-            "requiredSlots": [
-                {"description": "Selector mit scope=names/names[] oder scope=handles/handles[].", "name": "bimSelector", "requiredForExecution": true, "type": "object"}
+            "intentPatterns": [
+                "Selektiere BIM Objekt nach Name",
+                "Waehle BIM Handle aus",
+                "Markiere die BIM Wand"
             ],
-            "requiresUserConfirmationInAgentMode": ["bimSelector"],
+            "knownFailures": [
+                "Mehrdeutige Namen brauchen explizite Handles oder allMatches."
+            ],
+            "knownSlotValues": {},
+            "recommendedTools": [
+                "bim.objects.query",
+                "bim.selection.set"
+            ],
+            "repairRules": [
+                "Namen zuerst read-only aufloesen und autoBimHandlesFromLastQuery verwenden."
+            ],
+            "requiredSlots": [
+                {
+                    "description": "Selector mit scope=names/names[] oder scope=handles/handles[].",
+                    "name": "bimSelector",
+                    "requiredForExecution": true,
+                    "type": "object"
+                }
+            ],
+            "requiresUserConfirmationInAgentMode": [
+                "bimSelector"
+            ],
             "source": "canonical_bim_workflow",
             "status": "active",
-            "strategy": ["Ziel read-only aufloesen.", "Exakte Ergebnis-Handles in bim.selection.set binden."],
+            "strategy": [
+                "Ziel read-only aufloesen.",
+                "Exakte Ergebnis-Handles in bim.selection.set binden."
+            ],
             "testDefaults": {},
             "title": "BIM-Objekte nach Name oder Handle auswaehlen",
             "topic": "BIM-Objekte auswaehlen",
             "updateProtected": true,
             "updatedAt": "2026-07-12T20:00:00.001Z",
             "validActionShapes": [
-                {"paramsTemplate": {"include": ["core"], "limit": 100, "selector": "{{bimSelector}}"}, "tool": "bim.objects.query"},
-                {"paramsTemplate": {"allMatches": false, "autoBimHandlesFromLastQuery": true}, "tool": "bim.selection.set"}
-            ],
-            "validationExamples": []
-        },
-        {
-            "assumptions": ["moveVectorMm ist ein WCS-Vektor; X/Y sind horizontal und Z ist vertikal."],
-            "createdAt": "2026-07-12T20:00:00.002Z",
-            "description": "Loest BIM-Ziele sicher auf und verschiebt ganze klassifizierte Entities atomar horizontal oder vertikal.",
-            "discipline": "bim",
-            "executionBatches": [
                 {
-                    "id": "resolve_and_move_bim",
-                    "mode": "sequential",
-                    "steps": [
-                        {
-                            "id": "resolve_bim_move_target",
-                            "paramsTemplate": {"include": ["core", "geometry"], "limit": 100, "selector": "{{bimSelector}}"},
-                            "title": "BIM-Ziel und Ausgangslage lesen",
-                            "tool": "bim.objects.query"
-                        },
-                        {
-                            "id": "move_resolved_bim",
-                            "paramsTemplate": {"autoBimHandlesFromLastQuery": true, "saveBefore": true, "units": "mm", "vector": "{{moveVectorMm}}"},
-                            "title": "BIM-Objekt verschieben",
-                            "tool": "bim.move"
-                        }
-                    ],
-                    "stopOnFailure": true,
-                    "title": "BIM-Objekt sicher verschieben"
-                }
-            ],
-            "id": "workflow_bim_move",
-            "intent": "BIM-Objekte per Name oder Handle um einen expliziten WCS-Vektor in Millimetern verschieben.",
-            "intentPatterns": ["Verschiebe BIM Wand horizontal", "Bewege BIM Objekt vertikal", "Move BIMWall in X"],
-            "knownFailures": ["Nullvektor, geankerte Entities und undefinierte Millimetereinheiten werden abgelehnt."],
-            "knownSlotValues": {},
-            "recommendedTools": ["bim.objects.query", "bim.move"],
-            "repairRules": ["Bei nur genannter Distanz die fehlende X-, Y- oder Z-Richtung erfragen."],
-            "requiredSlots": [
-                {"description": "Selector mit exaktem BIM-Namen oder Handle.", "name": "bimSelector", "requiredForExecution": true, "type": "object"},
-                {"description": "WCS-Vektor {x,y,z} in Millimetern.", "name": "moveVectorMm", "requiredForExecution": true, "type": "object"}
-            ],
-            "requiresUserConfirmationInAgentMode": ["bimSelector", "moveVectorMm"],
-            "source": "canonical_bim_workflow",
-            "status": "active",
-            "strategy": ["Ziel und Bounds lesen.", "Exakte Handles binden.", "Nach Preflight und Bestaetigung atomar verschieben."],
-            "testDefaults": {},
-            "title": "BIM-Objekte horizontal oder vertikal verschieben",
-            "topic": "BIM-Objekte verschieben",
-            "updateProtected": true,
-            "updatedAt": "2026-07-12T20:00:00.002Z",
-            "validActionShapes": [
-                {"paramsTemplate": {"include": ["core", "geometry"], "limit": 100, "selector": "{{bimSelector}}"}, "tool": "bim.objects.query"},
-                {"paramsTemplate": {"autoBimHandlesFromLastQuery": true, "saveBefore": true, "units": "mm", "vector": "{{moveVectorMm}}"}, "tool": "bim.move"}
-            ],
-            "validationExamples": []
-        },
-        {
-            "assumptions": ["Ohne abweichende Nutzerangabe ist die Achse WCS-Z; Winkel und Mittelpunkt werden nie geraten."],
-            "createdAt": "2026-07-12T20:00:00.003Z",
-            "description": "Loest BIM-Ziele sicher auf und rotiert ganze klassifizierte Entities atomar um einen expliziten Mittelpunkt.",
-            "discipline": "bim",
-            "executionBatches": [
+                    "paramsTemplate": {
+                        "include": [
+                            "core"
+                        ],
+                        "limit": 100,
+                        "selector": "{{bimSelector}}"
+                    },
+                    "tool": "bim.objects.query"
+                },
                 {
-                    "id": "resolve_and_rotate_bim",
-                    "mode": "sequential",
-                    "steps": [
-                        {
-                            "id": "resolve_bim_rotate_target",
-                            "paramsTemplate": {"include": ["core", "geometry"], "limit": 100, "selector": "{{bimSelector}}"},
-                            "title": "BIM-Ziel und Bounds lesen",
-                            "tool": "bim.objects.query"
-                        },
-                        {
-                            "id": "rotate_resolved_bim",
-                            "paramsTemplate": {"angleDeg": "{{angleDeg}}", "autoBimHandlesFromLastQuery": true, "basePointMode": "{{basePointMode}}", "saveBefore": true, "units": "mm"},
-                            "title": "BIM-Objekt rotieren",
-                            "tool": "bim.rotate"
-                        }
-                    ],
-                    "stopOnFailure": true,
-                    "title": "BIM-Objekt sicher rotieren"
+                    "paramsTemplate": {
+                        "allMatches": false,
+                        "autoBimHandlesFromLastQuery": true
+                    },
+                    "tool": "bim.selection.set"
                 }
-            ],
-            "id": "workflow_bim_rotate",
-            "intent": "BIM-Objekte per Name oder Handle um einen expliziten Winkel und Mittelpunkt rotieren.",
-            "intentPatterns": ["Rotiere BIM Wand", "Drehe BIM Objekt um Z", "Rotate BIMWall around center"],
-            "knownFailures": ["Fehlender Winkel, fehlender Mittelpunkt und geankerte Beziehungen werden abgelehnt."],
-            "knownSlotValues": {},
-            "recommendedTools": ["bim.objects.query", "bim.rotate"],
-            "repairRules": ["Winkel und Mittelpunkt bei fehlender Nutzerangabe gezielt erfragen."],
-            "requiredSlots": [
-                {"description": "Selector mit exaktem BIM-Namen oder Handle.", "name": "bimSelector", "requiredForExecution": true, "type": "object"},
-                {"description": "Expliziter Rotationswinkel in Grad.", "name": "angleDeg", "requiredForExecution": true, "type": "number"},
-                {"description": "eachEntityCenter oder selectionCenter.", "name": "basePointMode", "requiredForExecution": true, "type": "string"}
-            ],
-            "requiresUserConfirmationInAgentMode": ["bimSelector", "angleDeg", "basePointMode"],
-            "source": "canonical_bim_workflow",
-            "status": "active",
-            "strategy": ["Ziel und Bounds lesen.", "Exakte Handles binden.", "Nach Preflight und Bestaetigung atomar rotieren."],
-            "testDefaults": {},
-            "title": "BIM-Objekte rotieren",
-            "topic": "BIM-Objekte rotieren",
-            "updateProtected": true,
-            "updatedAt": "2026-07-12T20:00:00.003Z",
-            "validActionShapes": [
-                {"paramsTemplate": {"include": ["core", "geometry"], "limit": 100, "selector": "{{bimSelector}}"}, "tool": "bim.objects.query"},
-                {"paramsTemplate": {"angleDeg": "{{angleDeg}}", "autoBimHandlesFromLastQuery": true, "basePointMode": "{{basePointMode}}", "saveBefore": true, "units": "mm"}, "tool": "bim.rotate"}
             ],
             "validationExamples": []
         }
     ],
     "metadata": {
-        "activeCount": 13,
-        "aiOwnedWorkflowCount": 2,
+        "activeCount": 14,
+        "aiOwnedWorkflowCount": 3,
         "deprecatedCount": 0,
-        "lessonCount": 13,
+        "lessonCount": 14,
         "migratedWorkflowCount": 0,
         "protectedWorkflowCount": 11,
         "repairRuleCount": 7,
-        "successfulExampleCount": 12,
+        "successfulExampleCount": 13,
         "toolProfileCount": 40,
         "updatedAt": "2026-07-12T20:00:00.003Z",
-        "validationExampleCount": 12
+        "validationExampleCount": 13
     },
     "repairRules": [
         {
@@ -6535,8 +6242,7 @@
                         "z": 300
                     },
                     "system": "heating",
-                    "teeNodes": [
-                    ]
+                    "teeNodes": []
                 }
             },
             "keywords": [
@@ -6662,8 +6368,7 @@
             "domain": "bridge",
             "examples": {
                 "intent": "Inspect available BRX tools.",
-                "params": {
-                }
+                "params": {}
             },
             "keywords": [
                 "capabilities",
@@ -6689,8 +6394,7 @@
             "domain": "bridge",
             "examples": {
                 "intent": "Fetch action schemas before building a proposal.",
-                "params": {
-                }
+                "params": {}
             },
             "keywords": [
                 "actions",
@@ -6760,8 +6464,7 @@
             "domain": "native-command",
             "examples": {
                 "intent": "Inspect native command whitelist.",
-                "params": {
-                }
+                "params": {}
             },
             "keywords": [
                 "commands",
@@ -6786,8 +6489,7 @@
             "domain": "layers",
             "examples": {
                 "intent": "Check whether Haus - Waende exists.",
-                "params": {
-                }
+                "params": {}
             },
             "keywords": [
                 "layers",
@@ -7880,8 +7582,7 @@
             "domain": "document",
             "examples": {
                 "intent": "Save the current drawing.",
-                "params": {
-                }
+                "params": {}
             },
             "keywords": [
                 "save",
@@ -7989,6 +7690,7 @@
                 "Use include=[\"core\",\"geometry\"] for compact context and add \"properties\" only when the user asks for detailed data.",
                 "Use exact BIM names or database handles; block definition names are output data, not BIM-name selectors."
             ],
+            "createdAt": "2026-07-12T20:00:00.000Z",
             "domain": "bim",
             "examples": {
                 "intent": "List all BIM walls with geometry and properties.",
@@ -8017,8 +7719,6 @@
                 "Component Type"
             ],
             "name": "bim.objects.query",
-            "createdAt": "2026-07-12T20:00:00.000Z",
-            "updatedAt": "2026-07-12T20:00:00.000Z",
             "policy": "Use bim.objects.query as the authoritative read-only BIM data source. Prefer compact core/geometry context; request typed qualified properties only when needed.",
             "semanticConstraints": [
                 "limit must be between 1 and 500.",
@@ -8029,7 +7729,8 @@
             "unsupportedOperations": [
                 "editing BIM objects",
                 "IFC import or export"
-            ]
+            ],
+            "updatedAt": "2026-07-12T20:00:00.000Z"
         },
         {
             "agentHints": [
@@ -8037,6 +7738,7 @@
                 "Prefer exact handles returned by the latest BIM query.",
                 "Set allMatches=true only when the user explicitly wants every object with the same BIM name."
             ],
+            "createdAt": "2026-07-12T20:00:00.001Z",
             "domain": "bim",
             "examples": {
                 "intent": "Select the BIM object with handle A7.",
@@ -8059,8 +7761,6 @@
                 "handle"
             ],
             "name": "bim.selection.set",
-            "createdAt": "2026-07-12T20:00:00.001Z",
-            "updatedAt": "2026-07-12T20:00:00.001Z",
             "policy": "Use bim.selection.set only for classified BIM entities resolved by exact BIM name or database handle. Ambiguous names require explicit confirmation via allMatches or exact handles.",
             "semanticConstraints": [
                 "selector.scope must be handles or names.",
@@ -8071,108 +7771,11 @@
             "unsupportedOperations": [
                 "selecting unclassified geometry",
                 "fuzzy name matching"
-            ]
-        },
-        {
-            "agentHints": [
-                "Use WCS X/Y for horizontal movement and WCS Z for vertical movement.",
-                "Use millimetres by default; if drawing units are undefined, ask the user to set units or explicitly use units=drawing.",
-                "Resolve names read-only first and pass exact handles using autoBimHandlesFromLastQuery in workflows.",
-                "Never use this tool to stretch a face or lengthen only one side of a wall."
             ],
-            "domain": "bim",
-            "examples": {
-                "intent": "Move the selected BIM object 500 mm vertically.",
-                "params": {
-                    "saveBefore": true,
-                    "selector": {
-                        "scope": "selection"
-                    },
-                    "units": "mm",
-                    "vector": {
-                        "x": 0,
-                        "y": 0,
-                        "z": 500
-                    }
-                }
-            },
-            "keywords": [
-                "BIM move",
-                "BIM translate",
-                "BIM verschieben",
-                "BIMWall verschieben",
-                "horizontal",
-                "vertical",
-                "X",
-                "Y",
-                "Z"
-            ],
-            "name": "bim.move",
-            "createdAt": "2026-07-12T20:00:00.002Z",
-            "updatedAt": "2026-07-12T20:00:00.002Z",
-            "policy": "Use bim.move for atomic whole-entity BIM translation after exact target resolution. The vector is WCS; X/Y are horizontal and Z is vertical.",
-            "semanticConstraints": [
-                "Requires a BIM selector and a finite non-zero vector.",
-                "Ambiguous names, locked or XRef-dependent objects and anchored BIM objects are rejected.",
-                "Mutating execution requires BRX preflight and user confirmation."
-            ],
-            "summary": "Atomically translates classified BIM entities in WCS using explicit millimetre or drawing-unit vectors.",
-            "unsupportedOperations": [
-                "face move",
-                "stretch",
-                "anchored BIM relationships"
-            ]
-        },
-        {
-            "agentHints": [
-                "The rotation angle must come from the current user request; never copy an example angle.",
-                "Use basePointMode=eachEntityCenter for independent object-centre rotation or selectionCenter for a common centre.",
-                "The default axis is WCS Z; provide another finite non-zero axis only when explicitly requested.",
-                "Resolve BIM names to exact handles before a mutating workflow step."
-            ],
-            "domain": "bim",
-            "examples": {
-                "intent": "Rotate a BIM wall 90 degrees around its centre and the WCS Z axis.",
-                "params": {
-                    "angleDeg": 90,
-                    "basePointMode": "eachEntityCenter",
-                    "saveBefore": true,
-                    "selector": {
-                        "handles": [
-                            "A7"
-                        ],
-                        "scope": "handles"
-                    }
-                }
-            },
-            "keywords": [
-                "BIM rotate",
-                "BIM rotation",
-                "BIM drehen",
-                "BIM rotieren",
-                "BIMWall rotieren",
-                "angle",
-                "axis",
-                "base point"
-            ],
-            "name": "bim.rotate",
-            "createdAt": "2026-07-12T20:00:00.003Z",
-            "updatedAt": "2026-07-12T20:00:00.003Z",
-            "policy": "Use bim.rotate for atomic whole-entity BIM rotation with an explicit angle and rotation centre. Default axis is WCS Z.",
-            "semanticConstraints": [
-                "Requires angleDeg or angleRad and either basePoint or basePointMode.",
-                "The rotation axis must be finite and non-zero.",
-                "Ambiguous names and anchored BIM relationships are rejected."
-            ],
-            "summary": "Atomically rotates classified BIM entities around an explicit WCS point or calculated entity/selection centre.",
-            "unsupportedOperations": [
-                "face rotation",
-                "anchored BIM relationships",
-                "implicit angle guessing"
-            ]
+            "updatedAt": "2026-07-12T20:00:00.001Z"
         }
     ],
-    "updatedAt": "2026-07-12T20:00:00.003Z",
+    "updatedAt": "2026-07-13T23:18:58.223Z",
     "version": 1,
     "workflowAliases": {
         "workflow_02_exterior_walls": [

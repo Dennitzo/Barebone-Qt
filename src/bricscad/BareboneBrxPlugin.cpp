@@ -237,46 +237,6 @@ const BridgeMethodDescriptor kBridgeMethods[] = {
         R"JSON({"method":"bim.selection.set","required":["selector"],"bodySchema":{"selector":"scope=handles|names; exact BIM names and database handles","allMatches":"required true for ambiguous names"},"examples":[{"selector":{"scope":"names","names":["Outer Wall"]}},{"selector":{"scope":"handles","handles":["A7","A8"]}}]})JSON",
     },
     {
-        "bim.move",
-        "action",
-        "modifiesDrawing",
-        "Verschiebt BRX-klassifizierte BIM-Objekte atomar in WCS; Eingaben sind standardmaessig Millimeter oder explizit Zeichnungseinheiten.",
-        R"JSON({
-"type":"object","required":["selector","vector"],
-"properties":{
-  "selector":{"type":"object","properties":{"scope":{"enum":["selection","handles","names"]},"handles":{"type":"array","items":{"type":"string"}},"names":{"type":"array","items":{"type":"string"}}}},
-  "vector":{"type":"object","required":["x","y","z"],"properties":{"x":{"type":"number"},"y":{"type":"number"},"z":{"type":"number"}}},
-  "units":{"enum":["mm","drawing"],"default":"mm"},
-  "resolvedHandles":{"type":"array","items":{"type":"string"}},
-  "targetFingerprints":{"type":"array","items":{"type":"object"}},
-  "saveBefore":{"type":"boolean"},"reason":{"type":"string"}
-}
-})JSON",
-        R"JSON({"method":"bim.move","required":["selector","vector"],"bodySchema":{"selector":"BIM selector","vector":"finite non-zero WCS {x,y,z}","units":"mm default or drawing","saveBefore":"boolean default true"},"examples":[{"selector":{"scope":"handles","handles":["A7"]},"vector":{"x":100,"y":0,"z":0},"units":"mm"}]})JSON",
-    },
-    {
-        "bim.rotate",
-        "action",
-        "modifiesDrawing",
-        "Rotiert BRX-klassifizierte BIM-Objekte atomar um eine WCS-Achse; Standardachse ist WCS-Z.",
-        R"JSON({
-"type":"object","required":["selector"],
-"properties":{
-  "selector":{"type":"object","properties":{"scope":{"enum":["selection","handles","names"]},"handles":{"type":"array","items":{"type":"string"}},"names":{"type":"array","items":{"type":"string"}}}},
-  "angleDeg":{"type":"number"},"angleRad":{"type":"number"},
-  "basePoint":{"type":"object","required":["x","y","z"],"properties":{"x":{"type":"number"},"y":{"type":"number"},"z":{"type":"number"}}},
-  "basePointMode":{"enum":["eachEntityCenter","selectionCenter"]},
-  "axis":{"type":"object","required":["x","y","z"],"properties":{"x":{"type":"number"},"y":{"type":"number"},"z":{"type":"number"}}},
-  "units":{"enum":["mm","drawing"],"default":"mm"},
-  "resolvedHandles":{"type":"array","items":{"type":"string"}},
-  "targetFingerprints":{"type":"array","items":{"type":"object"}},
-  "saveBefore":{"type":"boolean"},"reason":{"type":"string"}
-},
-"oneOfRequired":[["angleDeg"],["angleRad"]],"oneOfRequiredBase":[["basePoint"],["basePointMode"]]
-})JSON",
-        R"JSON({"method":"bim.rotate","required":["selector"],"oneOfRequired":[["angleDeg"],["angleRad"]],"bodySchema":{"selector":"BIM selector","basePoint":"WCS point or basePointMode","basePointMode":"eachEntityCenter|selectionCenter","axis":"WCS-Z default","units":"mm default or drawing","saveBefore":"boolean default true"},"examples":[{"selector":{"scope":"handles","handles":["A7"]},"basePointMode":"eachEntityCenter","angleDeg":90}]})JSON",
-    },
-    {
         "geometry.create",
         "action",
         "modifiesDrawing",
@@ -984,8 +944,6 @@ bool isStructuredBimTool(const char* name)
     const std::string method(name);
     return method == "bim.objects.query"
         || method == "bim.selection.set"
-        || method == "bim.move"
-        || method == "bim.rotate"
         || method == "bim.classify";
 }
 
@@ -5108,60 +5066,6 @@ bool validateActionObject(
                 appendBimResolveValidation(resolved, result);
             }
         }
-    } else if (result.tool == "bim.move") {
-        BimTools::Selector selector;
-        if (bimSelectorForActionValidation(
-                state, paramsJson, result.tool, BimTools::ResolvePurpose::DrawingMutation, selector, result)) {
-            if (selector.scope == BimTools::SelectorScope::CurrentSpace) {
-                addUniqueMessage(result.errors, "bim.move erlaubt scope=selection|handles|names, nicht currentSpace");
-            } else {
-                const BimTools::ResolveResult resolved = BimTools::resolve(state.database, selector, BimTools::ResolvePurpose::DrawingMutation);
-                appendBimResolveValidation(resolved, result);
-            }
-        }
-        if (hasJsonPointValue(paramsJson, "vector", "bim.move.params.vector", result.errors, result.missing, true, false)) {
-            const JsonPoint3d vector = jsonPointProperty(paramsJson, "vector");
-            if (std::sqrt(vector.x * vector.x + vector.y * vector.y + vector.z * vector.z) <= kRectangleTolerance) {
-                addUniqueMessage(result.errors, "bim.move.params.vector darf kein Nullvektor sein");
-            }
-        }
-        validateBimUnits(state.database, paramsJson, result.tool, result);
-    } else if (result.tool == "bim.rotate") {
-        BimTools::Selector selector;
-        if (bimSelectorForActionValidation(
-                state, paramsJson, result.tool, BimTools::ResolvePurpose::DrawingMutation, selector, result)) {
-            if (selector.scope == BimTools::SelectorScope::CurrentSpace) {
-                addUniqueMessage(result.errors, "bim.rotate erlaubt scope=selection|handles|names, nicht currentSpace");
-            } else {
-                const BimTools::ResolveResult resolved = BimTools::resolve(state.database, selector, BimTools::ResolvePurpose::DrawingMutation);
-                appendBimResolveValidation(resolved, result);
-            }
-        }
-        const double angle = jsonAngleRadians(paramsJson, "angleRad", "angleDeg", 0.0);
-        if (!std::isfinite(angle) || std::abs(angle) <= kRectangleTolerance) {
-            addUniqueMessage(result.missing, "bim.rotate.params.angleDeg oder angleRad ungleich null");
-        }
-        const std::string baseMode = toUpperAscii(trim(jsonStringProperty(paramsJson, "basePointMode").value_or("")));
-        const bool hasBasePoint = jsonObjectProperty(paramsJson, "basePoint").has_value()
-            || jsonArrayProperty(paramsJson, "basePoint").has_value();
-        if (!baseMode.empty() && hasBasePoint) {
-            addUniqueMessage(result.errors, "bim.rotate erlaubt entweder basePoint oder basePointMode, nicht beides");
-        }
-        if (!baseMode.empty()) {
-            if (baseMode != "EACHENTITYCENTER" && baseMode != "SELECTIONCENTER") {
-                addUniqueMessage(result.errors, "bim.rotate.params.basePointMode muss eachEntityCenter oder selectionCenter sein");
-            }
-        } else {
-            hasJsonPointValue(paramsJson, "basePoint", "bim.rotate.params.basePoint", result.errors, result.missing, true, false);
-        }
-        if ((jsonObjectProperty(paramsJson, "axis").has_value() || jsonArrayProperty(paramsJson, "axis").has_value())
-            && hasJsonPointValue(paramsJson, "axis", "bim.rotate.params.axis", result.errors, result.missing, true, false)) {
-            const JsonPoint3d axis = jsonPointProperty(paramsJson, "axis");
-            if (std::sqrt(axis.x * axis.x + axis.y * axis.y + axis.z * axis.z) <= kRectangleTolerance) {
-                addUniqueMessage(result.errors, "bim.rotate.params.axis darf kein Nullvektor sein");
-            }
-        }
-        validateBimUnits(state.database, paramsJson, result.tool, result);
     } else if (result.tool == "geometry.move") {
         AcDbObjectIdArray ids;
         validateSelectorForAction(state, paramsJson, result.tool, true, &ids, result.errors, result.missing, debugLines);
@@ -5559,123 +5463,6 @@ std::string bimSelectionSetInApplicationContext(const std::string& paramsJson)
     debugLines = result.debug;
     if (result.success) rememberSelectionSnapshot(result.affectedIds, "bim.selection.set", &debugLines);
     return okJsonResultResponse(BimTools::operationResultJson(result, false, false), debugLines);
-}
-
-std::string bimTransformInApplicationContext(const std::string& paramsJson, BimTools::TransformKind kind)
-{
-    const std::string operation = kind == BimTools::TransformKind::Move ? "move" : "rotate";
-    std::vector<std::string> debugLines;
-    if (!hasExplicitBimSelector(paramsJson)) {
-        const BimTools::OperationResult result = bimOperationFailure(operation, "selector", "missingSelector", "bim." + operation + " braucht selector, handles oder names");
-        return okJsonResultResponse(BimTools::operationResultJson(result, false, false), debugLines);
-    }
-    std::string validationArtifactsError;
-    if (!hasBimValidationArtifacts(paramsJson, validationArtifactsError)) {
-        const BimTools::OperationResult result = bimOperationFailure(
-            operation, "validation", "preflightArtifactsRequired", validationArtifactsError);
-        return okJsonResultResponse(BimTools::operationResultJson(result, false, false), debugLines);
-    }
-
-    BimTools::TransformRequest request;
-    request.kind = kind;
-    request.selector = bimSelectorFromParams(paramsJson);
-    request.units = jsonStringProperty(paramsJson, "units").value_or("mm");
-    if (request.selector.scope == BimTools::SelectorScope::CurrentSpace) {
-        const BimTools::OperationResult result = bimOperationFailure(operation, "selector", "unsafeScope", "bim." + operation + " erlaubt scope=selection|handles|names, nicht currentSpace");
-        return okJsonResultResponse(BimTools::operationResultJson(result, false, false), debugLines);
-    }
-
-    if (kind == BimTools::TransformKind::Move) {
-        if (!jsonObjectProperty(paramsJson, "vector").has_value()) {
-            const BimTools::OperationResult result = bimOperationFailure(operation, "vector", "missingVector", "bim.move braucht vector={x,y,z}");
-            return okJsonResultResponse(BimTools::operationResultJson(result, false, false), debugLines);
-        }
-        const JsonPoint3d vector = jsonPointProperty(paramsJson, "vector");
-        request.vector = AcGeVector3d(vector.x, vector.y, vector.z);
-    } else {
-        if (jsonArrayProperty(paramsJson, "axis").has_value()
-            || jsonArrayProperty(paramsJson, "basePoint").has_value()) {
-            const BimTools::OperationResult result = bimOperationFailure(
-                operation, "rotationPoint", "invalidPointShape", "bim.rotate akzeptiert axis/basePoint nur als Objekt {x,y,z}");
-            return okJsonResultResponse(BimTools::operationResultJson(result, false, false), debugLines);
-        }
-        request.angleRadians = jsonAngleRadians(paramsJson, "angleRad", "angleDeg", 0.0);
-        const JsonPoint3d axis = jsonPointProperty(paramsJson, "axis", JsonPoint3d{0.0, 0.0, 1.0});
-        request.axis = AcGeVector3d(axis.x, axis.y, axis.z);
-        const std::string baseMode = toUpperAscii(trim(jsonStringProperty(paramsJson, "basePointMode").value_or("")));
-        if (!baseMode.empty() && jsonObjectProperty(paramsJson, "basePoint").has_value()) {
-            const BimTools::OperationResult result = bimOperationFailure(
-                operation, "basePoint", "exclusiveBasePoint", "bim.rotate erlaubt entweder basePoint oder basePointMode, nicht beides");
-            return okJsonResultResponse(BimTools::operationResultJson(result, false, false), debugLines);
-        }
-        if (baseMode == "EACHENTITYCENTER") request.baseMode = BimTools::RotationBaseMode::EachEntityCenter;
-        else if (baseMode == "SELECTIONCENTER") request.baseMode = BimTools::RotationBaseMode::SelectionCenter;
-        else if (!baseMode.empty()) {
-            const BimTools::OperationResult result = bimOperationFailure(operation, "basePointMode", "invalidBasePointMode", "basePointMode muss eachEntityCenter oder selectionCenter sein");
-            return okJsonResultResponse(BimTools::operationResultJson(result, false, false), debugLines);
-        } else {
-            request.baseMode = BimTools::RotationBaseMode::Explicit;
-            request.hasExplicitBasePoint = jsonObjectProperty(paramsJson, "basePoint").has_value();
-            const JsonPoint3d basePoint = jsonPointProperty(paramsJson, "basePoint");
-            request.basePoint = AcGePoint3d(basePoint.x, basePoint.y, basePoint.z);
-        }
-    }
-
-    const bool saveBefore = jsonBoolProperty(paramsJson, "saveBefore").value_or(true);
-    bool savedBefore = false;
-    AcDbDatabase* database = workingDatabase();
-    if (database == nullptr) {
-        const BimTools::OperationResult result = bimOperationFailure(operation, "database", "noDatabase", "Keine aktive BricsCAD-Zeichnung gefunden");
-        return okJsonResultResponse(BimTools::operationResultJson(result, saveBefore, false), debugLines);
-    }
-    const BimTools::Availability availability = BimTools::availability();
-    if (!availability.available) {
-        const BimTools::OperationResult result = bimOperationFailure(operation, "bim", "bimUnavailable", availability.reason);
-        return okJsonResultResponse(BimTools::operationResultJson(result, saveBefore, false), debugLines);
-    }
-
-    std::unique_ptr<AcAxDocLock> docLock;
-    if (acDocManager != nullptr && acDocManager->isApplicationContext()) {
-        docLock = std::make_unique<AcAxDocLock>(database);
-        if (docLock->lockStatus() != Acad::eOk) {
-            const BimTools::OperationResult result = bimOperationFailure(
-                operation, "database", "documentLockFailed", errorStatusText(docLock->lockStatus()));
-            return okJsonResultResponse(BimTools::operationResultJson(result, saveBefore, false), debugLines);
-        }
-        appendDebug(debugLines, "BIM transform document lock: " + errorStatusText(docLock->lockStatus()));
-    }
-
-    ActionValidationState validationState;
-    validationState.database = database;
-    ActionValidationResult validation;
-    const std::string tool = kind == BimTools::TransformKind::Move ? "bim.move" : "bim.rotate";
-    validateActionObject("{\"tool\":\"" + tool + "\",\"params\":" + paramsJson + "}", validationState, validation, debugLines);
-    if (!validation.valid()) {
-        BimTools::OperationResult result = bimOperationFailure(operation, "preflight", "validationFailed", "BIM-Ausfuehrungs-Preflight fehlgeschlagen");
-        for (const std::string& error : validation.errors) {
-            result.errors.push_back({"preflight", "invalidTargetOrParams", error});
-        }
-        for (const std::string& missing : validation.missing) {
-            result.errors.push_back({"preflight", "missingParam", missing});
-        }
-        result.debug = debugLines;
-        return okJsonResultResponse(BimTools::operationResultJson(result, saveBefore, false), debugLines);
-    }
-
-    if (saveBefore) {
-        std::string saveError;
-        if (!saveWorkingDatabaseBeforeAction(database, debugLines, saveError)) {
-            BimTools::OperationResult result = bimOperationFailure(operation, "database", "saveBeforeFailed", saveError);
-            result.debug = debugLines;
-            return okJsonResultResponse(BimTools::operationResultJson(result, true, false), debugLines);
-        }
-        savedBefore = true;
-    }
-
-    BimTools::OperationResult result = BimTools::transform(database, request);
-    debugLines.insert(debugLines.end(), result.debug.begin(), result.debug.end());
-    if (result.success) rememberLastResult(result.affectedIds, "bim." + operation, debugLines);
-    return okJsonResultResponse(BimTools::operationResultJson(result, saveBefore, savedBefore), debugLines);
 }
 
 JsonPoint3d actionVectorFromParams(const std::string& paramsJson)
@@ -8423,21 +8210,6 @@ std::string handlePluginRequestInApplicationContext(const std::string& request)
         return bimSelectionSetInApplicationContext(paramsJson);
     }
 
-    if (command == "BIMMOVE") {
-        const std::string paramsJson = parts.size() >= 2 ? percentDecode(parts[1]) : "{}";
-        return bimTransformInApplicationContext(paramsJson, BimTools::TransformKind::Move);
-    }
-
-    if (command == "BIMROTATE") {
-        const std::string paramsJson = parts.size() >= 2 ? percentDecode(parts[1]) : "{}";
-        return bimTransformInApplicationContext(paramsJson, BimTools::TransformKind::Rotate);
-    }
-
-    if (command == "GEOMETRYCREATE") {
-        const std::string paramsJson = parts.size() >= 2 ? percentDecode(parts[1]) : "{}";
-        return createGeometryInApplicationContext(paramsJson);
-    }
-
     if (command == "GEOMETRYMOVE") {
         const std::string paramsJson = parts.size() >= 2 ? percentDecode(parts[1]) : "{}";
         return transformEntitiesInApplicationContext(paramsJson, "move");
@@ -8818,12 +8590,6 @@ std::string jsonResponseForBridgeRequest(const std::string& line)
     }
     if (method == "bim.selection.set") {
         return dispatchJsonParamsMethod("BIMSELECTIONSET");
-    }
-    if (method == "bim.move") {
-        return dispatchJsonParamsMethod("BIMMOVE");
-    }
-    if (method == "bim.rotate") {
-        return dispatchJsonParamsMethod("BIMROTATE");
     }
     if (method == "pipes.validateNetwork") {
         return dispatchJsonParamsMethod("PIPESVALIDATE");

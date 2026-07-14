@@ -3307,13 +3307,7 @@ bool workflowTrainingToolRelevantForPrompt(const QString& toolName, const QStrin
     if (mentionsMove && toolName == QStringLiteral("geometry.move")) {
         return true;
     }
-    if (mentionsMove && toolName == QStringLiteral("bim.move")) {
-        return true;
-    }
     if (mentionsRotate && toolName == QStringLiteral("geometry.rotate")) {
-        return true;
-    }
-    if (mentionsRotate && toolName == QStringLiteral("bim.rotate")) {
         return true;
     }
     if (mentionsScale && toolName == QStringLiteral("geometry.scale")) {
@@ -3335,8 +3329,6 @@ bool workflowTrainingToolRelevantForPrompt(const QString& toolName, const QStrin
              || toolName == QStringLiteral("bim.classify")
              || toolName == QStringLiteral("bim.objects.query")
              || toolName == QStringLiteral("bim.selection.set")
-             || toolName == QStringLiteral("bim.move")
-             || toolName == QStringLiteral("bim.rotate")
              || toolName == QStringLiteral("selection.set")
              || toolName == QStringLiteral("layers.ensureMany");
     }
@@ -3356,8 +3348,6 @@ bool workflowTrainingToolRelevantForPrompt(const QString& toolName, const QStrin
         || toolName == QStringLiteral("bim.classify")
         || toolName == QStringLiteral("bim.objects.query")
         || toolName == QStringLiteral("bim.selection.set")
-        || toolName == QStringLiteral("bim.move")
-        || toolName == QStringLiteral("bim.rotate")
         || toolName == QStringLiteral("selection.set");
 }
 
@@ -5756,8 +5746,6 @@ bool actionDependsOnRuntimeSelectionTarget(const QJsonObject& action)
         || scope == QStringLiteral("current_space")) {
         return tool == QStringLiteral("bim.classify")
             || tool == QStringLiteral("bim.selection.set")
-            || tool == QStringLiteral("bim.move")
-            || tool == QStringLiteral("bim.rotate")
             || tool == QStringLiteral("rectangles.extrude")
             || tool == QStringLiteral("profile.extrude")
             || tool.startsWith(QStringLiteral("geometry."));
@@ -6190,8 +6178,6 @@ bool toolCanUseRuntimeSelectionHandles(const QString& tool)
         || tool == QStringLiteral("entity.setName")
         || tool == QStringLiteral("rectangles.extrude")
         || tool == QStringLiteral("profile.extrude")
-        || tool == QStringLiteral("bim.move")
-        || tool == QStringLiteral("bim.rotate")
         || tool == QStringLiteral("bim.classify");
 }
 
@@ -6325,9 +6311,7 @@ QJsonArray latestSelectionSetHandlesFromBatchResults(const QJsonArray& previousR
 
 QJsonObject paramsWithRuntimeBatchHandles(const QString& tool, QJsonObject params, const QJsonArray& previousResults)
 {
-    if ((tool == QStringLiteral("bim.selection.set")
-            || tool == QStringLiteral("bim.move")
-            || tool == QStringLiteral("bim.rotate"))
+    if (tool == QStringLiteral("bim.selection.set")
         && params.value(QStringLiteral("autoBimHandlesFromLastQuery")).toBool(false)) {
         const QJsonArray handles = handlesFromLatestBimQuery(previousResults);
         params.remove(QStringLiteral("autoBimHandlesFromLastQuery"));
@@ -8129,7 +8113,7 @@ void BricsCadPage::selectToolsForUnifiedAgentRequest(
         {"plainLearningLessons", plainLearningLessons},
         {"focusedConversationContext", m_lastFocusedConversationContext},
         {"brxLearningContext", QJsonObject{}},
-        {"policy", "Waehle im BricsCAD-Modus relevante Lessons aus plainLearningLessons[].id, wenn eine Lesson die Nutzerabsicht ganz oder teilweise abdeckt. Nutze focusedConversationContext als promptbezogenen Verlaufskontext; der aktuelle Prompt bleibt massgeblich. Diese IDs sind Learning-Lessons, keine ausfuehrbaren Workflows. Waehle danach nur Toolnamen aus plainTools[].name; alle BRX-Capabilities in plainTools sind freigegebene Agent-Tools, inklusive read-only Diagnose/Context Tools. Antworte ohne Markdown mit genau einem JSON-Objekt. Maximal 12 Tools und maximal 3 Lessons. Fuer BIM-Objektdaten und -Properties waehle bim.objects.query, fuer BIM-Auswahl bim.selection.set, fuer BIM-Verschiebung bim.move und fuer BIM-Rotation bim.rotate; bevorzuge diese BIM-spezifischen Tools gegenueber generischen Geometrie-Tools. Namen sind keine Handles. Bei Tabellen, allgemeinen Geometriedaten oder Messwerten waehle geometry.query und measurement.bbox; bei allen Objekten keinen Layerfilter setzen. Lessons sind nur Erfahrungswissen: uebernimm feste Filter wie Layer, Handles, Namen oder Winkel nur, wenn der Nutzer sie im aktuellen Prompt nennt. Nimm notwendige Abhaengigkeiten mit auf. Waehle layers.rename nur fuer Layer, entity.setLayer fuer Layerzuweisung und bim.classify fuer ausdrueckliche Klassifizierung oder neue architektonische Waende. Nutze brxLearningContext fuer Repair-Regeln und Try-before-fail."},
+        {"policy", "Waehle im BricsCAD-Modus relevante Lessons aus plainLearningLessons[].id, wenn eine Lesson die Nutzerabsicht ganz oder teilweise abdeckt. Nutze focusedConversationContext als promptbezogenen Verlaufskontext; der aktuelle Prompt bleibt massgeblich. Diese IDs sind Learning-Lessons, keine ausfuehrbaren Workflows. Waehle danach nur Toolnamen aus plainTools[].name; alle BRX-Capabilities in plainTools sind freigegebene Agent-Tools, inklusive read-only Diagnose/Context Tools. Antworte ohne Markdown mit genau einem JSON-Objekt. Maximal 12 Tools und maximal 3 Lessons. Fuer BIM-Objektdaten und -Properties waehle bim.objects.query, fuer BIM-Auswahl bim.selection.set, Namen sind keine Handles. Bei Tabellen, allgemeinen Geometriedaten oder Messwerten waehle geometry.query und measurement.bbox; bei allen Objekten keinen Layerfilter setzen. Lessons sind nur Erfahrungswissen: uebernimm feste Filter wie Layer, Handles, Namen oder Winkel nur, wenn der Nutzer sie im aktuellen Prompt nennt. Nimm notwendige Abhaengigkeiten mit auf. Waehle layers.rename nur fuer Layer, entity.setLayer fuer Layerzuweisung und bim.classify fuer ausdrueckliche Klassifizierung oder neue architektonische Waende. Nutze brxLearningContext fuer Repair-Regeln und Try-before-fail."},
         {"responseShape", QJsonObject{
             {"schema", "barebone.agent.selection.v1"},
             {"tools", QJsonArray{"tool.name"}},
@@ -8151,7 +8135,7 @@ void BricsCadPage::selectToolsForUnifiedAgentRequest(
             "Nutze Lessons nur, wenn Titel, Trigger, Kurzfassung, Repair-Regeln oder Werkzeugschritte zur Nutzerabsicht passen. "
             "Uebernimm aus Lessons keine festen Filter wie layer=0, Handles, Namen oder Winkel, wenn der Nutzer sie im aktuellen Prompt nicht nennt. "
             "Bei Tabellen, Objektdaten und Abmessungen waehle read-only Tools; fuer alle Objekte nutze currentSpace ohne Layerfilter. "
-            "Bei klassifizierten BIM-Objekten nutze bim.objects.query; fuer BIM-Auswahl, Verschiebung und Rotation bevorzuge bim.selection.set, bim.move und bim.rotate gegenueber generischen Tools. BIM-Namen sind keine Handles. "
+            "Bei klassifizierten BIM-Objekten nutze bim.objects.query; fuer BIM-Auswahl nutze bim.selection.set. BIM-Namen sind keine Handles. "
             "Waehle keine Extrude-Tools nur wegen Hoehenangaben, wenn geometry.create das Ziel direkt erzeugen kann. "
             "Waehle bim.classify bei ausdruecklicher BIM-/Klassifizierungsabsicht oder wenn der Prompt architektonische Waende mit Wandstaerke/Wandhoehe/Raumbezug erzeugt. "
             "Waehle layers.rename nur fuer Layer/Ebenen, niemals fuer BIM-Waende, Solids, Objekte oder Entities; fuer Layerzuweisung bestehender Entities waehle entity.setLayer. "
@@ -10172,8 +10156,6 @@ QJsonObject BricsCadPage::workflowTrainingEnvelope(const QString& prompt, bool c
                  QStringLiteral("bim.classify"),
                  QStringLiteral("bim.objects.query"),
                  QStringLiteral("bim.selection.set"),
-                 QStringLiteral("bim.move"),
-                 QStringLiteral("bim.rotate"),
                  QStringLiteral("selection.set"),
                  QStringLiteral("command.execute"),
                  QStringLiteral("document.save")}) {
@@ -10389,7 +10371,7 @@ QJsonObject BricsCadPage::workflowTrainingEnvelope(const QString& prompt, bool c
             {"batchPolicy", "Komplexe Ablaufe gehoeren in executionBatches[].steps mit mode=sequential und stopOnFailure=true. Fuer workflow_update muss zusaetzlich workflow.steps die gleiche ausfuehrbare Sequenz flach enthalten."},
             {"validationPolicy", "workflow_update muss validationExamples[].actions mit konkreten, platzhalterfreien Beispielaktionen enthalten. Verkettete Beispiele duerfen lastResult nutzen, aber nicht eine leere selection voraussetzen. Fuer step-by-step Workflows nach einer Extrusion zuerst selection.set verwenden und danach bim.classify target=selection."},
             {"tableOutputPolicy", "Fuer allgemeine Geometrie-Auswertung als Tabelle nutze read-only Tools geometry.query, selection.describe oder entity.describe. Fuer BIM-Objekt- und Propertytabellen nutze bim.objects.query. limit muss >= 1 sein; Qt erzeugt aus dem Query-Ergebnis die Objekt- und bei include=properties zusaetzlich die Property-Markdowntabelle."},
-            {"bimDataPolicy", "Bei BIM-Objektnamen wie Window 11 ist der Text kein Datenbank-Handle. Nutze bim.objects.query mit selector.scope=names und selector.names. Folgeschritte verwenden autoBimHandlesFromLastQuery=true, damit Qt ausschliesslich die konkret gelesenen Handles an bim.selection.set, bim.move oder bim.rotate bindet. Properties werden nur gezielt mit include=properties nachgeladen."},
+            {"bimDataPolicy", "Bei BIM-Objektnamen wie Window 11 ist der Text kein Datenbank-Handle. Nutze bim.objects.query mit selector.scope=names und selector.names. Folgeschritte verwenden autoBimHandlesFromLastQuery=true, damit Qt ausschliesslich die konkret gelesenen Handles an bim.selection.set bindet. Properties werden nur gezielt mit include=properties nachgeladen."},
         }},
         {"knownToolNames", toolNames},
         {"effectiveTools", effectiveTools},
@@ -10447,9 +10429,7 @@ bool BricsCadPage::validateWorkflowStepForTraining(const QJsonObject& step, int 
         const bool booleanBinding = (tool == QStringLiteral("geometry.query")
                 && key == QStringLiteral("autoPointHandlesFromBatch"))
             || (tool == QStringLiteral("geometry.create") && key == QStringLiteral("autoPointsFromLastQuery"))
-            || ((tool == QStringLiteral("bim.selection.set")
-                    || tool == QStringLiteral("bim.move")
-                    || tool == QStringLiteral("bim.rotate"))
+            || (tool == QStringLiteral("bim.selection.set")
                 && key == QStringLiteral("autoBimHandlesFromLastQuery"))
             || ((tool == QStringLiteral("pipes.validateNetwork") || tool == QStringLiteral("pipes.createNetworkSolids"))
                 && (key == QStringLiteral("autoPolylineHandlesFromBatch")
@@ -10501,9 +10481,7 @@ bool BricsCadPage::validateWorkflowStepForTraining(const QJsonObject& step, int 
         const QString key = value.toString();
         const bool suppliedByRuntimeBimSelector = key == QStringLiteral("selector")
             && paramsTemplate.value(QStringLiteral("autoBimHandlesFromLastQuery")).toBool(false)
-            && (tool == QStringLiteral("bim.selection.set")
-                || tool == QStringLiteral("bim.move")
-                || tool == QStringLiteral("bim.rotate"));
+            && tool == QStringLiteral("bim.selection.set");
         if (!key.isEmpty() && !paramsTemplate.contains(key) && !suppliedByRuntimeBimSelector) {
             errorMessage = QStringLiteral("%1.paramsTemplate.%2 fehlt laut %3.inputSchema.required").arg(prefix, key, tool);
             return false;
@@ -13682,9 +13660,7 @@ QJsonObject proposalWithBimValidationTargets(
         }
         QJsonObject action = actions.at(actionIndex).toObject();
         const QString tool = action.value(QStringLiteral("tool")).toString();
-        if (tool != QStringLiteral("bim.selection.set")
-            && tool != QStringLiteral("bim.move")
-            && tool != QStringLiteral("bim.rotate")) {
+        if (tool != QStringLiteral("bim.selection.set")) {
             continue;
         }
         action.insert(QStringLiteral("params"), paramsWithBimValidationTargets(
@@ -15182,7 +15158,7 @@ bool BricsCadPage::validateAgentAction(const QJsonObject& action, QString& error
         return false;
     }
 
-    if ((tool == QStringLiteral("geometry.rotate") || tool == QStringLiteral("bim.rotate"))
+    if (tool == QStringLiteral("geometry.rotate")
         && !promptMentionsRotationAngle(activePrompt)
         && (params.contains(QStringLiteral("angleDeg")) || params.contains(QStringLiteral("angleRad")))) {
         errorMessage = QStringLiteral("%1 darf angleDeg/angleRad nicht aus Beispielen, Lessons oder Defaults raten. Wenn der Nutzer keinen Rotationswinkel nennt, frage mit ask_user gezielt nach dem Winkel.").arg(tool);
@@ -15197,21 +15173,6 @@ bool BricsCadPage::validateAgentAction(const QJsonObject& action, QString& error
         }
         if (params.value(QStringLiteral("offset")).toInt(0) < 0) {
             errorMessage = "bim.objects.query.params.offset darf nicht negativ sein";
-            return false;
-        }
-    }
-
-    if (tool == QStringLiteral("bim.move")) {
-        const QJsonObject vector = params.value(QStringLiteral("vector")).toObject();
-        if (vector.isEmpty()) {
-            errorMessage = "bim.move braucht params.vector={x,y,z}";
-            return false;
-        }
-        const double x = vector.value(QStringLiteral("x")).toDouble(0.0);
-        const double y = vector.value(QStringLiteral("y")).toDouble(0.0);
-        const double z = vector.value(QStringLiteral("z")).toDouble(0.0);
-        if (qFuzzyIsNull(x) && qFuzzyIsNull(y) && qFuzzyIsNull(z)) {
-            errorMessage = "bim.move braucht einen von null verschiedenen Verschiebungsvektor";
             return false;
         }
     }
@@ -15251,9 +15212,7 @@ bool BricsCadPage::validateAgentAction(const QJsonObject& action, QString& error
 
     QJsonObject inputSchema = definition.value("inputSchema").toObject();
     if (params.value(QStringLiteral("autoBimHandlesFromLastQuery")).toBool(false)
-        && (tool == QStringLiteral("bim.selection.set")
-            || tool == QStringLiteral("bim.move")
-            || tool == QStringLiteral("bim.rotate"))) {
+        && tool == QStringLiteral("bim.selection.set")) {
         QJsonArray requiredWithoutRuntimeSelector;
         for (const QJsonValue& value : inputSchema.value(QStringLiteral("required")).toArray()) {
             if (value.toString() != QStringLiteral("selector")) {
@@ -15657,11 +15616,6 @@ QJsonArray BricsCadPage::availableAgentToolsForRoute(const QJsonObject& route, c
     const bool bimSelectionIntent = bimObjectIntent && textMentionsAny(normalized, {
         QStringLiteral("auswahl"), QStringLiteral("selekt"), QStringLiteral("waehle"),
         QStringLiteral("wähle"), QStringLiteral("select")});
-    const bool bimMoveIntent = bimObjectIntent && textMentionsAny(normalized, {
-        QStringLiteral("verschieb"), QStringLiteral("move")});
-    const bool bimRotateIntent = bimObjectIntent && textMentionsAny(normalized, {
-        QStringLiteral("rotier"), QStringLiteral("dreh"), QStringLiteral("rotate")});
-
     const QStringList selectedTools = jsonStringArrayToStringList(route.value(QStringLiteral("selectedTools")).toArray());
     if (!selectedTools.isEmpty()) {
         QStringList selectedToolNames = selectedTools;
@@ -15688,8 +15642,6 @@ QJsonArray BricsCadPage::availableAgentToolsForRoute(const QJsonObject& route, c
             const QStringList bimTools{
                 QStringLiteral("bim.objects.query"),
                 bimSelectionIntent ? QStringLiteral("bim.selection.set") : QString(),
-                bimMoveIntent ? QStringLiteral("bim.move") : QString(),
-                bimRotateIntent ? QStringLiteral("bim.rotate") : QString(),
             };
             for (const QString& toolName : bimTools) {
                 if (!toolName.isEmpty() && !selectedToolNames.contains(toolName)) {
@@ -15871,8 +15823,6 @@ QJsonArray BricsCadPage::availableAgentToolsForRoute(const QJsonObject& route, c
                 || (classifyIntent && name == QStringLiteral("bim.classify"))
                 || (bimObjectIntent && name == QStringLiteral("bim.objects.query"))
                 || (bimObjectIntent && selectionIntent && name == QStringLiteral("bim.selection.set"))
-                || (bimObjectIntent && moveIntent && name == QStringLiteral("bim.move"))
-                || (bimObjectIntent && rotateIntent && name == QStringLiteral("bim.rotate"))
                 || (entityLayerIntent && name == QStringLiteral("entity.setLayer"))
                 || (selectionIntent && name.startsWith(QStringLiteral("selection.")))
                 || (!entityRenameIntent && name == QStringLiteral("command.execute"));
@@ -16400,11 +16350,11 @@ QJsonObject BricsCadPage::agentRequestEnvelope(const QString& prompt, const QJso
     envelope.insert("bimDataModel", cadContextAllowed
         ? QJsonObject{
             {"sourceOfTruth", "BRX V26 BIM API via bim.objects.query"},
-            {"recommendedFlow", QJsonArray{"bim.objects.query", "bim.selection.set", "bim.move", "bim.rotate"}},
+            {"recommendedFlow", QJsonArray{"bim.objects.query", "bim.selection.set"}},
             {"snapshotPolicy", "Der Standard-Zeichnungskontext enthaelt maximal 100 BIM-Objekte mit core+geometry. Properties nur gezielt nachladen."},
             {"fields", QJsonArray{"handle", "name", "description", "guid", "bimType", "entityType", "layer", "componentType", "bounds", "dimensions", "properties.qualifiedName", "properties.dataType", "properties.value", "properties.unitType"}},
             {"selectorPolicy", "Namen exakt und case-sensitive als selector.scope=names behandeln; niemals einen Namen als Handle senden. Bei mehrstufigen Lessons autoBimHandlesFromLastQuery verwenden."},
-            {"mutationPolicy", "Fuer klassifizierte BIM-Ziele bim.selection.set/bim.move/bim.rotate bevorzugen. move.vector ist WCS, Standard units=mm. Rotation braucht einen explizit genannten Winkel und basePoint oder basePointMode."},
+            {"mutationPolicy", "Fuer klassifizierte BIM-Ziele steht bim.selection.set fuer die Auswahl bereit. Transformationen erfolgen ausschliesslich ueber allgemeine Geometrie-Tools."},
         }
         : QJsonObject{});
     envelope.insert("operationLimits", QJsonObject{
@@ -16426,7 +16376,7 @@ QJsonObject BricsCadPage::agentRequestEnvelope(const QString& prompt, const QJso
         {"rotationAngle", QJsonObject{
             {"requiredFromUser", true},
             {"reason", "Rotation angle is a semantic design decision and must not be copied from examples or lessons."},
-            {"policy", "For geometry.rotate and bim.rotate, only set angleDeg/angleRad when the user prompt explicitly names the angle. Otherwise answer with ask_user for the missing angle."},
+            {"policy", "For geometry.rotate, only set angleDeg/angleRad when the user prompt explicitly names the angle. Otherwise answer with ask_user for the missing angle."},
         }},
     });
     envelope.insert("actionToolsEnabled", kAgentActionToolsEnabled);
@@ -17048,4 +16998,3 @@ void BricsCadPage::openAgentSession(const QString& sessionId, const QVariantList
     emitContextBudget();
     emitCapabilitiesStatusToWeb();
 }
-

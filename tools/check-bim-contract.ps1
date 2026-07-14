@@ -77,9 +77,7 @@ if ($learningJson) {
 
 $expectedTools = @(
     "bim.objects.query",
-    "bim.selection.set",
-    "bim.move",
-    "bim.rotate"
+    "bim.selection.set"
 )
 
 if ($null -ne $learning) {
@@ -89,7 +87,7 @@ if ($null -ne $learning) {
     Assert-Contract ($lessons.Count -gt 0) "JSON contract: lessons must be a non-empty array."
 
     $newProfiles = @($profiles | Where-Object { $expectedTools -ccontains [string]$_.name })
-    Assert-Contract ($newProfiles.Count -eq 4) "JSON contract: expected exactly four new BIM tool profiles; found $($newProfiles.Count)."
+    Assert-Contract ($newProfiles.Count -eq 2) "JSON contract: expected exactly two BIM tool profiles; found $($newProfiles.Count)."
 
     foreach ($toolName in $expectedTools) {
         $matches = @($profiles | Where-Object { [string]$_.name -ceq $toolName })
@@ -121,20 +119,10 @@ if ($null -ne $learning) {
             RequiredSlots = @("bimSelector")
             ExpectedTools = @("bim.objects.query", "bim.selection.set")
         }
-        "workflow_bim_move" = @{
-            FinalTool = "bim.move"
-            RequiredSlots = @("bimSelector", "moveVectorMm")
-            ExpectedTools = @("bim.objects.query", "bim.move")
-        }
-        "workflow_bim_rotate" = @{
-            FinalTool = "bim.rotate"
-            RequiredSlots = @("bimSelector", "angleDeg", "basePointMode")
-            ExpectedTools = @("bim.objects.query", "bim.rotate")
-        }
     }
 
     $bimLessons = @($lessons | Where-Object { [string]$_.id -like "workflow_bim_*" })
-    Assert-Contract ($bimLessons.Count -eq 4) "JSON contract: expected exactly four workflow_bim_* lessons; found $($bimLessons.Count)."
+    Assert-Contract ($bimLessons.Count -eq 2) "JSON contract: expected exactly two workflow_bim_* lessons; found $($bimLessons.Count)."
 
     foreach ($lessonId in $lessonContracts.Keys) {
         $contract = $lessonContracts[$lessonId]
@@ -194,17 +182,6 @@ if ($null -ne $learning) {
             Assert-Contract ($finalStep.paramsTemplate.autoBimHandlesFromLastQuery -eq $true) "JSON contract: '$lessonId' must bind exact handles via autoBimHandlesFromLastQuery=true."
         }
 
-        if ($contract.FinalTool -ceq "bim.move") {
-            Assert-Contract ([string]$finalStep.paramsTemplate.units -ceq "mm") "JSON contract: '$lessonId' move units must default to mm."
-            Assert-Contract ([string]$finalStep.paramsTemplate.vector -ceq "{{moveVectorMm}}") "JSON contract: '$lessonId' must bind vector from {{moveVectorMm}}."
-            Assert-Contract ($finalStep.paramsTemplate.saveBefore -eq $true) "JSON contract: '$lessonId' must set saveBefore=true."
-        }
-        elseif ($contract.FinalTool -ceq "bim.rotate") {
-            Assert-Contract ([string]$finalStep.paramsTemplate.angleDeg -ceq "{{angleDeg}}") "JSON contract: '$lessonId' must bind angleDeg from {{angleDeg}}."
-            Assert-Contract ([string]$finalStep.paramsTemplate.basePointMode -ceq "{{basePointMode}}") "JSON contract: '$lessonId' must bind basePointMode from {{basePointMode}}."
-            Assert-Contract ($finalStep.paramsTemplate.saveBefore -eq $true) "JSON contract: '$lessonId' must set saveBefore=true."
-        }
-
         $serializedLesson = $lesson | ConvertTo-Json -Depth 30 -Compress
         Assert-Contract ($serializedLesson -cnotmatch '"handles"\s*:') "JSON contract: '$lessonId' must not persist production handles."
     }
@@ -254,8 +231,6 @@ if ($cmakeText) {
 $riskContracts = [ordered]@{
     "bim.objects.query" = @("query", "readOnly")
     "bim.selection.set" = @("action", "modifiesEditorState")
-    "bim.move" = @("action", "modifiesDrawing")
-    "bim.rotate" = @("action", "modifiesDrawing")
 }
 
 foreach ($toolName in $expectedTools) {
@@ -274,7 +249,7 @@ foreach ($toolName in $expectedTools) {
 if ($pluginText) {
     Assert-Contract ($pluginText -cmatch 'kCommandContextRequests[\s\S]*?"BIMSELECTIONSET"') "C++ contract: bim.selection.set must run in BricsCAD Command Context for acedSSSetFirst."
     Assert-Contract ($pluginText -cmatch 'latestBimQueryHandles[\s\S]*?autoBimHandlesFromLastQuery') "C++ contract: actions.validate must bind auto BIM mutations to the preceding query page."
-    Assert-Contract ($pluginText -cmatch 'latestBimQuerySelector[\s\S]*?ResolvePurpose::SelectionMutation[\s\S]*?ResolvePurpose::DrawingMutation') "C++ contract: auto BIM binding must preserve name ambiguity semantics for selection and drawing mutations."
+    Assert-Contract ($pluginText -cmatch 'latestBimQuerySelector[\s\S]*?ResolvePurpose::SelectionMutation') "C++ contract: auto BIM selection binding must preserve name ambiguity semantics."
     Assert-Contract ($pluginText -cmatch 'begin\s*=\s*std::min[\s\S]*?offset[\s\S]*?end\s*=\s*std::min[\s\S]*?limit') "C++ contract: BIM preflight binding must honor query offset and limit."
     Assert-Contract ($pluginText -cmatch 'return\s+"_Wall"' -and $pluginText -cmatch 'return\s+"_Column"') "C++ contract: native BIMCLASSIFY options must be locale-neutral global keywords."
 }
@@ -291,15 +266,13 @@ if ($bimSourceText) {
         "BrxDbProperties::listAll",
         "BrxDbProperties::getValue",
         "getAcDbObjectId",
-        "acedSSSetFirst",
-        "transformBy"
+        "acedSSSetFirst"
     )) {
         Assert-Contract ($bimSourceText.Contains($requiredToken)) "C++ contract: BimTools.cpp must use '$requiredToken'."
     }
     Assert-Contract ($bimSourceText.Contains("BrxGenericPropertiesAccess.h")) "C++ contract: BimTools.cpp must include BrxGenericPropertiesAccess.h."
     Assert-Contract ($bimSourceText.Contains("AnchorFeature.h")) "C++ contract: BimTools.cpp must guard anchored BIM relationships via AnchorFeature.h."
     Assert-Contract ($bimSourceText -cmatch 'purpose\s*==\s*ResolvePurpose::DrawingMutation[\s\S]*?isEntityFromXref[\s\S]*?isEntityOnLockedLayer[\s\S]*?isAnchoredOrAnchorHost') "C++ contract: actions.validate and execution must share the DrawingMutation XRef/layer/anchor preflight."
-    Assert-Contract ($bimSourceText -cmatch 'before->name\s*!=\s*after\.name') "C++ contract: BIM transforms must verify that the BIM name remains unchanged."
     Assert-Contract ($bimSourceText -cmatch '\"classification\"') "C++ contract: target fingerprints must expose the canonical classification."
     Assert-Contract ($bimSourceText -cnotmatch 'value\.get\(date\)') "C++ contract: do not call the non-exported BRX AcValue::get(SYSTEMTIME&) overload."
     Assert-Contract ($bimSourceText -cnotmatch 'value\.get\(buffer\s*,') "C++ contract: do not call the non-exported BRX AcValue::get(void*&,DWORD&) overload."
@@ -347,5 +320,5 @@ if ($script:Failures.Count -gt 0) {
     exit 1
 }
 
-Write-Host "BIM contract check passed: 4 tool profiles, 4 lessons, flat overlay, BRX wiring and 100-object prefetch." -ForegroundColor Green
+Write-Host "BIM contract check passed: 2 tool profiles, 2 lessons, flat overlay, BRX wiring and 100-object prefetch." -ForegroundColor Green
 exit 0

@@ -121,7 +121,9 @@ function Initialize-BuildEnvironment {
 }
 
 function Import-VisualStudioEnvironment {
-    if ($env:VCINSTALLDIR -and $env:WindowsSdkDir) {
+    param([string]$ToolsetVersion)
+
+    if (!$ToolsetVersion -and $env:VCINSTALLDIR -and $env:WindowsSdkDir) {
         return
     }
 
@@ -140,9 +142,10 @@ function Import-VisualStudioEnvironment {
     }
 
     $tempScript = Join-Path ([System.IO.Path]::GetTempPath()) "barebone-vsdevcmd-$PID.cmd"
+    $toolsetArgument = if ($ToolsetVersion) { " -vcvars_ver=$ToolsetVersion" } else { '' }
     @(
         '@echo off',
-        "call `"$vsDevCmd`" -arch=x64 -host_arch=x64 >nul",
+        "call `"$vsDevCmd`" -arch=x64 -host_arch=x64$toolsetArgument >nul",
         'set'
     ) | Set-Content -LiteralPath $tempScript -Encoding ASCII
     try {
@@ -159,4 +162,26 @@ function Import-VisualStudioEnvironment {
         $value = $line.Substring($separator + 1)
         [System.Environment]::SetEnvironmentVariable($name, $value, 'Process')
     }
+}
+
+function Resolve-V143ToolsetVersion {
+    $toolsetRoots = @(
+        'C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC',
+        'C:\Program Files\Microsoft Visual Studio\18\Professional\VC\Tools\MSVC',
+        'C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC',
+        'C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC',
+        'C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Tools\MSVC',
+        'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC'
+    )
+
+    $toolset = $toolsetRoots |
+        Where-Object { Test-Path -LiteralPath $_ } |
+        ForEach-Object { Get-ChildItem -LiteralPath $_ -Directory -ErrorAction SilentlyContinue } |
+        Where-Object { $_.Name -match '^14\.(3[0-9]|4[0-9])\.' } |
+        Sort-Object { [version]$_.Name } -Descending |
+        Select-Object -First 1
+    if (!$toolset) {
+        throw 'Visual Studio 2022 v143 C++ tools were not found. Install an MSVC 14.3x or 14.4x toolset.'
+    }
+    return $toolset.Name
 }

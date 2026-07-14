@@ -128,29 +128,6 @@ struct OperationResult {
     std::vector<std::string> debug;
 };
 
-enum class TransformKind {
-    Move,
-    Rotate,
-};
-
-enum class RotationBaseMode {
-    Explicit,
-    EachEntityCenter,
-    SelectionCenter,
-};
-
-struct TransformRequest {
-    Selector selector;
-    TransformKind kind = TransformKind::Move;
-    std::string units = "mm";
-    AcGeVector3d vector = AcGeVector3d::kIdentity;
-    double angleRadians = 0.0;
-    AcGeVector3d axis = AcGeVector3d::kZAxis;
-    RotationBaseMode baseMode = RotationBaseMode::Explicit;
-    AcGePoint3d basePoint = AcGePoint3d::kOrigin;
-    bool hasExplicitBasePoint = false;
-};
-
 Availability availability();
 std::string availabilityJson(const Availability& value);
 
@@ -158,7 +135,6 @@ ResolveResult resolve(AcDbDatabase* database, const Selector& selector, ResolveP
 bool readObject(const AcDbObjectId& id, bool includeGeometry, bool includeProperties, ObjectData& object, std::string& error);
 QueryResult query(AcDbDatabase* database, const QueryRequest& request);
 OperationResult setSelection(AcDbDatabase* database, const Selector& selector);
-OperationResult transform(AcDbDatabase* database, const TransformRequest& request);
 
 std::string fingerprintsJson(const std::vector<Fingerprint>& fingerprints);
 std::string objectJson(const ObjectData& object, bool includeProperties = true);

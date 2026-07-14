@@ -13,19 +13,21 @@ $root = Get-ProjectRoot
 $cmake = Resolve-CMakeExecutable -CMakePath $CMakePath
 $qtKit = Resolve-QtKit -QtRoot $QtRoot -QtKitPath $QtKitPath
 Initialize-BuildEnvironment -QtKit $qtKit
+$msvcToolsetVersion = $null
 if ($qtKit.Name -like 'msvc*') {
-    Import-VisualStudioEnvironment
+    $msvcToolsetVersion = Resolve-V143ToolsetVersion
+    Import-VisualStudioEnvironment -ToolsetVersion $msvcToolsetVersion
 }
 
 $ninja = Resolve-NinjaExecutable
 
 $compilerName = $qtKit.Name
 if ($compilerName -like 'msvc*') {
-    $compilerName = 'msvc'
+    $compilerName = 'msvc-v143'
 }
 $buildDirName = "windows-$($qtKit.Version)-$compilerName"
 $buildDir = Join-Path $root "build\$buildDirName"
-$brxBuildDir = Join-Path $root 'build\brx-msvc'
+$brxBuildDir = Join-Path $root 'build\brx-msvc-v143'
 if ($Clean) {
     Remove-SafeDirectory $buildDir
     Remove-SafeDirectory $brxBuildDir

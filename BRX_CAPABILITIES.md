@@ -9,10 +9,10 @@ Quelle:
 Aktuelle Qt-Log-Zeile:
 
 ```text
-BRX-Capabilities geladen: 38 Methoden, 22 Commands, 39 Agent-Tools
+BRX-Capabilities geladen: 36 Methoden, 22 Commands, 37 Agent-Tools
 ```
 
-Die 39 Agent-Tools gelten bei verfuegbarer BIM-API und BIM-Lizenz: 38 BRX-Methoden plus `layers.ensureMany`. Sind die BIM-API oder Lizenz nicht verfuegbar, bleiben die vier neuen BIM-Methoden und das kompatibel erhaltene `bim.classify` mit `available=false` in `capabilities.list`, werden aber nicht an die AI angeboten; dann sind es 34 Agent-Tools.
+Die 37 Agent-Tools gelten bei verfuegbarer BIM-API und BIM-Lizenz: 36 BRX-Methoden plus `layers.ensureMany`. Sind die BIM-API oder Lizenz nicht verfuegbar, bleiben `bim.objects.query`, `bim.selection.set` und `bim.classify` mit `available=false` in `capabilities.list`, werden aber nicht an die AI angeboten; dann sind es 34 Agent-Tools.
 
 ## Begriffe
 
@@ -26,7 +26,7 @@ Die 39 Agent-Tools gelten bei verfuegbarer BIM-API und BIM-Lizenz: 38 BRX-Method
 - Direkte BricsCAD-DB-Schreibvorgaenge sind fuer die AI verboten. Vorschlaege duerfen nur die von Qt angebotenen `tools[].name` verwenden; keine AcDb-/LayerTable-/EntityTable-Mutationen und keine Pseudo-Tools fuer Datenbankwrites.
 - Native Commands mit `acedCommand` duerfen im BRX nur im BricsCAD Command Context laufen. Barebone-Qt/BRX plant Layer, Extrude, BIMClassify, Undo und Redo deshalb ueber `beginExecuteInCommandContext`; ein Guard blockiert versehentliche Native-Command-Ausfuehrung im Application Context.
 
-## Methoden (38)
+## Methoden (36)
 
 | # | Methode | Art | Risiko | Modul/Zweck |
 |---:|---|---|---|---|
@@ -43,8 +43,6 @@ Die 39 Agent-Tools gelten bei verfuegbarer BIM-API und BIM-Lizenz: 38 BRX-Method
 | 11 | `entity.describe` | query | readOnly | Entities per Handle oder exaktem BIM-Namen inklusive BIM-Daten beschreiben. |
 | 12 | `bim.objects.query` | query | readOnly | Klassifizierte BIM-Objekte, Bounds und optional typisierte Generic Properties tabellarisch lesen. |
 | 13 | `bim.selection.set` | action | modifiesEditorState | BIM-Objekte per exaktem Namen oder Handle als Pickfirst-Auswahl setzen. |
-| 14 | `bim.move` | action | modifiesDrawing | Klassifizierte BIM-Entities atomar mit einem WCS-Vektor verschieben. |
-| 15 | `bim.rotate` | action | modifiesDrawing | Klassifizierte BIM-Entities atomar um eine WCS-Achse rotieren. |
 | 16 | `geometry.create` | action | modifiesDrawing | Grundgeometrie erzeugen. |
 | 17 | `rectangles.extrude` | action | modifiesDrawing | Geschlossene Rechteck-Polylinien extrudieren. |
 | 18 | `undo.last` | action | modifiesDrawing | Letzte Aktionen rueckgaengig machen. |
@@ -69,17 +67,15 @@ Die 39 Agent-Tools gelten bei verfuegbarer BIM-API und BIM-Lizenz: 38 BRX-Method
 | 37 | `measurement.area` | query | readOnly | Flaechen berechnen. |
 | 38 | `undo.redo` | action | modifiesDrawing | Redo ausfuehren. |
 
-## BRX-Action-Methoden (25, verfuegbare Methoden sind direkte AI-Tools)
+## BRX-Action-Methoden (23, verfuegbare Methoden sind direkte AI-Tools)
 
-Diese 25 Methoden sind im BRX als `kind=action` vorhanden. Zusaetzlich bietet Qt das virtuelle Agent-Tool `layers.ensureMany` an. Read-only BRX-Methoden sind ebenfalls fuer Kontext, Diagnose und Try-before-fail freigegeben. Read-only Tools duerfen bei Tabellen-/Datenfragen automatisch laufen; mutierende Tools laufen vor der Nutzerbestaetigung durch lokale Qt-Validierung und BRX-Preflight via `actions.validate`. Die drei neuen BIM-Actions und `bim.classify` werden bei fehlender BIM-Verfuegbarkeit nicht an die AI angeboten.
+Diese 23 Methoden sind im BRX als `kind=action` vorhanden. Zusaetzlich bietet Qt das virtuelle Agent-Tool `layers.ensureMany` an. Read-only BRX-Methoden sind ebenfalls fuer Kontext, Diagnose und Try-before-fail freigegeben. Read-only Tools duerfen bei Tabellen-/Datenfragen automatisch laufen; mutierende Tools laufen vor der Nutzerbestaetigung durch lokale Qt-Validierung und BRX-Preflight via `actions.validate`. `bim.selection.set` und `bim.classify` werden bei fehlender BIM-Verfuegbarkeit nicht an die AI angeboten.
 
 | # | BRX-Action | Kategorie | Sicherheitslogik |
 |---:|---|---|---|
 | 1 | `pipes.createNetworkSolids` | Rohrnetz | Vorher validierte Konturen und Technikraumbezug verlangen. |
 | 2 | `annotations.createRoomDimensions` | Annotation | Raumgeometrie und Beschriftungsparameter pruefen. |
 | 3 | `bim.selection.set` | BIM/Auswahl | Exakte Namen oder Handles, Klassifikation und Mehrdeutigkeit pruefen. |
-| 4 | `bim.move` | BIM/Transformation | Fingerprints, Einheiten, Anker, XRef, Layerstatus und Vektor pruefen. |
-| 5 | `bim.rotate` | BIM/Transformation | Fingerprints, Einheiten, Anker, XRef, Winkel, Achse und Basispunkt pruefen. |
 | 6 | `geometry.create` | Geometrie | Schema, Layer und numerische Parameter validieren. |
 | 7 | `rectangles.extrude` | Geometrie/Extrusion | Selector oder Layer plus positive Hoehe pruefen. |
 | 8 | `undo.last` | Undo | Schritte begrenzen; numerisches `UNDO <steps>` verwenden. |
