@@ -245,20 +245,19 @@ QString reasoningEffortForModel(const QString& model, const QString& configuredE
 {
     const QString normalized = normalizedReasoningEffort(configuredEffort);
     if (isGemma4ReasoningModel(model)) {
-        return normalized == QStringLiteral("none") ? QStringLiteral("none") : QStringLiteral("high");
+        return normalized == QStringLiteral("none")
+            ? QStringLiteral("minimal")
+            : QStringLiteral("high");
     }
     return normalized;
 }
 
 void insertChatReasoningForModel(QJsonObject& payload, const QString& model, const QString& configuredEffort)
 {
-    if (!isGemma4ReasoningModel(model)) {
-        return;
+    if (isGemma4ReasoningModel(model)) {
+        payload.insert(QStringLiteral("reasoning_effort"),
+            reasoningEffortForModel(model, configuredEffort));
     }
-    payload.insert(QStringLiteral("reasoning_effort"),
-        normalizedReasoningEffort(configuredEffort) == QStringLiteral("none")
-            ? QStringLiteral("none")
-            : QStringLiteral("high"));
 }
 
 bool useResponsesApiForProvider(const QString& provider, const QString& model)
@@ -881,6 +880,23 @@ bool routeAllowsDocumentContext(const QJsonObject& route)
         || name == QStringLiteral("bricscad_question")
         || name == QStringLiteral("bricscad_action")
         || name == QStringLiteral("validation_retry");
+}
+
+bool promptRequiresCompleteConversationContext(const QString& prompt)
+{
+    QString normalized = repairMojibakeText(prompt).toLower().trimmed();
+    normalized.replace(QRegularExpression(QStringLiteral("\\s+")), QStringLiteral(" "));
+    const bool reviewIntent = textMentionsAny(normalized, {
+        QStringLiteral("überprüf"), QStringLiteral("ueberpruef"), QStringLiteral("prüf"),
+        QStringLiteral("pruef"), QStringLiteral("kontrollier"), QStringLiteral("rechenfehler"),
+        QStringLiteral("formelfehler"), QStringLiteral("vollständig"), QStringLiteral("vollstaendig"),
+    });
+    const bool wholeContextTarget = textMentionsAny(normalized, {
+        QStringLiteral("workflow"), QStringLiteral("sitzung"), QStringLiteral("verlauf"),
+        QStringLiteral("gesamten"), QStringLiteral("kompletten"), QStringLiteral("aktuellen"),
+        QStringLiteral("formeln"), QStringLiteral("gleichungen"), QStringLiteral("rechnungen"),
+    });
+    return reviewIntent && wholeContextTarget;
 }
 
 QString capabilityProfileForRoute(const QString& route)
@@ -7368,7 +7384,7 @@ QJsonObject BricsCadPage::compactSessionHistoryMessage(int index, bool fullText,
     }
     content = removeReasoningLeak(content).trimmed();
 
-    const int boundedMaxChars = std::clamp(maxChars, 120, 4000);
+    const int boundedMaxChars = std::clamp(maxChars, 120, 200000);
     const bool truncated = content.size() > boundedMaxChars;
     if (truncated) {
         content = content.left(boundedMaxChars - 3).trimmed() + QStringLiteral("...");
@@ -7472,7 +7488,8 @@ bool BricsCadPage::isSessionHistoryContextMethod(const QString& method) const
 {
     return method == QStringLiteral("session.history.query")
         || method == QStringLiteral("session.history.range")
-        || method == QStringLiteral("session.history.recent");
+        || method == QStringLiteral("session.history.recent")
+        || method == QStringLiteral("session.history.full");
 }
 
 QJsonObject BricsCadPage::sessionHistoryContextResponse(const QString& method, const QJsonObject& params) const
@@ -7484,6 +7501,20 @@ QJsonObject BricsCadPage::sessionHistoryContextResponse(const QString& method, c
         {"messageCount", m_agentConversation.size()},
         {"indexesAreZeroBased", true},
     };
+
+    if (method == QStringLiteral("session.history.full")) {
+        QJsonArray messages;
+        for (int index = 0; index < m_agentConversation.size(); ++index) {
+            const QJsonObject item = compactSessionHistoryMessage(index, true, 200000);
+            if (!item.isEmpty()) {
+                messages.append(item);
+            }
+        }
+        response.insert(QStringLiteral("messages"), messages);
+        response.insert(QStringLiteral("complete"), true);
+        response.insert(QStringLiteral("truncated"), false);
+        return response;
+    }
 
     if (method == QStringLiteral("session.history.recent")) {
         const int count = std::clamp(params.value(QStringLiteral("count")).toInt(6), 1, 10);
@@ -7549,6 +7580,11 @@ QJsonObject BricsCadPage::conversationAccessForFocusedContext(const QJsonObject&
         {"topicIndex", topicIndex},
         {"allowedMethods", QJsonArray{
             QJsonObject{
+                {"method", "session.history.full"},
+                {"description", "Vollstaendigen bereinigten Sitzungsverlauf ohne Textkuerzung laden. Nur verwenden, wenn eine exakte Gesamtpruefung, Formeln oder vollstaendige Rechenschritte benoetigt werden."},
+                {"params", QJsonObject{}},
+            },
+            QJsonObject{
                 {"method", "session.history.query"},
                 {"description", "Themensuche im bereinigten Sitzungsverlauf; maximal 8 Treffer."},
                 {"params", QJsonObject{{"query", "string"}, {"limit", "1..8"}, {"fullText", "boolean optional"}}},
@@ -7564,7 +7600,7 @@ QJsonObject BricsCadPage::conversationAccessForFocusedContext(const QJsonObject&
                 {"params", QJsonObject{{"count", "1..10"}, {"fullText", "boolean optional"}}},
             },
         }},
-        {"policy", "Wenn focusedConversationContext fuer Korrektur, Fehlersuche oder Verweise wie 'wie vorher' nicht reicht, antworte mit type=context_request und einer session.history.* Methode. Diese Methoden liefern nur bereinigte Chatnachrichten, keine Tools, Policies oder Systemprompts."},
+        {"policy", "Wenn focusedConversationContext fuer Korrektur, Fehlersuche oder Verweise wie 'wie vorher' nicht reicht, antworte mit type=context_request und einer session.history.* Methode. Fuer eine ausdrueckliche Gesamtpruefung eines geladenen Workflows, vollstaendige Formeln oder ungekürzte Rechenschritte verwende session.history.full. Diese Methoden liefern nur bereinigte Chatnachrichten, keine Tools, Policies oder Systemprompts."},
     };
 }
 
@@ -8004,7 +8040,17 @@ void BricsCadPage::continueUnifiedAgentRequest(
     const QJsonObject& documentContext,
     const QJsonObject& route)
 {
-    const QJsonObject normalizedRoute = normalizedAgentRouteForMode(route, prompt, documentContext, m_chatMode);
+    QJsonObject normalizedRoute = normalizedAgentRouteForMode(route, prompt, documentContext, m_chatMode);
+    if (isChatWorkspace()
+        && !normalizedRoute.value(QStringLiteral("conversationFocusAttempted")).toBool(false)
+        && promptRequiresCompleteConversationContext(prompt)
+        && !m_agentConversation.isEmpty()) {
+        normalizedRoute.insert(QStringLiteral("conversationFocusAttempted"), true);
+        normalizedRoute.insert(QStringLiteral("completeConversationContextRequired"), true);
+        m_lastFocusedConversationContext = {};
+        appendBridgeLog(QStringLiteral(
+            "AI Agent: vollstaendiger Sitzungsverlauf fuer Workflow-/Formelpruefung angefordert; Fokus-Zusammenfassung wird uebersprungen"));
+    }
     m_lastAgentRoute = normalizedRoute;
 
     if (!routeAllowsCadActions(normalizedRoute) && !m_pendingAgentDraft.isEmpty()) {
@@ -8055,7 +8101,9 @@ void BricsCadPage::continueUnifiedAgentRequest(
         return;
     }
 
-    if (routeAllowsCadContext(normalizedRoute) && shouldPrefetchSelectionDescription(prompt)) {
+    if (isBricsCadMode()
+        && routeAllowsCadContext(normalizedRoute)
+        && shouldPrefetchSelectionDescription(prompt)) {
         sendUnifiedAgentRequestWithPrefetchedContext(
             prompt,
             "selection.describe",
@@ -8714,7 +8762,7 @@ void BricsCadPage::sendAgentEnvelope(const QJsonObject& envelope, const QString&
         "Du bist der AI Assistent fuer Barebone-Qt. %1\n\n"
         "Der Nutzer befindet sich im Allgemeinen Modus. Der eingehende User-Content ist ein JSON-Envelope. Antworte ausschliesslich mit genau einem JSON-Objekt nach schema barebone.agent.response.v2.\n"
         "Finale Pflichtfelder: schema, type=\"message\", message, sessionTitle. message enthaelt die normale direkte Chatantwort und wird im Chat angezeigt; sessionTitle ist nur Metadatum fuer den Sitzungsnamen.\n"
-        "Wenn focusedConversationContext oder conversation nicht reicht, darfst du vor der finalen Antwort type=\"context_request\" mit method aus conversationAccess.allowedMethods senden. Erlaubt sind nur session.history.query, session.history.range oder session.history.recent; niemals Tools, BRX-Kontext oder Systemprompt anfordern.\n"
+        "Wenn focusedConversationContext oder conversation nicht reicht, darfst du vor der finalen Antwort type=\"context_request\" mit method aus conversationAccess.allowedMethods senden. Erlaubt sind nur session.history.query, session.history.range, session.history.recent oder session.history.full; niemals Tools, BRX-Kontext oder Systemprompt anfordern. Fuer die ausdrueckliche vollstaendige Pruefung eines geladenen Workflows, seiner Formeln oder Rechenschritte musst du session.history.full verwenden, bevor du fehlenden Kontext meldest.\n"
         "Erzeuge sessionTitle bei jeder Antwort selbst aus userPrompt, compactState und dem fachlichen Schwerpunkt der bisherigen Unterhaltung. Nutze einen kurzen, konkreten deutschen Titel mit hoechstens 6 Woertern; keine generischen Titel wie Neuer Chat, Allgemeiner Chat, Workflow oder Frage.\n"
         "Nutze aus dem Envelope vor allem userPrompt, documentContext, selectedWorkflow, workflowCapsules, compactState und conversation.\n"
         "Wenn selectedWorkflow oder workflowCapsules einen allgemeinen Workflow enthalten, behandle dessen Tabellen, Formeln, Beispiele, Annahmen und contextSummary als primaeren Kontext fuer die Antwort.\n"
@@ -14013,6 +14061,13 @@ void BricsCadPage::handleAgentContextRequest(const QJsonObject& request)
         return;
     }
 
+    if (isChatWorkspace()) {
+        appendAgentChat("Barebone-Qt", "AI Kontextabfrage abgelehnt: Im Chat Modus sind keine BricsCAD-Funktionen erlaubt.");
+        appendBridgeLog(QString("AI Kontextabfrage blockiert: Chat Modus erlaubt kein BRX method=%1")
+            .arg(method.isEmpty() ? QStringLiteral("<leer>") : method));
+        return;
+    }
+
     if (method == QStringLiteral("geometry.query")) {
         QJsonObject pointSelector = params.value(QStringLiteral("selector")).toObject();
         if (pointSelector.value(QStringLiteral("kind")).toString().compare(QStringLiteral("point"), Qt::CaseInsensitive) == 0) {
@@ -14087,7 +14142,10 @@ void BricsCadPage::continueAgentWithContextResult(const QJsonObject& contextRequ
     envelope.insert("request", contextRequest);
     envelope.insert("response", contextResponse);
     if (sessionHistoryContext) {
-        envelope.insert("instruction", "Nutze den nachgeladenen Sitzungsverlauf nur als Zusatzkontext. Antworte danach final mit message oder fordere gezielt weiteren session.history Kontext an, wenn weiterhin konkrete Verlaufsteile fehlen.");
+        const bool fullHistory = contextRequest.value(QStringLiteral("method")).toString() == QStringLiteral("session.history.full");
+        envelope.insert("instruction", fullHistory
+            ? QStringLiteral("Der vollstaendige bereinigte Sitzungsverlauf wurde ohne Textkuerzung geladen. Nutze ihn als verbindlichen Gesamtkontext und pruefe enthaltene Formeln und Rechenschritte direkt, statt erneut um Kopieren zu bitten.")
+            : QStringLiteral("Nutze den nachgeladenen Sitzungsverlauf als Zusatzkontext. Antworte danach final mit message oder fordere session.history.full an, wenn fuer eine exakte Gesamtpruefung weiterhin konkrete Formeln oder Verlaufsteile fehlen."));
         appendBridgeLog("AI Agent: nutze nachgeladenen Sitzungsverlauf als Zusatzkontext");
     } else {
         const QString signature = QStringLiteral("%1:%2")
@@ -14134,7 +14192,11 @@ void BricsCadPage::continueAgentWithContextResult(const QJsonObject& contextRequ
     }
 
     const QString compact = QString::fromUtf8(QJsonDocument(envelope).toJson(QJsonDocument::Compact));
-    sendAgentEnvelope(envelope, compact, false, "context_result");
+    sendAgentEnvelope(
+        envelope,
+        compact,
+        false,
+        sessionHistoryContext ? QStringLiteral("session_history_context") : QStringLiteral("drawing_context_result"));
 }
 
 void BricsCadPage::executeAgentProposal()
@@ -16281,9 +16343,18 @@ QJsonObject BricsCadPage::agentRequestEnvelope(const QString& prompt, const QJso
     envelope.insert("capabilityProfile", normalizedRoute.value("capabilityProfile").toString());
     envelope.insert("modePolicy", modePolicy);
     envelope.insert("includeConversationHistory", true);
-    if (!m_lastFocusedConversationContext.isEmpty()) {
+    const bool completeConversationContextRequired =
+        normalizedRoute.value(QStringLiteral("completeConversationContextRequired")).toBool(false);
+    if (!completeConversationContextRequired && !m_lastFocusedConversationContext.isEmpty()) {
         envelope.insert("focusedConversationContext", m_lastFocusedConversationContext);
         envelope.insert("conversationAccess", conversationAccessForFocusedContext(m_lastFocusedConversationContext));
+    }
+    if (completeConversationContextRequired) {
+        envelope.insert("completeConversationContext", QJsonObject{
+            {"required", true},
+            {"reason", "Der Nutzer verlangt eine Gesamtpruefung eines geladenen Workflows, seiner Formeln oder Rechenschritte."},
+            {"policy", "Nutze den vollstaendig mitgesendeten Sitzungsverlauf als primaeren Pruefkontext. Behaupte nicht, Formeln oder Zahlen fehlten, bevor du den gesamten Verlauf ausgewertet hast."},
+        });
     }
     envelope.insert("cadContext", cadContext);
     if (!cadContextAllowed) {
@@ -16470,7 +16541,9 @@ void BricsCadPage::continueQueuedAgentPrompt()
         sendUnifiedAgentRequestWithDrawingContext(prompt, m_lastDocumentContext, route);
         return;
     }
-    if (routeAllowsCadContext(route) && shouldPrefetchSelectionDescription(prompt)) {
+    if (isBricsCadMode()
+        && routeAllowsCadContext(route)
+        && shouldPrefetchSelectionDescription(prompt)) {
         sendUnifiedAgentRequestWithPrefetchedContext(
             prompt,
             "selection.describe",

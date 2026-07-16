@@ -8470,8 +8470,14 @@
       if (value === "tool_result") {
         return "Ich werte die BRX-Rückmeldung aus.";
       }
-      if (value === "context_result" || value === "prompt+context") {
+      if (value === "session_history_context") {
+        return "Ich werte den nachgeladenen Sitzungsverlauf aus.";
+      }
+      if (value === "drawing_context_result" || value === "prompt+drawing-context") {
         return "Ich werte den Zeichnungskontext aus.";
+      }
+      if (value === "prompt+context") {
+        return "Ich werte den vorbereiteten Kontext aus.";
       }
       if (value === "execution_summary") {
         return "Ich erstelle eine kurze Abschlusszusammenfassung.";
