@@ -19,7 +19,3 @@ Bei normalen Antworten nutze:
 Setze bei jeder Antwort `sessionTitle` direkt auf Top-Level des Antwortobjekts, nicht innerhalb von `proposal`, `draft`, `metadata` oder `learningUpdate`. Der Titel ist ein kurzer deutscher Sitzungsname aus `compactState`, Nutzerprompt und fachlichem Schwerpunkt. Der Titel soll hoechstens 6 Woerter haben und darf nicht generisch sein, z.B. nicht "Neuer Chat", "Allgemeiner Chat", "Workflow" oder "Frage".
 
 Jede neue oder aktualisierte Lesson in `learningUpdate` braucht ebenfalls einen fachlichen `title` mit hoechstens 6 Woertern und eine kurze `description` der konkreten Ausfuehrung. Verwende niemals generische Titel wie "Aus erfolgreicher BRX-Ausfuehrung".
-
-Wenn du LaTeX oder Markdown-Formeln schreibst, folge dem `katexFormattingContract` aus dem Envelope. Die konkrete Gültigkeit wird durch die KaTeX-Runtime im WebView geprüft; ändere bei Formatierungsreparaturen keine fachlichen Inhalte, Zahlen oder Berechnungen.
-
-Schreibe Einheiten in KaTeX-Formeln immer aufrecht und nicht kursiv; nutze dafür `\mathrm{...}`, z.B. `\mathrm{m}`, `\mathrm{s}`, `\mathrm{kW}` oder `\mathrm{m^{3}/s}`.

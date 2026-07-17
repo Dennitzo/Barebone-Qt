@@ -52,14 +52,6 @@ private:
         int compressedHistoryMessages = 0;
     };
 
-    struct PendingMathFormattingRepair {
-        QString originalMarkdown;
-        QString diagnosticsJson;
-        QString sessionId;
-        int attempts = 0;
-        int revision = 0;
-    };
-
     struct BrxLearningInteraction {
         QJsonArray lessonIds;
         QJsonArray tools;
@@ -101,10 +93,6 @@ private:
     QJsonArray brxLearningToolsFromActions(const QJsonArray& actions) const;
     QJsonArray brxLearningRecentConversation(int maxMessages = 10) const;
     QJsonObject workflowSaveCompressedTitleContext(const QString& selectedMessageText, const QString& sessionTitle) const;
-    void requestMathFormattingRepair(const QString& messageId, int revision, const QString& markdown, const QString& diagnosticsJson);
-    void acceptMathFormattingRepair(const QString& messageId, int revision, const QString& markdown);
-    bool replaceAssistantConversationMessage(const QString& sessionId, const QString& originalMarkdown, const QString& repairedMarkdown);
-    bool replaceAssistantConversationMessageIn(QJsonArray& conversation, const QString& originalMarkdown, const QString& repairedMarkdown) const;
     bool saveGeneralWorkflowFinalDraft(QString* savedPath = nullptr, QString* errorMessage = nullptr);
     void handleWorkflowTrainingReply(const QString& content);
     QJsonObject workflowTrainingEnvelope(const QString& prompt, bool compactContext = false) const;
@@ -159,7 +147,10 @@ private:
     int estimateTokensForText(const QString& text) const;
     int estimateTokensForMessages(const QJsonArray& messages) const;
     QJsonObject documentContextWithTokenBudget(const QJsonObject& context, int tokenBudget, bool* minimized = nullptr) const;
-    ContextBuildResult buildGeneralMessagesForBudget(const QString& prompt, const QJsonObject& documentContext, int requestedOutputTokens) const;
+    ContextBuildResult buildGeneralMessagesForBudget(
+        const QJsonObject& envelope,
+        const QJsonObject& instructionMessage,
+        int requestedOutputTokens) const;
     QJsonObject fallbackFocusedConversationContext(const QString& prompt) const;
     QJsonObject normalizedFocusedConversationContext(const QJsonObject& object, const QString& prompt) const;
     QJsonObject conversationAccessForFocusedContext(const QJsonObject& focusedContext) const;
@@ -297,7 +288,6 @@ private:
     int m_generalWorkflowSaveRetries = 0;
     QStringList m_generalWorkflowSaveRejectedSignatures;
     QJsonObject m_lastGeneralWorkflowSaveContext;
-    QHash<QString, PendingMathFormattingRepair> m_pendingMathFormattingRepairs;
     QString m_trainingPhase = QStringLiteral("idle");
     bool m_trainingSaveReviewPending = false;
     bool m_trainingReviewConfirmed = false;

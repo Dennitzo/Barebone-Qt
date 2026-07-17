@@ -18,8 +18,8 @@
     })();
   </script>
 
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
+  <link rel="stylesheet" href="qrc:/web/vendor/katex/katex.min.css">
+  <script src="qrc:/web/vendor/katex/katex.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
 
@@ -935,8 +935,23 @@
       cursor: text;
     }
 
+    .math-source-text.fallback {
+      position: relative;
+      inset: auto;
+      z-index: auto;
+      overflow: visible;
+      white-space: pre-wrap;
+      color: inherit;
+      cursor: text;
+    }
+
     .math-source-text::selection {
       color: transparent;
+      background: var(--success-bg);
+    }
+
+    .math-source-text.fallback::selection {
+      color: inherit;
       background: var(--success-bg);
     }
 
@@ -2792,8 +2807,6 @@
     let mathVisibilityObserver = null;
     const mathRenderCache = new Map();
     const maxMathRenderCacheEntries = 600;
-    const mathRepairStates = new Map();
-    const maxMathRepairAttempts = 2;
     const sessionDocuments = new Map();
     const maxDocumentContextChars = 65000;
     const maxDocumentPageChars = 7000;
@@ -3265,83 +3278,7 @@
     }
 
     function latexSourceText(text) {
-      return normalizeLatexForRender(repairMojibakeText(String(text || ''))).trim();
-    }
-
-    function normalizeLatexForRender(text) {
-      let value = repairMojibakeText(String(text || ""));
-      if (!value) {
-        return "";
-      }
-      const superscriptDigits = {
-        "⁰": "0",
-        "¹": "1",
-        "²": "2",
-        "³": "3",
-        "⁴": "4",
-        "⁵": "5",
-        "⁶": "6",
-        "⁷": "7",
-        "⁸": "8",
-        "⁹": "9",
-        "⁻": "-"
-      };
-      value = value.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁻]+/g, (match) => {
-        const exponent = Array.from(match).map((char) => superscriptDigits[char] || "").join("");
-        return exponent ? `^{${exponent}}` : "";
-      });
-      value = value
-        .replace(/\u00a0/g, " ")
-        .replace(/\u202f/g, "\\,")
-        .replace(/\u200b/g, "")
-        .replace(/−/g, "-")
-        .replace(/≈/g, "\\approx ")
-        .replace(/≤/g, "\\le ")
-        .replace(/≥/g, "\\ge ");
-      return value.replace(/\s+/g, " ").trim();
-    }
-
-    function normalizedLatexCompareText(text) {
-      return normalizeLatexForRender(text)
-        .replace(/\\(?:mathrm|text|frac|sqrt|left|right|Bigl|Bigr|log|Delta|rho|varepsilon|nu|times|cdot|approx|le|ge|quad|;|,|!)/g, "")
-        .replace(/[\\{}\[\]$()\s,.;:_\-+=^*/]/g, "")
-        .toLowerCase();
-    }
-
-    function stripMathDelimiters(text) {
-      const value = String(text || "").trim();
-      if ((value.startsWith("\\[") && value.endsWith("\\]")) || (value.startsWith("\\(") && value.endsWith("\\)"))) {
-        return value.slice(2, -2);
-      }
-      if (value.startsWith("$$") && value.endsWith("$$")) {
-        return value.slice(2, -2);
-      }
-      if (value.startsWith("$") && value.endsWith("$")) {
-        return value.slice(1, -1);
-      }
-      return value;
-    }
-
-    function trimTrailingMathEcho(text, rawMath) {
-      const source = String(text || "");
-      const math = stripMathDelimiters(rawMath);
-      const mathKey = normalizedLatexCompareText(math);
-      if (!mathKey || mathKey.length < 2) {
-        return source;
-      }
-      const lineStart = Math.max(source.lastIndexOf("\n"), source.lastIndexOf(". "), source.lastIndexOf(": "));
-      const prefix = lineStart >= 0 ? source.slice(0, lineStart + (source[lineStart] === "\n" ? 1 : 2)) : "";
-      const tail = lineStart >= 0 ? source.slice(prefix.length) : source;
-      const tailKey = normalizedLatexCompareText(tail);
-      if (!tailKey) {
-        return source;
-      }
-      const looksFormulaLike = /[\\=^_{}]|\b(?:frac|sqrt|Delta|rho|varepsilon|mathrm|text)\b/.test(tail);
-      if ((looksFormulaLike && (mathKey.includes(tailKey) || tailKey.includes(mathKey)))
-          || (mathKey.length <= 3 && tailKey.endsWith(mathKey))) {
-        return prefix.replace(/[ \t]+$/g, "");
-      }
-      return source;
+      return repairMojibakeText(String(text || "")).trim();
     }
 
     function markdownTableFromWorkflowTable(table) {
@@ -5049,7 +4986,14 @@
     }
 
     function cloneJson(value) {
-      return JSON.parse(JSON.stringify(value || null));
+      return JSON.parse(JSON.stringify(value || null, function preserveStoredMessage(key, currentValue) {
+        if (key === "message"
+          && this
+          && Object.prototype.hasOwnProperty.call(this, "_storedMessage")) {
+          return this._storedMessage;
+        }
+        return currentValue;
+      }));
     }
 
     function snapshotCurrentWorkspace() {
@@ -5638,37 +5582,42 @@
       if (speaker !== "AI") {
         return germanizeText(text);
       }
-      const cleaned = removeReasoningLeakText(text)
-        .replaceAll("<|channel|>final", "")
-        .replaceAll("<|constrain|>json", "")
-        .replaceAll("<|message|>", "")
-        .trim();
-      const firstBrace = cleaned.indexOf("{");
-      const lastBrace = cleaned.lastIndexOf("}");
-      if (firstBrace < 0 || lastBrace <= firstBrace) {
-        return removeReasoningLeakText(text);
-      }
+      const cleaned = String(text || "").trim();
       try {
-        const parsed = JSON.parse(cleaned.slice(firstBrace, lastBrace + 1));
-        if (parsed && typeof parsed.message === "string" && parsed.message.trim()) {
+        const parsed = JSON.parse(cleaned);
+        if (parsed
+          && parsed.schema === "barebone.agent.response.v2"
+          && parsed.type === "message"
+          && typeof parsed.message === "string"
+          && parsed.message.trim()) {
           return germanizeText(parsed.message.trim());
         }
-      } catch {
-        return removeReasoningLeakText(text);
+      } catch (_error) {
+        // Normal assistant Markdown is deliberately not interpreted as JSON.
       }
-      return removeReasoningLeakText(text);
+      return germanizeText(text);
     }
 
     function normalizeMessage(message) {
       const speaker = message.speaker || "AI";
+      const storedMessage = String(message.message || "");
+      const visibleMessage = readableStoredMessageText(speaker, storedMessage);
       const normalized = {
         messageId: typeof message.messageId === "string" && message.messageId.trim()
           ? message.messageId.trim()
           : nextMessageId(speaker === "Du" ? "user" : "ai"),
         speaker,
-        message: readableStoredMessageText(speaker, message.message || ""),
+        message: visibleMessage,
         time: formatMessageTime(message.time)
       };
+      if (visibleMessage !== storedMessage) {
+        Object.defineProperty(normalized, "_storedMessage", {
+          value: storedMessage,
+          enumerable: false,
+          configurable: false,
+          writable: false
+        });
+      }
       if (message.kind && message.kind !== "thinking") {
         normalized.kind = String(message.kind);
       }
@@ -5682,12 +5631,6 @@
       if (message.continuationAvailable) {
         normalized.continuationAvailable = true;
         normalized.continuationReason = String(message.continuationReason || "");
-      }
-      if (message.mathRepairChecked) {
-        normalized.mathRepairChecked = true;
-      }
-      if (message.mathRepairFailed) {
-        normalized.mathRepairFailed = true;
       }
       const sessionTitleSuggestion = compactSessionTitleText(message.sessionTitleSuggestion || message.sessionTitle || "");
       if (sessionTitleSuggestion) {
@@ -6107,7 +6050,8 @@
     }
 
     function splitMarkdownTableRow(line) {
-      let value = String(line || "").trim();
+      const protectedSource = protectMarkdownSegmentsForStructure(line);
+      let value = protectedSource.text.trim();
       if (!value.includes("|")) {
         return null;
       }
@@ -6117,7 +6061,10 @@
       if (value.endsWith("|")) {
         value = value.slice(0, -1);
       }
-      return value.split("|").map((cell) => cell.trim());
+      return value.split("|").map((cell) => restoreMarkdownSegmentsAfterStructure(
+        cell.trim(),
+        protectedSource.segments
+      ));
     }
 
     function isMarkdownTableSeparator(line) {
@@ -6241,29 +6188,37 @@
       };
     }
 
+    function katexStrictMode(errorCode) {
+      // KaTeX classifies accented labels such as "Zähler" in math mode as a
+      // strict compatibility warning. Local models commonly emit these labels
+      // directly; accepting this one warning keeps the source untouched while
+      // every other strict warning and every parse error still fails closed.
+      return errorCode === "unicodeTextInMathMode" ? "ignore" : "error";
+    }
+
     function normalizedMathParts(rawMath) {
-      let math = String(rawMath || "").trim();
+      const source = String(rawMath || "").trim();
       let display = false;
-      let tex = math;
-      if (math.startsWith("\\[") && math.endsWith("\\]")) {
+      let tex = source;
+      if (source.startsWith("\\[") && source.endsWith("\\]")) {
         display = true;
-        tex = latexSourceText(math.slice(2, -2));
-        math = `\\[${tex}\\]`;
-      } else if (math.startsWith("\\(") && math.endsWith("\\)")) {
-        tex = latexSourceText(math.slice(2, -2));
-        math = `\\(${tex}\\)`;
-      } else if (math.startsWith("$$") && math.endsWith("$$")) {
+        tex = source.slice(2, -2).trim();
+      } else if (source.startsWith("\\(") && source.endsWith("\\)")) {
+        tex = source.slice(2, -2).trim();
+      } else if (source.startsWith("$$") && source.endsWith("$$") && source.length > 4) {
         display = true;
-        tex = latexSourceText(math.slice(2, -2));
-        math = `$$${tex}$$`;
-      } else if (math.startsWith("$") && math.endsWith("$") && math.length > 2) {
-        tex = latexSourceText(math.slice(1, -1));
-        math = `$${tex}$`;
-      } else {
-        tex = latexSourceText(math);
-        math = tex;
+        tex = source.slice(2, -2).trim();
+      } else if (source.startsWith("$") && source.endsWith("$") && source.length > 2) {
+        tex = source.slice(1, -1).trim();
       }
-      return { source: math, tex, display };
+      // Local models commonly place typographic non-breaking or thin spaces
+      // between unit symbols. KaTeX treats those Unicode whitespace characters
+      // as unknown symbols under strict mode. Canonicalize only the temporary
+      // KaTeX input while preserving the stored and selectable source verbatim.
+      tex = tex
+        .replace(/\u00a0/g, "~")
+        .replace(/[\u2009\u202f]/g, "\\,");
+      return { source, tex, display };
     }
 
     function cachedKatexHtml(tex, displayMode) {
@@ -6278,9 +6233,9 @@
       try {
         html = window.katex.renderToString(tex, {
           displayMode,
-          throwOnError: false,
+          throwOnError: true,
           output: "html",
-          strict: "ignore",
+          strict: katexStrictMode,
           trust: false
         });
       } catch (_error) {
@@ -6297,7 +6252,7 @@
     }
 
     function createSelectableMathNode(rawMath) {
-      const { source: math, tex, display } = normalizedMathParts(rawMath);
+      const { source, tex, display } = normalizedMathParts(rawMath);
       const wrapper = document.createElement("span");
       wrapper.className = "math-selectable";
       if (display) {
@@ -6311,20 +6266,32 @@
         render.innerHTML = katexHtml;
         render.dataset.mathTypeset = "true";
       } else {
-        render.textContent = math;
+        render.textContent = source;
       }
 
-      const source = document.createElement("span");
-      source.className = "math-source-text";
-      source.textContent = math;
+      const sourceText = document.createElement("span");
+      sourceText.className = "math-source-text";
+      sourceText.textContent = source;
 
-      wrapper.appendChild(render);
-      wrapper.appendChild(source);
+      if (katexHtml) {
+        wrapper.appendChild(render);
+        wrapper.appendChild(sourceText);
+      } else {
+        sourceText.classList.add("fallback");
+        wrapper.classList.add("invalid");
+        wrapper.appendChild(sourceText);
+      }
       wrapper.title = "LaTeX kopieren";
       wrapper.addEventListener("click", (event) => {
+        const selection = typeof window.getSelection === "function"
+          ? String(window.getSelection() || "")
+          : "";
+        if (selection) {
+          return;
+        }
         event.preventDefault();
         event.stopPropagation();
-        copyToClipboard(math).then(() => {
+        copyToClipboard(source).then(() => {
           wrapper.classList.add("copied");
           window.setTimeout(() => wrapper.classList.remove("copied"), 900);
         }).catch(() => {
@@ -6337,99 +6304,92 @@
       return wrapper;
     }
 
-    function appendTextWithAutoMath(parent, text) {
+    function appendPlainText(parent, text) {
       const source = repairMojibakeText(String(text || ""));
       if (!source) {
-        return;
-      }
-      if (isStandaloneBareLatex(source)) {
-        parent.appendChild(createSelectableMathNode(source.trim()));
         return;
       }
       parent.appendChild(document.createTextNode(source));
     }
 
-    function isStandaloneBareLatex(text) {
-      const value = repairMojibakeText(String(text || "")).trim();
-      if (!value || value.length > 240 || /[\n\r]/.test(value)) {
+    function isInlineDollarMath(rawMath) {
+      const source = String(rawMath || "");
+      if (!source.startsWith("$") || !source.endsWith("$") || source.startsWith("$$") || source.length <= 2) {
         return false;
       }
-      if (/^[-+]?\d+\{,\}\d+(?:\s*(?:\\cdot|\\times|×|x)\s*10\^?\{?-?\d+\}?)?$/i.test(value)) {
-        return true;
-      }
-      if (!/[\\{}_^=]|[Δρενε]|[⁰¹²³⁴⁵⁶⁷⁸⁹⁻]/.test(value)) {
-        return false;
-      }
-      if (/[A-Za-zÄÖÜäöüß]{3,}(?:\s+[A-Za-zÄÖÜäöüß]{3,})/.test(value.replace(/\\(?:mathrm|text)\{[^{}]*\}/g, ""))) {
-        return false;
-      }
-      return /^[0-9A-Za-zÄÖÜäöüß\\{}[\]().,;:+\-*/=^_\s°×−≈≤≥Δρεν⁰¹²³⁴⁵⁶⁷⁸⁹⁻]+$/.test(value);
+      const body = source.slice(1, -1);
+      return body.trim() === body && body.length > 0;
     }
 
     function appendInlineMarkdown(parent, text) {
-      const source = String(text || "");
-
-      const pattern = /`([^`]+)`|\*\*(.+?)\*\*|\*([^*\n]{1,180})\*|(\\\[[\s\S]+?\\\])|(\\\([\s\S]+?\\\))|(\$\$[\s\S]+?\$\$)|(^|[^\\])(\$[^$\n]{1,240}\$)/g;
+      const protectedSource = protectMarkdownSegmentsForStructure(String(text || ""));
+      const source = protectedSource.text;
+      const segmentByToken = new Map(
+        protectedSource.segments.map((segment) => [segment.token, segment])
+      );
+      const pattern = /\*\*(.+?)\*\*|\*([^*\n]{1,180})\*|(\uE000BAREBONE_[0-9A-Z]+\uE001)|<(sub|sup)>([^<>\r\n]+)<\/\4>/gi;
       let index = 0;
       let match = pattern.exec(source);
       while (match) {
-        const math = match[4] || match[5] || match[6] || match[8] || "";
-        const displayMath = !!(match[4] || match[6]);
         if (match.index > index) {
-          const before = source.slice(index, match.index);
-          appendTextWithAutoMath(parent, math ? trimTrailingMathEcho(before, math) : before);
+          appendPlainText(parent, source.slice(index, match.index));
         }
         if (match[1] !== undefined) {
-          const code = document.createElement("code");
-          code.className = "message-inline-code";
-          code.textContent = match[1];
-          parent.appendChild(code);
-        } else if (match[2] !== undefined) {
           const strong = document.createElement("strong");
-          appendInlineMarkdown(strong, normalizeMarkdownHeading(match[2]));
+          appendInlineMarkdown(
+            strong,
+            normalizeMarkdownHeading(
+              restoreMarkdownSegmentsAfterStructure(match[1], protectedSource.segments)
+            )
+          );
           parent.appendChild(strong);
-        } else if (match[3] !== undefined) {
+        } else if (match[2] !== undefined) {
           const emphasis = document.createElement("em");
-          appendInlineMarkdown(emphasis, match[3]);
+          appendInlineMarkdown(
+            emphasis,
+            restoreMarkdownSegmentsAfterStructure(match[2], protectedSource.segments)
+          );
           parent.appendChild(emphasis);
-        } else {
-          const prefix = match[7] || "";
-          if (prefix) {
-            appendTextWithAutoMath(parent, displayMath ? trimTrailingMathEcho(prefix, math) : prefix);
+        } else if (match[3] !== undefined) {
+          const segment = segmentByToken.get(match[3]);
+          if (!segment || segment.kind === "literal") {
+            appendPlainText(parent, segment ? segment.source : match[3]);
+          } else if (segment.kind === "code") {
+            const code = document.createElement("code");
+            code.className = "message-inline-code";
+            code.textContent = segment.source.slice(1, -1);
+            parent.appendChild(code);
+          } else if (segment.kind === "math") {
+            parent.appendChild(createSelectableMathNode(segment.source));
           }
-          parent.appendChild(createSelectableMathNode(math));
+        } else {
+          // Local models sometimes use the common Markdown inline-HTML forms
+          // M<sub>MW</sub> or x<sup>2</sup>. Support only these two exact,
+          // attribute-free tags and assign their content through textContent.
+          // Every other HTML fragment remains ordinary visible source text.
+          const semantic = document.createElement(match[4].toLowerCase());
+          semantic.textContent = restoreMarkdownSegmentsAfterStructure(
+            match[5],
+            protectedSource.segments
+          );
+          parent.appendChild(semantic);
         }
         index = match.index + match[0].length;
         match = pattern.exec(source);
       }
       if (index < source.length) {
-        appendTextWithAutoMath(parent, source.slice(index));
+        appendPlainText(parent, source.slice(index));
       }
     }
 
     function normalizeMathTextForMarkdown(text) {
       return String(text || "")
-        .replace(/<\s*br\s*\/?\s*>/gi, "\n")
-        .replace(/\\n/g, "\n");
+        .replace(/<\s*br\s*\/?\s*>/gi, "\n");
     }
 
     function appendMarkdownContent(parent, text) {
       const source = normalizeMathTextForMarkdown(text);
-      const pattern = /(\\\[[\s\S]+?\\\])|(\$\$[\s\S]+?\$\$)/g;
-      let index = 0;
-      let match = pattern.exec(source);
-      while (match) {
-        const math = match[1] || match[2] || "";
-        if (match.index > index) {
-          appendInlineMarkdown(parent, trimTrailingMathEcho(source.slice(index, match.index), math));
-        }
-        parent.appendChild(createSelectableMathNode(math));
-        index = match.index + match[0].length;
-        match = pattern.exec(source);
-      }
-      if (index < source.length) {
-        appendInlineMarkdown(parent, source.slice(index));
-      }
+      appendInlineMarkdown(parent, source);
     }
 
     function createMarkdownParagraph(lines) {
@@ -6506,10 +6466,16 @@
 
     function displayMathLine(line) {
       const value = String(line || "").trim();
-      if (/^\\\[[\s\S]+\\\]$/.test(value) || /^\$\$[\s\S]+\$\$$/.test(value)) {
-        return value;
+      const open = value.startsWith("\\[") ? "\\[" : (value.startsWith("$$") ? "$$" : "");
+      if (!open) {
+        return "";
       }
-      return "";
+      const close = open === "\\[" ? "\\]" : "$$";
+      const closeIndex = closingMarkdownDelimiterIndex(value, open.length, close, false);
+      if (closeIndex < 0 || value.slice(closeIndex + close.length).trim()) {
+        return "";
+      }
+      return value;
     }
 
     function collectDisplayMathBlock(lines, startIndex) {
@@ -6522,8 +6488,18 @@
       const parts = [];
       let index = startIndex;
       while (index < lines.length) {
-        parts.push(lines[index]);
-        if (String(lines[index] || "").trim().endsWith(close)) {
+        const line = String(lines[index] || "");
+        const searchStart = index === startIndex
+          ? line.indexOf(open) + open.length
+          : 0;
+        const closeIndex = closingMarkdownDelimiterIndex(line, searchStart, close, false);
+        parts.push(line);
+        if (closeIndex >= 0) {
+          if (line.slice(closeIndex + close.length).trim()) {
+            // More Markdown or another display block follows on this line.
+            // Let the deterministic inline scanner split every segment.
+            return null;
+          }
           return {
             math: parts.join("\n"),
             nextIndex: index + 1
@@ -6532,6 +6508,116 @@
         index += 1;
       }
       return null;
+    }
+
+    function isEscapedMarkdownDelimiter(text, index) {
+      let slashCount = 0;
+      for (let cursor = index - 1; cursor >= 0 && text[cursor] === "\\"; cursor -= 1) {
+        slashCount += 1;
+      }
+      return slashCount % 2 === 1;
+    }
+
+    function closingMarkdownDelimiterIndex(text, startIndex, delimiter, sameLine) {
+      let cursor = startIndex;
+      while (cursor < text.length) {
+        const found = text.indexOf(delimiter, cursor);
+        if (found < 0 || (sameLine && text.slice(startIndex, found).includes("\n"))) {
+          return -1;
+        }
+        if (!isEscapedMarkdownDelimiter(text, found)) {
+          return found;
+        }
+        cursor = found + delimiter.length;
+      }
+      return -1;
+    }
+
+    function protectMarkdownSegmentsForStructure(text) {
+      const source = String(text || "");
+      const segments = [];
+      let protectedText = "";
+      let index = 0;
+
+      const appendProtected = (value, kind) => {
+        const token = `\uE000BAREBONE_${segments.length.toString(36).toUpperCase()}\uE001`;
+        segments.push({ token, source: value, kind });
+        protectedText += token;
+      };
+
+      while (index < source.length) {
+        // Inline code wins over every math delimiter. Code fences have already
+        // been separated by renderMarkdownMessageText before this function runs.
+        if (source[index] === "`") {
+          const close = source.indexOf("`", index + 1);
+          if (close > index + 1) {
+            appendProtected(source.slice(index, close + 1), "code");
+            index = close + 1;
+            continue;
+          }
+        }
+
+        let open = "";
+        let close = "";
+        let sameLine = false;
+        if (source.startsWith("\\[", index)) {
+          open = "\\[";
+          close = "\\]";
+        } else if (source.startsWith("\\(", index)) {
+          open = "\\(";
+          close = "\\)";
+          sameLine = true;
+        } else if (source.startsWith("$$", index)
+          && !isEscapedMarkdownDelimiter(source, index)) {
+          open = "$$";
+          close = "$$";
+        } else if (source[index] === "$"
+          && source[index + 1] !== "$"
+          && !isEscapedMarkdownDelimiter(source, index)) {
+          open = "$";
+          close = "$";
+          sameLine = true;
+        }
+
+        if (open) {
+          const closeIndex = closingMarkdownDelimiterIndex(
+            source,
+            index + open.length,
+            close,
+            sameLine
+          );
+          if (closeIndex >= 0) {
+            const end = closeIndex + close.length;
+            const candidate = source.slice(index, end);
+            if (open !== "$" || isInlineDollarMath(candidate)) {
+              appendProtected(candidate, "math");
+              index = end;
+              continue;
+            }
+          } else if (open === "\\[" || open === "\\(" || open === "$$" || open === "$") {
+            // An unclosed delimiter remains literal source. Protect its current
+            // line so list/table normalization cannot silently rewrite it.
+            const lineEnd = source.indexOf("\n", index);
+            const end = lineEnd < 0 ? source.length : lineEnd;
+            appendProtected(source.slice(index, end), "literal");
+            index = end;
+            continue;
+          }
+        }
+
+        protectedText += source[index];
+        index += 1;
+      }
+
+      return { text: protectedText, segments };
+    }
+
+    function restoreMarkdownSegmentsAfterStructure(text, segments) {
+      let restored = String(text || "");
+      (Array.isArray(segments) ? segments : []).forEach((segment) => {
+        restored = restored.split(segment.token).join(segment.source);
+      });
+      return restored;
     }
 
     function orderedListMatch(line) {
@@ -6574,6 +6660,18 @@
         .join("\n");
     }
 
+    function normalizeMarkdownStructureText(text) {
+      const protectedSource = protectMarkdownSegmentsForStructure(
+        normalizeMathTextForMarkdown(text)
+      );
+      const normalized = normalizeLooseMarkdownTables(
+        normalizeInlineUnorderedListBreaks(
+          normalizeInlineOrderedListBreaks(protectedSource.text)
+        )
+      );
+      return restoreMarkdownSegmentsAfterStructure(normalized, protectedSource.segments);
+    }
+
     function createMarkdownOrderedList(items, startNumber) {
       const list = document.createElement("ol");
       list.className = "message-list message-ordered-list";
@@ -6600,13 +6698,7 @@
     }
 
     function renderMarkdownTextSegment(root, text) {
-      const normalizedText = normalizeLooseMarkdownTables(
-        normalizeInlineUnorderedListBreaks(
-          normalizeInlineOrderedListBreaks(
-            normalizeMathTextForMarkdown(text)
-          )
-        )
-      );
+      const normalizedText = normalizeMarkdownStructureText(text);
       const lines = normalizedText.replace(/\r\n/g, "\n").split("\n");
       let index = 0;
       let paragraph = [];
@@ -6733,25 +6825,37 @@
       flushParagraph();
     }
 
-    function renderMarkdownMessageText(text) {
-      const root = document.createElement("div");
-      root.className = "message-markdown";
+    function splitMarkdownCodeFenceSegments(text) {
       const source = String(text || "");
+      const segments = [];
       const fencePattern = /```([\s\S]*?)```/g;
       let index = 0;
       let match = fencePattern.exec(source);
       while (match) {
         if (match.index > index) {
-          renderMarkdownTextSegment(root, source.slice(index, match.index));
+          segments.push({ kind: "markdown", source: source.slice(index, match.index) });
         }
-        const fence = extractMarkdownCodeFence(match[1]);
-        root.appendChild(createMarkdownCodeBlock(fence.code, fence.language));
+        segments.push({ kind: "codeFence", source: match[1] });
         index = match.index + match[0].length;
         match = fencePattern.exec(source);
       }
       if (index < source.length) {
-        renderMarkdownTextSegment(root, source.slice(index));
+        segments.push({ kind: "markdown", source: source.slice(index) });
       }
+      return segments;
+    }
+
+    function renderMarkdownMessageText(text) {
+      const root = document.createElement("div");
+      root.className = "message-markdown";
+      splitMarkdownCodeFenceSegments(text).forEach((segment) => {
+        if (segment.kind === "codeFence") {
+          const fence = extractMarkdownCodeFence(segment.source);
+          root.appendChild(createMarkdownCodeBlock(fence.code, fence.language));
+          return;
+        }
+        renderMarkdownTextSegment(root, segment.source);
+      });
       if (!root.childNodes.length) {
         root.textContent = text;
       }
@@ -6760,273 +6864,8 @@
 
     function messageNeedsMath(text) {
       const value = String(text || "");
-      return /\\\(|\\\[|\$\$/.test(value)
-        || /(^|[^\\])\$[^$\n]{1,240}\$/.test(value);
-    }
-
-    function markdownTextSegmentsWithoutCodeFences(text) {
-      const source = String(text || "");
-      const segments = [];
-      const fencePattern = /```[\s\S]*?```/g;
-      let index = 0;
-      let match = fencePattern.exec(source);
-      while (match) {
-        if (match.index > index) {
-          segments.push({ text: source.slice(index, match.index), offset: index });
-        }
-        index = match.index + match[0].length;
-        match = fencePattern.exec(source);
-      }
-      if (index < source.length) {
-        segments.push({ text: source.slice(index), offset: index });
-      }
-      return segments;
-    }
-
-    function markdownLineColumn(text, offset) {
-      const prefix = String(text || "").slice(0, Math.max(0, offset));
-      const lines = prefix.split("\n");
-      return {
-        line: lines.length,
-        column: lines[lines.length - 1].length + 1
-      };
-    }
-
-    function countRegexMatches(text, pattern) {
-      const matches = String(text || "").match(pattern);
-      return matches ? matches.length : 0;
-    }
-
-    function katexStrictError(tex, displayMode) {
-      if (!window.katex || typeof window.katex.renderToString !== "function") {
-        return "";
-      }
-      try {
-        window.katex.renderToString(tex, {
-          displayMode,
-          throwOnError: true,
-          output: "html",
-          strict: "error",
-          trust: false
-        });
-        return "";
-      } catch (error) {
-        return String(error && error.message ? error.message : error || "KaTeX parse error");
-      }
-    }
-
-    function pushKatexDiagnostic(diagnostics, fullText, diagnostic) {
-      if (diagnostics.length >= 16) {
-        return;
-      }
-      const offset = Number(diagnostic.offset || 0) || 0;
-      diagnostics.push({
-        kind: diagnostic.kind || "katex",
-        message: String(diagnostic.message || "").slice(0, 500),
-        source: String(diagnostic.source || "").slice(0, 1200),
-        offset,
-        ...markdownLineColumn(fullText, offset)
-      });
-    }
-
-    function collectMathSegmentsForDiagnostics(text) {
-      const source = String(text || "");
-      const segments = [];
-      const mathPattern = /(\\\[[\s\S]+?\\\])|(\\\([\s\S]+?\\\))|(\$\$[\s\S]+?\$\$)|(^|[^\\])(\$[^$\n]{1,240}\$)/g;
-      markdownTextSegmentsWithoutCodeFences(source).forEach((segment) => {
-        let match = mathPattern.exec(segment.text);
-        while (match) {
-          const prefix = match[4] || "";
-          const raw = match[1] || match[2] || match[3] || match[5] || "";
-          if (raw) {
-            segments.push({
-              raw,
-              offset: segment.offset + match.index + prefix.length,
-              display: !!(match[1] || match[3])
-            });
-          }
-          match = mathPattern.exec(segment.text);
-        }
-      });
-      return segments;
-    }
-
-    function diagnoseMarkdownKatex(text) {
-      const source = String(text || "");
-      const diagnostics = [];
-      if (!source.trim()) {
-        return diagnostics;
-      }
-
-      markdownTextSegmentsWithoutCodeFences(source).forEach((segment) => {
-        const inlineOpen = countRegexMatches(segment.text, /\\\(/g);
-        const inlineClose = countRegexMatches(segment.text, /\\\)/g);
-        const displayOpen = countRegexMatches(segment.text, /\\\[/g);
-        const displayClose = countRegexMatches(segment.text, /\\\]/g);
-        if (inlineOpen !== inlineClose || displayOpen !== displayClose) {
-          pushKatexDiagnostic(diagnostics, source, {
-            kind: "delimiter-mismatch",
-            message: "Unvollstaendige oder nicht geschlossene Math-Delimiter.",
-            source: segment.text,
-            offset: segment.offset
-          });
-        }
-        const dollarCount = countRegexMatches(segment.text, /(^|[^\\])\$/g);
-        if (dollarCount % 2 === 1) {
-          pushKatexDiagnostic(diagnostics, source, {
-            kind: "delimiter-mismatch",
-            message: "Ungerade Anzahl von Dollar-Math-Delimitern.",
-            source: segment.text,
-            offset: segment.offset
-          });
-        }
-      });
-
-      collectMathSegmentsForDiagnostics(source).forEach((segment) => {
-        const parts = normalizedMathParts(segment.raw);
-        const error = katexStrictError(parts.tex, parts.display);
-        if (error) {
-          pushKatexDiagnostic(diagnostics, source, {
-            kind: "katex-parse-error",
-            message: error,
-            source: segment.raw,
-            offset: segment.offset
-          });
-        }
-      });
-
-      const mathPattern = /(\\\[[\s\S]+?\\\])|(\\\([\s\S]+?\\\))|(\$\$[\s\S]+?\$\$)|(^|[^\\])(\$[^$\n]{1,240}\$)/g;
-      markdownTextSegmentsWithoutCodeFences(source).forEach((segment) => {
-        const outsideMath = segment.text.replace(mathPattern, (match, displayBrackets, inlineBrackets, displayDollars, prefix) => prefix || " ");
-        const rawMathLike = outsideMath.match(/\\(?:frac|sqrt|sum|prod|int|lim|log|ln|sin|cos|tan|left|right|begin|end|mathrm|text|Delta|alpha|beta|gamma|rho|nu|varepsilon|theta|Phi|phi|dot|vec|overline|underline|cdot|times|le|ge|approx)\b|[A-Za-z0-9)\]}]\s*[_^]\s*[A-Za-z0-9{\\]|[A-Za-z]\s*=\s*[-+]?[\d\\A-Za-z]|[⁰¹²³⁴⁵⁶⁷⁸⁹⁻]|[∘×≤≥≈−]/);
-        if (rawMathLike) {
-          pushKatexDiagnostic(diagnostics, source, {
-            kind: "math-like-text-outside-delimiters",
-            message: "Mathematisches Fragment steht ausserhalb von Math-Delimitern.",
-            source: outsideMath.slice(Math.max(0, rawMathLike.index - 80), rawMathLike.index + 240),
-            offset: segment.offset + rawMathLike.index
-          });
-        }
-      });
-
-      return diagnostics;
-    }
-
-    function markMathRepairFailed(messageId) {
-      const id = String(messageId || "").trim();
-      if (!id) {
-        return;
-      }
-      sessions.forEach((session) => {
-        const message = Array.isArray(session.messages)
-          ? session.messages.find((item) => String(item.messageId || "").trim() === id)
-          : null;
-        if (message) {
-          message.mathRepairFailed = true;
-          message.mathRepairChecked = true;
-        }
-      });
-      persistSessions();
-      mathRepairStates.delete(id);
-    }
-
-    function updateMessageAfterMathRepair(messageId, markdown) {
-      const id = String(messageId || "").trim();
-      const repaired = String(markdown || "").trim();
-      if (!id || !repaired) {
-        return false;
-      }
-      let activeChanged = false;
-      let changed = false;
-      sessions.forEach((session) => {
-        const message = Array.isArray(session.messages)
-          ? session.messages.find((item) => String(item.messageId || "").trim() === id)
-          : null;
-        if (!message) {
-          return;
-        }
-        message.message = repaired;
-        message.mathRepairChecked = true;
-        delete message.mathRepairFailed;
-        changed = true;
-        activeChanged = activeChanged || session.id === activeSessionId;
-      });
-      if (!changed) {
-        return false;
-      }
-      persistSessions();
-      renderSessionList();
-      if (activeChanged) {
-        renderActiveSession();
-      }
-      return true;
-    }
-
-    function requestMathFormattingRepair(messageId, markdown, diagnostics) {
-      const id = String(messageId || "").trim();
-      const source = String(markdown || "").trim();
-      if (!id || !source || !bridge || typeof bridge.requestMathFormattingRepair !== "function") {
-        return false;
-      }
-      const state = mathRepairStates.get(id) || { revision: 0, attempts: 0, original: source };
-      if (state.attempts >= maxMathRepairAttempts) {
-        markMathRepairFailed(id);
-        return false;
-      }
-      state.revision += 1;
-      state.attempts += 1;
-      state.current = source;
-      mathRepairStates.set(id, state);
-      try {
-        bridge.requestMathFormattingRepair(id, state.revision, source, JSON.stringify(diagnostics || []));
-        return true;
-      } catch (error) {
-        reportClientRuntimeError(error, "KaTeX repair request");
-        markMathRepairFailed(id);
-        return false;
-      }
-    }
-
-    function maybeRequestMathFormattingRepair(message) {
-      if (!message || message.speaker !== "AI" || message.kind === "thinking" || message.mathRepairChecked || message.mathRepairFailed) {
-        return false;
-      }
-      if (!bridge || typeof bridge.requestMathFormattingRepair !== "function") {
-        return false;
-      }
-      const diagnostics = diagnoseMarkdownKatex(message.message);
-      if (!diagnostics.length) {
-        message.mathRepairChecked = true;
-        return false;
-      }
-      return requestMathFormattingRepair(message.messageId, message.message, diagnostics);
-    }
-
-    function handleMathFormattingRepairCompleted(messageId, revision, markdown) {
-      const id = String(messageId || "").trim();
-      const state = mathRepairStates.get(id);
-      if (!state || state.revision !== revision) {
-        return;
-      }
-      const repaired = String(markdown || "").trim();
-      const diagnostics = diagnoseMarkdownKatex(repaired);
-      if (diagnostics.length) {
-        if (state.attempts < maxMathRepairAttempts) {
-          requestMathFormattingRepair(id, repaired, diagnostics);
-        } else {
-          markMathRepairFailed(id);
-        }
-        return;
-      }
-      updateMessageAfterMathRepair(id, repaired);
-      mathRepairStates.delete(id);
-      if (bridge && typeof bridge.acceptMathFormattingRepair === "function") {
-        bridge.acceptMathFormattingRepair(id, revision, repaired);
-      }
-    }
-
-    function handleMathFormattingRepairFailed(messageId) {
-      markMathRepairFailed(messageId);
+      return /\\\(|\\\[|(^|[^\\$])\$\$/.test(value)
+        || /(^|[^\\$])\$[^$\n]+\$/.test(value);
     }
 
     function scrollMessagesToBottomAfterLayout() {
@@ -7740,7 +7579,6 @@
           }
         }
         updateSessionTitle(session, normalized);
-        maybeRequestMathFormattingRepair(normalized);
         persistSessions();
         renderSessionList();
       }
@@ -8492,41 +8330,9 @@
         return true;
       }
 
-      match = text.match(/^Qt -> AI KaTeX Repair: message=([^\s]+)\s+revision=(\d+)\s+attempt=(\d+)/);
-      if (match) {
-        updateAiThinkingDetail(`Ich lasse KaTeX-Formatierung automatisch reparieren (Versuch ${match[3]}).`, "katex-repair");
-        return true;
-      }
-
-      match = text.match(/^AI KaTeX Repair: Kandidat fuer message=([^\s]+)\s+revision=(\d+)\s+chars=(\d+)/);
-      if (match) {
-        updateAiThinkingDetail(`KaTeX-Reparaturvorschlag empfangen (${match[3]} Zeichen).`, "katex-repair");
-        return true;
-      }
-
-      match = text.match(/^KaTeX Repair: message=([^\s]+)\s+uebernommen conversationUpdated=(true|false)/);
-      if (match) {
-        updateAiThinkingDetail(match[2] === "true"
-          ? "KaTeX-Reparatur wurde in die Sitzung übernommen."
-          : "KaTeX-Reparatur wurde angezeigt; Sitzungsverlauf blieb unverändert.",
-        "katex-repair");
-        return true;
-      }
-
       match = text.match(/^Qt -> AI Tool Selector: tools=(\d+)/);
       if (match) {
         updateAiThinkingDetail(`Ich lasse die AI aus ${match[1]} verfügbaren Werkzeugen die passenden auswählen.`, "tool-selector");
-        return true;
-      }
-
-      if (text.includes("AI Agent: fokussiere Sitzungsverlauf fuer aktuellen Prompt")) {
-        updateAiThinkingDetail("Ich fokussiere den Sitzungsverlauf auf den aktuellen Prompt.", "conversation-focus");
-        return true;
-      }
-
-      match = text.match(/^AI Kontext-Fokus: topic=(.*?)\s+confidence=([0-9.]+)\s+relevant=(\d+)/);
-      if (match) {
-        updateAiThinkingDetail(`Ich nutze eine fokussierte Verlaufsauswahl (${match[3]} relevante Nachrichten).`, "conversation-focus");
         return true;
       }
 
@@ -9268,12 +9074,6 @@
             bridge.workflowRunFinished.connect((result) => {
               addThinkingDetail(`Workflowtest ${result.status || "beendet"}: ${result.completed || 0}/${result.total || 0} Schritte.`);
             });
-          }
-          if (bridge.mathFormattingRepairCompleted) {
-            bridge.mathFormattingRepairCompleted.connect(handleMathFormattingRepairCompleted);
-          }
-          if (bridge.mathFormattingRepairFailed) {
-            bridge.mathFormattingRepairFailed.connect(handleMathFormattingRepairFailed);
           }
           if (bridge.sessionTitleSuggested) {
             bridge.sessionTitleSuggested.connect(applySessionTitleSuggestion);
