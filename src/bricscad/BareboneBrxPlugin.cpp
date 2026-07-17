@@ -431,16 +431,21 @@ const BridgeMethodDescriptor kBridgeMethods[] = {
         "profile.extrude",
         "action",
         "modifiesDrawing",
-        "Extrudiert beliebige geschlossene 2D-Profile ueber Selector oder Handles.",
+        "Allgemeine Extrusion fuer alle von BRX unterstuetzten Kurvenprofile. Nutze sie fuer Kreise, Ellipsen, geschlossene Splines und geschlossene Polylinien; rectangles.extrude bleibt ein spezialisierter Rechteckpfad.",
         R"JSON({
 "type":"object",
 "required":["heightMm"],
+"compatibleGeometry":{
+  "solidProfiles":["circle","ellipse","closedPolyline","closedSpline","rectangle"],
+  "selectedCurveProfiles":["AcDbCurve"],
+  "notes":["Geschlossene planare Profile erzeugen Solids.","Offene oder nicht planare Kurven koennen von BricsCAD abgelehnt werden."]
+},
 "properties":{
   "selector":{"type":"object","properties":{
     "scope":{"type":"string","enum":["currentSpace","selection","handles","lastResult"]},
     "layer":{"type":"string"},
     "handles":{"type":"array","items":{"type":"string"}},
-    "kind":{"type":"string","enum":["polyline","entity","profile"]},
+    "kind":{"type":"string","enum":["circle","ellipse","spline","polyline","rectangle","entity","profile"]},
     "shape":{"type":"string"}
   }},
   "heightMm":{"type":"number","minimum":0.1},
@@ -454,6 +459,7 @@ const BridgeMethodDescriptor kBridgeMethods[] = {
 })JSON",
         R"JSON({
 "method":"profile.extrude",
+"compatibility":{"accepts":"BRX-supported planar curve profiles","solidResult":"closed planar profile","preferredFor":["circle","ellipse","closed spline","closed polyline","non-rectangle profile"]},
 "required":["heightMm"],
 "oneOfRequired":[["selector"],["layer"]],
 "bodySchema":{"type":"object","properties":{
@@ -465,7 +471,7 @@ const BridgeMethodDescriptor kBridgeMethods[] = {
   "detail":"summary|element|geometry",
   "saveBefore":"boolean default true"
 }},
-"examples":[{"heightMm":3000,"selector":{"scope":"selection","kind":"profile"},"saveBefore":true},{"heightMm":1000,"layer":"0","detail":"element"}]
+"examples":[{"heightMm":1000,"selector":{"scope":"lastResult"},"saveBefore":true},{"heightMm":3000,"selector":{"scope":"selection","kind":"profile"},"saveBefore":true},{"heightMm":1000,"layer":"0","detail":"element"}]
 })JSON",
     },
     {
@@ -680,7 +686,7 @@ R"JSON({
 "method":"layers.create",
 "required":["name"],
 "bodySchema":{"type":"object","properties":{"name":"layer name","colorIndex":"ACI color index 1..255 optional","saveBefore":"boolean default true"}},
-"examples":[{"name":"AI-Walls","colorIndex":1}]
+"examples":[{"name":"AI Walls","colorIndex":1}]
 })JSON",
     },
     {
@@ -702,7 +708,7 @@ R"JSON({
 "method":"layers.rename",
 "required":["oldName","newName"],
 "bodySchema":{"type":"object","properties":{"oldName":"existing layer name","newName":"new layer name","saveBefore":"boolean default true"}},
-"examples":[{"oldName":"Layer1","newName":"AI-Walls"}]
+"examples":[{"oldName":"Layer1","newName":"AI Walls"}]
 })JSON",
     },
     {
@@ -724,7 +730,7 @@ R"JSON({
 "method":"layers.setColor",
 "required":["name","colorIndex"],
 "bodySchema":{"type":"object","properties":{"name":"layer name","colorIndex":"ACI color index 1..255","saveBefore":"boolean default true"}},
-"examples":[{"name":"AI-Walls","colorIndex":3}]
+"examples":[{"name":"AI Walls","colorIndex":3}]
 })JSON",
     },
     {
@@ -766,7 +772,7 @@ R"JSON({
 "method":"command.execute",
 "required":["commandLine"],
 "bodySchema":{"type":"object","properties":{"commandLine":"single native BricsCAD command line from commands.list; no scripts or multi-command lines","saveBefore":"boolean default true"}},
-"examples":[{"commandLine":"_.-LAYER _New AI-Walls","saveBefore":true}]
+"examples":[{"commandLine":"_.-LAYER _New AI Walls","saveBefore":true}]
 })JSON",
     },
     {
@@ -4097,12 +4103,6 @@ std::string normalizedBrxLayerName(const std::string& value)
     return trim(collapsed);
 }
 
-bool hasBrxSubjectTopicLayerStructure(const std::string& layerName)
-{
-    const std::string normalized = normalizedBrxLayerName(layerName);
-    return normalized.find(' ') != std::string::npos;
-}
-
 AcDbObjectId defaultLayerLinetypeId(AcDbDatabase* database, AcDbLayerTable* layerTable)
 {
     AcDbObjectId linetypeId;
@@ -4974,11 +4974,11 @@ bool validateActionObject(
             addUniqueMessage(result.missing, "layers.create.params.name");
         } else {
             if (name != requestedName) {
-                addUniqueMessage(result.errors, "layers.create.params.name darf nur Buchstaben, Ziffern und Leerzeichen enthalten; verwende die Struktur 'Fachgebiet Thema' statt '" + requestedName + "'");
+                addUniqueMessage(result.errors, "layers.create.params.name enthaelt Zeichen, die von dieser BRX-Aktion nicht unterstuetzt werden: '" + requestedName + "'");
             }
-            if (!hasBrxSubjectTopicLayerStructure(name)) {
-                addUniqueMessage(result.errors, "layers.create.params.name muss die Struktur 'Fachgebiet Thema' aus mindestens zwei Woertern besitzen");
-            }
+            // Layer naming conventions belong to the Qt agent policy. BRX accepts
+            // valid one-word names as well so an explicitly requested name is not
+            // rejected after Qt has already validated it.
             if (validationLayerKey(name) == "0") {
                 addUniqueMessage(result.errors, "Layer 0 darf nicht neu angelegt werden");
             }

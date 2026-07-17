@@ -431,9 +431,37 @@ QString normalizedBricsCadLayerName(QString name)
     return normalized;
 }
 
-bool hasBricsCadSubjectTopicLayerStructure(const QString& name)
+bool isValidBricsCadLayerName(const QString& name)
 {
-    return normalizedBricsCadLayerName(name).split(QLatin1Char(' '), Qt::SkipEmptyParts).size() >= 2;
+    const QString trimmed = name.trimmed();
+    return !trimmed.isEmpty()
+        && normalizedBricsCadLayerName(trimmed) == trimmed
+        && trimmed.compare(QStringLiteral("0"), Qt::CaseInsensitive) != 0;
+}
+
+bool promptExplicitlyNamesLayer(const QString& prompt, const QString& layerName)
+{
+    const QString expected = layerName.trimmed();
+    if (expected.isEmpty()) {
+        return false;
+    }
+
+    const QRegularExpression quotedLayer(
+        QStringLiteral(R"((?:layer|ebene)\s*(?:name)?\s*(?:[:=]\s*)?[\"']([^\"'\r\n]+)[\"'])"),
+        QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatchIterator matches = quotedLayer.globalMatch(prompt);
+    while (matches.hasNext()) {
+        if (matches.next().captured(1).trimmed().compare(expected, Qt::CaseInsensitive) == 0) {
+            return true;
+        }
+    }
+
+    const QRegularExpression assignedLayer(
+        QStringLiteral(R"((?:layer|ebene)\s*(?:name)?\s*[:=]\s*([^,;.\r\n]{1,64}))"),
+        QRegularExpression::CaseInsensitiveOption);
+    const QRegularExpressionMatch assignedMatch = assignedLayer.match(prompt);
+    return assignedMatch.hasMatch()
+        && assignedMatch.captured(1).trimmed().compare(expected, Qt::CaseInsensitive) == 0;
 }
 
 QJsonObject sanitizedDocumentContext(QJsonObject context)
@@ -3339,12 +3367,13 @@ bool workflowTrainingToolRelevantForPrompt(const QString& toolName, const QStrin
             || toolName == QStringLiteral("geometry.copy")
             || toolName == QStringLiteral("geometry.rotate")
             || toolName == QStringLiteral("geometry.scale")
-             || toolName == QStringLiteral("rectangles.extrude")
-             || toolName == QStringLiteral("bim.classify")
-             || toolName == QStringLiteral("bim.objects.query")
-             || toolName == QStringLiteral("bim.selection.set")
-             || toolName == QStringLiteral("selection.set")
-             || toolName == QStringLiteral("layers.ensureMany");
+            || toolName == QStringLiteral("rectangles.extrude")
+            || toolName == QStringLiteral("profile.extrude")
+            || toolName == QStringLiteral("bim.classify")
+            || toolName == QStringLiteral("bim.objects.query")
+            || toolName == QStringLiteral("bim.selection.set")
+            || toolName == QStringLiteral("selection.set")
+            || toolName == QStringLiteral("layers.ensureMany");
     }
     if (mentionsGeometryQuery) {
         return toolName == QStringLiteral("geometry.query")
@@ -3359,6 +3388,7 @@ bool workflowTrainingToolRelevantForPrompt(const QString& toolName, const QStrin
     return toolName == QStringLiteral("geometry.create")
         || toolName == QStringLiteral("geometry.query")
         || toolName == QStringLiteral("rectangles.extrude")
+        || toolName == QStringLiteral("profile.extrude")
         || toolName == QStringLiteral("bim.classify")
         || toolName == QStringLiteral("bim.objects.query")
         || toolName == QStringLiteral("bim.selection.set")
@@ -3440,8 +3470,11 @@ bool textProvidesMissingField(const QString& prompt, const QString& missingField
             || normalized.contains("selected")
             || normalized.contains("handle");
     }
-    if (field == "layer") {
-        return normalized.contains("layer");
+    if (field == "layer" || field == "layername" || field == "layer_name") {
+        const QRegularExpression explicitLayer(
+            QStringLiteral(R"((?:layer|ebene)\s*(?:name)?\s*(?:(?:[:=]\s*)?[\"'][^\"'\r\n]+[\"']|[:=]\s*[^,;.\r\n]+))"),
+            QRegularExpression::CaseInsensitiveOption);
+        return explicitLayer.match(prompt).hasMatch();
     }
 
     return false;
@@ -8321,7 +8354,7 @@ void BricsCadPage::selectToolsForUnifiedAgentRequest(
         {"content",
             "Du bist der Barebone-Qt Tool- und Learning-Selector. "
             "Du beantwortest nicht die Nutzerfrage und erzeugst keine CAD-Aktion. "
-            "Waehle zuerst passende vorhandene Learning-Lessons aus plainLearningLessons und danach relevante Toolnamen aus plainTools. "
+            "Waehle zuerst passende vorhandene Learning-Lessons aus plainLearningLessons und danach relevante Toolnamen aus plainTools. Die Auswahl priorisiert Tools, sperrt aber keine andere freigegebene BRX-Capability. "
             "Nutze Lessons nur, wenn Titel, Trigger, Kurzfassung, Repair-Regeln oder Werkzeugschritte zur Nutzerabsicht passen. "
             "Uebernimm aus Lessons keine festen Filter wie layer=0, Handles, Namen oder Winkel, wenn der Nutzer sie im aktuellen Prompt nicht nennt. "
             "Bei Tabellen, Objektdaten und Abmessungen waehle read-only Tools; fuer alle Objekte nutze currentSpace ohne Layerfilter. "
@@ -13358,6 +13391,67 @@ QJsonObject BricsCadPage::normalizedAgentProposal(const QJsonObject& proposal) c
                 normalizedActions.replace(i, action);
             }
         }
+
+        const QString normalizedPrompt = workflowTrainingSearchText(m_lastAgentUserPrompt);
+        const bool explicitSelectionRequested = textMentionsAny(normalizedPrompt, {
+            QStringLiteral("selekt"), QStringLiteral("auswaehl"), QStringLiteral("auswahl"),
+            QStringLiteral("select"), QStringLiteral("markier")});
+        QJsonArray materializedActions;
+        for (int i = 0; i < normalizedActions.size(); ++i) {
+            QJsonObject action = normalizedActions.at(i).toObject();
+            const QString tool = action.value(QStringLiteral("tool")).toString();
+            const bool extrusion = tool == QStringLiteral("rectangles.extrude")
+                || tool == QStringLiteral("profile.extrude");
+
+            if (extrusion && explicitSelectionRequested && !materializedActions.isEmpty()) {
+                const QString previousTool = materializedActions.last().toObject()
+                    .value(QStringLiteral("tool")).toString();
+                if (previousTool == QStringLiteral("geometry.create")) {
+                    materializedActions.append(QJsonObject{
+                        {QStringLiteral("tool"), QStringLiteral("selection.set")},
+                        {QStringLiteral("params"), QJsonObject{
+                            {QStringLiteral("selector"), QJsonObject{
+                                {QStringLiteral("scope"), QStringLiteral("lastResult")}}},
+                            {QStringLiteral("saveBefore"), false}}},
+                        {QStringLiteral("reason"), QStringLiteral("Neu erzeugte Geometrie wie vom Nutzer verlangt selektieren")},
+                    });
+                    QJsonObject params = action.value(QStringLiteral("params")).toObject();
+                    params.insert(QStringLiteral("selector"), QJsonObject{
+                        {QStringLiteral("scope"), QStringLiteral("selection")}});
+                    action.insert(QStringLiteral("params"), params);
+                }
+            }
+
+            materializedActions.append(action);
+            if (!extrusion) {
+                continue;
+            }
+
+            const QString targetLayer = action.value(QStringLiteral("params")).toObject()
+                .value(QStringLiteral("layer")).toString().trimmed();
+            const QJsonObject nextAction = i + 1 < normalizedActions.size()
+                ? normalizedActions.at(i + 1).toObject() : QJsonObject{};
+            const QJsonObject nextParams = nextAction.value(QStringLiteral("params")).toObject();
+            const bool matchingLayerFollowUp = nextAction.value(QStringLiteral("tool")).toString()
+                    == QStringLiteral("entity.setLayer")
+                && nextParams.value(QStringLiteral("layer")).toString().trimmed()
+                    .compare(targetLayer, Qt::CaseInsensitive) == 0
+                && nextParams.value(QStringLiteral("selector")).toObject()
+                    .value(QStringLiteral("scope")).toString()
+                    .compare(QStringLiteral("lastResult"), Qt::CaseInsensitive) == 0;
+            if (!targetLayer.isEmpty() && !matchingLayerFollowUp) {
+                materializedActions.append(QJsonObject{
+                    {QStringLiteral("tool"), QStringLiteral("entity.setLayer")},
+                    {QStringLiteral("params"), QJsonObject{
+                        {QStringLiteral("selector"), QJsonObject{
+                            {QStringLiteral("scope"), QStringLiteral("lastResult")}}},
+                        {QStringLiteral("layer"), targetLayer},
+                        {QStringLiteral("saveBefore"), false}}},
+                    {QStringLiteral("reason"), QStringLiteral("Extrusion deterministisch dem Ziellayer zuweisen")},
+                });
+            }
+        }
+        normalizedActions = materializedActions;
         normalized.insert("actions", normalizedActions);
         normalized.insert("requiresConfirmation", true);
         normalized.insert("continueAfterSuccess", false);
@@ -13416,10 +13510,14 @@ QJsonObject BricsCadPage::normalizedAgentAction(const QJsonObject& action) const
     }
 
     if (tool == QStringLiteral("layers.create")) {
-        const QString originalName = params.value(QStringLiteral("name")).toString();
-        const QString normalizedName = normalizedBricsCadLayerName(originalName);
-        if (!normalizedName.isEmpty()) {
-            params.insert(QStringLiteral("name"), normalizedName);
+        const QString originalName = params.value(QStringLiteral("name")).toString().trimmed();
+        if (!promptExplicitlyNamesLayer(m_lastAgentUserPrompt, originalName)) {
+            const QString normalizedName = normalizedBricsCadLayerName(originalName);
+            if (!normalizedName.isEmpty()) {
+                params.insert(QStringLiteral("name"), normalizedName);
+            }
+        } else {
+            params.insert(QStringLiteral("name"), originalName);
         }
     } else if (tool == QStringLiteral("layers.ensureMany")) {
         const QJsonArray layers = params.value(QStringLiteral("layers")).toArray();
@@ -13427,9 +13525,14 @@ QJsonObject BricsCadPage::normalizedAgentAction(const QJsonObject& action) const
             QJsonArray normalizedLayers;
             for (const QJsonValue& value : layers) {
                 QJsonObject layer = value.toObject();
-                const QString normalizedName = normalizedBricsCadLayerName(layer.value(QStringLiteral("name")).toString());
-                if (!normalizedName.isEmpty()) {
-                    layer.insert(QStringLiteral("name"), normalizedName);
+                const QString originalName = layer.value(QStringLiteral("name")).toString().trimmed();
+                if (!promptExplicitlyNamesLayer(m_lastAgentUserPrompt, originalName)) {
+                    const QString normalizedName = normalizedBricsCadLayerName(originalName);
+                    if (!normalizedName.isEmpty()) {
+                        layer.insert(QStringLiteral("name"), normalizedName);
+                    }
+                } else {
+                    layer.insert(QStringLiteral("name"), originalName);
                 }
                 normalizedLayers.append(layer);
             }
@@ -13940,6 +14043,17 @@ void BricsCadPage::preflightAgentProposal(const QString& rejectedContent, const 
         params,
         15000,
         [this, rejectedContent, rejectedObject, proposal](const QJsonObject& response) {
+            const auto releaseReadyProposal = [this](QJsonObject readyProposal, QString context) {
+                QTimer::singleShot(0, this, [this, readyProposal = std::move(readyProposal), context = std::move(context)]() mutable {
+                    appendBridgeLog(QString("AI Agent: Preflight-Freigabe UI start (%1)").arg(context));
+                    m_agentValidationRetries = 0;
+                    setAgentProposal(readyProposal);
+                    appendBridgeLog(QString("AI Agent: Preflight-Freigabe Proposal gesetzt (%1)").arg(context));
+                    setAgentBusy(false);
+                    appendBridgeLog(QString("AI Agent: Preflight-Freigabe idle gesetzt (%1)").arg(context));
+                });
+            };
+
             appendJsonDebugLines(m_bridgeLog, response.value("debug").toArray());
             const QJsonObject result = response.value("result").toObject();
             const bool transportOk = response.value("ok").toBool(false);
@@ -13951,8 +14065,6 @@ void BricsCadPage::preflightAgentProposal(const QString& rejectedContent, const 
                 } else {
                     appendBridgeLog("BRX Preflight: gueltig");
                 }
-                m_agentValidationRetries = 0;
-                setAgentBusy(false);
                 QJsonObject readyProposal = proposalWithBimValidationTargets(
                     proposal, result, agentProposalActions(proposal));
                 if (!warnings.isEmpty()) {
@@ -13962,7 +14074,7 @@ void BricsCadPage::preflightAgentProposal(const QString& rejectedContent, const 
                     }
                     readyProposal.insert("preflightWarnings", warningValues);
                 }
-                setAgentProposal(readyProposal);
+                releaseReadyProposal(readyProposal, QStringLiteral("valid"));
                 return;
             }
 
@@ -13982,9 +14094,7 @@ void BricsCadPage::preflightAgentProposal(const QString& rejectedContent, const 
                 readyProposal.insert(QStringLiteral("preflightRepairGuidance"), repairGuidance);
                 appendBridgeLog(QString("BRX Preflight: Layer-Abhaengigkeit '%1' sicher bis zur Einzelaktionspruefung zurueckgestellt")
                     .arg(repairGuidance.value(QStringLiteral("layerName")).toString()));
-                m_agentValidationRetries = 0;
-                setAgentBusy(false);
-                setAgentProposal(readyProposal);
+                releaseReadyProposal(readyProposal, QStringLiteral("missing-layer"));
                 return;
             }
             if (proposalPreflightFailureCanBeDeferred(proposalActions, message)) {
@@ -13995,9 +14105,7 @@ void BricsCadPage::preflightAgentProposal(const QString& rejectedContent, const 
                 readyProposal.insert(QStringLiteral("preflightWarnings"), warningValues);
                 readyProposal.insert(QStringLiteral("deferredRuntimePreflight"), true);
                 appendBridgeLog("BRX Preflight: runtime-abhaengiger Selector wird bis zur Einzelaktion zurueckgestellt");
-                m_agentValidationRetries = 0;
-                setAgentBusy(false);
-                setAgentProposal(readyProposal);
+                releaseReadyProposal(readyProposal, QStringLiteral("runtime-selector"));
                 return;
             }
             clearAgentProposal();
@@ -14764,6 +14872,15 @@ void BricsCadPage::setAgentProposal(const QJsonObject& proposal)
     const QJsonArray actions = agentProposalActions(proposal);
     const QString summary = proposal.value("summary").toString(
         proposal.value("message").toString()).trimmed();
+    const auto displayToolDefinition = [this](const QString& name) {
+        for (const QJsonValue& value : availableAgentTools()) {
+            const QJsonObject tool = value.toObject();
+            if (tool.value(QStringLiteral("name")).toString() == name) {
+                return tool;
+            }
+        }
+        return QJsonObject{};
+    };
 
     QStringList lines;
     if (actions.size() > 1) {
@@ -14782,7 +14899,7 @@ void BricsCadPage::setAgentProposal(const QJsonObject& proposal)
         const QJsonObject action = actions.isEmpty() ? QJsonObject{} : actions.first().toObject();
         const QString tool = action.value("tool").toString();
         const QJsonObject params = action.value("params").toObject();
-        const QJsonObject definition = toolDefinition(tool);
+        const QJsonObject definition = displayToolDefinition(tool);
         const QString paramsText = QString::fromUtf8(QJsonDocument(params).toJson(QJsonDocument::Compact));
 
         lines << QString("Werkzeug: %1").arg(definition.value("title").toString(tool));
@@ -15273,8 +15390,8 @@ bool BricsCadPage::validateAgentAction(const QJsonObject& action, QString& error
     }
     if (tool == QStringLiteral("layers.create")) {
         const QString name = params.value(QStringLiteral("name")).toString().trimmed();
-        if (!hasBricsCadSubjectTopicLayerStructure(name)) {
-            errorMessage = "layers.create.params.name muss die Struktur 'Fachgebiet Thema' aus mindestens zwei Woertern besitzen; Sonderzeichen wie '-' und '_' sind verboten.";
+        if (!isValidBricsCadLayerName(name)) {
+            errorMessage = "layers.create.params.name muss ein nichtleerer Layername ohne Sonderzeichen sein; erlaubt sind Buchstaben, Ziffern, Leerzeichen und deutsche Umlaute.";
             return false;
         }
     }
@@ -15309,13 +15426,13 @@ bool BricsCadPage::validateLayersEnsureManyParams(const QJsonObject& params, QSt
 
     for (int i = 0; i < layers.size(); ++i) {
         const QJsonObject layer = layers.at(i).toObject();
-        const QString name = normalizedBricsCadLayerName(layer.value("name").toString());
+        const QString name = layer.value("name").toString().trimmed();
         if (name.isEmpty()) {
             errorMessage = QString("layers.ensureMany.layers[%1].name fehlt").arg(i);
             return false;
         }
-        if (!hasBricsCadSubjectTopicLayerStructure(name)) {
-            errorMessage = QString("layers.ensureMany.layers[%1].name muss die Struktur 'Fachgebiet Thema' besitzen; '-' und '_' sind verboten").arg(i);
+        if (!isValidBricsCadLayerName(name)) {
+            errorMessage = QString("layers.ensureMany.layers[%1].name muss ein Layername ohne Sonderzeichen sein; erlaubt sind Buchstaben, Ziffern, Leerzeichen und deutsche Umlaute").arg(i);
             return false;
         }
         if (layer.contains("colorIndex") && !layer.value("colorIndex").isNull()) {
@@ -15658,7 +15775,8 @@ QJsonArray BricsCadPage::compactToolSelectorList() const
             {"name", name},
             {"title", tool.value(QStringLiteral("title")).toString()},
             {"domain", tool.value(QStringLiteral("domain")).toString(tool.value(QStringLiteral("category")).toString())},
-            {"summary", tool.value(QStringLiteral("summary")).toString(tool.value(QStringLiteral("policy")).toString()).left(240)},
+            {"summary", tool.value(QStringLiteral("summary")).toString(
+                tool.value(QStringLiteral("policy")).toString(tool.value(QStringLiteral("description")).toString())).left(320)},
             {"keywords", tool.value(QStringLiteral("keywords")).toArray()},
             {"parameters", parameterNames},
         };
@@ -15674,6 +15792,11 @@ QJsonArray BricsCadPage::compactToolSelectorList() const
         const QJsonArray unsupported = tool.value(QStringLiteral("unsupportedOperations")).toArray();
         if (!unsupported.isEmpty()) {
             compact.insert(QStringLiteral("unsupported"), unsupported);
+        }
+        const QJsonValue compatibleGeometry = tool.value(QStringLiteral("inputSchema")).toObject()
+            .value(QStringLiteral("compatibleGeometry"));
+        if (!compatibleGeometry.isUndefined()) {
+            compact.insert(QStringLiteral("compatibleGeometry"), compatibleGeometry);
         }
         tools.append(compact);
     }
@@ -15729,10 +15852,8 @@ QJsonArray BricsCadPage::availableAgentToolsForRoute(const QJsonObject& route, c
                 }
             }
         }
-        const QJsonArray selected = agentToolsByNames(selectedToolNames);
-        if (!selected.isEmpty()) {
-            return selected;
-        }
+        // selectedTools is a relevance hint only. The final agent receives every
+        // BRX capability that is available and not explicitly disabled.
     }
 
     if (isChatWorkspace()) {
@@ -15764,13 +15885,6 @@ QJsonArray BricsCadPage::availableAgentToolsForRoute(const QJsonObject& route, c
             if (!tool.isEmpty() && !selectedWorkflowTools.contains(tool)) {
                 selectedWorkflowTools << tool;
             }
-        }
-    }
-    QStringList pendingProposalTools;
-    for (const QJsonValue& value : agentProposalActions(m_pendingAgentProposal)) {
-        const QString tool = value.toObject().value("tool").toString().trimmed();
-        if (!tool.isEmpty() && !pendingProposalTools.contains(tool)) {
-            pendingProposalTools << tool;
         }
     }
     const bool layerIntent = textMentionsAny(normalized, {
@@ -15873,7 +15987,7 @@ QJsonArray BricsCadPage::availableAgentToolsForRoute(const QJsonObject& route, c
     const bool deleteIntent = geometryIntent && textMentionsAny(normalized, {QStringLiteral("loesche"), QStringLiteral("lösche"), QStringLiteral("delete")});
     const bool saveIntent = textMentionsAny(normalized, {QStringLiteral("speicher"), QStringLiteral("save")});
 
-    if (!layerIntent && !geometryIntent && selectedWorkflowTools.isEmpty() && pendingProposalTools.isEmpty()) {
+    if (!layerIntent && !geometryIntent && selectedWorkflowTools.isEmpty()) {
         return allTools;
     }
 
@@ -15913,15 +16027,13 @@ QJsonArray BricsCadPage::availableAgentToolsForRoute(const QJsonObject& route, c
         if (selectedWorkflowTools.contains(name)) {
             include = true;
         }
-        if (pendingProposalTools.contains(name)) {
-            include = true;
-        }
         if (include) {
             filtered.append(tool);
         }
     }
 
-    return filtered.isEmpty() ? allTools : filtered;
+    Q_UNUSED(filtered);
+    return allTools;
 }
 
 QJsonArray BricsCadPage::readOnlyMethodsForRoute(const QJsonObject& route) const
@@ -16221,6 +16333,12 @@ QJsonObject BricsCadPage::compactAgentStateSummary(
         }
     }
 
+    int pendingProposalActionCount = m_pendingAgentProposal.value(QStringLiteral("actions")).toArray().size();
+    if (pendingProposalActionCount == 0
+        && !m_pendingAgentProposal.value(QStringLiteral("tool")).toString().trimmed().isEmpty()) {
+        pendingProposalActionCount = 1;
+    }
+
     return QJsonObject{
         {"schema", "barebone.agent.compact-state.v1"},
         {"lastUserPromptPreview", repairMojibakeText(prompt).left(700)},
@@ -16229,7 +16347,7 @@ QJsonObject BricsCadPage::compactAgentStateSummary(
         {"recentMessages", recentMessages},
         {"documentContext", documentSummary},
         {"pendingProposalAvailable", !m_pendingAgentProposal.isEmpty()},
-        {"pendingProposalActionCount", agentProposalActions(m_pendingAgentProposal).size()},
+        {"pendingProposalActionCount", pendingProposalActionCount},
         {"pendingDraftAvailable", !m_pendingAgentDraft.isEmpty()},
         {"lastToolResultAvailable", !m_lastAgentToolResult.isEmpty()},
         {"lastToolResultSummary", m_lastAgentToolResult.value("summary").toString()},
@@ -16421,7 +16539,7 @@ QJsonObject BricsCadPage::agentRequestEnvelope(const QString& prompt, const QJso
             {"policy", "Erst read-only Kontext abrufen, dann plausible Defaults ableiten, dann BRX-validieren. Frage nur gezielt nach, wenn Lesen, Defaults und Repair nicht reichen."},
             {"dataQueryPolicy", "Bei klassifizierten BIM-Objekten, BIM-Namen, GUIDs, Component Type oder Properties zuerst bim.objects.query nutzen; Properties nur gezielt mit include=properties. Fuer allgemeine Geometrie, Abmessungen, Bounds oder Messwerte geometry.query mit include=[\"metrics\",\"geometry\",\"dimensions\"] und danach bei Bedarf measurement.bbox nutzen. Antworte nicht mit 'nicht verfuegbar', bevor diese read-only Fallbacks versucht wurden."},
             {"learningPolicy", "Lessons sind Erfahrungswissen, keine starren Rezepte. Pruefe Prompt, Zeichnungskontext und Berechnung, bevor du Lesson-Werte uebernimmst. BIM-Folgeschritte nach bim.objects.query verwenden autoBimHandlesFromLastQuery und werden von Qt in exakte Handles materialisiert. Bei selbst erzeugten Objekten muessen Folgeschritte exakte Handles, lastResult/lastExtruded oder autoHandlesFromBatch nutzen; keine breiten currentSpace/Layer-Selektoren."},
-            {"extrusionLayerPolicy", "Jede rectangles.extrude/profile.extrude Aktion braucht params.layer als expliziten Ziellayer. Direkt danach muss im selben proposal.actions Batch entity.setLayer mit selector.scope=lastResult und demselben layer folgen. Bei mehreren erzeugten Profilen exakte Handles oder createdGeometryHandleIndexes verwenden; scope=lastResult allein darf nicht stellvertretend fuer mehrere Profile verwendet werden. Zusammengehoerige Profile bevorzugt gemeinsam in einer atomaren Extrusionsaktion verarbeiten."},
+            {"extrusionLayerPolicy", "Jede rectangles.extrude/profile.extrude Aktion braucht params.layer als expliziten Ziellayer. Qt ergaenzt die anschliessende entity.setLayer Aktion deterministisch. Bei mehreren erzeugten Profilen exakte Handles oder createdGeometryHandleIndexes verwenden; scope=lastResult allein darf nicht stellvertretend fuer mehrere Profile verwendet werden."},
             {"techniqueRoomPolicy", "In den Gebaeude-Workflows 03 bis 07 ist ein validierter Raum mit dem exakten Namen Technikraum Pflicht. Workflows 04 bis 07 duerfen ohne Technikraumbounds und einen darin liegenden Netzstartpunkt nicht fortfahren. Alle Rohr- und Luftnetze beginnen an diesem Punkt und bleiben innerhalb der validierten Grundrissbounds."},
             {"routePointPolicy", "Rohrwege nicht direkt als Polylinie erfinden: zuerst geometry.create POINT fuer den wandnahen Technikraum-Verteilerstart, jeden Bogen/Richtungswechsel/T-Knoten, jede Wanddurchfuehrung und jeden Nutzerendpunkt. geometry.query muss mit autoPointHandlesFromBatch/createdPointHandleIndexes exakt diese neuen Punkte lesen; geometry.create POLYLINE muss mit autoPointsFromLastQuery/queriedPointIndexes deren Readback-Koordinaten verwenden. pipes.validateNetwork bindet neue Polylinien ueber lokale autoPolylineHandlesFromBatch/createdPolylineHandleIndexes. Die kanonischen Workflows enden mit der validierten 2D-Netzkontur und erzeugen keine Rohrkoerper."},
             {"testDefaultPolicy", "Workflow testDefaults gelten ausschliesslich fuer den deterministischen Overlay-Test. Felder aus requiresUserConfirmationInAgentMode, insbesondere diameterMm, muessen bei regulaeren AI-Aktionen vom Nutzer genannt oder bestaetigt werden und duerfen nicht stillschweigend aus testDefaults uebernommen werden."},
@@ -16489,7 +16607,7 @@ QJsonObject BricsCadPage::agentRequestEnvelope(const QString& prompt, const QJso
         {"maxBatchActions", kMaxAgentBatchActions},
         {"batchDelayMs", kAgentBatchActionDelayMs},
         {"batchPolicy", "Use proposal.actions[] for independent repeated actions with known params. For multiple layer creates with names/colors, prefer the virtual Qt tool layers.ensureMany; Qt expands it into individual layers.create actions. Qt executes internal batches as individual BRX requests, waits for each BRX response, sets saveBefore=true only on the first action, and stops on the first failure. Do not use continueAfterSuccess for simple repetition."},
-        {"extrusionLayerPolicy", "Every rectangles.extrude/profile.extrude action must include params.layer. The immediately following action must be entity.setLayer with selector.scope=lastResult and the identical layer. When several profiles were created, use exact handles or createdGeometryHandleIndexes; never use lastResult alone for the whole set. Prefer one atomic extrusion action for profiles that belong together."},
+        {"extrusionLayerPolicy", "Every rectangles.extrude/profile.extrude action must include params.layer. Qt deterministically appends the matching entity.setLayer action. When several profiles were created, use exact handles or createdGeometryHandleIndexes; never use lastResult alone for the whole set."},
         {"preflightValidation", "Before user confirmation, Qt calls BRX actions.validate for the whole proposal. For BIM actions Qt shows resolvedHandles/targetFingerprints and forwards them into execution params; BRX resolves the original selector again and rejects identity drift. During internal batch execution Qt also calls actions.validate for the current action. If validation rejects a proposal, correct params/tool or ask_user for missing data; never repeat the same invalid proposal."},
         {"nativeCommandPolicy", "The agent may choose command.execute when a native BricsCAD command is the better fit. command.execute must contain exactly one complete command line from commands.list, no semicolon or newline, and is always validated by BRX actions.validate before user confirmation."},
         {"databaseWritePolicy", "Direct BricsCAD DB writes are forbidden. Proposals must use only tools[].name; never suggest AcDb, LayerTable, EntityTable, database mutation, or DB batch write operations."},

@@ -7333,8 +7333,8 @@
         {
             "agentHints": [
                 "colorIndex is ACI color: 1 red, 2 yellow, 3 green, 4 cyan, 5 blue, 6 magenta, 7 white/black.",
-                "Layer names use only letters, digits and spaces; replace every separator or punctuation character with a space.",
-                "Use the structure 'Fachgebiet Thema', for example 'Sanitaer Abwasser', 'Heizung Rohrleitungen' or 'Grundriss Waende'.",
+                "Any non-empty layer name without unsupported special characters is valid, including one-word names such as 'Test'.",
+                "If the user explicitly names the layer, preserve that exact name; never rename 'Test' to 'Test Layer'.",
                 "Layer 0 must not be created.",
                 "Existing layers are skipped by BRX with warnings."
             ],
@@ -7359,11 +7359,11 @@
                 "elektro"
             ],
             "name": "layers.create",
-            "policy": "Use layers.create for one layer. Every new layer name must use the structure 'Fachgebiet Thema' with at least two words separated only by spaces. Allowed characters are letters, digits, spaces and German umlauts. Hyphens, underscores and all other punctuation are forbidden and must be replaced by spaces.",
+            "policy": "Use layers.create for one layer. Any non-empty layer name without unsupported special characters is valid. An explicitly user-supplied layer name is authoritative and must be copied exactly, including a one-word name such as 'Test'.",
             "semanticConstraints": [
                 "name is mandatory and must be non-empty.",
-                "name must contain at least two words in the structure 'Fachgebiet Thema'; only letters, digits, spaces and German umlauts are allowed.",
-                "Do not use '/', '\\', ':', '*', '?', quotes, '<', '>', '|', underscores, dots or commas in layer names.",
+                "Do not ask for or invent a replacement when the current prompt already supplies name.",
+                "Do not use '/', '\\', ':', '*', '?', quotes, '<', '>', '|', hyphens, underscores, dots or commas in layer names.",
                 "colorIndex must be 1..255 if present."
             ],
             "summary": "Creates one layer, optionally with ACI color.",
@@ -7372,8 +7372,8 @@
         {
             "agentHints": [
                 "Qt expands params.layers into individual layers.create actions.",
-                "Every layer name uses only letters, digits and spaces; replace separators and punctuation with spaces.",
-                "Every item uses the structure 'Fachgebiet Thema', for example 'Sanitaer Abwasser' or 'Heizung Rohrleitungen'.",
+                "Any non-empty layer name without unsupported special characters is valid.",
+                "Preserve every layer name explicitly supplied by the user, including one-word names.",
                 "Use for independent layer creation, not for rename or color changes.",
                 "Typical TGA colors: Heizung red=1, Sanitaer blue/cyan=5 or 4, Lueftung green=3, Elektro yellow=2."
             ],
@@ -7413,11 +7413,11 @@
                 "elektro"
             ],
             "name": "layers.ensureMany",
-            "policy": "For several layers, every item.name must use the structure 'Fachgebiet Thema' with at least two words separated only by spaces. Allowed characters are letters, digits, spaces and German umlauts. Hyphens, underscores and all other punctuation are forbidden.",
+            "policy": "For several layers, preserve every item.name explicitly supplied by the user. Any non-empty layer name without unsupported special characters is valid.",
             "semanticConstraints": [
                 "Each item needs a non-empty name.",
-                "Each item.name must be normalized before use: only letters, digits, spaces, German umlauts and '-' are allowed.",
-                "Do not use '/', '\\', ':', '*', '?', quotes, '<', '>', '|', underscores, dots or commas in layer names.",
+                "Each item.name must be normalized before use: only letters, digits, spaces and German umlauts are allowed.",
+                "Do not use '/', '\\', ':', '*', '?', quotes, '<', '>', '|', hyphens, underscores, dots or commas in layer names.",
                 "colorIndex is optional and must be 1..255 when present.",
                 "Do not include more items than Qt maxBatchActions."
             ],
@@ -7651,7 +7651,7 @@
         },
         {
             "agentHints": [
-                "Use a concrete Fachgebiet Thema name.",
+                "Use a concrete non-empty name without unsupported special characters.",
                 "Name geometry immediately after creation so lastResult is unambiguous."
             ],
             "domain": "entities",

@@ -4996,9 +4996,33 @@
       }));
     }
 
+    function normalizedProposalForStorage(proposal) {
+      if (!proposal || typeof proposal !== "object") {
+        return null;
+      }
+      return {
+        title: String(proposal.title || ""),
+        summary: String(proposal.summary || proposal.message || ""),
+        details: String(proposal.details || ""),
+        canRun: proposal.canRun !== false
+      };
+    }
+
+    function sessionsForStorage(sourceSessions, { includeProposals = true } = {}) {
+      const storedSessions = cloneJson(sourceSessions) || [];
+      if (!includeProposals) {
+        storedSessions.forEach((session) => {
+          if (session && typeof session === "object") {
+            session.proposal = null;
+          }
+        });
+      }
+      return storedSessions;
+    }
+
     function snapshotCurrentWorkspace() {
       workspaceStates[activeWorkspace] = {
-        sessions: cloneJson(sessions) || [],
+        sessions: sessionsForStorage(sessions),
         activeSessionId,
         chatCounter,
         chatMode,
@@ -5008,8 +5032,14 @@
       };
     }
 
-    function workspaceStatesForStorage() {
+    function workspaceStatesForStorage({ includeProposals = true } = {}) {
       const stored = cloneJson(workspaceStates) || {};
+      Object.values(stored).forEach((state) => {
+        if (!state || typeof state !== "object" || !Array.isArray(state.sessions)) {
+          return;
+        }
+        state.sessions = sessionsForStorage(state.sessions, { includeProposals });
+      });
       return stored;
     }
 
@@ -5051,6 +5081,17 @@
       };
     }
 
+    function clientStateForQt() {
+      snapshotCurrentWorkspace();
+      return {
+        version: 3,
+        activeWorkspace,
+        workspaces: workspaceStatesForStorage({ includeProposals: false }),
+        reasoningEffort,
+        sidebarCollapsed
+      };
+    }
+
     function saveClientStateToQt() {
       if (applyingClientState || !bridge || typeof bridge.saveClientState !== "function") {
         return;
@@ -5061,7 +5102,7 @@
       clientStateSaveTimer = window.setTimeout(() => {
         clientStateSaveTimer = 0;
         if (!applyingClientState && bridge && typeof bridge.saveClientState === "function") {
-          bridge.saveClientState(JSON.stringify(clientState()));
+          bridge.saveClientState(JSON.stringify(clientStateForQt()));
         }
       }, 50);
     }
@@ -7809,14 +7850,15 @@
     }
 
     function setProposal(proposal, options = {}) {
+      const storedProposal = normalizedProposalForStorage(proposal);
       if (proposal && proposal.sessionTitleSuggestion) {
-        applySessionTitleSuggestion(activeSessionId, proposal.sessionTitleSuggestion, { persist: false, render: false });
+        applySessionTitleSuggestion(activeSessionId, String(proposal.sessionTitleSuggestion || ""), { persist: false, render: false });
       }
       if (options.record !== false) {
-        activeSession().proposal = proposal;
+        activeSession().proposal = storedProposal;
         persistSessions();
       }
-      renderProposal(proposal);
+      renderProposal(storedProposal);
     }
 
     function clearProposal(options = {}) {
