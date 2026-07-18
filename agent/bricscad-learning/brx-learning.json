@@ -33,7 +33,8 @@
                 "Die vier Aussenwandprofile liegen innerhalb der Kontur, ueberlappen sich nicht und beruehren sich nur an den Eckkanten."
             ],
             "createdAt": "2026-07-11T00:00:00Z",
-            "dependsOn": [],
+            "dependsOn": [
+            ],
             "derivedValues": {
                 "areaM2": "widthMm * lengthMm / 1000000",
                 "contourLengthMm": "contourBounds.max.y - contourBounds.min.y",
@@ -413,7 +414,8 @@
                 "Auch bei detail=summary muessen Extrusionshandles als lastResult bereitstehen; jede Extrusion nennt params.layer Grundriss Aussenwaende und wird direkt von entity.setLayer gefolgt.",
                 "Im kombinierten Batch ist createdGeometryHandleIndex 0 immer die Kontur. Fuer die vier Waende ausschliesslich 1, 2, 3 und 4 verwenden."
             ],
-            "requiredArtifacts": [],
+            "requiredArtifacts": [
+            ],
             "requiredContext": [
                 "layers"
             ],
@@ -1931,7 +1933,8 @@
                                 ],
                                 "limit": 20,
                                 "selector": {
-                                    "handles": [],
+                                    "handles": [
+                                    ],
                                     "kind": "entity",
                                     "layer": "Sanitaer Kaltwasserpunkte",
                                     "scope": "handles"
@@ -2008,7 +2011,8 @@
                                 "floorPlanBounds": "{{floorPlanBounds}}",
                                 "minimumClearanceMm": 100,
                                 "selector": {
-                                    "handles": [],
+                                    "handles": [
+                                    ],
                                     "kind": "polyline",
                                     "scope": "handles"
                                 },
@@ -2203,7 +2207,8 @@
                                 ],
                                 "limit": 20,
                                 "selector": {
-                                    "handles": [],
+                                    "handles": [
+                                    ],
                                     "kind": "entity",
                                     "layer": "Sanitaer Warmwasserpunkte",
                                     "scope": "handles"
@@ -2279,7 +2284,8 @@
                                 "floorPlanBounds": "{{floorPlanBounds}}",
                                 "minimumClearanceMm": 100,
                                 "selector": {
-                                    "handles": [],
+                                    "handles": [
+                                    ],
                                     "kind": "polyline",
                                     "scope": "handles"
                                 },
@@ -2558,7 +2564,8 @@
                                         "z": 0
                                     }
                                 },
-                                "teeNodes": []
+                                "teeNodes": [
+                                ]
                             },
                             "tool": "pipes.validateNetwork"
                         }
@@ -2870,7 +2877,8 @@
                                 ],
                                 "limit": 20,
                                 "selector": {
-                                    "handles": [],
+                                    "handles": [
+                                    ],
                                     "kind": "entity",
                                     "scope": "handles"
                                 }
@@ -3048,7 +3056,8 @@
                                 "floorPlanBounds": "{{floorPlanBounds}}",
                                 "minimumClearanceMm": 100,
                                 "selector": {
-                                    "handles": [],
+                                    "handles": [
+                                    ],
                                     "kind": "polyline",
                                     "scope": "handles"
                                 },
@@ -3327,7 +3336,8 @@
                                 ],
                                 "limit": 20,
                                 "selector": {
-                                    "handles": [],
+                                    "handles": [
+                                    ],
                                     "kind": "entity",
                                     "scope": "handles"
                                 }
@@ -3506,7 +3516,8 @@
                                 "floorPlanBounds": "{{floorPlanBounds}}",
                                 "minimumClearanceMm": 100,
                                 "selector": {
-                                    "handles": [],
+                                    "handles": [
+                                    ],
                                     "kind": "polyline",
                                     "scope": "handles"
                                 },
@@ -3797,7 +3808,8 @@
                                         "z": 0
                                     }
                                 },
-                                "teeNodes": []
+                                "teeNodes": [
+                                ]
                             },
                             "tool": "pipes.validateNetwork"
                         }
@@ -4157,7 +4169,8 @@
                                 ],
                                 "limit": 20,
                                 "selector": {
-                                    "handles": [],
+                                    "handles": [
+                                    ],
                                     "kind": "entity",
                                     "layer": "Lueftung Zuluftpunkte",
                                     "scope": "handles"
@@ -4339,7 +4352,8 @@
                                 "floorPlanBounds": "{{floorPlanBounds}}",
                                 "minimumClearanceMm": 400,
                                 "selector": {
-                                    "handles": [],
+                                    "handles": [
+                                    ],
                                     "kind": "polyline",
                                     "scope": "handles"
                                 },
@@ -4661,7 +4675,8 @@
                                 ],
                                 "limit": 20,
                                 "selector": {
-                                    "handles": [],
+                                    "handles": [
+                                    ],
                                     "kind": "entity",
                                     "layer": "Lueftung Abluftpunkte",
                                     "scope": "handles"
@@ -4844,7 +4859,8 @@
                                 "floorPlanBounds": "{{floorPlanBounds}}",
                                 "minimumClearanceMm": 400,
                                 "selector": {
-                                    "handles": [],
+                                    "handles": [
+                                    ],
                                     "kind": "polyline",
                                     "scope": "handles"
                                 },
@@ -5142,7 +5158,8 @@
                                         "z": 0
                                     }
                                 },
-                                "teeNodes": []
+                                "teeNodes": [
+                                ]
                             },
                             "tool": "pipes.validateNetwork"
                         }
@@ -5199,7 +5216,8 @@
                                 "autoRoomHandlesFromLastQuery": true,
                                 "includeObjects": true,
                                 "selector": {
-                                    "handles": [],
+                                    "handles": [
+                                    ],
                                     "kind": "polyline",
                                     "scope": "handles",
                                     "shape": "rectangle"
@@ -5213,7 +5231,8 @@
                             "paramsTemplate": {
                                 "autoRoomHandlesFromLastQuery": true,
                                 "selector": {
-                                    "handles": [],
+                                    "handles": [
+                                    ],
                                     "kind": "polyline",
                                     "scope": "handles",
                                     "shape": "rectangle"
@@ -5259,7 +5278,8 @@
                                 ],
                                 "saveBefore": true,
                                 "selector": {
-                                    "handles": [],
+                                    "handles": [
+                                    ],
                                     "kind": "polyline",
                                     "scope": "handles",
                                     "shape": "rectangle"
@@ -5337,7 +5357,8 @@
                                 "autoRoomHandlesFromLastQuery": true,
                                 "includeObjects": true,
                                 "selector": {
-                                    "handles": [],
+                                    "handles": [
+                                    ],
                                     "kind": "polyline",
                                     "scope": "handles",
                                     "shape": "rectangle"
@@ -5351,7 +5372,8 @@
                             "paramsTemplate": {
                                 "autoRoomHandlesFromLastQuery": true,
                                 "selector": {
-                                    "handles": [],
+                                    "handles": [
+                                    ],
                                     "kind": "polyline",
                                     "scope": "handles",
                                     "shape": "rectangle"
@@ -5670,10 +5692,11 @@
                 "Feste Runtime-Werte aus successfulExamples sind Beispiele und muessen fuer neue Prompts neu aus Prompt oder Zeichnungskontext abgeleitet werden.",
                 "Bei vorhandenen Objekten bevorzugt selector.scope=handles verwenden, wenn ein Handle genannt oder zuvor gelesen wurde."
             ],
-            "complaintCount": 0,
-            "confidence": 0.62,
+            "complaintCount": 1,
+            "confidence": 0.5500000000000003,
             "createdAt": "2026-07-12T19:17:06Z",
-            "derivedValues": {},
+            "derivedValues": {
+            },
             "description": "Erstellt und extrudiert ein Rechteck auf Layer 0 und klassifiziert den resultierenden Solid als BIM-Wand.",
             "executionBatches": [
                 {
@@ -5734,7 +5757,7 @@
                     "title": "Rechteck als BIM-Wand klassifizieren"
                 }
             ],
-            "failureCount": 0,
+            "failureCount": 2,
             "id": "ai_objekte_als_bim_klassifizieren",
             "intent": "Rechteck als BIM-Wand klassifizieren. Aktueller Prompt: Zeichne ein Rechteck in Layer \"0\", extrudiere es auf eine Höhe von z=2600mm, selektiere es danach erneut und klassifiziere es danach als BIM Wand per bim.classify. Fokussierter Verlauf: Der Nutzer möchte in BricsCAD ein Rechteck im Layer \"0\" zeichnen, es auf eine Höhe von z=2600 mm extrudieren, anschließend erneut auswählen und als BIM-Wand klassifizieren. Ergebnis: Erledigt. Ich habe 4 Aktionen in BricsCAD ausgefuehrt: rectangle erstellt; rectangles.extrude abgeschlossen; entity.setLayer affected=1 failed=0 layer=0; bim.classify abgeschlossen. Nutze feste Handles, Namen, Koordinaten, Layer, Winkel oder Beispielwerte nur, wenn der Nutzer sie im aktuellen Prompt nennt oder sie per read-only Kontext erneut bestaetigt wurden.",
             "intentPatterns": [
@@ -5742,11 +5765,811 @@
                 "Rechteck extrudieren und klassifizieren",
                 "Objekte als BIM klassifizieren"
             ],
-            "knownFailures": [],
-            "knownSlotValues": {},
-            "lastOutcome": "execution_success",
-            "lastOutcomeAt": "2026-07-12T19:17:06Z",
-            "positiveFeedbackCount": 0,
+            "knownFailures": [
+            ],
+            "knownSlotValues": {
+            },
+            "lastOutcome": "user_complaint",
+            "lastOutcomeAt": "2026-07-18T14:13:23.899Z",
+            "outcomeHistory": [
+                {
+                    "actionCount": 1,
+                    "actions": [
+                        {
+                            "params": {
+                                "depth": 240,
+                                "geometry": "rectangle",
+                                "layer": "0",
+                                "origin": {
+                                    "x": 2000,
+                                    "y": 2000,
+                                    "z": 0
+                                },
+                                "saveBefore": true,
+                                "width": 10000
+                            },
+                            "tool": "geometry.create"
+                        }
+                    ],
+                    "at": "2026-07-18T11:35:35.367Z",
+                    "confidenceAfter": 0.66,
+                    "confidenceDelta": 0.04,
+                    "executionStats": {
+                        "actionsCompleted": 1,
+                        "actionsRequested": 1,
+                        "boxSolidsCreated": 0,
+                        "createdGeometryHandles": [
+                            "104B"
+                        ],
+                        "failed": 0,
+                        "geometryCreated": 1
+                    },
+                    "failureCount": 0,
+                    "focusedConversationContext": {
+                    },
+                    "outcome": "execution_success",
+                    "prompt": "Zeichne ein Rechteck mit x=10000mm, y=240mm und den Koordinaten x=2000mm, y=2000mm, z=0mm",
+                    "proposalDescription": "Möchten Sie ein Rechteck mit Breite 10 000 mm und Tiefe 240 mm an den Koordinaten (2000 mm, 2000 mm, 0 mm) auf Layer 0 erstellen?",
+                    "proposalTitle": "",
+                    "recentConversation": [
+                        {
+                            "content": "Was möchtest du mit BricsCAD tun?",
+                            "index": 0,
+                            "role": "assistant"
+                        },
+                        {
+                            "content": "Zeichne ein Rechteck mit x=10000mm, y=240mm und den Koordinaten x=2000mm, y=2000mm, z=0mm",
+                            "index": 1,
+                            "role": "user"
+                        },
+                        {
+                            "content": "Möchten Sie ein Rechteck mit Breite 10 000 mm und Tiefe 240 mm an den Koordinaten (2000 mm, 2000 mm, 0 mm) auf Layer 0 erstellen?",
+                            "index": 2,
+                            "role": "assistant"
+                        }
+                    ],
+                    "selectedLessonIds": [
+                        "ai_objekte_als_bim_klassifizieren",
+                        "workflow_01_floor_plan_contour",
+                        "workflow_02_room_layout"
+                    ],
+                    "source": "brx_runtime",
+                    "summary": "Erledigt. rectangle erstellt.",
+                    "tools": [
+                        "geometry.create"
+                    ]
+                },
+                {
+                    "actionCount": 2,
+                    "actions": [
+                        {
+                            "params": {
+                                "detail": "summary",
+                                "heightMm": 2600,
+                                "layer": "0",
+                                "saveBefore": true,
+                                "selector": {
+                                    "kind": "rectangle",
+                                    "scope": "lastResult"
+                                }
+                            },
+                            "tool": "rectangles.extrude"
+                        },
+                        {
+                            "params": {
+                                "layer": "0",
+                                "saveBefore": false,
+                                "selector": {
+                                    "scope": "lastResult"
+                                }
+                            },
+                            "reason": "Extrusion deterministisch dem Ziellayer zuweisen",
+                            "tool": "entity.setLayer"
+                        }
+                    ],
+                    "at": "2026-07-18T11:36:53.774Z",
+                    "confidenceAfter": 0.7000000000000001,
+                    "confidenceDelta": 0.04,
+                    "executionStats": {
+                        "actionsCompleted": 2,
+                        "actionsRequested": 2,
+                        "failed": 0
+                    },
+                    "failureCount": 0,
+                    "focusedConversationContext": {
+                    },
+                    "outcome": "execution_success",
+                    "prompt": "Extrudiere dieses erstellte Rechteck mit z=2600mm",
+                    "proposalDescription": "Möchten Sie das Rechteck mit einer Höhe von 2600 mm extrudieren?",
+                    "proposalTitle": "",
+                    "recentConversation": [
+                        {
+                            "content": "Was möchtest du mit BricsCAD tun?",
+                            "index": 0,
+                            "role": "assistant"
+                        },
+                        {
+                            "content": "Zeichne ein Rechteck mit x=10000mm, y=240mm und den Koordinaten x=2000mm, y=2000mm, z=0mm",
+                            "index": 1,
+                            "role": "user"
+                        },
+                        {
+                            "content": "Möchten Sie ein Rechteck mit Breite 10 000 mm und Tiefe 240 mm an den Koordinaten (2000 mm, 2000 mm, 0 mm) auf Layer 0 erstellen?",
+                            "index": 2,
+                            "role": "assistant"
+                        },
+                        {
+                            "content": "Erledigt. rectangle erstellt.",
+                            "index": 3,
+                            "role": "assistant"
+                        },
+                        {
+                            "content": "Ein Rechteck mit Breite 10 000 mm und Tiefe 240 mm wurde erfolgreich erstellt. Es wurden keine Box‑Solid‑Körper erzeugt.",
+                            "index": 4,
+                            "role": "assistant"
+                        },
+                        {
+                            "content": "Extrudiere dieses erstellte Rechteck mit z=2600mm",
+                            "index": 5,
+                            "role": "user"
+                        },
+                        {
+                            "content": "Möchten Sie das Rechteck mit einer Höhe von 2600 mm extrudieren?",
+                            "index": 6,
+                            "role": "assistant"
+                        }
+                    ],
+                    "selectedLessonIds": [
+                        "ai_objekte_als_bim_klassifizieren"
+                    ],
+                    "source": "brx_runtime",
+                    "summary": "Erledigt. Ich habe 2 Aktionen in BricsCAD ausgefuehrt: rectangles.extrude abgeschlossen; entity.setLayer affected=1 failed=0 layer=0.",
+                    "tools": [
+                        "rectangles.extrude",
+                        "entity.setLayer"
+                    ]
+                },
+                {
+                    "actionCount": 1,
+                    "actions": [
+                        {
+                            "params": {
+                                "geometry": "circle",
+                                "layer": "Test",
+                                "origin": {
+                                    "x": 0,
+                                    "y": 0,
+                                    "z": 0
+                                },
+                                "radius": 2000,
+                                "saveBefore": true
+                            },
+                            "tool": "geometry.create"
+                        }
+                    ],
+                    "at": "2026-07-18T11:41:27.758Z",
+                    "confidenceAfter": 0.7400000000000001,
+                    "confidenceDelta": 0.04,
+                    "executionStats": {
+                        "actionsCompleted": 1,
+                        "actionsRequested": 1,
+                        "boxSolidsCreated": 0,
+                        "createdGeometryHandles": [
+                            "104E"
+                        ],
+                        "failed": 0,
+                        "geometryCreated": 1
+                    },
+                    "failureCount": 0,
+                    "focusedConversationContext": {
+                    },
+                    "outcome": "execution_success",
+                    "prompt": "Zeichne in Layer \"Test\" einen Kreis mit Radius=2000mm",
+                    "proposalDescription": "Möchten Sie einen Kreis mit Radius 2000 mm im Layer 'Test' erstellen?",
+                    "proposalTitle": "",
+                    "recentConversation": [
+                        {
+                            "content": "Erledigt. rectangle erstellt.",
+                            "index": 3,
+                            "role": "assistant"
+                        },
+                        {
+                            "content": "Ein Rechteck mit Breite 10 000 mm und Tiefe 240 mm wurde erfolgreich erstellt. Es wurden keine Box‑Solid‑Körper erzeugt.",
+                            "index": 4,
+                            "role": "assistant"
+                        },
+                        {
+                            "content": "Extrudiere dieses erstellte Rechteck mit z=2600mm",
+                            "index": 5,
+                            "role": "user"
+                        },
+                        {
+                            "content": "Möchten Sie das Rechteck mit einer Höhe von 2600 mm extrudieren?",
+                            "index": 6,
+                            "role": "assistant"
+                        },
+                        {
+                            "content": "Erledigt. Ich habe 2 Aktionen in BricsCAD ausgefuehrt: rectangles.extrude abgeschlossen; entity.setLayer affected=1 failed=0 layer=0.",
+                            "index": 7,
+                            "role": "assistant"
+                        },
+                        {
+                            "content": "Zwei Aktionen wurden erfolgreich ausgeführt: rectangles.extrude und entity.setLayer.",
+                            "index": 8,
+                            "role": "assistant"
+                        },
+                        {
+                            "content": "Erstelle einen neuen Layer namens \"Test\"",
+                            "index": 9,
+                            "role": "user"
+                        },
+                        {
+                            "content": "Möchten Sie einen neuen Layer namens 'Test' erstellen?",
+                            "index": 10,
+                            "role": "assistant"
+                        },
+                        {
+                            "content": "Erledigt. Layer \"Test\" angelegt.",
+                            "index": 11,
+                            "role": "assistant"
+                        },
+                        {
+                            "content": "Ein Layer namens 'Test' wurde erfolgreich angelegt. 1 Layer wurde erstellt.",
+                            "index": 12,
+                            "role": "assistant"
+                        },
+                        {
+                            "content": "Zeichne in Layer \"Test\" einen Kreis mit Radius=2000mm",
+                            "index": 13,
+                            "role": "user"
+                        },
+                        {
+                            "content": "Möchten Sie einen Kreis mit Radius 2000 mm im Layer 'Test' erstellen?",
+                            "index": 14,
+                            "role": "assistant"
+                        }
+                    ],
+                    "selectedLessonIds": [
+                        "ai_objekte_als_bim_klassifizieren",
+                        "workflow_01_floor_plan_contour",
+                        "workflow_02_room_layout"
+                    ],
+                    "source": "brx_runtime",
+                    "summary": "Erledigt. circle erstellt.",
+                    "tools": [
+                        "geometry.create"
+                    ]
+                },
+                {
+                    "actionCount": 3,
+                    "actions": [
+                        {
+                            "params": {
+                                "center": {
+                                    "x": 1000,
+                                    "y": 1000,
+                                    "z": 0
+                                },
+                                "geometry": "circle",
+                                "layer": "0",
+                                "radius": 800
+                            },
+                            "tool": "geometry.create"
+                        },
+                        {
+                            "params": {
+                                "heightMm": 1000,
+                                "selector": {
+                                    "kind": "circle",
+                                    "scope": "lastResult"
+                                }
+                            },
+                            "tool": "circle.extrude"
+                        },
+                        {
+                            "params": {
+                                "heightMm": 1000,
+                                "saveBefore": false,
+                                "selector": {
+                                    "kind": "circle",
+                                    "scope": "lastResult"
+                                }
+                            },
+                            "tool": "circle.extrude"
+                        }
+                    ],
+                    "at": "2026-07-18T13:16:40.452Z",
+                    "confidenceAfter": 0.6600000000000001,
+                    "confidenceDelta": -0.08,
+                    "failureCount": 1,
+                    "focusedConversationContext": {
+                    },
+                    "outcome": "execution_failure",
+                    "prompt": "Zeichne einen neuen Kreis mit Radius=800mm mit Koordinaten x=1000mm, y=1000mm, z=0mm und extrudiere es auf z=1000mm",
+                    "proposalTitle": "",
+                    "recentConversation": [
+                        {
+                            "content": "Extrudiere den Kreis mit Handle \"104C\" auf z=1000mm",
+                            "index": 11,
+                            "role": "user"
+                        },
+                        {
+                            "content": "ja",
+                            "index": 12,
+                            "role": "user"
+                        },
+                        {
+                            "content": "Suche ein Tool um einen Kreis zu extrudieren",
+                            "index": 13,
+                            "role": "user"
+                        },
+                        {
+                            "content": "in ein 3D-Solid umwandeln",
+                            "index": 14,
+                            "role": "user"
+                        },
+                        {
+                            "content": "existierender Layer \"0\"",
+                            "index": 15,
+                            "role": "user"
+                        },
+                        {
+                            "content": "reis extrudieren, um einen Zylinder als 3D-Solid zu erzeugen",
+                            "index": 16,
+                            "role": "user"
+                        },
+                        {
+                            "content": "Extrudiere den Kreis mit Handle \"104E\" auf z=1000mm",
+                            "index": 17,
+                            "role": "user"
+                        },
+                        {
+                            "content": "Extrudiere Kreis mit Handle \"104E\" auf z=1000 mm.",
+                            "index": 18,
+                            "role": "assistant"
+                        },
+                        {
+                            "content": "Erledigt. profile.extrude extruded=1 found=1 errors=0.",
+                            "index": 19,
+                            "role": "assistant"
+                        },
+                        {
+                            "content": "Der Kreis mit Handle 104E wurde um 1000 mm extrudiert. Die Operation war erfolgreich.",
+                            "index": 20,
+                            "role": "assistant"
+                        },
+                        {
+                            "content": "Zeichne einen neuen Kreis mit Radius=800mm mit Koordinaten x=1000mm, y=1000mm, z=0mm und extrudiere es auf z=1000mm",
+                            "index": 21,
+                            "role": "user"
+                        },
+                        {
+                            "content": "Erstelle Kreis mit Radius 800 mm bei (1000,1000,0) und extrudiere ihn auf 1000 mm.",
+                            "index": 22,
+                            "role": "assistant"
+                        }
+                    ],
+                    "selectedLessonIds": [
+                        "ai_objekte_als_bim_klassifizieren",
+                        "workflow_03_interior_walls"
+                    ],
+                    "source": "brx_runtime",
+                    "summary": "Batch-Aktion 2/2 (circle.extrude) wurde im BRX Preflight abgelehnt: Fehler: Aktion 1 (circle.extrude): circle.extrude.params.selector findet keine Objekte Hinweise: Korrigiere tool/params anhand der BRX-Capabilities, bevor der Nutzer eine Ausfuehrung bestaetigt.",
+                    "tools": [
+                        "geometry.create",
+                        "circle.extrude"
+                    ]
+                },
+                {
+                    "actions": [
+                        {
+                            "params": {
+                                "center": {
+                                    "x": 1000,
+                                    "y": 1000,
+                                    "z": 0
+                                },
+                                "geometry": "circle",
+                                "layer": "0",
+                                "radius": 800
+                            },
+                            "tool": "geometry.create"
+                        },
+                        {
+                            "params": {
+                                "heightMm": 1000,
+                                "selector": {
+                                    "kind": "circle",
+                                    "scope": "lastResult"
+                                }
+                            },
+                            "tool": "circle.extrude"
+                        },
+                        {
+                            "params": {
+                                "heightMm": 1000,
+                                "saveBefore": false,
+                                "selector": {
+                                    "kind": "circle",
+                                    "scope": "lastResult"
+                                }
+                            },
+                            "tool": "circle.extrude"
+                        }
+                    ],
+                    "at": "2026-07-18T13:17:47.247Z",
+                    "confidenceAfter": 0.6900000000000002,
+                    "confidenceDelta": 0.03,
+                    "feedback": "ja in Layer 0 und ja es gibt bereits andere Kreise",
+                    "operationGeneration": 2,
+                    "outcome": "user_positive",
+                    "prompt": "Zeichne einen neuen Kreis mit Radius=800mm mit Koordinaten x=1000mm, y=1000mm, z=0mm und extrudiere es auf z=1000mm",
+                    "source": "user_feedback",
+                    "summary": "Batch-Aktion 2/2 (circle.extrude) wurde im BRX Preflight abgelehnt: Fehler: Aktion 1 (circle.extrude): circle.extrude.params.selector findet keine Objekte Hinweise: Korrigiere tool/params anhand der BRX-Capabilities, bevor der Nutzer eine Ausfuehrung bestaetigt.",
+                    "tools": [
+                        "geometry.create",
+                        "circle.extrude"
+                    ]
+                },
+                {
+                    "actionCount": 3,
+                    "actions": [
+                        {
+                            "params": {
+                                "center": {
+                                    "x": 1000,
+                                    "y": 1000,
+                                    "z": 0
+                                },
+                                "geometry": "circle",
+                                "layer": "0",
+                                "radius": 800
+                            },
+                            "tool": "geometry.create"
+                        },
+                        {
+                            "params": {
+                                "heightMm": 1000,
+                                "selector": {
+                                    "kind": "circle",
+                                    "scope": "lastResult"
+                                }
+                            },
+                            "tool": "circle.extrude"
+                        },
+                        {
+                            "params": {
+                                "heightMm": 1000,
+                                "saveBefore": false,
+                                "selector": {
+                                    "kind": "circle",
+                                    "scope": "lastResult"
+                                }
+                            },
+                            "tool": "circle.extrude"
+                        }
+                    ],
+                    "at": "2026-07-18T13:19:37.018Z",
+                    "confidenceAfter": 0.6100000000000002,
+                    "confidenceDelta": -0.08,
+                    "failureCount": 1,
+                    "focusedConversationContext": {
+                    },
+                    "outcome": "execution_failure",
+                    "prompt": "ja in Layer 0 und ja es gibt bereits andere Kreise",
+                    "proposalTitle": "",
+                    "recentConversation": [
+                        {
+                            "content": "in ein 3D-Solid umwandeln",
+                            "index": 14,
+                            "role": "user"
+                        },
+                        {
+                            "content": "existierender Layer \"0\"",
+                            "index": 15,
+                            "role": "user"
+                        },
+                        {
+                            "content": "reis extrudieren, um einen Zylinder als 3D-Solid zu erzeugen",
+                            "index": 16,
+                            "role": "user"
+                        },
+                        {
+                            "content": "Extrudiere den Kreis mit Handle \"104E\" auf z=1000mm",
+                            "index": 17,
+                            "role": "user"
+                        },
+                        {
+                            "content": "Extrudiere Kreis mit Handle \"104E\" auf z=1000 mm.",
+                            "index": 18,
+                            "role": "assistant"
+                        },
+                        {
+                            "content": "Erledigt. profile.extrude extruded=1 found=1 errors=0.",
+                            "index": 19,
+                            "role": "assistant"
+                        },
+                        {
+                            "content": "Der Kreis mit Handle 104E wurde um 1000 mm extrudiert. Die Operation war erfolgreich.",
+                            "index": 20,
+                            "role": "assistant"
+                        },
+                        {
+                            "content": "Zeichne einen neuen Kreis mit Radius=800mm mit Koordinaten x=1000mm, y=1000mm, z=0mm und extrudiere es auf z=1000mm",
+                            "index": 21,
+                            "role": "user"
+                        },
+                        {
+                            "content": "Erstelle Kreis mit Radius 800 mm bei (1000,1000,0) und extrudiere ihn auf 1000 mm.",
+                            "index": 22,
+                            "role": "assistant"
+                        },
+                        {
+                            "content": "Soll der Kreis im Layer \"0\" erstellt werden? Gibt es bereits Kreise auf diesem Layer, die bei der Extrusion ausgewählt werden könnten?",
+                            "index": 23,
+                            "role": "assistant"
+                        },
+                        {
+                            "content": "ja in Layer 0 und ja es gibt bereits andere Kreise",
+                            "index": 24,
+                            "role": "user"
+                        },
+                        {
+                            "content": "Erstelle Kreis mit Radius 800 mm bei (1000,1000,0) und extrudiere ihn auf 1000 mm.",
+                            "index": 25,
+                            "role": "assistant"
+                        }
+                    ],
+                    "selectedLessonIds": [
+                        "ai_objekte_als_bim_klassifizieren",
+                        "workflow_03_interior_walls"
+                    ],
+                    "source": "brx_runtime",
+                    "summary": "Batch-Aktion 2/2 (circle.extrude) wurde im BRX Preflight abgelehnt: Fehler: Aktion 1 (circle.extrude): circle.extrude.params.selector findet keine Objekte Hinweise: Korrigiere tool/params anhand der BRX-Capabilities, bevor der Nutzer eine Ausfuehrung bestaetigt.",
+                    "tools": [
+                        "geometry.create",
+                        "circle.extrude"
+                    ]
+                },
+                {
+                    "actionCount": 5,
+                    "actions": [
+                        {
+                            "params": {
+                                "name": "Grundriss Aussenwaende"
+                            },
+                            "tool": "layers.create"
+                        },
+                        {
+                            "params": {
+                                "depth": 240,
+                                "geometry": "box",
+                                "height": 2600,
+                                "layer": "Grundriss Aussenwaende",
+                                "origin": {
+                                    "x": 0,
+                                    "y": 0,
+                                    "z": 0
+                                },
+                                "width": 10480
+                            },
+                            "tool": "geometry.create"
+                        },
+                        {
+                            "params": {
+                                "depth": 240,
+                                "geometry": "box",
+                                "height": 2600,
+                                "layer": "Grundriss Aussenwaende",
+                                "origin": {
+                                    "x": 0,
+                                    "y": 10240,
+                                    "z": 0
+                                },
+                                "width": 10480
+                            },
+                            "tool": "geometry.create"
+                        },
+                        {
+                            "params": {
+                                "depth": 9800,
+                                "geometry": "box",
+                                "height": 2600,
+                                "layer": "Grundriss Aussenwaende",
+                                "origin": {
+                                    "x": 0,
+                                    "y": 240,
+                                    "z": 0
+                                },
+                                "width": 240
+                            },
+                            "tool": "geometry.create"
+                        },
+                        {
+                            "params": {
+                                "depth": 9800,
+                                "geometry": "box",
+                                "height": 2600,
+                                "layer": "Grundriss Aussenwaende",
+                                "origin": {
+                                    "x": 10240,
+                                    "y": 240,
+                                    "z": 0
+                                },
+                                "width": 240
+                            },
+                            "tool": "geometry.create"
+                        }
+                    ],
+                    "at": "2026-07-18T14:11:00.622Z",
+                    "confidenceAfter": 0.6500000000000002,
+                    "confidenceDelta": 0.04,
+                    "executionStats": {
+                        "actionsCompleted": 5,
+                        "actionsRequested": 5,
+                        "boxSolidsCreated": 4,
+                        "createdGeometryHandles": [
+                            "9F",
+                            "A1",
+                            "A3",
+                            "A5"
+                        ],
+                        "createdLayerNames": [
+                            "Grundriss Aussenwaende"
+                        ],
+                        "failed": 0,
+                        "geometryCreated": 4,
+                        "layerCreatesRequested": 1,
+                        "layersCreated": 1,
+                        "layersSkippedExisting": 0,
+                        "skippedExistingLayerNames": [
+                        ]
+                    },
+                    "failureCount": 0,
+                    "focusedConversationContext": {
+                        "confidence": 1,
+                        "omittedTopics": [
+                        ],
+                        "relevantMessageIndexes": [
+                        ],
+                        "relevantSummary": "Der Nutzer wünscht einen Grundriss mit 100 m² Innenfläche und 240 mm Wandstärke. Der Assistent hat bereits eine Berechnung der Außenmaße (10.480 mm x 10.480 mm) sowie eine Umsetzung mittels 2D-Kontur, Extrusion auf 2.600 mm und Zuweisung zum Layer 'Grundriss Aussenwaende' vorgeschlagen.",
+                        "schema": "barebone.agent.focused-conversation-context.v1",
+                        "source": "ai-focus-run",
+                        "topic": "Grundriss Wandberechnung und Klassifizierung"
+                    },
+                    "outcome": "execution_success",
+                    "prompt": "nicht als BIM Wände klassifizieren, und Wandstärke=240mm neu berechnen",
+                    "proposalDescription": "Ich berechne den Grundriss neu: Für eine Innenfläche von 100 m² ergibt sich bei quadratischer Form eine Innenkante von 10.000 mm. Bei einer Wandstärke von 240 mm resultiert ein Außenmaß von 10.480 mm x 10.480 mm. Ich erstelle die vier Außenwände auf dem Layer 'Grundriss Aussenwaende' mit einer Höhe von 2.600 mm und verzichte wie gewünscht auf die BIM-Klassifizierung.",
+                    "proposalTitle": "",
+                    "recentConversation": [
+                        {
+                            "content": "Was möchtest du mit BricsCAD tun?",
+                            "index": 0,
+                            "role": "assistant"
+                        },
+                        {
+                            "content": "Zeichne einen neuen Kreis mit Radius=800mm mit Koordinaten x=1000mm, y=1000mm, z=0mm und extrudiere es auf z=1000mm",
+                            "index": 1,
+                            "role": "user"
+                        },
+                        {
+                            "content": "Zeichne einen Grundriss mit Außenwänden (240mm Wandstärke) mit 100 quadratmeter Innenfläche",
+                            "index": 2,
+                            "role": "user"
+                        },
+                        {
+                            "content": "Ich erstelle einen quadratischen Grundriss mit einer Innenfläche von 100 m². Bei einer Wandstärke von 240 mm ergeben sich Außenmaße von 10.480 mm x 10.480 mm. Die Außenwände werden auf eine Standardhöhe von 2.600 mm extrudiert. Dabei wird zuerst eine 2D-Kontur als Zeichenhilfe angelegt und anschließend die vier Wandprofile einzeln erzeugt, extrudiert und dem Layer 'Grundriss Aussenwaende' zugewiesen.",
+                            "index": 3,
+                            "role": "assistant"
+                        },
+                        {
+                            "content": "nicht als BIM Wände klassifizieren, und Wandstärke=240mm neu berechnen",
+                            "index": 4,
+                            "role": "user"
+                        },
+                        {
+                            "content": "Ich berechne den Grundriss neu: Für eine Innenfläche von 100 m² ergibt sich bei quadratischer Form eine Innenkante von 10.000 mm. Bei einer Wandstärke von 240 mm resultiert ein Außenmaß von 10.480 mm x 10.480 mm. Ich erstelle die vier Außenwände auf dem Layer 'Grundriss Aussenwaende' mit einer Höhe von 2.600 mm und verzichte wie gewünscht auf die BIM-Klassifizierung.",
+                            "index": 5,
+                            "role": "assistant"
+                        }
+                    ],
+                    "selectedLessonIds": [
+                        "ai_objekte_als_bim_klassifizieren",
+                        "workflow_02_room_layout",
+                        "workflow_03_interior_walls"
+                    ],
+                    "source": "brx_runtime",
+                    "summary": "Erledigt. Ich habe 4 Wandkoerper erstellt.",
+                    "tools": [
+                        "layers.create",
+                        "geometry.create"
+                    ]
+                },
+                {
+                    "actions": [
+                        {
+                            "params": {
+                                "name": "Grundriss Aussenwaende"
+                            },
+                            "tool": "layers.create"
+                        },
+                        {
+                            "params": {
+                                "depth": 240,
+                                "geometry": "box",
+                                "height": 2600,
+                                "layer": "Grundriss Aussenwaende",
+                                "origin": {
+                                    "x": 0,
+                                    "y": 0,
+                                    "z": 0
+                                },
+                                "width": 10480
+                            },
+                            "tool": "geometry.create"
+                        },
+                        {
+                            "params": {
+                                "depth": 240,
+                                "geometry": "box",
+                                "height": 2600,
+                                "layer": "Grundriss Aussenwaende",
+                                "origin": {
+                                    "x": 0,
+                                    "y": 10240,
+                                    "z": 0
+                                },
+                                "width": 10480
+                            },
+                            "tool": "geometry.create"
+                        },
+                        {
+                            "params": {
+                                "depth": 9800,
+                                "geometry": "box",
+                                "height": 2600,
+                                "layer": "Grundriss Aussenwaende",
+                                "origin": {
+                                    "x": 0,
+                                    "y": 240,
+                                    "z": 0
+                                },
+                                "width": 240
+                            },
+                            "tool": "geometry.create"
+                        },
+                        {
+                            "params": {
+                                "depth": 9800,
+                                "geometry": "box",
+                                "height": 2600,
+                                "layer": "Grundriss Aussenwaende",
+                                "origin": {
+                                    "x": 10240,
+                                    "y": 240,
+                                    "z": 0
+                                },
+                                "width": 240
+                            },
+                            "tool": "geometry.create"
+                        }
+                    ],
+                    "at": "2026-07-18T14:13:23.899Z",
+                    "confidenceAfter": 0.5500000000000003,
+                    "confidenceDelta": -0.1,
+                    "feedback": "Die Außenwände verschieben, sodass sie aneinander anliegen, eine Wand liegt nicht an richtiger Position. Bitte beheben und überprüfen",
+                    "operationGeneration": 3,
+                    "outcome": "user_complaint",
+                    "prompt": "nicht als BIM Wände klassifizieren, und Wandstärke=240mm neu berechnen",
+                    "source": "user_feedback",
+                    "summary": "Erledigt. Ich habe 4 Wandkoerper erstellt.",
+                    "tools": [
+                        "layers.create",
+                        "geometry.create"
+                    ]
+                }
+            ],
+            "positiveFeedbackCount": 1,
             "promptExamples": [
                 "Zeichne ein Rechteck in Layer \"0\", extrudiere es auf eine Höhe von z=2600mm, selektiere es danach erneut und klassifiziere es danach als BIM Wand per bim.classify",
                 "Rechteck extrudieren und klassifizieren",
@@ -5758,8 +6581,10 @@
                 "entity.setLayer",
                 "bim.classify"
             ],
-            "repairRules": [],
-            "requiredSlots": [],
+            "repairRules": [
+            ],
+            "requiredSlots": [
+            ],
             "source": "ai_runtime",
             "status": "active",
             "strategy": [
@@ -5767,12 +6592,12 @@
                 "Die Lesson ist Erfahrungswissen: Parameterform uebernehmen, Beispielwerte nicht blind wiederverwenden.",
                 "BRX actions.validate bleibt vor der Ausfuehrung verbindlich."
             ],
-            "successCount": 1,
+            "successCount": 5,
             "title": "Rechteck als BIM-Wand klassifizieren",
             "topic": "Objekte als BIM klassifizieren",
             "updateProtected": false,
-            "updatedAt": "2026-07-12T19:17:06Z",
-            "usageCount": 1,
+            "updatedAt": "2026-07-18T14:13:23.899Z",
+            "usageCount": 9,
             "validActionShapes": [
                 {
                     "paramsTemplate": {
@@ -5938,21 +6763,24 @@
             "knownFailures": [
                 "Ohne BIM-Lizenz oder passenden RUNASLEVEL ist die BIM-API nicht verfuegbar."
             ],
-            "knownSlotValues": {},
+            "knownSlotValues": {
+            },
             "recommendedTools": [
                 "bim.objects.query"
             ],
             "repairRules": [
                 "Nutze fuer BIM-Tabellen bim.objects.query statt geometry.query."
             ],
-            "requiredSlots": [],
+            "requiredSlots": [
+            ],
             "source": "canonical_bim_workflow",
             "status": "active",
             "strategy": [
                 "BIM-Objekte ueber BRX lesen.",
                 "Kernfelder und qualifizierte Properties tabellarisch ausgeben."
             ],
-            "testDefaults": {},
+            "testDefaults": {
+            },
             "title": "BIM-Objektdaten und Tabellen",
             "topic": "BIM-Objektdaten und Tabellen",
             "updateProtected": true,
@@ -6045,7 +6873,8 @@
             "knownFailures": [
                 "Mehrdeutige Namen brauchen explizite Handles oder allMatches."
             ],
-            "knownSlotValues": {},
+            "knownSlotValues": {
+            },
             "recommendedTools": [
                 "bim.objects.query",
                 "bim.selection.set"
@@ -6070,7 +6899,8 @@
                 "Ziel read-only aufloesen.",
                 "Exakte Ergebnis-Handles in bim.selection.set binden."
             ],
-            "testDefaults": {},
+            "testDefaults": {
+            },
             "title": "BIM-Objekte nach Name oder Handle auswaehlen",
             "topic": "BIM-Objekte auswaehlen",
             "updateProtected": true,
@@ -6094,21 +6924,415 @@
                     "tool": "bim.selection.set"
                 }
             ],
-            "validationExamples": []
+            "validationExamples": [
+            ]
+        },
+        {
+            "assumptions": [
+                "Explizit im Prompt genannte Handles sind verbindlich: Wenn der Handle existiert, muss er zuerst per entity.describe oder geometry.query geprueft werden; die AI darf ihn nicht still durch einen anderen Handle ersetzen.",
+                "Wenn ein expliziter Handle nicht zur geforderten Operation passt, melde den Typkonflikt oder nutze read-only Kontext; waehle kein anderes Objekt ohne Nutzerabsicht.",
+                "Runtime-Selectoren wie lastResult und lastExtruded beziehen sich nur auf unmittelbar vorherige BRX-Ergebnisse im selben bestaetigten Batch oder auf den aktuellen promptlokalen BRX-Status.",
+                "Bei vorhandenen Objekten sind selector.scope=handles mit konkreten Handles robuster als scope=selection.",
+                "currentSpace ist fuer read-only Tabellen und Analysen erlaubt; mutierende Aktionen sollen currentSpace nur mit engem Layer-, Typ- oder Handle-Filter nutzen."
+            ],
+            "createdAt": "2026-07-18T13:30:00.000Z",
+            "description": "Schreibgeschuetzter Referenzworkflow fuer robuste BRX-Selectoren: Handles, aktuelle Auswahl, lastResult, lastExtruded, currentSpace und BIM-Namen korrekt binden.",
+            "directTestEligible": false,
+            "executionBatches": [
+                {
+                    "id": "selector_existing_handle",
+                    "mode": "sequential",
+                    "steps": [
+                        {
+                            "id": "inspect_explicit_handle",
+                            "paramsTemplate": {
+                                "handle": "{{handle}}",
+                                "include": [
+                                    "core",
+                                    "geometry",
+                                    "metrics"
+                                ]
+                            },
+                            "title": "Expliziten Handle pruefen",
+                            "tool": "entity.describe"
+                        },
+                        {
+                            "id": "mutate_explicit_handle",
+                            "paramsTemplate": {
+                                "selector": {
+                                    "handles": [
+                                        "{{handle}}"
+                                    ],
+                                    "scope": "handles"
+                                }
+                            },
+                            "title": "Folgeaktion mit exaktem Handle",
+                            "tool": "{{selectorCapableTool}}"
+                        }
+                    ],
+                    "stopOnFailure": true,
+                    "title": "Selector: expliziter Handle"
+                },
+                {
+                    "id": "selector_current_selection",
+                    "mode": "sequential",
+                    "steps": [
+                        {
+                            "id": "read_selection",
+                            "paramsTemplate": {
+                                "includeObjects": true,
+                                "selector": {
+                                    "scope": "selection"
+                                }
+                            },
+                            "title": "Aktuelle Auswahl lesen",
+                            "tool": "selection.describe"
+                        },
+                        {
+                            "id": "use_selection_or_handles",
+                            "paramsTemplate": {
+                                "selector": {
+                                    "scope": "selection"
+                                }
+                            },
+                            "title": "Auswahl gezielt verwenden",
+                            "tool": "{{selectorCapableTool}}"
+                        }
+                    ],
+                    "stopOnFailure": true,
+                    "title": "Selector: aktuelle Auswahl"
+                },
+                {
+                    "id": "selector_created_circle_last_result",
+                    "mode": "sequential",
+                    "steps": [
+                        {
+                            "id": "create_circle",
+                            "paramsTemplate": {
+                                "center": "{{center}}",
+                                "geometry": "circle",
+                                "layer": "{{layer}}",
+                                "radius": "{{radiusMm}}"
+                            },
+                            "title": "Kreis erzeugen",
+                            "tool": "geometry.create"
+                        },
+                        {
+                            "id": "extrude_created_circle",
+                            "paramsTemplate": {
+                                "heightMm": "{{heightMm}}",
+                                "selector": {
+                                    "kind": "circle",
+                                    "scope": "lastResult"
+                                }
+                            },
+                            "title": "Gerade erzeugten Kreis extrudieren",
+                            "tool": "circle.extrude"
+                        }
+                    ],
+                    "stopOnFailure": true,
+                    "title": "Selector: erzeugter Kreis"
+                },
+                {
+                    "id": "selector_created_rectangle_last_result",
+                    "mode": "sequential",
+                    "steps": [
+                        {
+                            "id": "create_rectangle",
+                            "paramsTemplate": {
+                                "depth": "{{depthMm}}",
+                                "geometry": "rectangle",
+                                "layer": "{{sourceLayer}}",
+                                "origin": "{{origin}}",
+                                "width": "{{widthMm}}"
+                            },
+                            "title": "Rechteckprofil erzeugen",
+                            "tool": "geometry.create"
+                        },
+                        {
+                            "id": "extrude_created_rectangle",
+                            "paramsTemplate": {
+                                "heightMm": "{{heightMm}}",
+                                "layer": "{{targetLayer}}",
+                                "selector": {
+                                    "kind": "rectangle",
+                                    "scope": "lastResult"
+                                }
+                            },
+                            "title": "Gerade erzeugtes Rechteck extrudieren",
+                            "tool": "rectangles.extrude"
+                        },
+                        {
+                            "id": "set_extruded_layer",
+                            "paramsTemplate": {
+                                "layer": "{{targetLayer}}",
+                                "selector": {
+                                    "scope": "lastResult"
+                                }
+                            },
+                            "title": "Erzeugten Solid-Layer setzen",
+                            "tool": "entity.setLayer"
+                        }
+                    ],
+                    "stopOnFailure": true,
+                    "title": "Selector: erzeugtes Rechteck"
+                },
+                {
+                    "id": "selector_bim_name_to_handles",
+                    "mode": "sequential",
+                    "steps": [
+                        {
+                            "id": "resolve_bim_name",
+                            "paramsTemplate": {
+                                "include": [
+                                    "core",
+                                    "geometry"
+                                ],
+                                "limit": 100,
+                                "selector": {
+                                    "names": [
+                                        "{{bimName}}"
+                                    ],
+                                    "scope": "names"
+                                }
+                            },
+                            "title": "BIM-Name zu Handles aufloesen",
+                            "tool": "bim.objects.query"
+                        },
+                        {
+                            "id": "select_bim_handles",
+                            "paramsTemplate": {
+                                "allMatches": false,
+                                "autoBimHandlesFromLastQuery": true
+                            },
+                            "title": "BIM-Ergebnis exakt auswaehlen",
+                            "tool": "bim.selection.set"
+                        }
+                    ],
+                    "stopOnFailure": true,
+                    "title": "Selector: BIM-Name"
+                }
+            ],
+            "id": "workflow_brx_selector_reference",
+            "intent": "BRX Selector-Szenarien korrekt waehlen, wenn die AI eine passende Zielbindung fuer Handles, Auswahl, neue Objekte, lastResult, lastExtruded, currentSpace oder BIM-Namen braucht.",
+            "intentPatterns": [
+                "Selector findet keine Objekte",
+                "kein passender Selector",
+                "Handle aus Prompt verwenden",
+                "lastResult verwenden",
+                "Auswahl verwenden",
+                "Kreis nach Erzeugung extrudieren",
+                "Rechteck nach Erzeugung extrudieren",
+                "BIM Objekt nach Name auswaehlen"
+            ],
+            "knownFailures": [
+                "selector.kind darf ein korrektes Objekt nicht herausfiltern; AcDbCircle muss kind/shape circle matchen.",
+                "Ein ausdruecklich genannter Handle darf nicht durch einen aehnlichen Handle aus dem Zeichnungskontext ersetzt werden.",
+                "autoHandlesFromBatch ist kein literal Handle in selector.handles; nutze dokumentierte Runtime-Bindings nur als eigenes Params-Feld, wenn Qt sie fuer das Tool unterstuetzt.",
+                "selection ist promptlokal und muss bei Bedarf mit selection.describe frisch gelesen werden.",
+                "currentSpace ohne engen Filter ist fuer mutierende Aktionen zu breit."
+            ],
+            "knownSlotValues": {
+            },
+            "lessonKind": "workflow",
+            "postconditions": [
+                {
+                    "description": "Selector.resolve liefert mindestens ein Objekt oder der Fehler nennt den konkreten Typ-/Handle-Konflikt.",
+                    "type": "selector_resolution"
+                },
+                {
+                    "description": "Mutierende Aktionen verwenden exakte Handles oder stabile Runtime-Selectoren statt breit geratenem currentSpace.",
+                    "type": "safe_mutation_scope"
+                }
+            ],
+            "recommendedTools": [
+                "entity.describe",
+                "geometry.query",
+                "selection.describe",
+                "selection.set",
+                "circle.extrude",
+                "rectangles.extrude",
+                "profile.extrude",
+                "entity.setLayer",
+                "bim.objects.query",
+                "bim.selection.set",
+                "geometry.move",
+                "actions.validate"
+            ],
+            "repairRules": [
+                "Bei Selector-Fehler zuerst Handle/Typ mit entity.describe oder geometry.query pruefen.",
+                "Bei kind/shape-Konflikt Tool oder Selector korrigieren, nicht blind einen anderen Handle einsetzen.",
+                "Nach geometry.create circle ist circle.extrude mit selector.scope=lastResult und kind=circle gueltig; falls circle.extrude in effectiveTools fehlt, nutze profile.extrude mit selector.kind=circle.",
+                "Nach geometry.create rectangle ist rectangles.extrude mit selector.scope=lastResult und kind=rectangle gueltig.",
+                "Nach Extrusion verweist selector.scope=lastResult auf den erzeugten Solid; fuer BIM-Klassifizierung ist target=lastExtruded oder selector.scope=lastResult sinnvoll."
+            ],
+            "requiredSlots": [
+            ],
+            "selectorScenarios": [
+                {
+                    "command": "entity.describe",
+                    "followUpSelector": {
+                        "handles": [
+                            "{{handle}}"
+                        ],
+                        "scope": "handles"
+                    },
+                    "purpose": "Explizit genannten Handle read-only pruefen und danach exakt fuer eine mutierende Aktion binden.",
+                    "scenario": "explicit_handle"
+                },
+                {
+                    "command": "selection.describe",
+                    "followUpSelector": {
+                        "scope": "selection"
+                    },
+                    "purpose": "Aktuelle Auswahl promptgesteuert frisch lesen; Auswahlwechsel werden nicht passiv gecacht.",
+                    "scenario": "current_selection"
+                },
+                {
+                    "command": "circle.extrude",
+                    "fallbackCommand": "profile.extrude",
+                    "followUpSelector": {
+                        "kind": "circle",
+                        "scope": "lastResult"
+                    },
+                    "purpose": "Direkt nach geometry.create circle denselben erzeugten Kreis extrudieren. Falls circle.extrude nicht in effectiveTools vorhanden ist, profile.extrude mit demselben Kreisselector verwenden.",
+                    "scenario": "created_circle_lastResult"
+                },
+                {
+                    "command": "rectangles.extrude",
+                    "followUpSelector": {
+                        "kind": "rectangle",
+                        "scope": "lastResult"
+                    },
+                    "purpose": "Direkt nach geometry.create rectangle dasselbe erzeugte Rechteck extrudieren.",
+                    "scenario": "created_rectangle_lastResult"
+                },
+                {
+                    "command": "entity.setLayer",
+                    "followUpSelector": {
+                        "scope": "lastResult"
+                    },
+                    "purpose": "Nach einer Extrusion den zuletzt erzeugten Solid adressieren, wenn das vorherige Tool lastResult auf den Solid aktualisiert hat.",
+                    "scenario": "post_extrusion_lastResult"
+                },
+                {
+                    "command": "bim.classify",
+                    "followUpTarget": "lastExtruded",
+                    "purpose": "Nach Profil- oder Rechteckextrusion den zuletzt erzeugten Solid ohne Handle-Raten klassifizieren.",
+                    "scenario": "post_extrusion_lastExtruded"
+                },
+                {
+                    "command": "geometry.query",
+                    "followUpSelector": {
+                        "names": [
+                            "{{name}}"
+                        ],
+                        "scope": "names"
+                    },
+                    "purpose": "Benannte Nicht-BIM-Objekte zuerst abfragen und danach exakte Handles fuer Mutationen verwenden.",
+                    "scenario": "object_name_lookup"
+                },
+                {
+                    "command": "bim.objects.query",
+                    "followUpParams": {
+                        "autoBimHandlesFromLastQuery": true
+                    },
+                    "purpose": "BIM-Namen oder BIM-Typen ueber BIM Query aufloesen und Folgeschritt ueber autoBimHandlesFromLastQuery binden.",
+                    "scenario": "bim_name_or_type_lookup"
+                },
+                {
+                    "command": "geometry.query",
+                    "followUpSelector": {
+                        "scope": "currentSpace"
+                    },
+                    "purpose": "currentSpace nur fuer read-only Uebersicht oder mit engen Filtern nutzen; fuer Mutationen danach Handles verwenden.",
+                    "scenario": "current_space_read_context"
+                }
+            ],
+            "source": "canonical_brx_workflow",
+            "status": "active",
+            "strategy": [
+                "Explizite Nutzer-Handles zuerst read-only pruefen und beibehalten.",
+                "Objekttypen aus dem DrawingContextStore als Hilfe nutzen, aber nicht eigenmaechtig andere Handles waehlen.",
+                "Bei neu erzeugten Objekten lastResult/lastExtruded im selben Batch nutzen.",
+                "Bei aktuellen Auswahlen zuerst selection.describe lesen, wenn der Inhalt unklar ist.",
+                "Bei BIM-Namen immer bim.objects.query verwenden und Folgeschritte mit autoBimHandlesFromLastQuery oder exakten Handles binden."
+            ],
+            "title": "BRX Selector Referenz",
+            "topic": "BRX Selector Referenz",
+            "updateProtected": true,
+            "updatedAt": "2026-07-18T13:30:00.000Z",
+            "validActionShapes": [
+                {
+                    "paramsTemplate": {
+                        "handle": "{{handle}}",
+                        "include": [
+                            "core",
+                            "geometry",
+                            "metrics"
+                        ]
+                    },
+                    "tool": "entity.describe"
+                },
+                {
+                    "paramsTemplate": {
+                        "include": [
+                            "metrics",
+                            "geometry",
+                            "dimensions"
+                        ],
+                        "limit": 200,
+                        "selector": {
+                            "scope": "currentSpace"
+                        }
+                    },
+                    "tool": "geometry.query"
+                },
+                {
+                    "paramsTemplate": {
+                        "selector": {
+                            "handles": [
+                                "{{handle}}"
+                            ],
+                            "scope": "handles"
+                        }
+                    },
+                    "tool": "{{selectorCapableTool}}"
+                },
+                {
+                    "paramsTemplate": {
+                        "selector": {
+                            "kind": "circle",
+                            "scope": "lastResult"
+                        }
+                    },
+                    "tool": "circle.extrude"
+                },
+                {
+                    "paramsTemplate": {
+                        "selector": {
+                            "kind": "rectangle",
+                            "scope": "lastResult"
+                        }
+                    },
+                    "tool": "rectangles.extrude"
+                }
+            ],
+            "validationExamples": [
+            ]
         }
     ],
     "metadata": {
-        "activeCount": 14,
-        "aiOwnedWorkflowCount": 3,
+        "activeCount": 11,
+        "aiOwnedWorkflowCount": 1,
         "deprecatedCount": 0,
-        "lessonCount": 14,
+        "lessonCount": 11,
         "migratedWorkflowCount": 0,
-        "protectedWorkflowCount": 11,
+        "protectedWorkflowCount": 10,
         "repairRuleCount": 7,
-        "successfulExampleCount": 13,
-        "toolProfileCount": 40,
-        "updatedAt": "2026-07-12T20:00:00.003Z",
-        "validationExampleCount": 13
+        "successfulExampleCount": 11,
+        "updatedAt": "2026-07-18T13:45:00.000Z",
+        "validationExampleCount": 11
     },
     "repairRules": [
         {
@@ -6212,1570 +7436,7 @@
         }
     ],
     "schema": "barebone.agent.bricscad-learning.v1",
-    "toolProfiles": [
-        {
-            "agentHints": [
-                "Prefer exact handles after creating polylines.",
-                "This tool is read-only.",
-                "Treat disconnected components and undeclared open ends as validation failures."
-            ],
-            "domain": "pipes",
-            "examples": {
-                "intent": "Validate a connected heating path.",
-                "params": {
-                    "endNodes": [
-                        {
-                            "x": 2000,
-                            "y": 0,
-                            "z": 300
-                        }
-                    ],
-                    "minimumClearanceMm": 100,
-                    "selector": {
-                        "kind": "polyline",
-                        "layer": "Heizung Rohrleitungen",
-                        "scope": "currentSpace"
-                    },
-                    "startNode": {
-                        "x": 0,
-                        "y": 0,
-                        "z": 300
-                    },
-                    "system": "heating",
-                    "teeNodes": []
-                }
-            },
-            "keywords": [
-                "pipe",
-                "network",
-                "topology",
-                "validate",
-                "rohr",
-                "netz",
-                "abzweigung"
-            ],
-            "name": "pipes.validateNetwork",
-            "policy": "Use before creating pipe solids. All paths must form one connected network rooted at startNode; only declared endNodes may remain open.",
-            "semanticConstraints": [
-                "system is mandatory.",
-                "selector must resolve open polylines.",
-                "minimumClearanceMm must be non-negative."
-            ],
-            "summary": "Validates pipe centerline connectivity, declared endpoints, tee nodes, clearances, and overlaps without modifying the drawing.",
-            "unsupportedOperations": [
-                "creating geometry",
-                "hydraulic sizing"
-            ]
-        },
-        {
-            "agentHints": [
-                "Never invent engineering diameters.",
-                "Stop the system on any failed segment or fitting.",
-                "Use a dedicated target layer per system."
-            ],
-            "domain": "pipes",
-            "examples": {
-                "intent": "Create one heating pipe segment.",
-                "params": {
-                    "connectionMode": "elbows_and_tees",
-                    "diameterMm": 26,
-                    "saveBefore": true,
-                    "selector": {
-                        "kind": "polyline",
-                        "layer": "Heizung Rohrleitungen",
-                        "scope": "currentSpace"
-                    },
-                    "system": "heating",
-                    "targetLayer": "Heizung Rohrkoerper"
-                }
-            },
-            "keywords": [
-                "pipe",
-                "cylinder",
-                "elbow",
-                "tee",
-                "rohr",
-                "zylinder",
-                "bogen"
-            ],
-            "name": "pipes.createNetworkSolids",
-            "policy": "Use only after pipes.validateNetwork succeeds and diameterMm is explicitly confirmed.",
-            "semanticConstraints": [
-                "diameterMm must be greater than zero.",
-                "Provide exact validated polyline handles through selector.",
-                "connectionMode must be elbows_and_tees."
-            ],
-            "summary": "Creates cylindrical pipe segments and connecting elbows or tee fittings from validated open polylines.",
-            "unsupportedOperations": [
-                "hydraulic sizing",
-                "automatic insulation"
-            ]
-        },
-        {
-            "agentHints": [
-                "Use exact room contours from Grundriss Raeume.",
-                "Always pass techniqueRoomBounds and decimalPlaces=2.",
-                "Read both annotation layers back after creation."
-            ],
-            "domain": "annotations",
-            "examples": {
-                "intent": "Dimension one bathroom.",
-                "params": {
-                    "dimensionLayer": "Grundriss Bemassung",
-                    "labelLayer": "Grundriss Raumbeschriftung",
-                    "offsetMm": 300,
-                    "roomHeightMm": 2600,
-                    "roomNames": [
-                        "Bad"
-                    ],
-                    "saveBefore": true,
-                    "selector": {
-                        "kind": "polyline",
-                        "layer": "Grundriss Raeume",
-                        "scope": "currentSpace",
-                        "shape": "rectangle"
-                    },
-                    "textHeightMm": 180
-                }
-            },
-            "keywords": [
-                "dimension",
-                "room label",
-                "annotation",
-                "bemassung",
-                "raumstempel",
-                "beschriftung"
-            ],
-            "name": "annotations.createRoomDimensions",
-            "policy": "Create visible AcDbAlignedDimension and AcDbMText entities. techniqueRoomBounds is mandatory and the matching room must be labelled Technikraum. decimalPlaces must be 0, 1 or 2 and may never exceed 2.",
-            "semanticConstraints": [
-                "Provide an exact rectangle selector.",
-                "roomHeightMm and textHeightMm must be positive.",
-                "dimensionLayer and labelLayer are mandatory."
-            ],
-            "summary": "Creates aligned length and width dimensions plus a room label containing name, dimensions, height, and area.",
-            "unsupportedOperations": [
-                "automatic architectural code compliance",
-                "non-rectangular associative dimensions"
-            ]
-        },
-        {
-            "agentHints": [
-                "This tool is read-only.",
-                "Use it for tool discovery, not for drawing changes.",
-                "Runtime capabilities are authoritative when learning context and BRX disagree."
-            ],
-            "domain": "bridge",
-            "examples": {
-                "intent": "Inspect available BRX tools.",
-                "params": {}
-            },
-            "keywords": [
-                "capabilities",
-                "tools",
-                "schemas",
-                "available tools",
-                "funktionen",
-                "faehigkeiten",
-                "toolliste"
-            ],
-            "name": "capabilities.list",
-            "policy": "Use capabilities.list when the AI needs to inspect which BRX methods are available or compare runtime capabilities against learning context.",
-            "semanticConstraints": "No params are required.",
-            "summary": "Lists all BRX bridge capabilities, commands, schemas, risks, and categories.",
-            "unsupportedOperations": "drawing mutation"
-        },
-        {
-            "agentHints": [
-                "This tool is read-only.",
-                "Prefer actions.list over guessing param names.",
-                "Use it before repair when schema uncertainty caused a validation error."
-            ],
-            "domain": "bridge",
-            "examples": {
-                "intent": "Fetch action schemas before building a proposal.",
-                "params": {}
-            },
-            "keywords": [
-                "actions",
-                "api",
-                "schema",
-                "required fields",
-                "examples",
-                "aktionen",
-                "parameter"
-            ],
-            "name": "actions.list",
-            "policy": "Use actions.list when the AI needs exact action schemas, required params, or examples before proposing a CAD action.",
-            "semanticConstraints": "No params are required.",
-            "summary": "Lists documented BRX API actions with schemas, required fields, and examples.",
-            "unsupportedOperations": "drawing mutation"
-        },
-        {
-            "agentHints": [
-                "Pass either actions:[{tool,params}] or one tool plus params.",
-                "Use validation errors as repair context and do not repeat rejected params unchanged.",
-                "This tool never replaces the normal Qt confirmation flow for mutating actions."
-            ],
-            "domain": "bridge",
-            "examples": {
-                "intent": "Validate assigning handle A8 to a layer.",
-                "params": {
-                    "actions": {
-                        "params": {
-                            "createIfMissing": true,
-                            "layer": "Haus - Waende",
-                            "selector": {
-                                "handles": "A8",
-                                "scope": "handles"
-                            }
-                        },
-                        "tool": "entity.setLayer"
-                    }
-                }
-            },
-            "keywords": [
-                "validate",
-                "preflight",
-                "dry run",
-                "schema check",
-                "validieren",
-                "pruefen",
-                "repair"
-            ],
-            "name": "actions.validate",
-            "policy": "Use actions.validate as a read-only diagnostic tool when the AI needs to test an action shape before asking the user to confirm. Qt still runs its own automatic preflight before any proposal is shown.",
-            "semanticConstraints": [
-                "The nested tool names must be real tools.",
-                "Validation can depend on current drawing state."
-            ],
-            "summary": "Dry-runs one action or an action list against BRX validation without modifying the drawing.",
-            "unsupportedOperations": [
-                "executing mutations",
-                "bypassing user confirmation"
-            ]
-        },
-        {
-            "agentHints": [
-                "Prefer specialized bridge tools when they cover the task.",
-                "Use command.execute only with commands present in commands.list.",
-                "This tool is read-only."
-            ],
-            "domain": "native-command",
-            "examples": {
-                "intent": "Inspect native command whitelist.",
-                "params": {}
-            },
-            "keywords": [
-                "commands",
-                "native command",
-                "command.execute",
-                "bricscad command",
-                "befehle",
-                "native befehle"
-            ],
-            "name": "commands.list",
-            "policy": "Use commands.list when command.execute may be appropriate or when the AI must know which native commands are whitelisted.",
-            "semanticConstraints": "No params are required.",
-            "summary": "Lists whitelisted native BricsCAD commands and their bridge-tool mappings.",
-            "unsupportedOperations": "executing native commands"
-        },
-        {
-            "agentHints": [
-                "This tool is read-only.",
-                "Use exact returned layer names in later actions.",
-                "Layer 0 is valid and should be treated as the string \"0\"."
-            ],
-            "domain": "layers",
-            "examples": {
-                "intent": "Check whether Haus - Waende exists.",
-                "params": {}
-            },
-            "keywords": [
-                "layers",
-                "layer list",
-                "existing layers",
-                "layer vorhanden",
-                "ebenen",
-                "layer pruefen"
-            ],
-            "name": "layers.list",
-            "policy": "Use layers.list before layer-dependent actions when layer existence, exact spelling, or color/state is unclear.",
-            "semanticConstraints": "No params are required.",
-            "summary": "Reads layer names and layer state from the active drawing.",
-            "unsupportedOperations": [
-                "creating layers",
-                "renaming layers",
-                "assigning entities to layers"
-            ]
-        },
-        {
-            "agentHints": [
-                "This tool is read-only.",
-                "Use include=[\"geometry\",\"metrics\"] when dimensions or table output are needed.",
-                "limit must be a positive integer when sent."
-            ],
-            "domain": "selection",
-            "examples": {
-                "intent": "Describe current selection with metrics.",
-                "params": {
-                    "include": [
-                        "metrics",
-                        "geometry"
-                    ],
-                    "limit": 100
-                }
-            },
-            "keywords": [
-                "selection",
-                "selected objects",
-                "current selection",
-                "auswahl",
-                "selektiert",
-                "handles"
-            ],
-            "name": "selection.describe",
-            "policy": "Use selection.describe when the user refers to selected objects or when a previous visible selection should be inspected before planning.",
-            "semanticConstraints": [
-                "Does not change the editor selection.",
-                "limit must be >= 1 when present."
-            ],
-            "summary": "Reads current BricsCAD selection handles, types, layers, and optional geometry.",
-            "unsupportedOperations": [
-                "selecting objects",
-                "editing objects"
-            ]
-        },
-        {
-            "agentHints": [
-                "Use handle or handles for hexadecimal database handles such as A8.",
-                "Use name for BIM names such as Window 11. If a name was supplied as handle, BRX also performs a BIM-name fallback.",
-                "BIM data is returned by default for entity.describe; geometry.query can request include=[bim].",
-                "This tool is read-only.",
-                "For a follow-up asking for a BIM table or data, query the named BIM object again instead of reusing a previous null value from conversation history.",
-                "componentTypeSource=bimProperty is direct; classifiedBlockReference is the documented V26 BIM-block inference for a classified block reference."
-            ],
-            "domain": "entity",
-            "examples": {
-                "intent": "Describe the BIM window named Window 11.",
-                "params": {
-                    "include": [
-                        "bim",
-                        "geometry",
-                        "metrics"
-                    ],
-                    "limit": 10,
-                    "name": "Window 11"
-                }
-            },
-            "keywords": [
-                "entity",
-                "handle",
-                "describe handle",
-                "object details",
-                "objekt",
-                "handle beschreiben",
-                "wand A8",
-                "BIM object",
-                "BIM name",
-                "Window",
-                "Fenster",
-                "component type",
-                "BIM Block"
-            ],
-            "name": "entity.describe",
-            "policy": "Use entity.describe when the user references exact database handles, BIM object names such as Window 11, or BIM/object details are needed. A value containing spaces is normally a name, not a hexadecimal handle.",
-            "semanticConstraints": [
-                "At least one of handle, handles or name is required.",
-                "Do not claim that a value containing spaces is a valid database handle.",
-                "limit must be >= 1 when present."
-            ],
-            "summary": "Reads concrete entities by database handle or BIM object name and returns geometry plus BIM classification, name, GUID, block name, component type and properties.",
-            "unsupportedOperations": "editing entities"
-        },
-        {
-            "agentHints": [
-                "This tool is read-only.",
-                "Use selector.scope=handles for exact handles.",
-                "Use selector.scope=selection for the current visible selection."
-            ],
-            "domain": "measurement",
-            "examples": {
-                "intent": "Measure bounding box of A8.",
-                "params": {
-                    "selector": {
-                        "handles": "A8",
-                        "scope": "handles"
-                    }
-                }
-            },
-            "keywords": [
-                "bbox",
-                "bounding box",
-                "bounds",
-                "dimensions",
-                "abmessungen",
-                "grenzen",
-                "bounding"
-            ],
-            "name": "measurement.bbox",
-            "policy": "Use measurement.bbox when dimensions, extents, centers, placement data, or object tables need width/depth/height from bounds. It is read-only and returns bounds plus dimensions(widthX, depthY, heightZ, unit=mm) per object when available.",
-            "semanticConstraints": [
-                "Requires selector, handle, handles, or current selection depending on runtime schema.",
-                "For all objects in all layers use selector.scope=currentSpace without selector.layer.",
-                "Use measurement.bbox as fallback before claiming dimensions are unavailable."
-            ],
-            "summary": "Computes bounding boxes and derived dimensions for selected or specified entities.",
-            "unsupportedOperations": "editing geometry"
-        },
-        {
-            "agentHints": [
-                "This tool is read-only.",
-                "Use exact handles or a precise selector.",
-                "If the target is a solid, bbox or geometry.query metrics may be more useful."
-            ],
-            "domain": "measurement",
-            "examples": {
-                "intent": "Measure selected curve lengths.",
-                "params": {
-                    "selector": {
-                        "scope": "selection"
-                    }
-                }
-            },
-            "keywords": [
-                "length",
-                "distance",
-                "curve length",
-                "laenge",
-                "strecke",
-                "messen"
-            ],
-            "name": "measurement.length",
-            "policy": "Use measurement.length for read-only length calculations on lines, curves, polylines, arcs, or other supported curve entities.",
-            "semanticConstraints": "Target entities must support length measurement.",
-            "summary": "Computes lengths for curve-like entities.",
-            "unsupportedOperations": [
-                "changing length",
-                "moving geometry"
-            ]
-        },
-        {
-            "agentHints": [
-                "This tool is read-only.",
-                "Use exact handles or a precise selector.",
-                "If area fails for a target, inspect it with entity.describe or geometry.query."
-            ],
-            "domain": "measurement",
-            "examples": {
-                "intent": "Measure selected closed profile areas.",
-                "params": {
-                    "selector": {
-                        "scope": "selection"
-                    }
-                }
-            },
-            "keywords": [
-                "area",
-                "surface",
-                "flaeche",
-                "kreisflaeche",
-                "messen"
-            ],
-            "name": "measurement.area",
-            "policy": "Use measurement.area for read-only area calculations on closed or area-capable entities.",
-            "semanticConstraints": "Target entities must support area measurement.",
-            "summary": "Computes areas for closed curves, circles, and supported area entities.",
-            "unsupportedOperations": [
-                "changing area",
-                "editing geometry"
-            ]
-        },
-        {
-            "agentHints": [
-                "For rectangles, send the second 2D dimension as depth or length, not as height.",
-                "For a simple wall body, geometry=box can represent length, wall thickness, and wall height as width, depth, and height.",
-                "Use layer only when the target layer is known or explicitly requested; otherwise layer 0 is acceptable when optional.",
-                "If the user says geometry must be drawn in a named layer, include that exact layer in geometry.create.paramsTemplate.layer. A previous layers.create step does not automatically switch the drawing layer for later geometry."
-            ],
-            "domain": "geometry",
-            "examples": [
-                {
-                    "intent": "Create a wall body 5 m long, 240 mm thick and 3 m high.",
-                    "params": {
-                        "depth": 240,
-                        "geometry": "box",
-                        "height": 3000,
-                        "layer": "0",
-                        "origin": {
-                            "x": 0,
-                            "y": 0,
-                            "z": 0
-                        },
-                        "saveBefore": true,
-                        "width": 5000
-                    }
-                },
-                {
-                    "intent": "Create a rectangle profile.",
-                    "params": {
-                        "depth": 240,
-                        "geometry": "rectangle",
-                        "layer": "0",
-                        "origin": {
-                            "x": 0,
-                            "y": 0,
-                            "z": 0
-                        },
-                        "saveBefore": true,
-                        "width": 5000
-                    }
-                }
-            ],
-            "keywords": [
-                "geometry",
-                "draw",
-                "create",
-                "point",
-                "line",
-                "rectangle",
-                "polyline",
-                "circle",
-                "arc",
-                "box",
-                "wall body",
-                "grundgeometrie",
-                "zeichnen",
-                "rechteck",
-                "linie",
-                "kreis",
-                "bogen",
-                "quader",
-                "wandkoerper"
-            ],
-            "name": "geometry.create",
-            "policy": "Use geometry.create for new primitive drawing objects when the requested primitive is available in the input schema. Units are millimeters.",
-            "semanticConstraints": [
-                "Do not use geometry.create for editing existing entities.",
-                "Do not invent geometry types outside point, line, rectangle, polyline, circle, arc, or box.",
-                "For boxes, width/depth/height must be positive."
-            ],
-            "summary": "Creates primitive geometry: point, line, rectangle, polyline, circle, arc, or box.",
-            "unsupportedOperations": [
-                "subentity editing",
-                "face move",
-                "boolean operations"
-            ]
-        },
-        {
-            "agentHints": [
-                "limit must be an integer >= 1. Never use limit=0. To fetch many objects, use a practical positive value such as 100, 250, or 500.",
-                "For all objects in all layers, use selector={\"scope\":\"currentSpace\"} without layer.",
-                "For all objects in an explicitly named layer, use selector={\"scope\":\"currentSpace\",\"layer\":\"<requested layer>\"}.",
-                "For currently selected objects, use selector={\"scope\":\"selection\"}.",
-                "For table output, include metrics, geometry, and dimensions: include=[\"metrics\",\"geometry\",\"dimensions\"]. Result objects expose bounds and dimensions(widthX, depthY, heightZ, unit=mm) when BRX can calculate extents.",
-                "If dimensions are missing in geometry.query, try measurement.bbox before saying dimensions are unavailable.",
-                "If the user asks to select objects and then show a table, use selection.set only when the visible editor selection matters; geometry.query with selector.scope=currentSpace can fetch all-layer data directly."
-            ],
-            "domain": "geometry",
-            "examples": [
-                {
-                    "intent": "Fetch all objects in the current space across all layers and show them as a table.",
-                    "params": {
-                        "include": [
-                            "metrics",
-                            "geometry",
-                            "dimensions"
-                        ],
-                        "limit": 500,
-                        "selector": {
-                            "scope": "currentSpace"
-                        }
-                    }
-                },
-                {
-                    "intent": "Fetch currently selected objects with metrics.",
-                    "params": {
-                        "include": "metrics",
-                        "limit": 100,
-                        "selector": {
-                            "scope": "selection"
-                        }
-                    }
-                }
-            ],
-            "keywords": [
-                "geometry",
-                "query",
-                "fetch",
-                "read",
-                "objects",
-                "table",
-                "metrics",
-                "layer",
-                "daten",
-                "abfragen",
-                "auslesen",
-                "tabelle",
-                "objekte",
-                "metriken",
-                "selektieren"
-            ],
-            "name": "geometry.query",
-            "policy": "Use geometry.query for read-only geometry inspection, reporting, table output, and workflows that need object data from BricsCAD. It returns bounds and derived dimensions(widthX, depthY, heightZ, unit=mm) when extents are available. It does not select or modify entities. Runtime schemas from BRX are authoritative.",
-            "semanticConstraints": [
-                "This tool is read-only and must not be used as a drawing mutation.",
-                "selector.scope should be currentSpace, selection, handles, lastResult, or lastExtruded.",
-                "limit must be >= 1; omit limit to use the BRX default instead of sending an invalid zero.",
-                "Layer 0 is a valid layer filter and must be sent as the string \"0\" only when the user explicitly asks for layer 0.",
-                "For all objects or all layers, omit selector.layer and filters.layer."
-            ],
-            "summary": "Reads geometry objects from the current drawing without modifying anything and returns structured objects for chat/table output.",
-            "unsupportedOperations": [
-                "creating geometry",
-                "editing geometry",
-                "changing selection"
-            ]
-        },
-        {
-            "agentHints": [
-                "A height in an extrusion request maps to heightMm.",
-                "For all selected rectangles, use selector.scope=selection with kind=rectangle and shape=rectangle.",
-                "For all rectangles on a layer, use selector.scope=currentSpace with layer and kind=rectangle."
-            ],
-            "domain": "geometry",
-            "examples": [
-                {
-                    "intent": "Extrude selected rectangles to 3000 mm.",
-                    "params": {
-                        "detail": "summary",
-                        "heightMm": 3000,
-                        "saveBefore": true,
-                        "selector": {
-                            "kind": "rectangle",
-                            "scope": "selection",
-                            "shape": "rectangle"
-                        }
-                    }
-                },
-                {
-                    "intent": "Extrude all rectangles on a wall layer.",
-                    "params": {
-                        "detail": "summary",
-                        "heightMm": 3000,
-                        "saveBefore": true,
-                        "selector": {
-                            "kind": "rectangle",
-                            "layer": "0",
-                            "scope": "currentSpace",
-                            "shape": "rectangle"
-                        }
-                    }
-                }
-            ],
-            "keywords": [
-                "extrude",
-                "rectangle",
-                "profile",
-                "wall height",
-                "wall",
-                "solid",
-                "extrusion",
-                "rechteck",
-                "extrudieren",
-                "wandhoehe",
-                "wand",
-                "solid"
-            ],
-            "name": "rectangles.extrude",
-            "policy": "Use rectangles.extrude only for closed rectangle polylines. Select rectangles first or provide a layer/selector.",
-            "semanticConstraints": [
-                "heightMm must be greater than 0.",
-                "Do not assume current selection contains rectangles unless the user selected them or BRX context confirms it.",
-                "Use detail=summary unless element data is needed."
-            ],
-            "summary": "Extrudes closed rectangle polylines to 3D solids.",
-            "unsupportedOperations": [
-                "open profile extrusion",
-                "non-rectangle profile extrusion"
-            ]
-        },
-        {
-            "agentHints": [
-                "Prefer rectangles.extrude for rectangle-only work.",
-                "Use selector.scope=selection when the user refers to selected profiles.",
-                "Use target or selector only as allowed by the BRX schema."
-            ],
-            "domain": "geometry",
-            "examples": {
-                "intent": "Extrude selected closed profiles.",
-                "params": {
-                    "heightMm": 3000,
-                    "saveBefore": true,
-                    "selector": {
-                        "scope": "selection"
-                    }
-                }
-            },
-            "keywords": [
-                "extrude",
-                "profile",
-                "closed profile",
-                "polyline",
-                "solid",
-                "extrusion",
-                "profil",
-                "geschlossenes profil"
-            ],
-            "name": "profile.extrude",
-            "policy": "Use profile.extrude for closed non-rectangle profiles when rectangles.extrude is too narrow.",
-            "semanticConstraints": [
-                "heightMm must be greater than 0.",
-                "Profiles must be closed and extrudable."
-            ],
-            "summary": "Extrudes closed 2D profiles to 3D solids.",
-            "unsupportedOperations": [
-                "open curve extrusion",
-                "surface-only extrusion"
-            ]
-        },
-        {
-            "agentHints": [
-                "For architectural wall creation, geometry.create can create the wall solids and bim.classify should classify the created solids as BIMWall.",
-                "Wall/Wand as a generic word is not enough; wall thickness, wall height, room, floor plan, BIM, or classification context makes BIMWall classification appropriate.",
-                "For normal multi-action proposals, just-extruded solids can use target=lastExtruded.",
-                "When several geometry.create wall boxes are created before classification, Barebone-Qt may replace an auto batch classification with an exact handles selector at runtime.",
-                "For saved workflows that execute one step at a time, prefer selecting the resulting solids explicitly with selection.set and then classify target=selection.",
-                "If exact handles are not available and the user requested a layer, selector.scope=currentSpace with that layer and kind=solid can be used, but exact handles are safer.",
-                "For selected solids, use selector.scope=selection and kind=solid.",
-                "Do not claim BIM classification is unavailable when this tool is present."
-            ],
-            "domain": "bim",
-            "examples": [
-                {
-                    "intent": "Classify the last extruded solids as BIM walls.",
-                    "params": {
-                        "classification": "BIMWall",
-                        "saveBefore": false,
-                        "target": "lastExtruded"
-                    }
-                },
-                {
-                    "intent": "Classify currently selected solids as BIM walls in a step-by-step workflow.",
-                    "params": {
-                        "classification": "BIMWall",
-                        "saveBefore": false,
-                        "target": "selection"
-                    }
-                }
-            ],
-            "keywords": [
-                "bim",
-                "classify",
-                "bimwall",
-                "wall",
-                "walls",
-                "wall height",
-                "wall thickness",
-                "wand",
-                "waende",
-                "wandhoehe",
-                "wandstaerke",
-                "klassifizieren",
-                "klassifizierung",
-                "bim wand"
-            ],
-            "name": "bim.classify",
-            "policy": "Use classification=BIMWall when the user explicitly asks for BIM classification/BIM walls, or when the task clearly creates architectural wall solids with wall thickness, wall height, room, or floor-plan context. Do not use this tool for generic boxes without architectural wall intent.",
-            "semanticConstraints": [
-                "classification must be BIMWall.",
-                "The target must contain 3D solids.",
-                "Use target and selector only according to the active input schema."
-            ],
-            "summary": "Classifies 3D solids as BIM elements; currently BIMWall is supported for agent use.",
-            "unsupportedOperations": [
-                "BIMColumn",
-                "BIMSlab",
-                "BIMBeam via bridge tool"
-            ]
-        },
-        {
-            "agentHints": [
-                "Use handles when exact handles are known.",
-                "Use selector.scope=currentSpace plus layer/kind/shape for filtered selection.",
-                "If a later step should operate on this selected set, that later step must still include selector.scope=selection or target=selection.",
-                "When selection is ambiguous, request read-only context first."
-            ],
-            "domain": "selection",
-            "examples": {
-                "intent": "Select all wall rectangles on a layer.",
-                "params": {
-                    "selector": {
-                        "kind": "rectangle",
-                        "layer": "0",
-                        "scope": "currentSpace",
-                        "shape": "rectangle"
-                    }
-                }
-            },
-            "keywords": [
-                "select",
-                "selection",
-                "choose",
-                "handles",
-                "layer selection",
-                "auswahl",
-                "selektieren",
-                "waehlen"
-            ],
-            "name": "selection.set",
-            "policy": "Use selection.set to make a precise selection visible and available for later tools.",
-            "semanticConstraints": [
-                "selection.set changes editor state but not drawing geometry.",
-                "Avoid broad selections unless the user explicitly requests all matching objects."
-            ],
-            "summary": "Sets the active BricsCAD editor selection.",
-            "unsupportedOperations": "editing selected entities"
-        },
-        {
-            "agentHints": [
-                "For a known handle such as A8, use selector.scope=handles and handles=[\"A8\"].",
-                "If the user also asks to select the object visibly, use selection.set first and then entity.setLayer with selector.scope=handles from the selected handles.",
-                "If the target layer may not exist, set createIfMissing=true or create it with layers.create before entity.setLayer.",
-                "After selection.set in the same proposal, prefer explicit handles for entity.setLayer; do not rely on BricsCAD previous selection."
-            ],
-            "domain": "entity",
-            "examples": {
-                "intent": "Assign wall A8 to Haus - Waende.",
-                "params": {
-                    "createIfMissing": true,
-                    "layer": "Haus - Waende",
-                    "saveBefore": true,
-                    "selector": {
-                        "handles": "A8",
-                        "scope": "handles"
-                    }
-                }
-            },
-            "keywords": [
-                "set layer",
-                "assign layer",
-                "layer assignment",
-                "object layer",
-                "handle layer",
-                "layer zuweisen",
-                "layer zuordnen",
-                "objekt layer",
-                "wand layer"
-            ],
-            "name": "entity.setLayer",
-            "policy": "Use entity.setLayer when the user wants existing objects, handles, solids, BIM walls, or entities moved onto a different layer. Do not use layers.rename for this; layers.rename changes the layer name itself.",
-            "semanticConstraints": [
-                "Requires selector and layer.",
-                "Layer assignment modifies existing entities, not layer definitions."
-            ],
-            "summary": "Assigns existing entities to a target layer.",
-            "unsupportedOperations": [
-                "renaming entities",
-                "renaming layers"
-            ]
-        },
-        {
-            "agentHints": [
-                "For selected entities, use selector.scope=selection.",
-                "If the previous workflow step is selection.set, still set geometry.move.selector.scope=selection explicitly.",
-                "For objects in a named layer, include the exact layer in selector.layer.",
-                "A single distance in a move request is not enough without direction.",
-                "Ask for direction or use fromPoint/toPoint if the user gives source and target points."
-            ],
-            "domain": "transform",
-            "examples": {
-                "intent": "Move selected objects 1000 mm in X.",
-                "params": {
-                    "saveBefore": true,
-                    "selector": {
-                        "scope": "selection"
-                    },
-                    "vector": {
-                        "x": 1000,
-                        "y": 0,
-                        "z": 0
-                    }
-                }
-            },
-            "keywords": [
-                "move",
-                "offset",
-                "translate",
-                "shift",
-                "verschieben",
-                "bewegen"
-            ],
-            "name": "geometry.move",
-            "policy": "Use geometry.move only for whole entities, never for single faces or stretching. The BRX implementation runs BricsCAD's native MOVE command for stability, so provide a concrete selector and movement vector.",
-            "semanticConstraints": [
-                "Requires a selector and non-zero movement vector or fromPoint/toPoint.",
-                "Does not lengthen one side of a wall."
-            ],
-            "summary": "Moves whole entities by vector/offset or point pair.",
-            "unsupportedOperations": [
-                "face move",
-                "stretch",
-                "one-side lengthen"
-            ]
-        },
-        {
-            "agentHints": [
-                "Use only after successful marker-backed workflow completion."
-            ],
-            "domain": "layers",
-            "examples": {
-                "intent": "Hide BIM marker layer.",
-                "params": {
-                    "name": "BIM Fensterpunkte",
-                    "off": true
-                }
-            },
-            "keywords": [
-                "Layer ausschalten",
-                "Marker verstecken"
-            ],
-            "name": "layers.setState",
-            "policy": "Toggle an existing layer state; never create a missing layer implicitly.",
-            "semanticConstraints": [
-                "The layer must already exist."
-            ],
-            "summary": "Turns an existing layer on or off.",
-            "unsupportedOperations": [
-                "deleting layers"
-            ]
-        },
-        {
-            "agentHints": [
-                "For selected entities, use selector.scope=selection.",
-                "Use count only when more than one copy is requested and the schema supports it.",
-                "Do not use for parametric array patterns beyond schema support."
-            ],
-            "domain": "transform",
-            "examples": {
-                "intent": "Copy selected objects 500 mm upward.",
-                "params": {
-                    "count": 1,
-                    "saveBefore": true,
-                    "selector": {
-                        "scope": "selection"
-                    },
-                    "vector": {
-                        "x": 0,
-                        "y": 500,
-                        "z": 0
-                    }
-                }
-            },
-            "keywords": [
-                "copy",
-                "duplicate",
-                "array simple",
-                "kopieren",
-                "duplizieren"
-            ],
-            "name": "geometry.copy",
-            "policy": "Use geometry.copy for whole-entity copies when selector and offset/spacing are known.",
-            "semanticConstraints": [
-                "Requires selector and non-zero movement vector/offset/spacing.",
-                "count must stay in BRX-validated range."
-            ],
-            "summary": "Copies whole entities by vector/offset or spacing.",
-            "unsupportedOperations": [
-                "associative arrays",
-                "parametric pattern generation"
-            ]
-        },
-        {
-            "agentHints": [
-                "Angles named in degrees map to angleDeg.",
-                "If the user asks to rotate but gives no angle, ask_user for the missing angle before proposing geometry.rotate.",
-                "After selection.set in the same proposal, prefer selector.scope=handles with the selected handles for geometry.rotate; do not rely on BricsCAD previous selection.",
-                "Use WCS Z axis for normal 2D rotation when an axis is required and the schema allows it.",
-                "If the user says eigener Mittelpunkt, jeweiliger Mittelpunkt, Solidursprung, object center, or rotate each object in place, set basePointMode to entityCenter instead of asking again.",
-                "selectionCenter rotates all selected entities around one combined bounding-box center; entityCenter rotates every entity separately around its own bounding-box center."
-            ],
-            "domain": "transform",
-            "examples": [
-                {
-                    "intent": "Rotate selected objects 90 degrees around origin.",
-                    "params": {
-                        "angleDeg": 90,
-                        "basePoint": {
-                            "x": 0,
-                            "y": 0,
-                            "z": 0
-                        },
-                        "saveBefore": true,
-                        "selector": {
-                            "scope": "selection"
-                        }
-                    }
-                },
-                {
-                    "intent": "Rotate every selected solid 90 degrees around its own center.",
-                    "params": {
-                        "angleDeg": 90,
-                        "basePointMode": "entityCenter",
-                        "saveBefore": true,
-                        "selector": {
-                            "scope": "selection"
-                        }
-                    }
-                }
-            ],
-            "keywords": [
-                "rotate",
-                "turn",
-                "angle",
-                "drehen",
-                "rotieren",
-                "winkel"
-            ],
-            "name": "geometry.rotate",
-            "policy": "Use geometry.rotate for whole-entity rotations only when selector and angle are known from the user prompt or confirmed context. Never infer angleDeg/angleRad from examples, lessons, or defaults. Use basePoint for a shared rotation point. Use basePointMode=\"entityCenter\" or \"eachEntityCenter\" when every selected entity should rotate around its own bounds center.",
-            "semanticConstraints": [
-                "Requires non-zero angle.",
-                "Requires basePoint unless basePointMode is entityCenter, eachEntityCenter, or selectionCenter.",
-                "Axis must not be a zero vector."
-            ],
-            "summary": "Rotates whole entities around a base point and optional axis.",
-            "unsupportedOperations": [
-                "subentity rotation",
-                "true object-origin rotation when the origin differs from geometric bounds center"
-            ]
-        },
-        {
-            "agentHints": [
-                "Only factor is supported for scale amount.",
-                "Do not use xFactor, yFactor, zFactor, scaleX, scaleY, scaleZ, targetLength, or stretch-like params.",
-                "For lengthening one axis, use a different validated tool or ask for a supported workflow."
-            ],
-            "domain": "transform",
-            "examples": {
-                "intent": "Uniformly scale selected objects by factor 2.",
-                "params": {
-                    "basePoint": {
-                        "x": 0,
-                        "y": 0,
-                        "z": 0
-                    },
-                    "factor": 2,
-                    "saveBefore": true,
-                    "selector": {
-                        "scope": "selection"
-                    }
-                }
-            },
-            "keywords": [
-                "scale",
-                "resize",
-                "uniform scale",
-                "skalieren",
-                "massstab"
-            ],
-            "name": "geometry.scale",
-            "policy": "Use geometry.scale only for uniform scaling with factor.",
-            "semanticConstraints": [
-                "factor must be greater than 0.",
-                "Non-uniform axis scaling is not supported.",
-                "This tool scales whole entities, not subentities."
-            ],
-            "summary": "Uniformly scales whole entities.",
-            "unsupportedOperations": [
-                "non-uniform scaling",
-                "axis-only scaling",
-                "stretch",
-                "lengthen"
-            ]
-        },
-        {
-            "agentHints": [
-                "Prefer handles or current selection for deletion.",
-                "If target is ambiguous, ask or request read-only context first.",
-                "Set confirm=true only when the user clearly asked to delete."
-            ],
-            "domain": "geometry",
-            "examples": {
-                "intent": "Delete the current selection.",
-                "params": {
-                    "confirm": true,
-                    "saveBefore": true,
-                    "selector": {
-                        "scope": "selection"
-                    }
-                }
-            },
-            "keywords": [
-                "delete",
-                "erase",
-                "remove",
-                "loeschen",
-                "entfernen"
-            ],
-            "name": "geometry.delete",
-            "policy": "Use geometry.delete only when the deletion target is explicit and confirm=true is present.",
-            "semanticConstraints": [
-                "confirm=true is mandatory.",
-                "Never delete broadly without a clear selector."
-            ],
-            "summary": "Deletes entities through a selector.",
-            "unsupportedOperations": [
-                "implicit cleanup",
-                "delete unknown objects"
-            ]
-        },
-        {
-            "agentHints": [
-                "colorIndex is ACI color: 1 red, 2 yellow, 3 green, 4 cyan, 5 blue, 6 magenta, 7 white/black.",
-                "Any non-empty layer name without unsupported special characters is valid, including one-word names such as 'Test'.",
-                "If the user explicitly names the layer, preserve that exact name; never rename 'Test' to 'Test Layer'.",
-                "Layer 0 must not be created.",
-                "Existing layers are skipped by BRX with warnings."
-            ],
-            "domain": "layers",
-            "examples": {
-                "intent": "Create a heating layer in red.",
-                "params": {
-                    "colorIndex": 1,
-                    "name": "Heizung Rohrleitungen"
-                }
-            },
-            "keywords": [
-                "layer",
-                "create layer",
-                "new layer",
-                "ebene",
-                "layer anlegen",
-                "tga",
-                "heizung",
-                "sanitaer",
-                "lueftung",
-                "elektro"
-            ],
-            "name": "layers.create",
-            "policy": "Use layers.create for one layer. Any non-empty layer name without unsupported special characters is valid. An explicitly user-supplied layer name is authoritative and must be copied exactly, including a one-word name such as 'Test'.",
-            "semanticConstraints": [
-                "name is mandatory and must be non-empty.",
-                "Do not ask for or invent a replacement when the current prompt already supplies name.",
-                "Do not use '/', '\\', ':', '*', '?', quotes, '<', '>', '|', hyphens, underscores, dots or commas in layer names.",
-                "colorIndex must be 1..255 if present."
-            ],
-            "summary": "Creates one layer, optionally with ACI color.",
-            "unsupportedOperations": "batch layer creation via this single tool"
-        },
-        {
-            "agentHints": [
-                "Qt expands params.layers into individual layers.create actions.",
-                "Any non-empty layer name without unsupported special characters is valid.",
-                "Preserve every layer name explicitly supplied by the user, including one-word names.",
-                "Use for independent layer creation, not for rename or color changes.",
-                "Typical TGA colors: Heizung red=1, Sanitaer blue/cyan=5 or 4, Lueftung green=3, Elektro yellow=2."
-            ],
-            "domain": "layers",
-            "examples": {
-                "intent": "Create TGA layers.",
-                "params": {
-                    "layers": [
-                        {
-                            "colorIndex": 5,
-                            "name": "Sanitaer"
-                        },
-                        {
-                            "colorIndex": 1,
-                            "name": "Heizung"
-                        },
-                        {
-                            "colorIndex": 3,
-                            "name": "Lueftung"
-                        },
-                        {
-                            "colorIndex": 2,
-                            "name": "Elektro"
-                        }
-                    ]
-                }
-            },
-            "keywords": [
-                "multiple layers",
-                "tga layers",
-                "layer batch",
-                "mehrere layer",
-                "tga",
-                "heizung",
-                "sanitaer",
-                "lueftung",
-                "elektro"
-            ],
-            "name": "layers.ensureMany",
-            "policy": "For several layers, preserve every item.name explicitly supplied by the user. Any non-empty layer name without unsupported special characters is valid.",
-            "semanticConstraints": [
-                "Each item needs a non-empty name.",
-                "Each item.name must be normalized before use: only letters, digits, spaces and German umlauts are allowed.",
-                "Do not use '/', '\\', ':', '*', '?', quotes, '<', '>', '|', hyphens, underscores, dots or commas in layer names.",
-                "colorIndex is optional and must be 1..255 when present.",
-                "Do not include more items than Qt maxBatchActions."
-            ],
-            "summary": "Qt virtual tool for compact creation of multiple layers.",
-            "unsupportedOperations": [
-                "rename existing layers",
-                "change color of existing layers only"
-            ]
-        },
-        {
-            "agentHints": [
-                "If layer names are ambiguous, request layers.list first.",
-                "Do not rename Layer 0 or Defpoints.",
-                "newName must not already exist."
-            ],
-            "domain": "layers",
-            "examples": {
-                "intent": "Rename layer Temp to Walls.",
-                "params": {
-                    "newName": "Walls",
-                    "oldName": "Temp"
-                }
-            },
-            "keywords": [
-                "rename layer",
-                "layer rename",
-                "ebene umbenennen",
-                "layer umbenennen"
-            ],
-            "name": "layers.rename",
-            "policy": "Use layers.rename when old and new layer names are known.",
-            "semanticConstraints": [
-                "oldName and newName are mandatory.",
-                "The old layer must exist."
-            ],
-            "summary": "Renames one existing layer.",
-            "unsupportedOperations": "bulk rename"
-        },
-        {
-            "agentHints": [
-                "ACI colors: 1 red, 2 yellow, 3 green, 4 cyan, 5 blue, 6 magenta, 7 white/black.",
-                "If layer existence is unclear, request layers.list first."
-            ],
-            "domain": "layers",
-            "examples": {
-                "intent": "Set layer Heizung to red.",
-                "params": {
-                    "colorIndex": 1,
-                    "name": "Heizung"
-                }
-            },
-            "keywords": [
-                "layer color",
-                "aci",
-                "farbe",
-                "layerfarbe",
-                "rot",
-                "gelb",
-                "gruen",
-                "blau"
-            ],
-            "name": "layers.setColor",
-            "policy": "Use layers.setColor when the layer exists and the requested ACI color is known.",
-            "semanticConstraints": [
-                "name is mandatory.",
-                "colorIndex must be 1..255."
-            ],
-            "summary": "Sets the ACI color of one existing layer.",
-            "unsupportedOperations": "setting truecolor RGB"
-        },
-        {
-            "agentHints": [
-                "actions[] items may contain layers.create, layers.rename, or layers.setColor style params.",
-                "Do not use layers.batch for assigning existing entities to a layer; use entity.setLayer.",
-                "The full batch is validated by BRX before execution."
-            ],
-            "domain": "layers",
-            "examples": {
-                "intent": "Create two layers and set one color in a layer batch.",
-                "params": {
-                    "actions": [
-                        {
-                            "params": {
-                                "name": "Haus - Waende"
-                            },
-                            "tool": "layers.create"
-                        },
-                        {
-                            "params": {
-                                "colorIndex": 1,
-                                "name": "Haus - Waende"
-                            },
-                            "tool": "layers.setColor"
-                        }
-                    ],
-                    "saveBefore": true
-                }
-            },
-            "exposedToAgent": true,
-            "keywords": [
-                "layer batch",
-                "batch",
-                "multiple layers",
-                "layer create rename color",
-                "mehrere layer",
-                "layer batch"
-            ],
-            "name": "layers.batch",
-            "policy": "layers.batch is a released Agent-Tool and may be used when a compact BRX-native batch of layer create, rename, or color operations is the best fit. For simple creation of many layers, layers.ensureMany is usually easier; for mixed create/rename/color batches, layers.batch is appropriate.",
-            "semanticConstraints": [
-                "actions[] must be non-empty.",
-                "Only layer create, rename, and color operations are supported.",
-                "Do not exceed the BRX batch action limit."
-            ],
-            "summary": "Executes multiple BRX layer create, rename, or color actions in one validated layer batch.",
-            "unsupportedOperations": [
-                "entity layer assignment",
-                "geometry edits"
-            ]
-        },
-        {
-            "agentHints": [
-                "commandLine must contain exactly one complete command line.",
-                "No semicolon and no newline are allowed.",
-                "Prefer specialized tools when they cover the task directly."
-            ],
-            "domain": "native-command",
-            "examples": {
-                "intent": "Native SAVE command if document.save is not the desired route.",
-                "params": {
-                    "commandLine": "SAVE"
-                }
-            },
-            "keywords": [
-                "native command",
-                "command",
-                "bricscad command",
-                "befehl",
-                "commandline",
-                "rectang",
-                "extrude",
-                "layer",
-                "undo",
-                "redo"
-            ],
-            "name": "command.execute",
-            "policy": "Use command.execute only when a native command is a better fit than a specialized Bridge tool.",
-            "semanticConstraints": [
-                "The command must be present in commands.list.",
-                "Commands that need arguments must include complete arguments.",
-                "Qt/BRX validates before confirmation."
-            ],
-            "summary": "Executes one validated native BricsCAD command line from commands.list.",
-            "unsupportedOperations": [
-                "multi-command macros",
-                "unlisted commands",
-                "interactive incomplete commands"
-            ]
-        },
-        {
-            "agentHints": "Most mutating tools can save before first action through saveBefore; do not add document.save unless requested.",
-            "domain": "document",
-            "examples": {
-                "intent": "Save the current drawing.",
-                "params": {}
-            },
-            "keywords": [
-                "save",
-                "document save",
-                "zeichnung speichern",
-                "speichern"
-            ],
-            "name": "document.save",
-            "policy": "Use document.save only when the user asks to save or when a workflow explicitly requires a save step.",
-            "semanticConstraints": "Requires an active drawing.",
-            "summary": "Saves the active drawing.",
-            "unsupportedOperations": [
-                "save as",
-                "export"
-            ]
-        },
-        {
-            "agentHints": [
-                "Default to steps=1 unless the user specifies a count.",
-                "Use the structured undo.last tool with numeric steps. Do not use native UNDO Back/All variants that trigger 'This will undo everything' confirmation prompts."
-            ],
-            "domain": "undo",
-            "examples": {
-                "intent": "Undo the last action.",
-                "params": {
-                    "saveBefore": false,
-                    "steps": 1
-                }
-            },
-            "keywords": [
-                "undo",
-                "revert",
-                "rueckgaengig",
-                "zurueck"
-            ],
-            "name": "undo.last",
-            "policy": "Use undo.last when the user explicitly asks to undo previous BricsCAD actions.",
-            "semanticConstraints": [
-                "steps must be 1..50.",
-                "BRX executes undo.last as numeric UNDO <steps>; it must not wait for a Yes/No command prompt."
-            ],
-            "summary": "Undoes previous actions.",
-            "unsupportedOperations": "selective undo of arbitrary old action"
-        },
-        {
-            "agentHints": "Default to steps=1 unless the user specifies a count.",
-            "domain": "undo",
-            "examples": {
-                "intent": "Redo the last undone action.",
-                "params": {
-                    "saveBefore": false,
-                    "steps": 1
-                }
-            },
-            "keywords": [
-                "redo",
-                "repeat undo",
-                "wiederholen",
-                "redo"
-            ],
-            "name": "undo.redo",
-            "policy": "Use undo.redo only when the user explicitly asks to redo.",
-            "semanticConstraints": "steps must be 1..50.",
-            "summary": "Redoes previously undone actions if available.",
-            "unsupportedOperations": "redo unavailable history"
-        },
-        {
-            "agentHints": [
-                "Use a concrete non-empty name without unsupported special characters.",
-                "Name geometry immediately after creation so lastResult is unambiguous."
-            ],
-            "domain": "entities",
-            "examples": {
-                "intent": "Name the newly created bathroom wall.",
-                "params": {
-                    "name": "Badezimmer Wand",
-                    "saveBefore": false,
-                    "selector": {
-                        "scope": "lastResult"
-                    }
-                }
-            },
-            "keywords": [
-                "entity name",
-                "objektname",
-                "benennen",
-                "raum",
-                "anwendungszweck"
-            ],
-            "name": "entity.setName",
-            "policy": "Name newly created geometry immediately via selector.scope=lastResult. Use names such as Badezimmer Wand or Badezimmer Trinkwasserrohr.",
-            "semanticConstraints": [
-                "selector and name are required.",
-                "Names must describe room or purpose."
-            ],
-            "summary": "Assigns a meaningful room- or purpose-based name to entities.",
-            "unsupportedOperations": [
-                "renaming layers"
-            ]
-        },
-        {
-            "agentHints": [
-                "Use this read-only tool for BIM inventories, object tables, classifications, names, GUIDs, bounds and qualified properties.",
-                "Without a selector the tool reads classified BIM objects from the current drawing space.",
-                "Use include=[\"core\",\"geometry\"] for compact context and add \"properties\" only when the user asks for detailed data.",
-                "Use exact BIM names or database handles; block definition names are output data, not BIM-name selectors."
-            ],
-            "createdAt": "2026-07-12T20:00:00.000Z",
-            "domain": "bim",
-            "examples": {
-                "intent": "List all BIM walls with geometry and properties.",
-                "params": {
-                    "classification": "BIMWall",
-                    "include": [
-                        "core",
-                        "geometry",
-                        "properties"
-                    ],
-                    "limit": 100,
-                    "selector": {
-                        "scope": "currentSpace"
-                    }
-                }
-            },
-            "keywords": [
-                "BIM objects",
-                "BIM data",
-                "BIM table",
-                "BIM properties",
-                "BIM Objekte",
-                "BIM Daten",
-                "BIM Tabelle",
-                "GUID",
-                "Component Type"
-            ],
-            "name": "bim.objects.query",
-            "policy": "Use bim.objects.query as the authoritative read-only BIM data source. Prefer compact core/geometry context; request typed qualified properties only when needed.",
-            "semanticConstraints": [
-                "limit must be between 1 and 500.",
-                "Names are exact and case-sensitive by default.",
-                "BIMWall is an agent alias; rely on the canonical classification returned by BRX."
-            ],
-            "summary": "Reads classified BIM entities with identity, classification, geometry and optional typed qualified properties.",
-            "unsupportedOperations": [
-                "editing BIM objects",
-                "IFC import or export"
-            ],
-            "updatedAt": "2026-07-12T20:00:00.000Z"
-        },
-        {
-            "agentHints": [
-                "Resolve names through bim.objects.query first when the target may be ambiguous.",
-                "Prefer exact handles returned by the latest BIM query.",
-                "Set allMatches=true only when the user explicitly wants every object with the same BIM name."
-            ],
-            "createdAt": "2026-07-12T20:00:00.001Z",
-            "domain": "bim",
-            "examples": {
-                "intent": "Select the BIM object with handle A7.",
-                "params": {
-                    "allMatches": false,
-                    "selector": {
-                        "handles": [
-                            "A7"
-                        ],
-                        "scope": "handles"
-                    }
-                }
-            },
-            "keywords": [
-                "BIM select",
-                "BIM selection",
-                "BIM auswaehlen",
-                "BIM selektieren",
-                "name",
-                "handle"
-            ],
-            "name": "bim.selection.set",
-            "policy": "Use bim.selection.set only for classified BIM entities resolved by exact BIM name or database handle. Ambiguous names require explicit confirmation via allMatches or exact handles.",
-            "semanticConstraints": [
-                "selector.scope must be handles or names.",
-                "At least one non-empty handle or name is required.",
-                "Unclassified entities are rejected."
-            ],
-            "summary": "Sets the BricsCAD Pickfirst selection to BIM entities resolved by exact names or handles.",
-            "unsupportedOperations": [
-                "selecting unclassified geometry",
-                "fuzzy name matching"
-            ],
-            "updatedAt": "2026-07-12T20:00:00.001Z"
-        }
-    ],
-    "updatedAt": "2026-07-13T23:18:58.223Z",
+    "updatedAt": "2026-07-18T14:13:23.899Z",
     "version": 1,
     "workflowAliases": {
         "workflow_02_exterior_walls": [
@@ -7818,3 +7479,4 @@
         ]
     }
 }
+

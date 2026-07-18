@@ -3,7 +3,18 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const root = path.resolve(__dirname, "..");
+const cmakeSource = fs.readFileSync(path.join(root, "CMakeLists.txt"), "utf8");
 const cpp = fs.readFileSync(path.join(root, "src", "ui", "BricsCadPage.cpp"), "utf8");
+const pageHeader = fs.readFileSync(path.join(root, "src", "ui", "BricsCadPage.h"), "utf8");
+const bridgeHeader = fs.readFileSync(path.join(root, "src", "ui", "AiWebBridge.h"), "utf8");
+const indexHtml = fs.readFileSync(path.join(root, "index.html"), "utf8");
+const brxSource = fs.readFileSync(path.join(root, "src", "bricscad", "BareboneBrxPlugin.cpp"), "utf8");
+const drawingStoreSource = fs.readFileSync(path.join(root, "src", "agent", "DrawingContextStore.cpp"), "utf8");
+const schedulerSource = fs.readFileSync(path.join(root, "src", "agent", "LocalAiJobScheduler.cpp"), "utf8");
+const learningSource = fs.readFileSync(path.join(root, "src", "agent", "BricsCadLearningAgent.cpp"), "utf8");
+const brxAgentSource = fs.readFileSync(path.join(root, "src", "agent", "BrxAgent.cpp"), "utf8");
+const learningJson = fs.readFileSync(path.join(root, "agent", "bricscad-learning", "brx-learning.json"), "utf8");
+const removedBrokerName = "BrxCapability" + "Broker";
 
 function sourceSection(startMarker, endMarker) {
   const start = cpp.indexOf(startMarker);
@@ -557,5 +568,347 @@ assert.match(
   /usedTokens\s*>\s*0\s*&&\s*maxTokens\s*>\s*0[\s\S]*std::max\(1, rawPercent\)/,
   "Production context meter must preserve a visible non-zero percentage for positive usage"
 );
+
+const agentBrokerSource = sourceSection(
+  "void BricsCadPage::continueUnifiedAgentRequest",
+  "void BricsCadPage::sendUnifiedAgentRequest"
+);
+assert.ok(
+  agentBrokerSource.includes("initialDrawingContextNeeded"),
+  "BricsCAD prompts must decide whether an initial drawing prefetch is actually needed"
+);
+assert.ok(
+  agentBrokerSource.includes("heizlast") && agentBrokerSource.includes("dokument"),
+  "Future calculation/documentation agents must be allowed to trigger drawing context"
+);
+
+const toolRoutingSource = sourceSection(
+  "QJsonArray BricsCadPage::availableAgentToolsForRoute",
+  "QJsonArray BricsCadPage::readOnlyMethodsForRoute"
+);
+assert.ok(cpp.includes("BrxAgent::buildToolCatalog"));
+assert.ok(toolRoutingSource.includes("BrxAgent::selectToolsForRoute"));
+assert.equal(cpp.includes(`${removedBrokerName}::`), false, "BricsCadPage must route through BrxAgent, not the removed broker");
+assert.equal(brxAgentSource.includes(removedBrokerName), false, "BrxAgent must contain migrated broker logic directly");
+assert.ok(cpp.includes("tableMarkdownPolicy"), "BricsCAD geometry table output must carry a Markdown table policy");
+assert.ok(cpp.includes("Tabellenzeilen niemals als Einzeiler zusammenkleben"));
+assert.ok(brxSource.includes('"circle.extrude"'), "BRX runtime capabilities must expose circle.extrude");
+assert.ok(brxSource.includes("countCircleProfiles"), "BRX validation must have circle-specific extrusion checks");
+assert.ok(brxSource.includes('method == "circle.extrude"'), "BRX dispatcher must route circle.extrude");
+assert.ok(brxSource.includes("selectorMatchTokensForEntity"), "BRX selector filters must use normalized entity match tokens");
+assert.ok(brxSource.includes("selectorAnyTokenMatches"), "BRX selector array filters must match canonical aliases");
+assert.ok(brxSource.includes("AcDbCircle::cast(entity)"), "BRX selector filters must recognize AcDbCircle as circle");
+assert.ok(brxSource.includes('state.plannedLastResultKind = "CIRCLE"'), "Batch preflight must recognize geometry.create circle as planned circle lastResult");
+assert.ok(brxSource.includes("normalizedSelectorScope"), "BRX selector scopes must be normalized before validation/resolution");
+assert.ok(brxAgentSource.includes("circle.extrude"), "BrxAgent must make circle.extrude selectable");
+assert.ok(brxAgentSource.includes('selectedToolNames << QStringLiteral("profile.extrude")'), "Circle extrusion routing must include profile.extrude fallback when selectedTools are prefilled");
+assert.ok(
+  brxAgentSource.includes('circleExtrudeIntent && (name == QStringLiteral("circle.extrude") || name == QStringLiteral("profile.extrude"))'),
+  "Circle extrusion routing must keep profile.extrude available as generic profile fallback"
+);
+assert.ok(cpp.includes('tool == QStringLiteral("circle.extrude")'), "Qt must treat circle.extrude as an extrusion action");
+assert.ok(cpp.includes("profileCircleSelector"), "Qt proposal validation must allow profile.extrude circle fallback without forcing a target layer");
+assert.ok(cpp.includes("Wenn circle.extrude nicht in effectiveTools vorhanden ist"), "AI policy must tell local models to use profile.extrude fallback instead of asking for manual extrusion");
+assert.ok(cpp.includes('params.contains(QStringLiteral("z"))'), "Qt must normalize z to heightMm for extrusion actions");
+assert.ok(brxSource.includes('jsonDoubleProperty(paramsJson, "z")'), "BRX extrusion validation/execution must accept z as height alias");
+for (const removedBrokerFile of [
+  path.join("src", "agent", `${removedBrokerName}.cpp`),
+  path.join("src", "agent", `${removedBrokerName}.h`)
+]) {
+  assert.equal(fs.existsSync(path.join(root, removedBrokerFile)), false, `Removed broker file still exists: ${removedBrokerFile}`);
+  assert.equal(cmakeSource.includes(removedBrokerFile.replaceAll(path.sep, "/")), false, `CMake still compiles removed broker file: ${removedBrokerFile}`);
+}
+assert.ok(brxAgentSource.includes("compatibleGeometry"));
+assert.ok(brxAgentSource.includes("return filtered;"));
+assert.ok(brxAgentSource.includes("repairToolContext"), "BrxAgent must expose a full repair tool context");
+assert.ok(brxAgentSource.includes("allToolIndex"), "Repair mode must expose the full compact tool index");
+assert.ok(brxAgentSource.includes("candidateGroups"), "Repair mode must group alternative tool candidates");
+assert.ok(brxAgentSource.includes("describeAllTools"), "Repair mode must expose paged full-tool describe access");
+assert.ok(brxAgentSource.includes('params.value(QStringLiteral("all")).toBool(false)'), "qt.brx.tools.describe must support all=true");
+assert.ok(brxAgentSource.includes('params.value(QStringLiteral("cursor"))'), "qt.brx.tools.describe must support cursor paging");
+assert.ok(brxAgentSource.includes('params.value(QStringLiteral("includeSchemas"))'), "qt.brx.tools.describe must allow schema-heavy output to be controlled");
+assert.ok(cpp.includes("repairMode"), "Repair envelopes must include repairMode context");
+assert.ok(cpp.includes("BrxAgent::repairToolContext"), "BricsCadPage must build repair context through BrxAgent");
+assert.ok(cpp.includes("qt.brx.db.compatibility"), "Repair instructions must route ambiguous tool choice through db compatibility");
+assert.ok(cpp.includes("qt.brx.tools.describe names=[...] oder all=true"), "Repair instructions must expose full toolcard paging to the AI");
+assert.equal(
+  toolRoutingSource.includes("Q_UNUSED(filtered)"),
+  false,
+  "Filtered tool details must not be discarded"
+);
+assert.equal(fs.existsSync(path.join(root, "BRX_CAPABILITIES.md")), false, "Manual BRX_CAPABILITIES.md must be removed");
+assert.equal(cpp.includes("toolProfile("), false, "BricsCadPage must not enrich tools from learning toolProfiles");
+assert.equal(learningJson.includes('"toolProfiles"'), false, "brx-learning.json must not store toolProfiles");
+assert.ok(learningJson.includes('"id": "workflow_brx_selector_reference"'), "Learning JSON must contain protected BRX selector reference workflow");
+assert.ok(learningJson.includes('"title": "BRX Selector Referenz"'), "Selector reference workflow must be visible by title");
+assert.match(
+  learningJson,
+  /"id": "workflow_brx_selector_reference"[\s\S]*?"updateProtected": true/,
+  "Selector reference workflow must be read-only"
+);
+assert.match(
+  learningJson,
+  /"id": "workflow_brx_selector_reference"[\s\S]*?"source": "canonical_brx_workflow"/,
+  "Selector reference workflow must be a canonical BRX workflow"
+);
+assert.match(
+  learningJson,
+  /"selectorScenarios"[\s\S]*?"scenario": "explicit_handle"[\s\S]*?"scenario": "current_selection"[\s\S]*?"scenario": "created_circle_lastResult"[\s\S]*?"scenario": "post_extrusion_lastExtruded"[\s\S]*?"scenario": "current_space_read_context"/,
+  "Selector reference workflow must document selector scenarios with matching commands"
+);
+const selectorReferenceLesson = JSON.parse(learningJson).lessons
+  .find((lesson) => lesson.id === "workflow_brx_selector_reference");
+const circleSelectorScenario = selectorReferenceLesson.selectorScenarios
+  .find((scenario) => scenario.scenario === "created_circle_lastResult");
+assert.equal(
+  circleSelectorScenario.fallbackCommand,
+  "profile.extrude",
+  "Selector reference workflow must document profile.extrude fallback for circle extrusion"
+);
+assert.ok(
+  !learningJson.includes("ai_circle.extrude_anwenden"),
+  "Faulty runtime circle-extrude workflow must be removed from learning context"
+);
+assert.ok(learningSource.includes("selectorScenarios"), "Compact BRX lessons must expose selectorScenarios to the AI");
+assert.ok(brxSource.includes("namespace BrxToolRegistry"), "BRX descriptors must live in BrxToolRegistry");
+assert.equal(brxSource.includes("jsonCapabilitiesResponse("), false, "Old static capability response must be removed");
+
+const localContextSource = sourceSection(
+  "QJsonObject BricsCadPage::localAgentContextResponse",
+  "void BricsCadPage::handleAgentContextRequest"
+);
+for (const method of [
+  "qt.tools.describe",
+  "qt.brx.tools.describe",
+  "qt.brx.db.schema",
+  "qt.brx.db.query",
+  "qt.brx.db.inspect",
+  "qt.brx.db.fullContext",
+  "qt.brx.db.compatibility",
+  "qt.brx.context.manifest",
+  "qt.brx.context.fetch",
+  "qt.brx.execution.history",
+  "qt.brx.workflow.testPlan",
+  "qt.brx.workflow.repairHints",
+  "qt.brx.workflow.repairContext",
+  "qt.learning.describe",
+  "qt.documents.describe",
+  "qt.drawing.manifest",
+  "qt.drawing.query",
+  "qt.drawing.fullScan"
+]) {
+  assert.ok(localContextSource.includes(method), `Missing local context method ${method}`);
+}
+assert.ok(cpp.includes("DrawingContextStore m_drawingContextStore")
+  || fs.readFileSync(path.join(root, "src", "ui", "BricsCadPage.h"), "utf8").includes("DrawingContextStore m_drawingContextStore"));
+
+// Drawing state is deliberately prompt-driven. A BricsCAD turn starts with an
+// empty store/selection, then fills them only from explicit read-only requests.
+const promptEntrySource = sourceSection(
+  "void BricsCadPage::sendAgentPrompt",
+  "void BricsCadPage::continueUnifiedAgentRequest"
+);
+assert.ok(promptEntrySource.includes("isBricsCadMode()"));
+assert.ok(promptEntrySource.includes("m_drawingContextStore.clear()"));
+assert.ok(promptEntrySource.includes("m_currentSelection = {}"));
+
+const drawingPrefetchSource = sourceSection(
+  "void BricsCadPage::sendUnifiedAgentRequestWithPrefetchedContext",
+  "static ParsedModelOutput parseModelOutput"
+);
+assert.ok(drawingPrefetchSource.includes("selection.describe"));
+assert.ok(drawingPrefetchSource.includes("m_drawingContextStore.updateFromContextResponse"));
+assert.match(
+  drawingPrefetchSource,
+  /method\s*==\s*QStringLiteral\("selection\.describe"\)[\s\S]*?m_currentSelection\s*=\s*result\.value\(QStringLiteral\("objects"\)\)\.toArray\(\)/,
+  "selection.describe must populate the turn-local selection from its current BRX response"
+);
+assert.match(
+  drawingStoreSource,
+  /method\s*==\s*QStringLiteral\("selection\.describe"\)[\s\S]*?m_selection\s*=\s*selection/,
+  "DrawingContextStore must ingest explicit selection.describe results"
+);
+for (const token of [
+  "contextManifest()",
+  "fetch(const QJsonObject& params)",
+  "inspect(const QJsonObject& params)",
+  "fullContext(const QJsonObject& params)",
+  "executionHistory(const QJsonObject& params)",
+  "repairContext(const QJsonObject& params)",
+  "compactObjectFact",
+  "m_normalizedFacts",
+  "m_capabilityBlocks"
+]) {
+  assert.ok(drawingStoreSource.includes(token), `DrawingContextStore missing full-context support token ${token}`);
+}
+
+assert.ok(schedulerSource.includes("std::clamp(value, 1, 4)"));
+assert.ok(schedulerSource.includes("abortOldestCancellableBackground"));
+assert.ok(schedulerSource.includes("activeForeground"));
+assert.ok(cpp.includes("m_config.aiProvider() == QStringLiteral(\"local\") ? 4 : 1"));
+assert.equal(cpp.includes("m_aiNetwork->post"), false, "AI POST requests must go through LocalAiJobScheduler");
+assert.ok(bridgeHeader.includes("agentRuntimeStatusChanged"));
+assert.ok(indexHtml.includes("function applyAgentRuntimeStatus"));
+assert.ok(pageHeader.includes("QVector<DeferredAgentPrompt> m_deferredAgentPrompts"));
+assert.ok(cpp.includes("AI Runtime: Foreground-Prompt eingereiht"));
+assert.equal(cpp.includes("void BricsCadPage::resolvePendingGeometryMoveResponse"), false);
+assert.equal(cpp.includes('QStringLiteral("geometry.move.status")'), false);
+assert.ok(brxAgentSource.includes("brx.sdk.entity.transformBy"));
+assert.ok(brxAgentSource.includes("brx.sdk.blockReference.setPosition"));
+assert.ok(brxAgentSource.includes("brx.sdk.assoc.evaluate"));
+for (const sdkAlias of [
+  "brx.sdk.entity.copy",
+  "brx.sdk.entity.rotateBy",
+  "brx.sdk.entity.scaleBy",
+  "brx.sdk.entity.erase",
+  "brx.sdk.entity.setLayer",
+  "brx.sdk.entity.setName",
+  "brx.sdk.selection.setPickfirst",
+  "brx.sdk.bim.classification.set"
+]) {
+  assert.ok(brxAgentSource.includes(sdkAlias), `BrxAgent missing SDK alias ${sdkAlias}`);
+}
+for (const validationMapping of [
+  'return QStringLiteral("geometry.copy");',
+  'return QStringLiteral("geometry.rotate");',
+  'return QStringLiteral("geometry.scale");',
+  'return QStringLiteral("geometry.delete");',
+  'return QStringLiteral("entity.setLayer");',
+  'return QStringLiteral("entity.setName");',
+  'return QStringLiteral("selection.set");',
+  'return QStringLiteral("bim.classify");'
+]) {
+  assert.ok(cpp.includes(validationMapping), `Qt missing SDK validation mapping ${validationMapping}`);
+}
+
+for (const removedFile of [
+  path.join("src", "agent", "DrawingActivityTracker.cpp"),
+  path.join("src", "agent", "DrawingActivityTracker.h"),
+  path.join("src", "agent", "InteractiveDrawingLearningAgent.cpp"),
+  path.join("src", "agent", "InteractiveDrawingLearningAgent.h")
+]) {
+  assert.equal(
+    fs.existsSync(path.join(root, removedFile)),
+    false,
+    `Removed realtime drawing-learning file still exists: ${removedFile}`
+  );
+  assert.equal(
+    cmakeSource.includes(removedFile.replaceAll(path.sep, "/")),
+    false,
+    `CMake still compiles removed realtime drawing-learning file: ${removedFile}`
+  );
+}
+
+const qtRealtimeSources = `${cpp}\n${pageHeader}`;
+for (const removedSymbol of [
+  "DrawingActivityTracker",
+  "InteractiveDrawingLearningAgent",
+  "m_drawingContextPoll",
+  "refreshDrawingContextSnapshot",
+  "scheduleDrawingContextPoll",
+  "enqueueDrawingLearningJob",
+  "observeInteractiveDrawingLearning",
+  "DrawingLearning",
+  "drawing-learning:",
+  "m_brxDrawingLifecycleActive"
+]) {
+  assert.equal(
+    qtRealtimeSources.includes(removedSymbol),
+    false,
+    `Qt still contains removed realtime drawing-learning symbol: ${removedSymbol}`
+  );
+}
+
+for (const [label, source] of [
+  ["CMake", cmakeSource],
+  ["Qt", qtRealtimeSources],
+  ["learning agent", learningSource],
+  ["learning JSON", learningJson],
+  ["overlay", indexHtml]
+]) {
+  assert.equal(source.includes("drawing_ai_runtime"), false, `${label} still knows drawing_ai_runtime`);
+}
+
+for (const removedBrxSymbol of [
+  "AcEditorReactor",
+  "AcDbDatabaseReactor",
+  "AcApDocManagerReactor",
+  "BridgeEditorReactor",
+  "BridgeDatabaseReactor",
+  "BridgeDocumentReactor",
+  "sendCommandActivityEvent",
+  "selection.changed",
+  "command.started",
+  "command.ended",
+  "object.appended",
+  "object.modified",
+  "object.erased",
+  "g_drawingLifecycleActive",
+  "detailsDeferred",
+  "BBTRACK"
+]) {
+  assert.equal(
+    brxSource.includes(removedBrxSymbol),
+    false,
+    `BRX still contains removed realtime command/database/selection tracking symbol: ${removedBrxSymbol}`
+  );
+}
+
+assert.ok(brxSource.includes("isQuiescent()"), "Prompt-driven BRX requests must require a quiescent document");
+assert.ok(brxSource.includes("activeDocumentReadyForPromptRequest(lifecycleError)"));
+assert.ok(brxSource.includes("autoBimHandlesFromLastQuery"));
+assert.ok(brxSource.includes("hasBimValidationArtifacts"));
+assert.ok(brxSource.includes("validateMoveTargetDatabaseState"));
+assert.equal(brxSource.includes("struct GeometryMoveJob"), false);
+assert.equal(brxSource.includes("std::string geometryMoveStatusBridgeResponse"), false);
+assert.equal(brxSource.includes('if (method == "geometry.move.status")'), false);
+assert.equal(brxSource.includes('"method":"geometry.move.status"'), false);
+assert.equal(brxSource.includes('_T("BBGEOMETRYMOVE ")'), false);
+assert.equal(brxSource.includes("static void BareboneQtBBGEOMETRYMOVE()"), false);
+assert.ok(brxSource.includes("validateGeometryMoveReadback"));
+assert.ok(brxSource.includes("sameMoveFingerprint"));
+assert.ok(brxSource.includes("AcDbAssocManager::evaluateTopLevelNetwork"));
+assert.ok(brxSource.includes('"brx.sdk.assoc.evaluate"'));
+assert.ok(brxSource.includes("BRXASSOCEVALUATE"));
+assert.ok(brxSource.includes("evaluateAssocNetworkInApplicationContext"));
+assert.ok(brxSource.includes("moveEntityWithBrxSdk"));
+assert.ok(brxSource.includes("AcDbBlockReference::setPosition"));
+assert.ok(brxSource.includes("AcDbEntity::transformBy"));
+assert.ok(brxSource.includes('transformationVerified\\":true'));
+for (const removedMoveSymbol of [
+  "geometry.move.status",
+  "BBGEOMETRYMOVE",
+  "GeometryMoveJob",
+  "g_geometryMoveJobs",
+  "queueGeometryMoveJob",
+  "runNativeManipMoveCommand",
+  "ScopedShortSysVar",
+  "hostSurfaceHint",
+  "hostSurfaces",
+  "anchorSearch",
+  "appendHostSurfacesJson",
+  "appendAnchorSearchJson",
+  "hintedAnchorPointAfterValid",
+  "doorWindowAnchorRepair",
+  "expectedAnchorHostHandleAfter",
+  "doorWindowAnchorCandidatePoints",
+  "queryAnchorCandidateForDoorWindow",
+  "BimApi::createAnchoredBlockReference",
+  "BimApi::unAnchorBlockReference",
+  "acceptedDoorWindowAnchorRepair"
+]) {
+  assert.equal(brxSource.includes(removedMoveSymbol), false, `BRX still contains removed BIM move symbol: ${removedMoveSymbol}`);
+  assert.equal(cpp.includes(removedMoveSymbol), false, `Qt still contains removed BIM move symbol: ${removedMoveSymbol}`);
+  assert.equal(learningJson.includes(removedMoveSymbol), false, `Learning JSON still contains removed BIM move symbol: ${removedMoveSymbol}`);
+}
+assert.match(
+  brxSource,
+  /result\.tool\s*==\s*"geometry\.move"[\s\S]{0,1800}?autoBimHandlesFromLastQuery[\s\S]{0,1800}?ResolvePurpose::DrawingMutation/,
+  "geometry.move validation must bind auto BIM query handles through DrawingMutation resolution"
+);
+assert.equal(learningJson.includes("workflow_bim_move"), false, "Fixed BIM move workflow must be removed from learning JSON");
+assert.equal(learningJson.includes("MANIP_MOVE"), false, "Learning JSON must not hardcode MANIP_MOVE");
+assert.equal(cpp.includes("QJsonArray BricsCadPage::compactToolSelectorList"), false);
+assert.equal(cpp.includes("QJsonArray BricsCadPage::agentToolsByNames"), false);
 
 console.log("AI provider and whole-message context behavior tests passed.");

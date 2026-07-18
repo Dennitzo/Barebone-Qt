@@ -78,6 +78,7 @@ Q_SIGNALS:
     void assistantWorkspaceApplied(const QString& workspace);
     void clientStateLoaded(const QString& stateJson);
     void contextBudgetChanged(const QVariantMap& budget);
+    void agentRuntimeStatusChanged(const QVariantMap& status);
     void localAiStatusChanged(const QString& message, bool connected);
     void uiThemeChanged(const QString& theme);
     void uiLanguageChanged(const QString& language);

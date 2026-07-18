@@ -445,6 +445,18 @@ assert.equal(
   "Ordinary parentheses such as (r) must remain text"
 );
 
+const flatCadObjectTable = "Handle | Typ | Layer | Breite X (mm) | Tiefe Y (mm) | H\u00f6he Z (mm) | L\u00e4nge (mm) | Fl\u00e4che (mm\u00b2) | Volumen 104C | solid | 0 | N/A | N/A | N/A | N/A | N/A | N/A 104E | circle | Test | 4000 | 4000 | 0 | 12566.4 | 12566400 | N/A";
+assert.deepEqual(
+  structure.normalizeMarkdownStructureText(flatCadObjectTable).split("\n"),
+  [
+    "| Handle | Typ | Layer | Breite X (mm) | Tiefe Y (mm) | H\u00f6he Z (mm) | L\u00e4nge (mm) | Fl\u00e4che (mm\u00b2) | Volumen |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    "| 104C | solid | 0 | N/A | N/A | N/A | N/A | N/A | N/A |",
+    "| 104E | circle | Test | 4000 | 4000 | 0 | 12566.4 | 12566400 | N/A |"
+  ],
+  "A flat CAD object pipe table must become a real Markdown table"
+);
+
 const gptOssEinsteinTable = [
   "| **Anwendung** | **Formel (Einstein‑Notation)** | **Ergebnis (mit Einheit)** |",
   "| --- | --- | --- |",

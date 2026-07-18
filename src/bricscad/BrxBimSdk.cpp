@@ -7,7 +7,7 @@
 
 #include <windows.h>
 
-#include "BimTools.h"
+#include "BrxBimSdk.h"
 
 #include "arxHeaders.h"
 #include "AcCm/AcCmColor.h"
@@ -25,7 +25,7 @@
 #include <sstream>
 #include <utility>
 
-namespace Barebone::Brx::BimTools {
+namespace Barebone::Brx::BrxBimSdk {
 namespace {
 
 constexpr double kTolerance = 1.0e-9;
@@ -189,14 +189,7 @@ std::string classificationOf(const AcDbObjectId& id)
         : std::string();
 }
 
-Fingerprint fingerprintOf(const AcDbObjectId& id)
-{
-    Fingerprint value;
-    value.handle = handleText(id);
-    value.guid = nativeToUtf8(BimClassification::getGUID(id));
-    value.bimType = classificationOf(id);
-    return value;
-}
+Fingerprint fingerprintOf(const AcDbObjectId& id);
 
 std::string classificationKey(std::string value)
 {
@@ -302,6 +295,136 @@ std::string entityLayerName(const AcDbEntity* entity)
     const std::string result = layer->getName(name) == Acad::eOk ? nativeToUtf8(name) : std::string();
     layer->close();
     return result;
+}
+
+std::string anchorHostHandle(const AcDbObjectId& anchoredId)
+{
+    AcDbFullSubentPath hostFace;
+    if (BimApi::getAnchorFace(anchoredId, hostFace) != Acad::eOk) {
+        return {};
+    }
+    const AcDbObjectIdArray& path = hostFace.objectIds();
+    for (int i = 0; i < path.length(); ++i) {
+        if (!path.at(i).isNull() && path.at(i) != anchoredId) {
+            return handleText(path.at(i));
+        }
+    }
+    return {};
+}
+
+std::vector<std::string> hostedAnchoredHandles(const AcDbObjectId& hostId, bool& stateKnown)
+{
+    std::vector<std::string> handles;
+    stateKnown = false;
+    if (hostId.isNull() || hostId.database() == nullptr) {
+        return handles;
+    }
+    AcArray<AcDbObjectId> anchoredIds;
+    if (BimApi::getAnchoredBlockReferences(hostId.database(), anchoredIds) != Acad::eOk) {
+        return handles;
+    }
+    stateKnown = true;
+    for (int i = 0; i < anchoredIds.length(); ++i) {
+        AcDbFullSubentPath hostFace;
+        if (BimApi::getAnchorFace(anchoredIds.at(i), hostFace) != Acad::eOk) {
+            stateKnown = false;
+            continue;
+        }
+        const AcDbObjectIdArray& path = hostFace.objectIds();
+        bool hosted = false;
+        for (int pathIndex = 0; pathIndex < path.length(); ++pathIndex) {
+            if (path.at(pathIndex) == hostId) {
+                hosted = true;
+                break;
+            }
+        }
+        if (hosted) {
+            handles.push_back(handleText(anchoredIds.at(i)));
+        }
+    }
+    std::sort(handles.begin(), handles.end());
+    handles.erase(std::unique(handles.begin(), handles.end()), handles.end());
+    return handles;
+}
+
+Fingerprint fingerprintOf(const AcDbObjectId& id)
+{
+    Fingerprint value;
+    value.handle = handleText(id);
+    value.guid = nativeToUtf8(BimClassification::getGUID(id));
+    value.bimType = classificationOf(id);
+    value.name = nativeToUtf8(BimClassification::getName(id));
+    value.anchored = BimApi::isAnchoredBlockRef(id);
+    if (value.anchored) {
+        value.anchorHostHandle = anchorHostHandle(id);
+    }
+    bool hostedStateKnown = false;
+    value.hostedAnchoredHandles = hostedAnchoredHandles(id, hostedStateKnown);
+    value.anchorStateKnown = hostedStateKnown && (!value.anchored || !value.anchorHostHandle.empty());
+
+    AcDbEntity* entity = nullptr;
+    if (acdbOpenObject(entity, id, AcDb::kForRead) == Acad::eOk && entity != nullptr) {
+        value.entityType = entityTypeName(entity);
+        value.layer = entityLayerName(entity);
+        entity->close();
+    }
+    return value;
+}
+
+bool entitySupportsStableGeomExtents(const AcDbEntity* entity)
+{
+    if (entity == nullptr) {
+        return false;
+    }
+
+    // BricsCAD may evaluate nested ACIS/BDM geometry while resolving the
+    // extents of block references, solids, surfaces and other modeler-backed
+    // entities. That path is not safe from our application-context BIM scan
+    // while the drawing is loading or being rendered. Keep BIM geometry
+    // readback limited to database primitives whose extents do not enter the
+    // modeler/worldDraw pipeline.
+    const std::string type = upperAscii(entityTypeName(entity));
+    static const std::set<std::string> stableTypes{
+        "ACDB2DPOLYLINE",
+        "ACDB3DPOLYLINE",
+        "ACDBARC",
+        "ACDBCIRCLE",
+        "ACDBELLIPSE",
+        "ACDBLINE",
+        "ACDBMTEXT",
+        "ACDBPOINT",
+        "ACDBPOLYLINE",
+        "ACDBTEXT",
+    };
+    return stableTypes.find(type) != stableTypes.end();
+}
+
+Acad::ErrorStatus entityGeomExtentsWithSeh(const AcDbEntity* entity, AcDbExtents* extents, bool* accessViolation)
+{
+    if (accessViolation != nullptr) {
+        *accessViolation = false;
+    }
+    Acad::ErrorStatus status = Acad::eInvalidInput;
+    __try {
+        status = (entity != nullptr && extents != nullptr)
+            ? entity->getGeomExtents(*extents)
+            : Acad::eInvalidInput;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        if (accessViolation != nullptr) {
+            *accessViolation = true;
+        }
+    }
+    return status;
+}
+
+bool safeEntityGeomExtents(const AcDbEntity* entity, AcDbExtents& extents)
+{
+    if (!entitySupportsStableGeomExtents(entity)) {
+        return false;
+    }
+    bool accessViolation = false;
+    return entityGeomExtentsWithSeh(entity, &extents, &accessViolation) == Acad::eOk
+        && !accessViolation;
 }
 
 std::string blockReferenceName(const AcDbEntity* entity)
@@ -541,7 +664,7 @@ bool populateObject(
 
     if (includeGeometry && entity != nullptr) {
         AcDbExtents extents;
-        if (entity->getGeomExtents(extents) == Acad::eOk) {
+        if (safeEntityGeomExtents(entity, extents)) {
             object.bounds.valid = true;
             object.bounds.minPoint = extents.minPoint();
             object.bounds.maxPoint = extents.maxPoint();
@@ -592,35 +715,6 @@ bool isEntityFromXref(const AcDbEntity* entity)
         layer->close();
     }
     return xref;
-}
-
-bool isAnchoredOrAnchorHost(AcDbDatabase* database, const AcDbObjectId& id, std::string& reason)
-{
-    if (BimApi::isAnchoredBlockRef(id)) {
-        reason = "anchoredBlockReference";
-        return true;
-    }
-
-    AcArray<AcDbObjectId> anchoredIds;
-    if (BimApi::getAnchoredBlockReferences(database, anchoredIds) != Acad::eOk) {
-        reason = "anchorStateUnavailable";
-        return true;
-    }
-    for (int i = 0; i < anchoredIds.length(); ++i) {
-        AcDbFullSubentPath hostFace;
-        if (BimApi::getAnchorFace(anchoredIds.at(i), hostFace) != Acad::eOk) {
-            reason = "anchorStateUnavailable";
-            return true;
-        }
-        const AcDbObjectIdArray& pathIds = hostFace.objectIds();
-        for (int pathIndex = 0; pathIndex < pathIds.length(); ++pathIndex) {
-            if (pathIds.at(pathIndex) == id) {
-                reason = "hostsAnchoredElement";
-                return true;
-            }
-        }
-    }
-    return false;
 }
 
 bool inputScale(AcDbDatabase* database, const std::string& requestedUnits, double& scale, std::string& error)
@@ -861,15 +955,15 @@ ResolveResult resolve(AcDbDatabase* database, const Selector& selector, ResolveP
                 addError(result.errors, handle, "lockedLayer", "BIM-Objekt liegt auf einem gesperrten Layer");
                 continue;
             }
-            std::string anchorReason;
-            if (isAnchoredOrAnchorHost(database, id, anchorReason)) {
-                addError(result.errors, handle, "anchoredTarget",
-                    "Geankerte BIM-Objekte oder Hosts mit geankerten Elementen werden in v1 sicher abgelehnt (" + anchorReason + ")");
-                continue;
-            }
+        }
+        Fingerprint fingerprint = fingerprintOf(id);
+        if (purpose == ResolvePurpose::DrawingMutation && !fingerprint.anchorStateKnown) {
+            addError(result.errors, handle, "anchorStateUnavailable",
+                "BIM-Anchor-Graph konnte nicht vollstaendig gelesen werden; Mutation wird sicher abgelehnt");
+            continue;
         }
         result.ids.append(id);
-        result.fingerprints.push_back(fingerprintOf(id));
+        result.fingerprints.push_back(std::move(fingerprint));
     }
 
     if (purpose != ResolvePurpose::Query && result.ids.isEmpty() && result.errors.empty()) {
@@ -893,7 +987,15 @@ ResolveResult resolve(AcDbDatabase* database, const Selector& selector, ResolveP
         });
         if (current == result.fingerprints.end()
             || current->guid != expected.guid
-            || current->bimType != expected.bimType) {
+            || current->bimType != expected.bimType
+            || (!expected.name.empty() && current->name != expected.name)
+            || (!expected.entityType.empty() && current->entityType != expected.entityType)
+            || (!expected.layer.empty() && current->layer != expected.layer)
+            || (expected.anchorStateKnown
+                && (!current->anchorStateKnown
+                    || current->anchored != expected.anchored
+                    || current->anchorHostHandle != expected.anchorHostHandle
+                    || current->hostedAnchoredHandles != expected.hostedAnchoredHandles))) {
             addError(result.errors, expected.handle, "fingerprintChanged",
                 "BIM-Zielfingerprint hat sich seit actions.validate geaendert");
         }
@@ -1031,7 +1133,19 @@ std::string fingerprintsJson(const std::vector<Fingerprint>& fingerprints)
         json << "{\"handle\":\"" << jsonEscape(fingerprints[i].handle) << "\""
             << ",\"guid\":" << jsonStringOrNull(fingerprints[i].guid)
             << ",\"bimType\":\"" << jsonEscape(fingerprints[i].bimType) << "\""
-            << ",\"classification\":\"" << jsonEscape(fingerprints[i].bimType) << "\"}";
+            << ",\"classification\":\"" << jsonEscape(fingerprints[i].bimType) << "\""
+            << ",\"name\":" << jsonStringOrNull(fingerprints[i].name)
+            << ",\"entityType\":" << jsonStringOrNull(fingerprints[i].entityType)
+            << ",\"layer\":" << jsonStringOrNull(fingerprints[i].layer)
+            << ",\"anchorStateKnown\":" << (fingerprints[i].anchorStateKnown ? "true" : "false")
+            << ",\"anchored\":" << (fingerprints[i].anchored ? "true" : "false")
+            << ",\"anchorHostHandle\":" << jsonStringOrNull(fingerprints[i].anchorHostHandle)
+            << ",\"hostedAnchoredHandles\":[";
+        for (std::size_t hostedIndex = 0; hostedIndex < fingerprints[i].hostedAnchoredHandles.size(); ++hostedIndex) {
+            if (hostedIndex > 0) json << ',';
+            json << '"' << jsonEscape(fingerprints[i].hostedAnchoredHandles[hostedIndex]) << '"';
+        }
+        json << "]}";
     }
     json << ']';
     return json.str();
@@ -1167,4 +1281,4 @@ std::string operationResultJson(const OperationResult& result, bool saveBefore, 
     return json.str();
 }
 
-} // namespace Barebone::Brx::BimTools
+} // namespace Barebone::Brx::BrxBimSdk

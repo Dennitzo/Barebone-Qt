@@ -17,7 +17,7 @@
     "optional": true,
     "bricscadOnly": true,
     "policy": "Optionales Metadatum, kein Antworttyp. Kuratierte Workflows mit updateProtected=true oder source=canonical_building_workflow sind unveraenderlich. Die lokale AI darf nur eigene Workflows mit source=ai_runtime und updateProtected=false anlegen oder aktualisieren. Neue Workflows verwenden dieselbe kanonische Struktur wie brx-learning.json und enthalten einen fachlichen Titel mit hoechstens 6 Woertern sowie eine kurze Beschreibung der konkreten Ausfuehrung. Generische Titel wie 'Aus erfolgreicher BRX-Ausfuehrung' sind verboten.",
-    "lessonFields": ["id", "title", "description", "intent", "intentPatterns", "assumptions", "requiredSlots", "knownSlotValues", "derivedValues", "strategy", "executionBatches", "validationExamples", "knownFailures", "repairRules", "recommendedTools", "status", "source", "updateProtected"]
+    "lessonFields": ["id", "title", "description", "intent", "intentPatterns", "assumptions", "requiredSlots", "knownSlotValues", "derivedValues", "strategy", "lessonKind", "directTestEligible", "observedCommands", "commandTemplates", "postconditions", "readbacks", "executionBatches", "validationExamples", "knownFailures", "repairRules", "recommendedTools", "status", "source", "updateProtected"]
   },
   "message": {
     "required": ["type", "message"]

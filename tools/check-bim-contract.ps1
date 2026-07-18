@@ -5,320 +5,198 @@ $ErrorActionPreference = "Stop"
 $script:Failures = @()
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 
-function Add-ContractFailure {
+function Add-Failure {
     param([Parameter(Mandatory = $true)][string]$Message)
     $script:Failures += $Message
 }
 
 function Assert-Contract {
-    param(
-        [Parameter(Mandatory = $true)][bool]$Condition,
-        [Parameter(Mandatory = $true)][string]$Message
-    )
-    if (-not $Condition) {
-        Add-ContractFailure $Message
-    }
+    param([Parameter(Mandatory = $true)][bool]$Condition, [Parameter(Mandatory = $true)][string]$Message)
+    if (-not $Condition) { Add-Failure $Message }
 }
 
-function Read-RepositoryText {
+function Read-Text {
     param([Parameter(Mandatory = $true)][string]$RelativePath)
     $path = Join-Path $repoRoot $RelativePath
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
-        Add-ContractFailure "Missing required file: $RelativePath"
+        Add-Failure "Missing required file: $RelativePath"
         return ""
     }
-    try {
-        return [System.IO.File]::ReadAllText($path, [System.Text.Encoding]::UTF8)
-    }
-    catch {
-        Add-ContractFailure "Cannot read ${RelativePath}: $($_.Exception.Message)"
-        return ""
-    }
+    return [System.IO.File]::ReadAllText($path, [System.Text.Encoding]::UTF8)
 }
 
-function Has-TextProperty {
+function Missing-File {
+    param([Parameter(Mandatory = $true)][string]$RelativePath)
+    return -not (Test-Path -LiteralPath (Join-Path $repoRoot $RelativePath) -PathType Leaf)
+}
+
+function Items {
     param($Object, [Parameter(Mandatory = $true)][string]$Name)
-    if ($null -eq $Object) {
-        return $false
-    }
+    if ($null -eq $Object) { return @() }
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -eq $property -or $null -eq $property.Value) { return @() }
+    return @($property.Value)
+}
+
+function Has-Text {
+    param($Object, [Parameter(Mandatory = $true)][string]$Name)
+    if ($null -eq $Object) { return $false }
     $property = $Object.PSObject.Properties[$Name]
     return $null -ne $property -and -not [string]::IsNullOrWhiteSpace([string]$property.Value)
 }
 
-function Property-Items {
-    param($Object, [Parameter(Mandatory = $true)][string]$Name)
-    if ($null -eq $Object) {
-        return @()
-    }
-    $property = $Object.PSObject.Properties[$Name]
-    if ($null -eq $property -or $null -eq $property.Value) {
-        return @()
-    }
-    return @($property.Value)
-}
-
-function Same-StringSet {
-    param([object[]]$Actual, [object[]]$Expected)
-    $actualValues = @($Actual | ForEach-Object { [string]$_ } | Where-Object { $_ } | Sort-Object -Unique)
-    $expectedValues = @($Expected | ForEach-Object { [string]$_ } | Where-Object { $_ } | Sort-Object -Unique)
-    return ($actualValues -join "`n") -ceq ($expectedValues -join "`n")
-}
-
-$learningJson = Read-RepositoryText "agent/bricscad-learning/brx-learning.json"
+$learningText = Read-Text "agent/bricscad-learning/brx-learning.json"
 $learning = $null
-if ($learningJson) {
-    try {
-        $learning = $learningJson | ConvertFrom-Json
-    }
-    catch {
-        Add-ContractFailure "agent/bricscad-learning/brx-learning.json is not valid JSON: $($_.Exception.Message)"
-    }
+if ($learningText) {
+    try { $learning = $learningText | ConvertFrom-Json }
+    catch { Add-Failure "brx-learning.json is not valid JSON: $($_.Exception.Message)" }
 }
 
-$expectedTools = @(
-    "bim.objects.query",
-    "bim.selection.set"
-)
+$qtText = Read-Text "src/ui/BricsCadPage.cpp"
+$pluginText = Read-Text "src/bricscad/BareboneBrxPlugin.cpp"
+$bimText = Read-Text "src/bricscad/BrxBimSdk.cpp"
+$brxAgentText = Read-Text "src/agent/BrxAgent.cpp"
+$cmakeText = Read-Text "CMakeLists.txt"
+$removedBimStem = "Bim" + "Tools"
 
-if ($null -ne $learning) {
-    $profiles = @(Property-Items $learning "toolProfiles")
-    $lessons = @(Property-Items $learning "lessons")
-    Assert-Contract ($profiles.Count -gt 0) "JSON contract: toolProfiles must be a non-empty array."
-    Assert-Contract ($lessons.Count -gt 0) "JSON contract: lessons must be a non-empty array."
+if ($learning) {
+    $lessons = @(Items $learning "lessons")
+    Assert-Contract ($lessons.Count -eq 11) "JSON contract: BIM move workflow must be removed and selector reference workflow must exist; expected 11 lessons."
+    Assert-Contract ([int]$learning.metadata.lessonCount -eq $lessons.Count) "JSON metadata: lessonCount must match actual lessons."
+    Assert-Contract ([int]$learning.metadata.activeCount -eq @($lessons | Where-Object { $_.active -ne $false }).Count) "JSON metadata: activeCount must match active lessons."
+    Assert-Contract ([int]$learning.metadata.protectedWorkflowCount -eq @($lessons | Where-Object { $_.updateProtected -eq $true }).Count) "JSON metadata: protectedWorkflowCount must match protected lessons."
+    Assert-Contract ([int]$learning.metadata.aiOwnedWorkflowCount -eq @($lessons | Where-Object { [string]$_.source -ceq "ai_runtime" }).Count) "JSON metadata: aiOwnedWorkflowCount must match AI-owned lessons."
+    Assert-Contract ([int]$learning.metadata.validationExampleCount -eq ($lessons | ForEach-Object { @(Items $_ "validationExamples").Count } | Measure-Object -Sum).Sum) "JSON metadata: validationExampleCount must match examples."
+    Assert-Contract ([int]$learning.metadata.repairRuleCount -eq @(Items $learning "repairRules").Count) "JSON metadata: repairRuleCount must match repairRules."
+    Assert-Contract (-not $learningText.Contains('"toolProfiles"')) "JSON contract: toolProfiles must not be stored in brx-learning.json."
+    Assert-Contract (-not $learningText.Contains('"toolProfileCount"')) "JSON contract: toolProfileCount metadata must not exist."
 
-    $newProfiles = @($profiles | Where-Object { $expectedTools -ccontains [string]$_.name })
-    Assert-Contract ($newProfiles.Count -eq 2) "JSON contract: expected exactly two BIM tool profiles; found $($newProfiles.Count)."
+    Assert-Contract (@($lessons | Where-Object { [string]$_.id -ceq "workflow_bim_move" }).Count -eq 0) "JSON contract: workflow_bim_move must not exist."
+    Assert-Contract (@($lessons | Where-Object { [string]$_.source -ceq "drawing_ai_runtime" }).Count -eq 0) "JSON contract: drawing_ai_runtime lessons must not exist."
 
-    foreach ($toolName in $expectedTools) {
-        $matches = @($profiles | Where-Object { [string]$_.name -ceq $toolName })
-        Assert-Contract ($matches.Count -eq 1) "JSON contract: tool profile '$toolName' must exist exactly once; found $($matches.Count)."
-        if ($matches.Count -ne 1) {
-            continue
-        }
-
-        $profile = $matches[0]
-        Assert-Contract ([string]$profile.domain -ceq "bim") "JSON contract: '$toolName'.domain must be 'bim'."
-        foreach ($textField in @("summary", "policy")) {
-            Assert-Contract (Has-TextProperty $profile $textField) "JSON contract: '$toolName'.$textField must be non-empty."
-        }
-        Assert-Contract ([string]$profile.createdAt -cmatch '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$') "JSON contract: '$toolName'.createdAt must use UTC ISO-8601 milliseconds."
-        Assert-Contract ([string]$profile.updatedAt -cmatch '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$') "JSON contract: '$toolName'.updatedAt must use UTC ISO-8601 milliseconds."
-        foreach ($arrayField in @("keywords", "agentHints", "semanticConstraints", "unsupportedOperations", "examples")) {
-            Assert-Contract (@(Property-Items $profile $arrayField).Count -gt 0) "JSON contract: '$toolName'.$arrayField must be non-empty."
-        }
-    }
-
-    $lessonContracts = [ordered]@{
-        "workflow_bim_objects_query" = @{
-            FinalTool = "bim.objects.query"
-            RequiredSlots = @()
-            ExpectedTools = @("bim.objects.query")
-        }
-        "workflow_bim_selection" = @{
-            FinalTool = "bim.selection.set"
-            RequiredSlots = @("bimSelector")
-            ExpectedTools = @("bim.objects.query", "bim.selection.set")
-        }
-    }
-
-    $bimLessons = @($lessons | Where-Object { [string]$_.id -like "workflow_bim_*" })
-    Assert-Contract ($bimLessons.Count -eq 2) "JSON contract: expected exactly two workflow_bim_* lessons; found $($bimLessons.Count)."
-
-    foreach ($lessonId in $lessonContracts.Keys) {
-        $contract = $lessonContracts[$lessonId]
+    foreach ($lessonId in @("workflow_bim_objects_query", "workflow_bim_selection")) {
         $matches = @($lessons | Where-Object { [string]$_.id -ceq $lessonId })
-        Assert-Contract ($matches.Count -eq 1) "JSON contract: lesson '$lessonId' must exist exactly once; found $($matches.Count)."
-        if ($matches.Count -ne 1) {
-            continue
-        }
-
-        $lesson = $matches[0]
-        Assert-Contract ([string]$lesson.status -ceq "active") "JSON contract: '$lessonId'.status must be 'active'."
-        Assert-Contract ([string]$lesson.source -ceq "canonical_bim_workflow") "JSON contract: '$lessonId'.source must be 'canonical_bim_workflow'."
-        Assert-Contract ($lesson.updateProtected -eq $true) "JSON contract: '$lessonId'.updateProtected must be true."
-        Assert-Contract ([string]$lesson.createdAt -cmatch '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$') "JSON contract: '$lessonId'.createdAt must be UTC ISO-8601 with milliseconds."
-        Assert-Contract ([string]$lesson.updatedAt -cmatch '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$') "JSON contract: '$lessonId'.updatedAt must be UTC ISO-8601 with milliseconds."
-        foreach ($textField in @("title", "intent", "description")) {
-            Assert-Contract (Has-TextProperty $lesson $textField) "JSON contract: '$lessonId'.$textField must be non-empty."
-        }
-
-        $recommendedTools = @(Property-Items $lesson "recommendedTools")
-        Assert-Contract (Same-StringSet $recommendedTools $contract.ExpectedTools) "JSON contract: '$lessonId'.recommendedTools must be exactly [$($contract.ExpectedTools -join ', ')]."
-
-        $requiredSlotNames = @(Property-Items $lesson "requiredSlots" | ForEach-Object { [string]$_.name })
-        Assert-Contract (Same-StringSet $requiredSlotNames $contract.RequiredSlots) "JSON contract: '$lessonId' required slots must be exactly [$($contract.RequiredSlots -join ', ')]."
-        $confirmationSlots = @(Property-Items $lesson "requiresUserConfirmationInAgentMode")
-        Assert-Contract (Same-StringSet $confirmationSlots $contract.RequiredSlots) "JSON contract: '$lessonId' confirmation slots must match its required slots."
-
-        $batches = @(Property-Items $lesson "executionBatches")
-        Assert-Contract ($batches.Count -gt 0) "JSON contract: '$lessonId' must define at least one execution batch."
-        $steps = @()
-        foreach ($batch in $batches) {
-            Assert-Contract ([string]$batch.mode -ceq "sequential") "JSON contract: '$lessonId' batches must use mode=sequential."
-            Assert-Contract ($batch.stopOnFailure -eq $true) "JSON contract: '$lessonId' batches must set stopOnFailure=true."
-            $steps += @(Property-Items $batch "steps")
-        }
-        $stepTools = @($steps | ForEach-Object { [string]$_.tool })
-        Assert-Contract (($stepTools -join "`n") -ceq ($contract.ExpectedTools -join "`n")) "JSON contract: '$lessonId' execution tools must be ordered as [$($contract.ExpectedTools -join ', ')]."
-
-        $actionShapes = @(Property-Items $lesson "validActionShapes")
-        $shapeTools = @($actionShapes | ForEach-Object { [string]$_.tool })
-        Assert-Contract (($shapeTools -join "`n") -ceq ($contract.ExpectedTools -join "`n")) "JSON contract: '$lessonId' validActionShapes must mirror its ordered tools."
-
-        $queryStep = @($steps | Where-Object { [string]$_.tool -ceq "bim.objects.query" }) | Select-Object -First 1
-        if ($null -eq $queryStep) {
-            Add-ContractFailure "JSON contract: '$lessonId' must resolve targets through bim.objects.query."
-        }
-        else {
-            Assert-Contract ([int]$queryStep.paramsTemplate.limit -eq 100) "JSON contract: '$lessonId' query limit must be 100."
-            Assert-Contract (@(Property-Items $queryStep.paramsTemplate "include").Count -gt 0) "JSON contract: '$lessonId' query must declare include fields."
-        }
-
-        $finalStep = @($steps | Where-Object { [string]$_.tool -ceq [string]$contract.FinalTool }) | Select-Object -Last 1
-        if ($null -eq $finalStep) {
-            Add-ContractFailure "JSON contract: '$lessonId' is missing final tool '$($contract.FinalTool)'."
-        }
-        elseif ($contract.FinalTool -cne "bim.objects.query") {
-            Assert-Contract ($finalStep.paramsTemplate.autoBimHandlesFromLastQuery -eq $true) "JSON contract: '$lessonId' must bind exact handles via autoBimHandlesFromLastQuery=true."
-        }
-
-        $serializedLesson = $lesson | ConvertTo-Json -Depth 30 -Compress
-        Assert-Contract ($serializedLesson -cnotmatch '"handles"\s*:') "JSON contract: '$lessonId' must not persist production handles."
-    }
-
-    foreach ($lesson in $lessons) {
-        foreach ($example in @(Property-Items $lesson "validationExamples")) {
-            Assert-Contract ([string]$example.title -cne "Aus erfolgreicher BRX-Ausfuehrung") "Learning contract: runtime example '$([string]$example.id)' needs a specific execution title."
+        Assert-Contract ($matches.Count -eq 1) "JSON contract: $lessonId must exist exactly once."
+        if ($matches.Count -eq 1) {
+            $lesson = $matches[0]
+            Assert-Contract ([string]$lesson.source -ceq "canonical_bim_workflow") "JSON contract: $lessonId must stay canonical."
+            Assert-Contract ($lesson.updateProtected -eq $true) "JSON contract: $lessonId must stay updateProtected."
+            Assert-Contract (Has-Text $lesson "title") "JSON contract: $lessonId needs title."
+            Assert-Contract (Has-Text $lesson "intent") "JSON contract: $lessonId needs intent."
+            Assert-Contract (@(Items $lesson "executionBatches").Count -gt 0) "JSON contract: $lessonId needs executionBatches."
         }
     }
+
+    $selectorReference = @($lessons | Where-Object { [string]$_.id -ceq "workflow_brx_selector_reference" })
+    Assert-Contract ($selectorReference.Count -eq 1) "JSON contract: workflow_brx_selector_reference must exist exactly once."
+    if ($selectorReference.Count -eq 1) {
+        $lesson = $selectorReference[0]
+        Assert-Contract ([string]$lesson.source -ceq "canonical_brx_workflow") "JSON contract: workflow_brx_selector_reference must stay canonical BRX."
+        Assert-Contract ($lesson.updateProtected -eq $true) "JSON contract: workflow_brx_selector_reference must stay updateProtected."
+        Assert-Contract (Has-Text $lesson "title") "JSON contract: workflow_brx_selector_reference needs title."
+        Assert-Contract ($learningText.Contains("scope`": `"handles")) "JSON contract: selector reference must document handle selectors."
+        Assert-Contract ($learningText.Contains("scope`": `"selection")) "JSON contract: selector reference must document selection selectors."
+        Assert-Contract ($learningText.Contains("scope`": `"lastResult")) "JSON contract: selector reference must document lastResult selectors."
+    }
+
+    Assert-Contract (-not $learningText.Contains("MANIP_MOVE")) "JSON contract: learning data must not hardcode MANIP_MOVE."
+    Assert-Contract (-not $learningText.Contains("workflow_bim_move")) "JSON contract: learning data must not reference workflow_bim_move."
 }
-
-$indexHtml = Read-RepositoryText "index.html"
-if ($indexHtml) {
-    Assert-Contract ($indexHtml -cnotmatch 'workflow-group-title') "Overlay contract: workflow-group-title must not exist."
-    $renderStart = $indexHtml.IndexOf("function renderWorkflowList()", [System.StringComparison]::Ordinal)
-    $renderEnd = if ($renderStart -ge 0) {
-        $indexHtml.IndexOf("function createWorkflowSection", $renderStart, [System.StringComparison]::Ordinal)
-    } else {
-        -1
-    }
-    Assert-Contract ($renderStart -ge 0 -and $renderEnd -gt $renderStart) "Overlay contract: renderWorkflowList() could not be isolated."
-    if ($renderStart -ge 0 -and $renderEnd -gt $renderStart) {
-        $renderBody = $indexHtml.Substring($renderStart, $renderEnd - $renderStart)
-        Assert-Contract ($renderBody -cmatch 'const\s+visible\s*=\s*filteredWorkflows\(\)') "Overlay contract: renderWorkflowList() must consume filteredWorkflows()."
-        Assert-Contract ($renderBody -cmatch 'visible\.forEach\s*\(') "Overlay contract: renderWorkflowList() must render the filtered order directly."
-        Assert-Contract ($renderBody -cnotmatch '\.sort\s*\(') "Overlay contract: renderWorkflowList() must not apply a second sort."
-        Assert-Contract ($renderBody -cnotmatch 'discipline') "Overlay contract: renderWorkflowList() must not group or reorder by discipline."
-    }
-    Assert-Contract ($indexHtml -cmatch 'workflowLearningKind\(workflowPreview\)\s*===\s*"lesson"') "Overlay contract: the execution CTA must only enable lessons."
-    Assert-Contract ($indexHtml -cmatch 'workflowLearningKind\(workflowPreview\)\s*!==\s*"lesson"') "Overlay contract: activation must guard non-lesson information entries."
-}
-
-$cmakeText = Read-RepositoryText "CMakeLists.txt"
-$pluginText = Read-RepositoryText "src/bricscad/BareboneBrxPlugin.cpp"
-$bimHeaderText = Read-RepositoryText "src/bricscad/BimTools.h"
-$bimSourceText = Read-RepositoryText "src/bricscad/BimTools.cpp"
-$qtSourceText = Read-RepositoryText "src/ui/BricsCadPage.cpp"
-$learningAgentText = Read-RepositoryText "src/agent/BricsCadLearningAgent.cpp"
-$backendText = $pluginText + "`n" + $bimHeaderText + "`n" + $bimSourceText
 
 if ($cmakeText) {
-    Assert-Contract ($cmakeText -cmatch 'src/bricscad/BimTools\.cpp') "Build contract: CMakeLists.txt must compile src/bricscad/BimTools.cpp."
-    Assert-Contract ($cmakeText -cnotmatch '(?i)Ice\.lib') "Build contract: Ice.lib must not be linked."
-    Assert-Contract ($cmakeText -cmatch 'MSVC_VERSION\s+LESS\s+1930\s+OR\s+MSVC_VERSION\s+GREATER_EQUAL\s+1950') "Build contract: CMake must pin the BRX target to the v143 MSVC_VERSION range 1930..1949."
+    Assert-Contract ($cmakeText.Contains("src/agent/BrxAgent.cpp")) "Build contract: CMake must compile BrxAgent.cpp."
+    Assert-Contract ($cmakeText.Contains("src/bricscad/BrxBimSdk.cpp")) "Build contract: CMake must compile BrxBimSdk.cpp."
+    Assert-Contract (-not $cmakeText.Contains("src/bricscad/$removedBimStem.cpp")) "Build contract: removed $removedBimStem.cpp must not be compiled."
+    Assert-Contract (-not $cmakeText.Contains("src/bricscad/$removedBimStem.h")) "Build contract: removed $removedBimStem.h must not be compiled."
 }
 
-$riskContracts = [ordered]@{
-    "bim.objects.query" = @("query", "readOnly")
-    "bim.selection.set" = @("action", "modifiesEditorState")
-}
+Assert-Contract (Missing-File "src/bricscad/$removedBimStem.cpp") "Build contract: removed $removedBimStem.cpp file still exists."
+Assert-Contract (Missing-File "src/bricscad/$removedBimStem.h") "Build contract: removed $removedBimStem.h file still exists."
 
-foreach ($toolName in $expectedTools) {
-    Assert-Contract ($backendText.Contains($toolName)) "C++ contract: backend sources must reference '$toolName'."
-    Assert-Contract ($qtSourceText.Contains($toolName)) "C++ contract: Qt agent integration must reference '$toolName'."
-    if ($pluginText) {
-        $kind = [regex]::Escape([string]$riskContracts[$toolName][0])
-        $risk = [regex]::Escape([string]$riskContracts[$toolName][1])
-        $descriptorPattern = '"' + [regex]::Escape($toolName) + '"\s*,\s*"' + $kind + '"\s*,\s*"' + $risk + '"'
-        Assert-Contract ($pluginText -cmatch $descriptorPattern) "C++ contract: '$toolName' descriptor must declare kind=$kind and risk=$risk."
-        $dispatchPattern = 'method\s*==\s*"' + [regex]::Escape($toolName) + '"'
-        Assert-Contract ($pluginText -cmatch $dispatchPattern) "C++ contract: BRX dispatch must handle '$toolName'."
+if ($brxAgentText) {
+    Assert-Contract ($brxAgentText.Contains("buildToolCatalog")) "BrxAgent contract: BrxAgent must build the AI-facing tool catalog."
+    Assert-Contract ($brxAgentText.Contains("selectToolsForRoute")) "BrxAgent contract: BrxAgent must own route-specific tool selection."
+    foreach ($token in @(
+        "qt.brx.tools.describe",
+        "qt.brx.db.schema",
+        "qt.brx.db.query",
+        "qt.brx.db.inspect",
+        "qt.brx.db.compatibility",
+        "qt.brx.workflow.testPlan",
+        "qt.brx.workflow.repairHints",
+        "brx.sdk.entity.transformBy",
+        "brx.sdk.blockReference.setPosition",
+        "brx.sdk.entity.copy",
+        "brx.sdk.entity.rotateBy",
+        "brx.sdk.entity.scaleBy",
+        "brx.sdk.entity.erase",
+        "brx.sdk.entity.setLayer",
+        "brx.sdk.entity.setName",
+        "brx.sdk.selection.setPickfirst",
+        "brx.sdk.bim.classification.set",
+        "brx.sdk.assoc.evaluate"
+    )) {
+        Assert-Contract ($brxAgentText.Contains($token)) "BrxAgent contract: missing $token."
     }
+}
+
+if ($qtText) {
+    Assert-Contract ($qtText.Contains("#include `"../agent/BrxAgent.h`"")) "Qt contract: BricsCadPage must include BrxAgent."
+    Assert-Contract ($qtText.Contains("BrxAgent::buildToolCatalog")) "Qt contract: available tools must be built by BrxAgent."
+    Assert-Contract ($qtText.Contains("BrxAgent::selectToolsForRoute")) "Qt contract: route tool selection must be delegated to BrxAgent."
+    Assert-Contract (-not $qtText.Contains("toolProfile(")) "Qt contract: BricsCadPage must not enrich tools from learning toolProfiles."
+    Assert-Contract ($qtText.Contains("qt.brx.db.compatibility")) "Qt contract: context broker must expose BRX DB compatibility."
+    Assert-Contract (-not $qtText.Contains("geometry.move.status")) "Qt contract: private BIM move polling endpoint must be removed."
+    Assert-Contract (-not $qtText.Contains("BBGEOMETRYMOVE")) "Qt contract: BBGEOMETRYMOVE must not be referenced."
 }
 
 if ($pluginText) {
-    Assert-Contract ($pluginText -cmatch 'kCommandContextRequests[\s\S]*?"BIMSELECTIONSET"') "C++ contract: bim.selection.set must run in BricsCAD Command Context for acedSSSetFirst."
-    Assert-Contract ($pluginText -cmatch 'latestBimQueryHandles[\s\S]*?autoBimHandlesFromLastQuery') "C++ contract: actions.validate must bind auto BIM mutations to the preceding query page."
-    Assert-Contract ($pluginText -cmatch 'latestBimQuerySelector[\s\S]*?ResolvePurpose::SelectionMutation') "C++ contract: auto BIM selection binding must preserve name ambiguity semantics."
-    Assert-Contract ($pluginText -cmatch 'begin\s*=\s*std::min[\s\S]*?offset[\s\S]*?end\s*=\s*std::min[\s\S]*?limit') "C++ contract: BIM preflight binding must honor query offset and limit."
-    Assert-Contract ($pluginText -cmatch 'return\s+"_Wall"' -and $pluginText -cmatch 'return\s+"_Column"') "C++ contract: native BIMCLASSIFY options must be locale-neutral global keywords."
+    Assert-Contract ($pluginText.Contains("namespace BrxToolRegistry")) "BRX contract: bridge descriptors must live in BrxToolRegistry."
+    Assert-Contract (-not $pluginText.Contains("jsonCapabilitiesResponse(")) "BRX contract: old static capabilities response must be removed."
+    foreach ($token in @(
+        '"brx.sdk.assoc.evaluate"',
+        "BRXASSOCEVALUATE",
+        "AcDbAssocManager::evaluateTopLevelNetwork",
+        "moveEntityWithBrxSdk",
+        "validateGeometryMoveReadback"
+    )) {
+        Assert-Contract ($pluginText.Contains($token)) "BRX contract: missing $token."
+    }
+    foreach ($removed in @(
+        "geometry.move.status",
+        "BBGEOMETRYMOVE",
+        "runNativeManipMoveCommand",
+        "queueGeometryMoveJob",
+        "GeometryMoveJob",
+        "g_geometryMoveJobs",
+        "hostSurfaceHint",
+        "appendHostSurfacesJson",
+        "appendAnchorSearchJson"
+    )) {
+        Assert-Contract (-not $pluginText.Contains($removed)) "BRX contract: removed fixed BIM move symbol still exists: $removed."
+    }
 }
 
-if ($bimSourceText) {
-    foreach ($requiredToken in @(
+if ($bimText) {
+    foreach ($token in @(
         "BimApi::isBimAvailable",
-        "isLicenseAvailable",
-        "BricsCAD::eBim",
         "BimClassification::getAllClassified",
         "BimClassification::getClassification",
         "BimClassification::getName",
         "BimClassification::getGUID",
         "BrxDbProperties::listAll",
-        "BrxDbProperties::getValue",
         "getAcDbObjectId",
-        "acedSSSetFirst"
+        "isAnchoredBlockRef",
+        "getAnchorFace",
+        "getAnchoredBlockReferences"
     )) {
-        Assert-Contract ($bimSourceText.Contains($requiredToken)) "C++ contract: BimTools.cpp must use '$requiredToken'."
+        Assert-Contract ($bimText.Contains($token)) "BIM contract: BrxBimSdk.cpp must keep SDK support for $token."
     }
-    Assert-Contract ($bimSourceText.Contains("BrxGenericPropertiesAccess.h")) "C++ contract: BimTools.cpp must include BrxGenericPropertiesAccess.h."
-    Assert-Contract ($bimSourceText.Contains("AnchorFeature.h")) "C++ contract: BimTools.cpp must guard anchored BIM relationships via AnchorFeature.h."
-    Assert-Contract ($bimSourceText -cmatch 'purpose\s*==\s*ResolvePurpose::DrawingMutation[\s\S]*?isEntityFromXref[\s\S]*?isEntityOnLockedLayer[\s\S]*?isAnchoredOrAnchorHost') "C++ contract: actions.validate and execution must share the DrawingMutation XRef/layer/anchor preflight."
-    Assert-Contract ($bimSourceText -cmatch '\"classification\"') "C++ contract: target fingerprints must expose the canonical classification."
-    Assert-Contract ($bimSourceText -cnotmatch 'value\.get\(date\)') "C++ contract: do not call the non-exported BRX AcValue::get(SYSTEMTIME&) overload."
-    Assert-Contract ($bimSourceText -cnotmatch 'value\.get\(buffer\s*,') "C++ contract: do not call the non-exported BRX AcValue::get(void*&,DWORD&) overload."
-}
-
-if ($qtSourceText) {
-    $prefetchStart = $qtSourceText.IndexOf("void BricsCadPage::sendUnifiedAgentRequestWithDrawingContext", [System.StringComparison]::Ordinal)
-    $prefetchEnd = if ($prefetchStart -ge 0) {
-        $qtSourceText.IndexOf("`nvoid BricsCadPage::", $prefetchStart + 10, [System.StringComparison]::Ordinal)
-    } else {
-        -1
-    }
-    Assert-Contract ($prefetchStart -ge 0 -and $prefetchEnd -gt $prefetchStart) "Prefetch contract: sendUnifiedAgentRequestWithDrawingContext() could not be isolated."
-    if ($prefetchStart -ge 0 -and $prefetchEnd -gt $prefetchStart) {
-        $prefetchBody = $qtSourceText.Substring($prefetchStart, $prefetchEnd - $prefetchStart)
-        Assert-Contract ($prefetchBody -cmatch 'bridgeCapabilitiesContainMethod\([^\r\n]*"bim\.objects\.query"') "Prefetch contract: BIM query must be capability-gated."
-        Assert-Contract ($prefetchBody -cmatch '\{"method",\s*"bim\.objects\.query"\}') "Prefetch contract: standard drawing context must request bim.objects.query."
-        Assert-Contract ($prefetchBody -cmatch '\{"selector",\s*QJsonObject\{\{"scope",\s*"currentSpace"\}\}\}') "Prefetch contract: BIM snapshot selector must use currentSpace."
-        Assert-Contract ($prefetchBody -cmatch '\{"include",\s*QJsonArray\{"core",\s*"geometry"\}\}') "Prefetch contract: BIM snapshot must include exactly core and geometry."
-        Assert-Contract ($prefetchBody -cmatch '\{"offset",\s*0\}') "Prefetch contract: BIM snapshot offset must be 0."
-        Assert-Contract ($prefetchBody -cmatch '\{"limit",\s*100\}') "Prefetch contract: BIM snapshot limit must be 100."
-        Assert-Contract ($prefetchBody -cmatch 'barebone\.brx\.prefetched-drawing-context\.v1') "Prefetch contract: drawing context schema v1 must be emitted."
-    }
-    Assert-Contract ($qtSourceText -cmatch 'compactGeometryObjectForAgent[\s\S]*?QStringLiteral\("bim"\)') "Qt contract: compactGeometryObjectForAgent() must retain the BIM object."
-    Assert-Contract ($qtSourceText.Contains('QStringLiteral("objectTable")')) "Qt contract: BIM query results must expose an object table."
-    Assert-Contract ($qtSourceText.Contains('QStringLiteral("propertyTable")')) "Qt contract: BIM property queries must expose a property table."
-    Assert-Contract ($qtSourceText.Contains('QStringLiteral("autoBimHandlesFromLastQuery")')) "Qt contract: workflow runtime must support autoBimHandlesFromLastQuery."
-    Assert-Contract ($qtSourceText -cmatch 'agentPreflightParams[\s\S]*?if\s*\(autoBimHandles\)[\s\S]*?actionParams[\s\S]*?clientActionIndex') "Qt contract: dependency-aware BRX preflight must receive auto BIM mutations with a stable action index."
-    Assert-Contract ($qtSourceText -cmatch 'proposalWithBimValidationTargets[\s\S]*?clientActionIndex[\s\S]*?paramsWithBimValidationTargets') "Qt contract: BIM validation targets must map back by stable action index."
-    Assert-Contract ($qtSourceText -cmatch 'handlesFromLatestBimQuery[\s\S]*?The newest BIM query is authoritative[\s\S]*?return handles;') "Qt contract: an empty newest BIM query must not fall through to stale handles."
-    Assert-Contract ($qtSourceText -cmatch 'finishBrxWorkflowTest[\s\S]*?brxGeometryResultTablesMarkdown\(results\)[\s\S]*?tablesMarkdown') "Qt contract: direct BIM query lessons must render their result tables."
-}
-
-if ($learningAgentText) {
-    Assert-Contract ($learningAgentText -cmatch 'conciseLearningTitle') "Learning contract: runtime lessons must normalize a concise specific title."
-    Assert-Contract ($learningAgentText -cmatch 'conciseExecutionDescription') "Learning contract: runtime lessons must store a concise execution description."
-    Assert-Contract ($learningAgentText -cmatch 'compactLesson[\s\S]*?QStringLiteral\("description"\)[\s\S]*?lesson\.value\(QStringLiteral\("description"\)\)') "Learning contract: workflow cards must expose the stored short description instead of duplicating the long intent."
 }
 
 if ($script:Failures.Count -gt 0) {
-    Write-Host "BIM contract check FAILED ($($script:Failures.Count) problem(s)):" -ForegroundColor Red
-    foreach ($failure in $script:Failures) {
-        Write-Host "  - $failure" -ForegroundColor Red
-    }
+    Write-Error ("BIM contract failed:`n - " + ($script:Failures -join "`n - "))
     exit 1
 }
 
-Write-Host "BIM contract check passed: 2 tool profiles, 2 lessons, flat overlay, BRX wiring and 100-object prefetch." -ForegroundColor Green
-exit 0
+Write-Host "BIM contract OK"

@@ -21,8 +21,14 @@ qt_standard_project_setup()
 qt_add_executable(BareboneQtApp
     resources/resources.qrc
     src/main.cpp
+    src/agent/BrxAgent.cpp
+    src/agent/BrxAgent.h
     src/agent/BricsCadLearningAgent.cpp
     src/agent/BricsCadLearningAgent.h
+    src/agent/DrawingContextStore.cpp
+    src/agent/DrawingContextStore.h
+    src/agent/LocalAiJobScheduler.cpp
+    src/agent/LocalAiJobScheduler.h
     src/core/ConfigManager.cpp
     src/core/ConfigManager.h
     src/ui/AiWebBridge.cpp
@@ -138,8 +144,8 @@ if(BAREBONE_BUILD_BRX_PLUGIN)
 
     add_library(BareboneBrx MODULE
         src/bricscad/BareboneBrxPlugin.cpp
-        src/bricscad/BimTools.cpp
-        src/bricscad/BimTools.h
+        src/bricscad/BrxBimSdk.cpp
+        src/bricscad/BrxBimSdk.h
     )
 
     if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8)

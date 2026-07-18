@@ -11,7 +11,7 @@
 class AcDbDatabase;
 class AcDbEntity;
 
-namespace Barebone::Brx::BimTools {
+namespace Barebone::Brx::BrxBimSdk {
 
 struct Availability {
     bool apiAvailable = false;
@@ -30,6 +30,13 @@ struct Fingerprint {
     std::string handle;
     std::string guid;
     std::string bimType;
+    std::string name;
+    std::string entityType;
+    std::string layer;
+    bool anchorStateKnown = false;
+    bool anchored = false;
+    std::string anchorHostHandle;
+    std::vector<std::string> hostedAnchoredHandles;
 };
 
 struct Property {
@@ -142,4 +149,4 @@ std::string bimDataJson(const ObjectData& object, bool includeProperties = true)
 std::string queryResultJson(const QueryResult& result);
 std::string operationResultJson(const OperationResult& result, bool saveBefore, bool savedBefore);
 
-} // namespace Barebone::Brx::BimTools
+} // namespace Barebone::Brx::BrxBimSdk

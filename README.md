@@ -70,7 +70,7 @@ The BRX build output is standardized to:
 build\brx-msvc\bricscad\BareboneBrx.brx
 ```
 
-Load the resulting `BareboneBrx.brx` in BricsCAD with `APPLOAD`. The diagnostic commands are `BBPING`, `BBINFO`, `BBLOG`, and `BBTRACK`; `BBLOG` opens the BricsCAD-owned bridge log window, and `BBTRACK` enables selection tracking for log/debug events.
+Load the resulting `BareboneBrx.brx` in BricsCAD with `APPLOAD`. The diagnostic commands are `BBPING`, `BBINFO`, and `BBLOG`; `BBLOG` opens the BricsCAD-owned bridge log window. Drawing and selection state are read only for an explicit Qt request; the plugin does not track manual drawing activity in the background.
 
 Barebone-Qt starts the local bridge server on `127.0.0.1:47626` and writes a per-run auth token to `%TEMP%\BareboneQtBridge.token`. The BRX plugin connects to that server as a reconnecting client and keeps one newline-delimited JSON connection open. The BricsCAD tab uses this bridge to fetch the current drawing layers and to extrude closed rectangular polylines on the selected layer by the configured height in millimeters.
 

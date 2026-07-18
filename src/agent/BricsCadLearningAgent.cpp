@@ -373,6 +373,255 @@ QJsonArray compactRuntimeActions(const QJsonArray& actions, int maxCount = 8)
     return compact;
 }
 
+QString commandNameFromCommandLine(QString commandLine)
+{
+    commandLine = commandLine.trimmed();
+    while (commandLine.size() >= 2
+        && commandLine.at(0) == QLatin1Char('^')
+        && commandLine.at(1).toUpper() == QLatin1Char('C')) {
+        commandLine = commandLine.mid(2).trimmed();
+    }
+    const QString token = commandLine.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts).value(0);
+    QString command;
+    for (const QChar ch : token) {
+        if ((ch == QLatin1Char('_') || ch == QLatin1Char('.') || ch == QLatin1Char('-')) && command.isEmpty()) {
+            continue;
+        }
+        command.append(ch);
+    }
+    return command.trimmed().toUpper();
+}
+
+QJsonArray commandTemplatesFromActionShapes(const QJsonArray& actionShapes)
+{
+    QJsonArray templates;
+    QSet<QString> seen;
+    for (const QJsonValue& value : actionShapes) {
+        const QJsonObject step = value.toObject();
+        if (step.value(QStringLiteral("tool")).toString() != QStringLiteral("command.execute")) {
+            continue;
+        }
+        const QJsonObject params = step.value(QStringLiteral("paramsTemplate")).toObject();
+        const QString commandLine = params.value(QStringLiteral("commandLine")).toString().trimmed();
+        if (commandLine.isEmpty()) {
+            continue;
+        }
+        const QString commandName = params.value(QStringLiteral("commandName")).toString(
+            commandNameFromCommandLine(commandLine)).trimmed().toUpper();
+        QJsonObject commandTemplate{
+            {QStringLiteral("tool"), QStringLiteral("command.execute")},
+            {QStringLiteral("commandName"), commandName},
+            {QStringLiteral("commandLine"), commandLine},
+            {QStringLiteral("saveBefore"), params.value(QStringLiteral("saveBefore")).toBool(true)},
+        };
+        const QString signature = objectSignature(commandTemplate);
+        if (seen.contains(signature)) {
+            continue;
+        }
+        seen.insert(signature);
+        templates.append(commandTemplate);
+    }
+    return templates;
+}
+
+QString normalizedObservedCommandName(QString command)
+{
+    command = command.trimmed().toUpper();
+    command.remove(QRegularExpression(QStringLiteral(R"(^[\._-]+)")));
+    command.replace(QRegularExpression(QStringLiteral(R"(\s+)")), QString());
+    return command;
+}
+
+QJsonObject executableCommandTemplateForObservedCommand(const QString& command)
+{
+    const QString normalized = normalizedObservedCommandName(command);
+    QString commandName;
+    QString commandLine;
+    QString title;
+
+    if (normalized == QStringLiteral("RECTANGLE")
+        || normalized == QStringLiteral("RECTANG")
+        || normalized == QStringLiteral("RECHTECK")) {
+        commandName = QStringLiteral("RECTANGLE");
+        commandLine = QStringLiteral("_.RECTANGLE 0,0 1000,1000");
+        title = QStringLiteral("Rechteck als nativen BricsCAD-Command testen");
+    } else if (normalized == QStringLiteral("CIRCLE")
+        || normalized == QStringLiteral("KREIS")) {
+        commandName = QStringLiteral("CIRCLE");
+        commandLine = QStringLiteral("_.CIRCLE 0,0 500");
+        title = QStringLiteral("Kreis als nativen BricsCAD-Command testen");
+    } else if (normalized == QStringLiteral("PLINE")
+        || normalized == QStringLiteral("POLYLINE")
+        || normalized == QStringLiteral("POLYLINIE")) {
+        commandName = QStringLiteral("PLINE");
+        commandLine = QStringLiteral("_.PLINE 0,0 1000,0 1000,1000 0,1000 _C");
+        title = QStringLiteral("Polylinie als nativen BricsCAD-Command testen");
+    } else if (normalized == QStringLiteral("ARC")
+        || normalized == QStringLiteral("BOGEN")) {
+        commandName = QStringLiteral("ARC");
+        commandLine = QStringLiteral("_.ARC 0,0 500,500 1000,0");
+        title = QStringLiteral("Bogen als nativen BricsCAD-Command testen");
+    } else if (normalized == QStringLiteral("ELLIPSE")) {
+        commandName = QStringLiteral("ELLIPSE");
+        commandLine = QStringLiteral("_.ELLIPSE 0,0 1000,0 250");
+        title = QStringLiteral("Ellipse als nativen BricsCAD-Command testen");
+    } else if (normalized == QStringLiteral("POINT")) {
+        commandName = QStringLiteral("POINT");
+        commandLine = QStringLiteral("_.POINT 0,0");
+        title = QStringLiteral("Punkt als nativen BricsCAD-Command testen");
+    }
+
+    if (commandName.isEmpty() || commandLine.isEmpty()) {
+        return {};
+    }
+    return QJsonObject{
+        {QStringLiteral("id"), QStringLiteral("command_template_%1").arg(commandName.toLower())},
+        {QStringLiteral("title"), title},
+        {QStringLiteral("tool"), QStringLiteral("command.execute")},
+        {QStringLiteral("commandName"), commandName},
+        {QStringLiteral("commandLine"), commandLine},
+        {QStringLiteral("saveBefore"), true},
+        {QStringLiteral("description"), QStringLiteral("Aus beobachtetem BricsCAD-Command und commands.list/toolIndex abgeleiteter Direkt-Test. Beispielwerte sind nur Testwerte.")}
+    };
+}
+
+QJsonArray commandTemplatesFromObservedCommands(const QJsonArray& observedCommands)
+{
+    QJsonArray templates;
+    QSet<QString> seen;
+    for (const QJsonValue& value : observedCommands) {
+        const QJsonObject observed = value.toObject();
+        const QString command = observed.value(QStringLiteral("commandName")).toString(
+            observed.value(QStringLiteral("rawCommand")).toString()).trimmed();
+        const QJsonObject commandTemplate = executableCommandTemplateForObservedCommand(command);
+        if (commandTemplate.isEmpty()) {
+            continue;
+        }
+        const QString signature = objectSignature(commandTemplate);
+        if (seen.contains(signature)) {
+            continue;
+        }
+        seen.insert(signature);
+        templates.append(commandTemplate);
+    }
+    return templates;
+}
+
+QString preferredToolFromObservedCommand(const QString& command)
+{
+    const QString normalized = normalizedObservedCommandName(command);
+    if (normalized == QStringLiteral("MOVE")
+        || normalized == QStringLiteral("MANIPMOVE")
+        || normalized == QStringLiteral("MANIP_MOVE")
+        || normalized == QStringLiteral("SCHIEBEN")
+        || normalized == QStringLiteral("VERSCHIEBEN")) {
+        return QStringLiteral("geometry.move");
+    }
+    if (normalized == QStringLiteral("ROTATE")
+        || normalized == QStringLiteral("DREHEN")) {
+        return QStringLiteral("geometry.rotate");
+    }
+    if (normalized == QStringLiteral("COPY")
+        || normalized == QStringLiteral("KOPIEREN")) {
+        return QStringLiteral("geometry.copy");
+    }
+    if (normalized == QStringLiteral("SCALE")
+        || normalized == QStringLiteral("SKALIEREN")
+        || normalized == QStringLiteral("VARIA")) {
+        return QStringLiteral("geometry.scale");
+    }
+    if (normalized == QStringLiteral("ERASE")
+        || normalized == QStringLiteral("DELETE")
+        || normalized == QStringLiteral("LOESCHEN")
+        || normalized == QStringLiteral("LÖSCHEN")) {
+        return QStringLiteral("geometry.delete");
+    }
+    if (normalized == QStringLiteral("EXTRUDE")
+        || normalized == QStringLiteral("EXTRUSION")) {
+        return QStringLiteral("profile.extrude");
+    }
+    return {};
+}
+
+QJsonArray semanticActionsFromObservedCommands(const QJsonArray& observedCommands)
+{
+    QJsonArray actions;
+    QSet<QString> seen;
+    for (const QJsonValue& value : observedCommands) {
+        const QJsonObject observed = value.toObject();
+        const QString command = normalizedObservedCommandName(observed.value(QStringLiteral("commandName")).toString(
+            observed.value(QStringLiteral("rawCommand")).toString()));
+        const QString tool = preferredToolFromObservedCommand(command);
+        if (command.isEmpty() || tool.isEmpty()) {
+            continue;
+        }
+        const QString signature = QStringLiteral("%1:%2").arg(command, tool);
+        if (seen.contains(signature)) {
+            continue;
+        }
+        seen.insert(signature);
+
+        QJsonArray missingBindings;
+        QJsonObject requiredRuntimeContext{
+            {QStringLiteral("source"), QStringLiteral("drawing_or_prompt")},
+            {QStringLiteral("mustReReadDrawing"), true},
+            {QStringLiteral("preferredTool"), tool},
+        };
+        QString description = QStringLiteral("Beobachteter BricsCAD-Command %1 wird bevorzugt ueber %2 als validiertes BRX-Tool umgesetzt. Runtime-Werte aus Prompt, aktueller Auswahl oder Zeichnungskontext binden.").arg(command, tool);
+        if (tool == QStringLiteral("geometry.move")) {
+            requiredRuntimeContext.insert(QStringLiteral("requiresSelector"), true);
+            missingBindings.append(QStringLiteral("selector"));
+            missingBindings.append(QStringLiteral("vector"));
+        } else if (tool == QStringLiteral("geometry.rotate")) {
+            requiredRuntimeContext.insert(QStringLiteral("requiresSelector"), true);
+            missingBindings.append(QStringLiteral("selector"));
+            missingBindings.append(QStringLiteral("basePoint"));
+            missingBindings.append(QStringLiteral("angleDeg"));
+        } else if (tool == QStringLiteral("geometry.copy")) {
+            requiredRuntimeContext.insert(QStringLiteral("requiresSelector"), true);
+            missingBindings.append(QStringLiteral("selector"));
+            missingBindings.append(QStringLiteral("vector"));
+        } else if (tool == QStringLiteral("geometry.scale")) {
+            requiredRuntimeContext.insert(QStringLiteral("requiresSelector"), true);
+            missingBindings.append(QStringLiteral("selector"));
+            missingBindings.append(QStringLiteral("basePoint"));
+            missingBindings.append(QStringLiteral("factor"));
+        } else if (tool == QStringLiteral("geometry.delete")) {
+            requiredRuntimeContext.insert(QStringLiteral("requiresSelector"), true);
+            missingBindings.append(QStringLiteral("selector"));
+        } else if (tool == QStringLiteral("profile.extrude")) {
+            requiredRuntimeContext.insert(QStringLiteral("requiresCompatibleSelection"), true);
+            missingBindings.append(QStringLiteral("selector.compatibleProfile"));
+            missingBindings.append(QStringLiteral("heightMm"));
+            description = QStringLiteral("Beobachteter BricsCAD-Command %1 wird bevorzugt ueber profile.extrude umgesetzt. Vorher kompatibles Profil per Auswahl oder Zeichnungskontext binden.").arg(command);
+        }
+
+        actions.append(QJsonObject{
+            {QStringLiteral("source"), QStringLiteral("observed_command_migration")},
+            {QStringLiteral("observedCommand"), command},
+            {QStringLiteral("tool"), tool},
+            {QStringLiteral("description"), description},
+            {QStringLiteral("requiredRuntimeContext"), requiredRuntimeContext},
+            {QStringLiteral("missingBindings"), missingBindings},
+        });
+    }
+    return actions;
+}
+
+void appendStringIfMissing(QJsonArray& values, const QString& value)
+{
+    const QString trimmed = value.trimmed();
+    if (trimmed.isEmpty()) {
+        return;
+    }
+    for (const QJsonValue& existing : values) {
+        if (existing.toString() == trimmed) {
+            return;
+        }
+    }
+    values.append(trimmed);
+}
+
 QJsonArray runtimeConversationPrompts(const QJsonObject& event)
 {
     QJsonArray prompts;
@@ -430,8 +679,11 @@ QString lessonIdFromValue(const QJsonValue& value)
 
 bool isProtectedWorkflow(const QJsonObject& lesson)
 {
+    const QString source = lesson.value(QStringLiteral("source")).toString();
     return lesson.value(QStringLiteral("updateProtected")).toBool(false)
-        || lesson.value(QStringLiteral("source")).toString() == QStringLiteral("canonical_building_workflow");
+        || source == QStringLiteral("canonical_building_workflow")
+        || source == QStringLiteral("canonical_bim_workflow")
+        || source == QStringLiteral("canonical_brx_workflow");
 }
 
 bool isAiOwnedWorkflow(const QJsonObject& lesson)
@@ -448,6 +700,12 @@ bool isAiOwnedWorkflow(const QJsonObject& lesson)
 
 QJsonObject normalizedAiWorkflow(QJsonObject lesson, const QString& now)
 {
+    const QString incomingSource = lesson.value(QStringLiteral("source")).toString().trimmed();
+    const QString normalizedSource =
+        incomingSource == QStringLiteral("brx_runtime")
+            || incomingSource == QStringLiteral("local_ai")
+        ? incomingSource
+        : QStringLiteral("ai_runtime");
     const QString fallbackTitle = lesson.value(QStringLiteral("topic")).toString(
         lesson.value(QStringLiteral("intent")).toString());
     const QString title = conciseLearningTitle(
@@ -459,7 +717,7 @@ QJsonObject normalizedAiWorkflow(QJsonObject lesson, const QString& now)
         lesson.value(QStringLiteral("description")).toString(
             lesson.value(QStringLiteral("intent")).toString()), 360));
     lesson.insert(QStringLiteral("status"), QStringLiteral("active"));
-    lesson.insert(QStringLiteral("source"), QStringLiteral("ai_runtime"));
+    lesson.insert(QStringLiteral("source"), normalizedSource);
     lesson.insert(QStringLiteral("updateProtected"), false);
     lesson.insert(QStringLiteral("intentPatterns"), lesson.value(QStringLiteral("intentPatterns")).toArray());
     lesson.insert(QStringLiteral("assumptions"), lesson.value(QStringLiteral("assumptions")).toArray());
@@ -468,6 +726,34 @@ QJsonObject normalizedAiWorkflow(QJsonObject lesson, const QString& now)
     lesson.insert(QStringLiteral("derivedValues"), lesson.value(QStringLiteral("derivedValues")).toObject());
     lesson.insert(QStringLiteral("strategy"), lesson.value(QStringLiteral("strategy")).toArray());
     lesson.insert(QStringLiteral("executionBatches"), lesson.value(QStringLiteral("executionBatches")).toArray());
+    const QJsonArray observedCommands = lesson.value(QStringLiteral("observedCommands")).toArray();
+    const QJsonArray commandTemplates = mergedObjectArray(
+        lesson.value(QStringLiteral("commandTemplates")).toArray(),
+        commandTemplatesFromObservedCommands(observedCommands),
+        12);
+    QString lessonKind = lesson.value(QStringLiteral("lessonKind")).toString().trimmed();
+    if (!commandTemplates.isEmpty()
+        && (lessonKind.isEmpty() || lessonKind == QStringLiteral("interaction"))) {
+        lessonKind = QStringLiteral("command_template");
+    }
+    if (lessonKind.isEmpty()) {
+        lessonKind = lesson.value(QStringLiteral("executionBatches")).toArray().isEmpty()
+            ? QStringLiteral("interaction")
+            : QStringLiteral("workflow");
+    }
+    lesson.insert(QStringLiteral("lessonKind"), lessonKind);
+    lesson.insert(QStringLiteral("directTestEligible"),
+        lesson.value(QStringLiteral("directTestEligible")).toBool(false)
+        || !lesson.value(QStringLiteral("executionBatches")).toArray().isEmpty()
+        || !commandTemplates.isEmpty());
+    lesson.insert(QStringLiteral("observedCommands"), observedCommands);
+    lesson.insert(QStringLiteral("commandTemplates"), commandTemplates);
+    lesson.insert(QStringLiteral("observedTraces"), lesson.value(QStringLiteral("observedTraces")).toArray());
+    lesson.insert(QStringLiteral("semanticActions"), lesson.value(QStringLiteral("semanticActions")).toArray());
+    lesson.insert(QStringLiteral("requiredRuntimeContext"), lesson.value(QStringLiteral("requiredRuntimeContext")).toObject());
+    lesson.insert(QStringLiteral("missingBindings"), lesson.value(QStringLiteral("missingBindings")).toArray());
+    lesson.insert(QStringLiteral("postconditions"), lesson.value(QStringLiteral("postconditions")).toArray());
+    lesson.insert(QStringLiteral("readbacks"), lesson.value(QStringLiteral("readbacks")).toArray());
     QJsonArray validationExamples = lesson.value(QStringLiteral("validationExamples")).toArray();
     if (validationExamples.isEmpty()) {
         validationExamples = lesson.value(QStringLiteral("successfulExamples")).toArray();
@@ -476,7 +762,12 @@ QJsonObject normalizedAiWorkflow(QJsonObject lesson, const QString& now)
     lesson.remove(QStringLiteral("successfulExamples"));
     lesson.insert(QStringLiteral("knownFailures"), lesson.value(QStringLiteral("knownFailures")).toArray());
     lesson.insert(QStringLiteral("repairRules"), lesson.value(QStringLiteral("repairRules")).toArray());
-    lesson.insert(QStringLiteral("recommendedTools"), lesson.value(QStringLiteral("recommendedTools")).toArray());
+    QJsonArray recommendedTools = lesson.value(QStringLiteral("recommendedTools")).toArray();
+    if (!commandTemplates.isEmpty()) {
+        appendStringIfMissing(recommendedTools, QStringLiteral("command.execute"));
+        appendStringIfMissing(recommendedTools, QStringLiteral("commands.list"));
+    }
+    lesson.insert(QStringLiteral("recommendedTools"), recommendedTools);
     lesson.insert(QStringLiteral("createdAt"), lesson.value(QStringLiteral("createdAt")).toString(now));
     lesson.insert(QStringLiteral("updatedAt"), now);
     return lesson;
@@ -530,6 +821,10 @@ bool BricsCadLearningAgent::load(QString* errorMessage)
         m_document = repairedLearningValue(loaded).toObject();
         m_sourcePath = projectPath;
         m_loadedFromProjectFile = true;
+        if (materializeExecutableCommandTemplates()) {
+            QString ignoredError;
+            saveProjectDocument(&ignoredError);
+        }
         rebuildIndexes();
         return true;
     }
@@ -538,6 +833,7 @@ bool BricsCadLearningAgent::load(QString* errorMessage)
         m_document = repairedLearningValue(loaded).toObject();
         m_sourcePath = QString::fromLatin1(kLearningResourcePath);
         m_loadedFromProjectFile = false;
+        materializeExecutableCommandTemplates();
         rebuildIndexes();
         return true;
     }
@@ -556,15 +852,6 @@ bool BricsCadLearningAgent::load(QString* errorMessage)
 
 void BricsCadLearningAgent::rebuildIndexes()
 {
-    m_toolProfilesByName = {};
-    for (const QJsonValue& value : m_document.value(QStringLiteral("toolProfiles")).toArray()) {
-        const QJsonObject profile = value.toObject();
-        const QString name = profile.value(QStringLiteral("name")).toString().trimmed();
-        if (!name.isEmpty()) {
-            m_toolProfilesByName.insert(name, profile);
-        }
-    }
-
     m_lessonsById = {};
     for (const QJsonValue& value : m_document.value(QStringLiteral("lessons")).toArray()) {
         const QJsonObject lesson = value.toObject();
@@ -604,39 +891,6 @@ QString BricsCadLearningAgent::sourcePath() const
 bool BricsCadLearningAgent::loadedFromProjectFile() const
 {
     return m_loadedFromProjectFile;
-}
-
-QJsonObject BricsCadLearningAgent::toolProfile(const QString& name) const
-{
-    return m_toolProfilesByName.value(name).toObject();
-}
-
-QJsonArray BricsCadLearningAgent::toolProfiles() const
-{
-    return m_document.value(QStringLiteral("toolProfiles")).toArray();
-}
-
-QJsonObject BricsCadLearningAgent::compactToolProfile(const QJsonObject& profile)
-{
-    QJsonObject compact{
-        {QStringLiteral("id"), QStringLiteral("tool:%1").arg(profile.value(QStringLiteral("name")).toString())},
-        {QStringLiteral("title"), profile.value(QStringLiteral("name")).toString()},
-        {QStringLiteral("name"), profile.value(QStringLiteral("name")).toString()},
-        {QStringLiteral("domain"), profile.value(QStringLiteral("domain")).toString()},
-        {QStringLiteral("kind"), QStringLiteral("tool")},
-        {QStringLiteral("status"), QStringLiteral("active")},
-        {QStringLiteral("description"), profile.value(QStringLiteral("summary")).toString().left(420)},
-        {QStringLiteral("summary"), profile.value(QStringLiteral("summary")).toString().left(220)},
-        {QStringLiteral("keywords"), firstObjects(profile.value(QStringLiteral("keywords")).toArray(), 16)},
-        {QStringLiteral("policy"), profile.value(QStringLiteral("policy")).toString()},
-        {QStringLiteral("agentHints"), firstObjects(profile.value(QStringLiteral("agentHints")).toArray(), 4)},
-        {QStringLiteral("semanticConstraints"), firstObjects(profile.value(QStringLiteral("semanticConstraints")).toArray(), 4)},
-        {QStringLiteral("unsupportedOperations"), firstObjects(profile.value(QStringLiteral("unsupportedOperations")).toArray(), 4)},
-        {QStringLiteral("examples"), firstObjects(profile.value(QStringLiteral("examples")).toArray(), 3)},
-        {QStringLiteral("createdAt"), profile.value(QStringLiteral("createdAt")).toString()},
-        {QStringLiteral("updatedAt"), profile.value(QStringLiteral("updatedAt")).toString()},
-    };
-    return compact;
 }
 
 QJsonObject BricsCadLearningAgent::compactRepairRule(const QJsonObject& rule, const QJsonObject& metadata)
@@ -732,6 +986,15 @@ QJsonObject BricsCadLearningAgent::compactLesson(const QJsonObject& lesson, bool
         compact.insert(QStringLiteral("knownSlotValues"), lesson.value(QStringLiteral("knownSlotValues")).toObject());
         compact.insert(QStringLiteral("requiredSlots"), lesson.value(QStringLiteral("requiredSlots")).toArray());
         compact.insert(QStringLiteral("derivedValues"), lesson.value(QStringLiteral("derivedValues")).toObject());
+        compact.insert(QStringLiteral("observedCommands"), firstObjects(lesson.value(QStringLiteral("observedCommands")).toArray(), 12));
+        compact.insert(QStringLiteral("observedTraces"), firstObjects(lesson.value(QStringLiteral("observedTraces")).toArray(), 6));
+        compact.insert(QStringLiteral("semanticActions"), firstObjects(lesson.value(QStringLiteral("semanticActions")).toArray(), 12));
+        compact.insert(QStringLiteral("requiredRuntimeContext"), lesson.value(QStringLiteral("requiredRuntimeContext")).toObject());
+        compact.insert(QStringLiteral("missingBindings"), lesson.value(QStringLiteral("missingBindings")).toArray());
+        compact.insert(QStringLiteral("commandTemplates"), firstObjects(lesson.value(QStringLiteral("commandTemplates")).toArray(), 12));
+        compact.insert(QStringLiteral("postconditions"), firstObjects(lesson.value(QStringLiteral("postconditions")).toArray(), 12));
+        compact.insert(QStringLiteral("readbacks"), firstObjects(lesson.value(QStringLiteral("readbacks")).toArray(), 8));
+        compact.insert(QStringLiteral("selectorScenarios"), firstObjects(lesson.value(QStringLiteral("selectorScenarios")).toArray(), 12));
     }
     return compact;
 }
@@ -755,12 +1018,6 @@ QJsonArray BricsCadLearningAgent::learningIndex() const
 {
     QJsonArray index;
     const QJsonObject meta = metadata();
-
-    for (const QJsonValue& value : m_document.value(QStringLiteral("toolProfiles")).toArray()) {
-        QJsonObject profile = compactToolProfile(value.toObject());
-        profile.insert(QStringLiteral("learningMetadata"), meta);
-        index.append(profile);
-    }
 
     for (const QJsonValue& value : m_document.value(QStringLiteral("lessons")).toArray()) {
         const QJsonObject lesson = value.toObject();
@@ -850,6 +1107,14 @@ QString BricsCadLearningAgent::lessonSearchText(const QJsonObject& lesson)
              QStringLiteral("validActionShapes"),
              QStringLiteral("executionBatches"),
              QStringLiteral("validationExamples"),
+             QStringLiteral("observedCommands"),
+             QStringLiteral("observedTraces"),
+             QStringLiteral("semanticActions"),
+             QStringLiteral("requiredRuntimeContext"),
+             QStringLiteral("missingBindings"),
+             QStringLiteral("commandTemplates"),
+             QStringLiteral("postconditions"),
+             QStringLiteral("readbacks"),
              QStringLiteral("requiredSlots"),
              QStringLiteral("knownSlotValues"),
              QStringLiteral("derivedValues"),
@@ -969,15 +1234,21 @@ QJsonObject BricsCadLearningAgent::contextForPrompt(const QString& prompt, int m
                 .value(selectedWorkflowId.trimmed()).toArray();
         }
     }
-    if (lessons.isEmpty()) {
+    if (lessons.isEmpty() && maxLessons > 0) {
         lessons = relevantLessons(prompt, maxLessons);
     }
-    QJsonArray tools;
-    for (const QString& name : selectedTools) {
-        const QJsonObject profile = toolProfile(name);
-        if (!profile.isEmpty()) {
-            tools.append(compactToolProfile(profile));
-        }
+    Q_UNUSED(selectedTools);
+
+    if (maxLessons <= 0 && lessons.isEmpty() && selectedWorkflowId.trimmed().isEmpty()) {
+        return QJsonObject{
+            {QStringLiteral("schema"), QStringLiteral("barebone.agent.bricscad-learning-context.v3")},
+            {QStringLiteral("metadata"), metadata()},
+            {QStringLiteral("mode"), QStringLiteral("lesson-only")},
+            {QStringLiteral("lessons"), QJsonArray{}},
+            {QStringLiteral("repairRules"), QJsonArray{}},
+            {QStringLiteral("legacyWorkflowAliasCandidates"), QJsonArray{}},
+            {QStringLiteral("selectionPolicy"), QStringLiteral("Keine Learning-Lesson wurde fuer diesen Request ausgewaehlt. Nutze Prompt, BrxAgent-Tooldetails und Qt-Kontext; fordere qt.learning.describe an, wenn Erfahrungswissen wirklich gebraucht wird.")},
+        };
     }
 
     return QJsonObject{
@@ -985,7 +1256,6 @@ QJsonObject BricsCadLearningAgent::contextForPrompt(const QString& prompt, int m
         {QStringLiteral("metadata"), metadata()},
         {QStringLiteral("policy"), policy()},
         {QStringLiteral("lessons"), lessons},
-        {QStringLiteral("toolProfiles"), tools},
         {QStringLiteral("repairRules"), selectedWorkflowId.trimmed().isEmpty()
                 ? firstObjects(m_document.value(QStringLiteral("repairRules")).toArray(), 4)
                 : QJsonArray{}},
@@ -999,7 +1269,7 @@ QJsonObject BricsCadLearningAgent::contextForPrompt(const QString& prompt, int m
                 QStringLiteral("validationExamples"), QStringLiteral("knownFailures"), QStringLiteral("repairRules"),
                 QStringLiteral("recommendedTools"), QStringLiteral("status"), QStringLiteral("source"),
                 QStringLiteral("updateProtected"), QStringLiteral("createdAt"), QStringLiteral("updatedAt")}},
-            {QStringLiteral("updatePolicy"), QStringLiteral("Workflows mit updateProtected=true oder source=canonical_building_workflow sind read-only. Die lokale AI darf nur source=ai_runtime und updateProtected=false anlegen oder aktualisieren.")},
+            {QStringLiteral("updatePolicy"), QStringLiteral("Workflows mit updateProtected=true oder source=canonical_building_workflow/canonical_bim_workflow/canonical_brx_workflow sind read-only. Die lokale AI darf nur source=ai_runtime oder source=brx_runtime und updateProtected=false anlegen oder aktualisieren.")},
             {QStringLiteral("executionPolicy"), QStringLiteral("Ein Gewerk ist ein eigener Workflow. executionBatches muessen sequential, stopOnFailure=true und konkrete steps mit tool und paramsTemplate enthalten. Abhaengigkeiten werden ausschliesslich ueber dependsOn und stabile requiredArtifacts/producesArtifacts referenziert; kopiere keine vollstaendigen Vorgaengerworkflows.")},
             {QStringLiteral("pointBindingPolicy"), QStringLiteral("Punktnetze verwenden geometry.query mit autoPointHandlesFromBatch/createdPointHandleIndexes, danach geometry.create polyline mit autoPointsFromLastQuery/queriedPointIndexes und fuer Netztools autoPolylineHandlesFromBatch/createdPolylineHandleIndexes. Qt loest diese Felder vor dem BRX-Aufruf in konkrete Readback-Punkte und Handles auf.")},
         }},
@@ -1148,7 +1418,6 @@ void BricsCadLearningAgent::refreshMetadata()
     meta.insert(QStringLiteral("repairRuleCount"), m_document.value(QStringLiteral("repairRules")).toArray().size());
     meta.insert(QStringLiteral("successfulExampleCount"), examples);
     meta.insert(QStringLiteral("validationExampleCount"), examples);
-    meta.insert(QStringLiteral("toolProfileCount"), m_document.value(QStringLiteral("toolProfiles")).toArray().size());
     m_document.insert(QStringLiteral("metadata"), meta);
     m_document.insert(QStringLiteral("updatedAt"), QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
 }
@@ -1174,15 +1443,11 @@ bool BricsCadLearningAgent::upsertLesson(QJsonObject lesson, QString* appliedCha
 
     QJsonArray recommendedTools;
     for (const QString& tool : jsonStringArray(lesson.value(QStringLiteral("recommendedTools")).toArray())) {
-        if (!m_toolProfilesByName.value(tool).toObject().isEmpty()) {
-            appendStringUnique(recommendedTools, tool);
-        }
+        appendStringUnique(recommendedTools, tool);
     }
     if (recommendedTools.isEmpty()) {
         for (const QString& tool : jsonStringArray(lesson.value(QStringLiteral("tools")).toArray())) {
-            if (!m_toolProfilesByName.value(tool).toObject().isEmpty()) {
-                appendStringUnique(recommendedTools, tool);
-            }
+            appendStringUnique(recommendedTools, tool);
         }
     }
 
@@ -1237,9 +1502,39 @@ bool BricsCadLearningAgent::upsertLesson(QJsonObject lesson, QString* appliedCha
                  QStringLiteral("validActionShapes"),
                  QStringLiteral("executionBatches"),
                  QStringLiteral("validationExamples"),
+                 QStringLiteral("observedCommands"),
+                 QStringLiteral("commandTemplates"),
+                 QStringLiteral("observedTraces"),
+                 QStringLiteral("semanticActions"),
+                 QStringLiteral("postconditions"),
+                 QStringLiteral("readbacks"),
              }) {
             existing.insert(key, mergedObjectArray(existing.value(key).toArray(), lesson.value(key).toArray()));
         }
+        existing.insert(QStringLiteral("missingBindings"),
+            mergedStringArray(existing.value(QStringLiteral("missingBindings")).toArray(),
+                lesson.value(QStringLiteral("missingBindings")).toArray()));
+        const QJsonObject incomingRuntimeContext = lesson.value(QStringLiteral("requiredRuntimeContext")).toObject();
+        if (!incomingRuntimeContext.isEmpty()) {
+            QJsonObject mergedRuntimeContext = existing.value(QStringLiteral("requiredRuntimeContext")).toObject();
+            for (auto it = incomingRuntimeContext.constBegin(); it != incomingRuntimeContext.constEnd(); ++it) {
+                mergedRuntimeContext.insert(it.key(), it.value());
+            }
+            existing.insert(QStringLiteral("requiredRuntimeContext"), mergedRuntimeContext);
+        }
+        const QString incomingLessonKind = lesson.value(QStringLiteral("lessonKind")).toString().trimmed();
+        const QString existingLessonKind = existing.value(QStringLiteral("lessonKind")).toString().trimmed();
+        if (existingLessonKind.isEmpty()
+            || existingLessonKind == QStringLiteral("interaction")
+            || incomingLessonKind == QStringLiteral("workflow")
+            || incomingLessonKind == QStringLiteral("command_template")) {
+            existing.insert(QStringLiteral("lessonKind"), incomingLessonKind.isEmpty() ? existingLessonKind : incomingLessonKind);
+        }
+        existing.insert(QStringLiteral("directTestEligible"),
+            existing.value(QStringLiteral("directTestEligible")).toBool(false)
+            || lesson.value(QStringLiteral("directTestEligible")).toBool(false)
+            || !existing.value(QStringLiteral("executionBatches")).toArray().isEmpty()
+            || !existing.value(QStringLiteral("commandTemplates")).toArray().isEmpty());
         for (const QString& key : {
                  QStringLiteral("successCount"),
                  QStringLiteral("failureCount"),
@@ -1266,7 +1561,7 @@ bool BricsCadLearningAgent::upsertLesson(QJsonObject lesson, QString* appliedCha
             existing.insert(QStringLiteral("confidence"), boundedConfidence(std::max(currentConfidence, incomingConfidence)));
         }
         existing.insert(QStringLiteral("updatedAt"), now);
-        existing.insert(QStringLiteral("source"), QStringLiteral("ai_runtime"));
+        existing.insert(QStringLiteral("source"), lesson.value(QStringLiteral("source")).toString(QStringLiteral("ai_runtime")));
         existing.insert(QStringLiteral("updateProtected"), false);
         existing.insert(QStringLiteral("usageCount"), existing.value(QStringLiteral("usageCount")).toInt() + 1);
         lessons.replace(existingIndex, existing);
@@ -1287,6 +1582,92 @@ bool BricsCadLearningAgent::upsertLesson(QJsonObject lesson, QString* appliedCha
     return true;
 }
 
+bool BricsCadLearningAgent::materializeExecutableCommandTemplates()
+{
+    QJsonArray lessons = m_document.value(QStringLiteral("lessons")).toArray();
+    bool changed = false;
+
+    for (int i = 0; i < lessons.size(); ++i) {
+        QJsonObject lesson = lessons.at(i).toObject();
+        const QJsonArray observedCommands = lesson.value(QStringLiteral("observedCommands")).toArray();
+        if (observedCommands.isEmpty()) {
+            continue;
+        }
+
+        const QJsonArray generatedTemplates = commandTemplatesFromObservedCommands(observedCommands);
+        const QJsonArray generatedSemanticActions = semanticActionsFromObservedCommands(observedCommands);
+        if (generatedTemplates.isEmpty() && generatedSemanticActions.isEmpty()) {
+            continue;
+        }
+
+        const QJsonArray existingTemplates = lesson.value(QStringLiteral("commandTemplates")).toArray();
+        const QJsonArray mergedTemplates = mergedObjectArray(existingTemplates, generatedTemplates, 12);
+        const QJsonArray existingSemanticActions = lesson.value(QStringLiteral("semanticActions")).toArray();
+        const QJsonArray mergedSemanticActions = mergedObjectArray(existingSemanticActions, generatedSemanticActions, 12);
+        const bool templateChanged = mergedTemplates.size() != existingTemplates.size();
+        const bool semanticChanged = mergedSemanticActions.size() != existingSemanticActions.size();
+        const bool templateStateAlreadyCurrent = generatedTemplates.isEmpty()
+            || (lesson.value(QStringLiteral("directTestEligible")).toBool(false)
+                && lesson.value(QStringLiteral("lessonKind")).toString() == QStringLiteral("command_template"));
+        if (!templateChanged && !semanticChanged && templateStateAlreadyCurrent) {
+            continue;
+        }
+
+        if (!generatedTemplates.isEmpty()) {
+            lesson.insert(QStringLiteral("commandTemplates"), mergedTemplates);
+            lesson.insert(QStringLiteral("directTestEligible"), true);
+            if (lesson.value(QStringLiteral("executionBatches")).toArray().isEmpty()) {
+                lesson.insert(QStringLiteral("lessonKind"), QStringLiteral("command_template"));
+            }
+        }
+        if (!generatedSemanticActions.isEmpty()) {
+            lesson.insert(QStringLiteral("semanticActions"), mergedSemanticActions);
+        }
+
+        QJsonArray recommendedTools = lesson.value(QStringLiteral("recommendedTools")).toArray();
+        if (!generatedTemplates.isEmpty()) {
+            appendStringIfMissing(recommendedTools, QStringLiteral("command.execute"));
+            appendStringIfMissing(recommendedTools, QStringLiteral("commands.list"));
+        }
+        for (const QJsonValue& value : generatedSemanticActions) {
+            appendStringIfMissing(recommendedTools, value.toObject().value(QStringLiteral("tool")).toString());
+        }
+        lesson.insert(QStringLiteral("recommendedTools"), recommendedTools);
+
+        QJsonArray postconditions = lesson.value(QStringLiteral("postconditions")).toArray();
+        if (!generatedTemplates.isEmpty()) {
+            postconditions.append(QJsonObject{
+                {QStringLiteral("type"), QStringLiteral("command_template")},
+                {QStringLiteral("description"), QStringLiteral("Direkt testbar ueber command.execute; commandLine wurde aus beobachtetem Command und BRX commands.list/toolIndex materialisiert.")}
+            });
+        }
+        if (!generatedSemanticActions.isEmpty()) {
+            postconditions.append(QJsonObject{
+                {QStringLiteral("type"), QStringLiteral("semantic_action")},
+                {QStringLiteral("description"), QStringLiteral("Beobachteter nativer Command wurde einem bevorzugten BRX-Tool zugeordnet; konkrete Runtime-Parameter muessen neu gebunden werden.")}
+            });
+        }
+        lesson.insert(QStringLiteral("postconditions"), postconditions);
+        QJsonArray missingBindings = lesson.value(QStringLiteral("missingBindings")).toArray();
+        for (const QJsonValue& value : generatedSemanticActions) {
+            missingBindings = mergedStringArray(missingBindings, value.toObject().value(QStringLiteral("missingBindings")).toArray(), 24);
+        }
+        lesson.insert(QStringLiteral("missingBindings"), missingBindings);
+        lesson.insert(QStringLiteral("updatedAt"), QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
+
+        lessons.replace(i, lesson);
+        changed = true;
+    }
+
+    if (!changed) {
+        return false;
+    }
+
+    m_document.insert(QStringLiteral("lessons"), lessons);
+    refreshMetadata();
+    return true;
+}
+
 bool BricsCadLearningAgent::upsertRepairRule(QJsonObject rule, QString* appliedChange, QString* errorMessage)
 {
     const QString instruction = rule.value(QStringLiteral("instruction")).toString(
@@ -1302,9 +1683,7 @@ bool BricsCadLearningAgent::upsertRepairRule(QJsonObject rule, QString* appliedC
 
     QJsonArray tools;
     for (const QString& tool : jsonStringArray(rule.value(QStringLiteral("tools")).toArray())) {
-        if (!m_toolProfilesByName.value(tool).toObject().isEmpty()) {
-            appendStringUnique(tools, tool);
-        }
+        appendStringUnique(tools, tool);
     }
     rule.insert(QStringLiteral("tools"), tools);
     rule.insert(QStringLiteral("instruction"), instruction);
@@ -1354,9 +1733,9 @@ bool BricsCadLearningAgent::appendSuccessfulExample(QJsonObject example, QString
     }
     for (const QJsonValue& value : actions) {
         const QString tool = value.toObject().value(QStringLiteral("tool")).toString().trimmed();
-        if (tool.isEmpty() || m_toolProfilesByName.value(tool).toObject().isEmpty()) {
+        if (tool.isEmpty()) {
             if (errorMessage) {
-                *errorMessage = QStringLiteral("Erfolgsbeispiel enthaelt unbekanntes Tool: %1").arg(tool.isEmpty() ? QStringLiteral("<leer>") : tool);
+                *errorMessage = QStringLiteral("Erfolgsbeispiel enthaelt ein leeres Tool.");
             }
             return false;
         }
@@ -1631,9 +2010,7 @@ bool BricsCadLearningAgent::upsertRuntimeLessonFromEvent(
 
     QJsonArray recommendedTools;
     for (const QString& tool : tools) {
-        if (!m_toolProfilesByName.value(tool).toObject().isEmpty()) {
-            appendStringUnique(recommendedTools, tool);
-        }
+        appendStringUnique(recommendedTools, tool);
     }
     if (recommendedTools.isEmpty()) {
         return true;
@@ -1683,6 +2060,14 @@ bool BricsCadLearningAgent::upsertRuntimeLessonFromEvent(
     const QString title = conciseLearningTitle(
         event.value(QStringLiteral("proposalTitle")).toString().trimmed(),
         focusTopic.isEmpty() ? fallbackTopic : focusTopic);
+    QString stableLessonId = event.value(QStringLiteral("lessonId")).toString(
+        event.value(QStringLiteral("learningKey")).toString()).trimmed();
+    stableLessonId = slugText(stableLessonId);
+    if (!stableLessonId.isEmpty()
+        && !stableLessonId.startsWith(QStringLiteral("ai_"))
+        && !stableLessonId.startsWith(QStringLiteral("seed_"))) {
+        stableLessonId = QStringLiteral("ai_%1").arg(stableLessonId);
+    }
     const QString description = conciseExecutionDescription(
         title,
         event.value(QStringLiteral("proposalDescription")).toString(),
@@ -1717,7 +2102,31 @@ bool BricsCadLearningAgent::upsertRuntimeLessonFromEvent(
     assumptions.append(QStringLiteral("Bei vorhandenen Objekten bevorzugt selector.scope=handles verwenden, wenn ein Handle genannt oder zuvor gelesen wurde."));
 
     QJsonArray validActionShapes = compactRuntimeActions(event.value(QStringLiteral("actions")).toArray());
+    QJsonArray observedCommands = event.value(QStringLiteral("observedCommands")).toArray();
+    if (observedCommands.isEmpty() && !event.value(QStringLiteral("observedCommand")).toString().trimmed().isEmpty()) {
+        observedCommands.append(QJsonObject{
+            {QStringLiteral("event"), QStringLiteral("command.ended")},
+            {QStringLiteral("commandName"), event.value(QStringLiteral("observedCommand")).toString().trimmed().toUpper()},
+            {QStringLiteral("rawCommand"), event.value(QStringLiteral("observedRawCommand")).toString(
+                event.value(QStringLiteral("observedCommand")).toString()).trimmed()},
+        });
+    }
+    QJsonArray commandTemplates = mergedObjectArray(
+        event.value(QStringLiteral("commandTemplates")).toArray(),
+        commandTemplatesFromActionShapes(validActionShapes),
+        12);
+    commandTemplates = mergedObjectArray(
+        commandTemplates,
+        commandTemplatesFromObservedCommands(observedCommands),
+        12);
+    QJsonArray observedTraces = event.value(QStringLiteral("observedTraces")).toArray();
+    QJsonArray semanticActions = event.value(QStringLiteral("semanticActions")).toArray();
+    const QJsonObject requiredRuntimeContext = event.value(QStringLiteral("requiredRuntimeContext")).toObject();
+    const QJsonArray missingBindings = event.value(QStringLiteral("missingBindings")).toArray();
+    QJsonArray postconditions = event.value(QStringLiteral("postconditions")).toArray();
+    QJsonArray readbacks = event.value(QStringLiteral("readbacks")).toArray();
     QJsonArray validationExamples;
+    const QString runtimeSource = QStringLiteral("brx_runtime");
     if (!validActionShapes.isEmpty()) {
         QJsonArray validationActions;
         for (const QJsonValue& value : validActionShapes) {
@@ -1736,9 +2145,29 @@ bool BricsCadLearningAgent::upsertRuntimeLessonFromEvent(
             {QStringLiteral("summary"), summary},
             {QStringLiteral("tools"), recommendedTools},
             {QStringLiteral("actions"), validationActions},
-            {QStringLiteral("source"), QStringLiteral("brx_runtime")},
+            {QStringLiteral("source"), runtimeSource},
             {QStringLiteral("createdAt"), QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs)},
         });
+    }
+    if (!commandTemplates.isEmpty()) {
+        appendStringUnique(recommendedTools, QStringLiteral("command.execute"));
+        appendStringUnique(recommendedTools, QStringLiteral("commands.list"));
+    }
+    for (const QJsonValue& value : semanticActions) {
+        appendStringUnique(recommendedTools, value.toObject().value(QStringLiteral("tool")).toString());
+    }
+    const bool directTestEligible = event.value(QStringLiteral("directTestEligible")).toBool(false)
+        || !validActionShapes.isEmpty()
+        || !commandTemplates.isEmpty();
+    QString lessonKind = event.value(QStringLiteral("lessonKind")).toString().trimmed();
+    if (lessonKind.isEmpty()) {
+        lessonKind = !validActionShapes.isEmpty()
+            ? QStringLiteral("workflow")
+            : QStringLiteral("interaction");
+    }
+    if (!commandTemplates.isEmpty()
+        && (lessonKind == QStringLiteral("interaction") || lessonKind.isEmpty())) {
+        lessonKind = QStringLiteral("command_template");
     }
 
     const QString now = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
@@ -1753,6 +2182,16 @@ bool BricsCadLearningAgent::upsertRuntimeLessonFromEvent(
         {QStringLiteral("strategy"), strategy},
         {QStringLiteral("assumptions"), assumptions},
         {QStringLiteral("validActionShapes"), validActionShapes},
+        {QStringLiteral("lessonKind"), lessonKind},
+        {QStringLiteral("directTestEligible"), directTestEligible},
+        {QStringLiteral("observedCommands"), observedCommands},
+        {QStringLiteral("commandTemplates"), commandTemplates},
+        {QStringLiteral("observedTraces"), observedTraces},
+        {QStringLiteral("semanticActions"), semanticActions},
+        {QStringLiteral("requiredRuntimeContext"), requiredRuntimeContext},
+        {QStringLiteral("missingBindings"), missingBindings},
+        {QStringLiteral("postconditions"), postconditions},
+        {QStringLiteral("readbacks"), readbacks},
         {QStringLiteral("requiredSlots"), QJsonArray{}},
         {QStringLiteral("knownSlotValues"), QJsonObject{}},
         {QStringLiteral("derivedValues"), QJsonObject{}},
@@ -1767,7 +2206,7 @@ bool BricsCadLearningAgent::upsertRuntimeLessonFromEvent(
         {QStringLiteral("knownFailures"), QJsonArray{}},
         {QStringLiteral("repairRules"), QJsonArray{}},
         {QStringLiteral("status"), QStringLiteral("active")},
-        {QStringLiteral("source"), QStringLiteral("brx_runtime")},
+        {QStringLiteral("source"), runtimeSource},
         {QStringLiteral("updateProtected"), false},
         {QStringLiteral("createdAt"), now},
         {QStringLiteral("updatedAt"), now},
@@ -1780,6 +2219,9 @@ bool BricsCadLearningAgent::upsertRuntimeLessonFromEvent(
         {QStringLiteral("lastOutcome"), outcome},
         {QStringLiteral("lastOutcomeAt"), now},
     };
+    if (!stableLessonId.isEmpty()) {
+        lesson.insert(QStringLiteral("id"), stableLessonId);
+    }
 
     QString change;
     if (!upsertLesson(lesson, &change, errorMessage)) {
@@ -1864,6 +2306,51 @@ bool BricsCadLearningAgent::deprecateLesson(const QString& id, QString* errorMes
     meta.insert(QStringLiteral("deprecatedCount"), deprecated);
     m_document.insert(QStringLiteral("metadata"), meta);
     m_document.insert(QStringLiteral("updatedAt"), QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
+
+    if (!saveProjectDocument(errorMessage)) {
+        return false;
+    }
+    rebuildIndexes();
+    return true;
+}
+
+bool BricsCadLearningAgent::deleteLesson(const QString& id, QString* errorMessage)
+{
+    const QString trimmed = id.trimmed();
+    if (trimmed.isEmpty()) {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("Lesson-ID fehlt.");
+        }
+        return false;
+    }
+
+    QJsonArray lessons = m_document.value(QStringLiteral("lessons")).toArray();
+    bool found = false;
+    for (int i = 0; i < lessons.size(); ++i) {
+        const QJsonObject lesson = lessons.at(i).toObject();
+        if (lesson.value(QStringLiteral("id")).toString() != trimmed) {
+            continue;
+        }
+        if (isProtectedWorkflow(lesson)) {
+            if (errorMessage) {
+                *errorMessage = QStringLiteral("Learning ist schreibgeschuetzt und kann nicht geloescht werden: %1").arg(trimmed);
+            }
+            return false;
+        }
+        lessons.removeAt(i);
+        found = true;
+        break;
+    }
+    if (!found) {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("Lesson wurde nicht gefunden: %1").arg(trimmed);
+        }
+        return false;
+    }
+
+    m_document.insert(QStringLiteral("lessons"), lessons);
+    m_document.insert(QStringLiteral("updatedAt"), QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
+    refreshMetadata();
 
     if (!saveProjectDocument(errorMessage)) {
         return false;

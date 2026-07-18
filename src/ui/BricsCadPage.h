@@ -1,6 +1,8 @@
 ﻿#pragma once
 
 #include "../agent/BricsCadLearningAgent.h"
+#include "../agent/DrawingContextStore.h"
+#include "../agent/LocalAiJobScheduler.h"
 #include "../core/ConfigManager.h"
 #include "AiWebBridge.h"
 
@@ -9,12 +11,14 @@
 #include <QJsonObject>
 #include <QLabel>
 #include <QNetworkAccessManager>
+#include <QNetworkRequest>
 #include <QPlainTextEdit>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTimer>
 #include <QVariantList>
 #include <QVariantMap>
+#include <QVector>
 #include <QWebChannel>
 #include <QWebEngineView>
 #include <QWidget>
@@ -62,6 +66,11 @@ private:
         int operationGeneration = 0;
     };
 
+    struct DeferredAgentPrompt {
+        QString prompt;
+        QJsonObject documentContext;
+    };
+
     void startBridgeServer();
     void appendBridgeLog(const QString& message);
     void emitCapabilitiesStatusToWeb() const;
@@ -72,6 +81,16 @@ private:
     void sendUnifiedAgentRequest(const QString& prompt, const QJsonObject& documentContext, const QJsonObject& route);
     void sendUnifiedAgentRequestWithDrawingContext(const QString& prompt, const QJsonObject& documentContext, const QJsonObject& route);
     void sendUnifiedAgentRequestWithPrefetchedContext(const QString& prompt, const QString& method, const QJsonObject& params, const QJsonObject& documentContext, const QJsonObject& route);
+    QString enqueueAiPost(
+        QNetworkRequest request,
+        const QJsonObject& payload,
+        const QString& kind,
+        int priority,
+        bool background,
+        bool cancellable,
+        const QString& dedupeKey,
+        std::function<void(const LocalAiJobScheduler::Result&)> callback);
+    void emitAgentRuntimeStatus(const QJsonObject& status) const;
     void requestFocusedConversationContext(const QString& prompt, const QJsonObject& documentContext, const QJsonObject& route, std::function<void(const QJsonObject&)> continuation);
     void sendAgentEnvelope(const QJsonObject& envelope, const QString& userHistoryContent, bool storeUserMessage, const QString& logLabel);
     void sendWorkflowTrainingPrompt(const QString& prompt, bool compactContext = false);
@@ -171,6 +190,7 @@ private:
     void preflightAgentProposal(const QString& rejectedContent, const QJsonObject& rejectedObject, const QJsonObject& proposal);
     void handleAgentContextRequest(const QJsonObject& request);
     void continueAgentWithContextResult(const QJsonObject& contextRequest, const QJsonObject& contextResponse);
+    QJsonObject localAgentContextResponse(const QString& method, const QJsonObject& params) const;
     void continueAgentAfterToolResult(const QJsonObject& proposal, const QJsonObject& response);
     void continueAgentAfterToolFailure(const QJsonObject& proposal, const QJsonObject& response, const QString& errorMessage);
     void executeAgentProposal();
@@ -181,6 +201,7 @@ private:
     void setAgentWaitingForUser(const QJsonObject& reply);
     void setAgentProposal(const QJsonObject& proposal);
     void setAgentBusy(bool busy);
+    void processDeferredAgentPrompt();
     void cancelCurrentOperation();
     bool isAgentConfirmation(const QString& prompt) const;
     bool validateAgentProposal(const QJsonObject& proposal, QString& errorMessage) const;
@@ -191,13 +212,10 @@ private:
     QString aiChatCompletionContent(const QJsonObject& response, QString* reasoningText = nullptr) const;
     QJsonArray availableAgentTools() const;
     QJsonArray availableAgentToolsForRoute(const QJsonObject& route, const QString& prompt) const;
-    QJsonArray compactToolSelectorList() const;
     QJsonArray compactWorkflowSelectorList() const;
     QJsonArray selectedWorkflowObjectsForRoute(const QJsonObject& route) const;
     QJsonArray selectedLearningLessonsForRoute(const QJsonObject& route, const QString& prompt) const;
-    QJsonArray agentToolsByNames(const QStringList& names) const;
     QJsonArray readOnlyMethodsForRoute(const QJsonObject& route) const;
-    QJsonObject layersEnsureManyToolDefinition() const;
     QJsonObject toolDefinition(const QString& name) const;
     QString bridgeMethodForTool(const QString& name) const;
     bool isAllowedContextMethod(const QString& method) const;
@@ -216,8 +234,17 @@ private:
         const QJsonObject& params,
         int timeoutMs,
         std::function<void(const QJsonObject&)> handler);
+    bool sendBridgeActionRequest(
+        const QString& method,
+        const QJsonObject& params,
+        int timeoutMs,
+        std::function<void(const QJsonObject&)> handler);
     void completeBridgeRequest(int id, const QJsonObject& message);
     void failPendingBridgeRequests(const QString& message);
+    QJsonArray learnedCommandDescriptors() const;
+    QJsonObject capabilitiesWithLearnedCommands(QJsonObject capabilities) const;
+    QJsonObject responseWithLearnedCommands(const QString& method, QJsonObject response) const;
+    QJsonObject commandExecuteParamsWithLearnedAuthorization(const QJsonObject& params) const;
     void forceBridgeReconnect(const QString& reason, bool preserveQueuedPrompt);
     void setPluginStatus(const QString& message, bool connected);
     void setLocalAiStatus(const QString& message, bool connected);
@@ -241,6 +268,7 @@ private:
     QTcpServer* m_bridgeServer = nullptr;
     QTcpSocket* m_brxSocket = nullptr;
     QNetworkAccessManager* m_aiNetwork = nullptr;
+    LocalAiJobScheduler* m_aiScheduler = nullptr;
     QTimer* m_localAiPollTimer = nullptr;
     QByteArray m_brxReadBuffer;
     QByteArray m_brxJsonAccumulator;
@@ -280,6 +308,7 @@ private:
     QJsonObject m_pendingAgentDraft;
     QJsonObject m_lastAgentToolResult;
     QStringList m_agentRejectedResponseSignatures;
+    QVector<DeferredAgentPrompt> m_deferredAgentPrompts;
     QJsonArray m_trainingConversation;
     QStringList m_trainingRejectedResponseSignatures;
     QJsonObject m_trainingWorkflowContext;
@@ -310,6 +339,7 @@ private:
     QJsonObject m_lastAgentRoute;
     QJsonObject m_lastFocusedConversationContext;
     BricsCadLearningAgent m_brxLearning;
+    DrawingContextStore m_drawingContextStore;
     BrxLearningInteraction m_lastBrxLearningInteraction;
     bool m_nextAgentMessageContinuationAvailable = false;
     QString m_nextAgentMessageContinuationReason;

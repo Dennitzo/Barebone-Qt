@@ -2325,7 +2325,7 @@
         workflowEmpty: "Wähle einen Workflow aus. Danach kannst du ihn als Kontext im Chat nutzen.",
         learningEmpty: "Waehle einen BRX-Learning-Eintrag aus, um Details, Gewichtung, Tools, Lessons, Repair-Regeln oder Beispiele anzuzeigen.",
         selectWorkflow: "Workflow auswählen",
-        executeWorkflow: "Workflow direkt testen",
+        executeWorkflow: "Workflow ausführen",
         informationOnly: "Informationseintrag",
         copy: "Kopieren",
         copied: "Kopiert",
@@ -2339,8 +2339,8 @@
         pdfFailed: "PDF-Export fehlgeschlagen",
         saveWorkflow: "Als Workflow speichern",
         deleteWorkflow: "Workflow löschen",
-        deleteLesson: "Lesson deaktivieren",
-        confirmDeleteLesson: "Ja deaktivieren",
+        deleteLesson: "Workflow löschen",
+        confirmDeleteLesson: "Ja löschen",
         confirmDeleteWorkflow: "Ja löschen",
         jumpToStart: "Zum Anfang springen",
         delete: "Löschen",
@@ -2440,7 +2440,7 @@
         workflowEmpty: "Select a workflow. It will be used as context in chat.",
         learningEmpty: "Select a BRX learning entry to inspect details, weighting, tools, lessons, repair rules, or examples.",
         selectWorkflow: "Select workflow",
-        executeWorkflow: "Test workflow directly",
+        executeWorkflow: "Run workflow",
         informationOnly: "Information only",
         copy: "Copy",
         copied: "Copied",
@@ -2454,8 +2454,8 @@
         pdfFailed: "PDF export failed",
         saveWorkflow: "Save as workflow",
         deleteWorkflow: "Delete workflow",
-        deleteLesson: "Deprecate lesson",
-        confirmDeleteLesson: "Deprecate",
+        deleteLesson: "Delete workflow",
+        confirmDeleteLesson: "Yes, delete",
         confirmDeleteWorkflow: "Yes, delete",
         jumpToStart: "Jump to start",
         delete: "Delete",
@@ -2771,6 +2771,7 @@
     let sidebarCollapsed = false;
     let isBusy = false;
     let lastFetchedContextBudget = null;
+    let agentRuntimeStatus = null;
     let thinkingIndicator = null;
     let thinkingDetailsList = null;
     let thinkingDetailCount = 0;
@@ -3684,28 +3685,8 @@
       }
       closeWorkflowOverlay();
       if (executeInBricsCad) {
-        const knownSlotValues = workflowToExecute.knownSlotValues && typeof workflowToExecute.knownSlotValues === "object"
-          ? workflowToExecute.knownSlotValues
-          : {};
-        const testDefaults = workflowToExecute.testDefaults && typeof workflowToExecute.testDefaults === "object"
-          ? workflowToExecute.testDefaults
-          : {};
-        const unresolvedSlots = (Array.isArray(workflowToExecute.requiredSlots) ? workflowToExecute.requiredSlots : [])
-          .map((slot) => typeof slot === "string" ? { name: slot, requiredForExecution: true } : slot)
-          .filter((slot) => slot && slot.name && slot.requiredForExecution !== false)
-          .filter((slot) => !Object.prototype.hasOwnProperty.call(knownSlotValues, slot.name)
-            && !Object.prototype.hasOwnProperty.call(testDefaults, slot.name));
-        if (unresolvedSlots.length) {
-          const slotNames = unresolvedSlots.map((slot) => slot.name).join(", ");
-          input.value = `Führe den ausgewählten Workflow "${workflowToExecute.title}" aus. Frage die fehlenden Pflichtangaben gezielt ab: ${slotNames}. Verwende keine Testwerte als Produktionswerte.`;
-          requestAnimationFrame(() => submitPrompt());
-          return;
-        }
-        if (bridge && typeof bridge.runWorkflowTest === "function") {
-          bridge.runWorkflowTest(workflowToExecute.id);
-        } else {
-          addMessage({ speaker: "Barebone-Qt", message: "Direkter Workflowtest ist nicht verfügbar.", time: nowTime() });
-        }
+        input.value = `Führe den ausgewählten Workflow "${workflowToExecute.title}" aus. Analysiere zuerst Workflow, aktuelle Zeichnung, aktuelle Auswahl, kompatible Geometrie, commands.list, verfügbare BRX-Tools und fehlende Parameter. Erzeuge danach einen bestätigungspflichtigen BricsCAD-Aktionsvorschlag. Frage nur, wenn Zeichnung, Auswahl, Workflow und Tools die fehlende fachliche Entscheidung nicht liefern.`;
+        requestAnimationFrame(() => submitPrompt());
         return;
       }
       input.focus();
@@ -3760,6 +3741,15 @@
       if (bridge && typeof bridge.deleteWorkflow === "function") {
         pendingWorkflowDeleteId = workflow.id;
         bridge.deleteWorkflow(workflow.id);
+        if (isBrxLearningWorkspace()) {
+          pendingOverlayWorkflowDeleteId = "";
+          workflowPreview = null;
+          renderWorkflowList();
+          renderWorkflowDetail(null);
+          updateWorkflowSelectButton();
+          workflowSearch.focus();
+          return;
+        }
       } else {
         addMessage({
           speaker: "Barebone-Qt",
@@ -5155,6 +5145,10 @@
         : `${uiLanguage === "en" ? "Context length has not been reported by LM Studio yet" : "Kontextlaenge wird von LM Studio noch nicht gemeldet"}${model}${detail}`;
     }
 
+    function applyAgentRuntimeStatus(status) {
+      agentRuntimeStatus = status && typeof status === "object" ? { ...status } : null;
+    }
+
     function setStatusPillState(element, state) {
       element.classList.toggle("connected", state === "connected");
       element.classList.toggle("disconnected", state === "disconnected");
@@ -6117,6 +6111,113 @@
       return String(value ?? "").replace(/\|/g, "\\|").replace(/\n+/g, " ").trim();
     }
 
+    function canonicalMarkdownTableHeader(value) {
+      return String(value || "")
+        .toLowerCase()
+        .replace(/ä/g, "ae")
+        .replace(/ö/g, "oe")
+        .replace(/ü/g, "ue")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    function markdownTableHeaderMatches(actual, expected) {
+      const normalizedActual = canonicalMarkdownTableHeader(actual);
+      const normalizedExpected = canonicalMarkdownTableHeader(expected);
+      return normalizedActual === normalizedExpected
+        || normalizedActual.startsWith(`${normalizedExpected} (`);
+    }
+
+    function splitPossibleCadHandleSuffix(value) {
+      const match = String(value || "")
+        .trim()
+        .match(/^(.+\S)\s+([0-9a-f]*[a-f][0-9a-f]*|[0-9a-f]{3,})$/i);
+      return match ? [match[1].trim(), match[2].trim()] : null;
+    }
+
+    function splitGluedCadObjectRows(cells, columnCount) {
+      const output = [];
+      cells.forEach((cell) => {
+        if (columnCount > 0 && (output.length + 1) % columnCount === 0) {
+          const split = splitPossibleCadHandleSuffix(cell);
+          if (split) {
+            output.push(split[0]);
+            output.push(split[1]);
+            return;
+          }
+        }
+        output.push(cell);
+      });
+      return output;
+    }
+
+    function normalizeFlatCadObjectTableLine(line) {
+      const source = String(line || "").trim();
+      if (!/^Handle\s*\|\s*Typ\s*\|\s*Layer\s*\|/i.test(source)) {
+        return "";
+      }
+
+      const expectedHeaders = [
+        "Handle",
+        "Typ",
+        "Layer",
+        "Breite X",
+        "Tiefe Y",
+        "H\u00f6he Z",
+        "L\u00e4nge",
+        "Fl\u00e4che",
+        "Volumen"
+      ];
+      const cells = source.split("|").map((cell) => cell.trim());
+      if (cells[0] === "") {
+        cells.shift();
+      }
+      if (cells[cells.length - 1] === "") {
+        cells.pop();
+      }
+      if (cells.length <= expectedHeaders.length) {
+        return "";
+      }
+
+      const headerCells = [];
+      for (let index = 0; index < expectedHeaders.length - 1; index += 1) {
+        if (!markdownTableHeaderMatches(cells[index], expectedHeaders[index])) {
+          return "";
+        }
+        headerCells.push(cells[index]);
+      }
+
+      const lastHeaderMatch = String(cells[expectedHeaders.length - 1] || "")
+        .trim()
+        .match(/^(Volumen(?:\s*\([^)]*\))?)(?:\s+(.+))?$/i);
+      if (!lastHeaderMatch) {
+        return "";
+      }
+
+      headerCells.push(lastHeaderMatch[1].trim());
+      let dataCells = cells.slice(expectedHeaders.length);
+      if (lastHeaderMatch[2]) {
+        dataCells.unshift(lastHeaderMatch[2].trim());
+      }
+      dataCells = splitGluedCadObjectRows(dataCells, headerCells.length);
+      if (dataCells.length < headerCells.length || dataCells.length % headerCells.length !== 0) {
+        return "";
+      }
+
+      const rows = [];
+      for (let index = 0; index < dataCells.length; index += headerCells.length) {
+        rows.push(dataCells.slice(index, index + headerCells.length));
+      }
+
+      return [
+        `| ${headerCells.map(escapeMarkdownTableCell).join(" | ")} |`,
+        `| ${headerCells.map(() => "---").join(" | ")} |`,
+        ...rows.map((row) => `| ${row.map(escapeMarkdownTableCell).join(" | ")} |`)
+      ].join("\n");
+    }
+
     function splitLooseTableRow(line) {
       const value = String(line || "").trim();
       if (!value
@@ -6137,6 +6238,13 @@
       const lines = String(text || "").replace(/\r\n/g, "\n").split("\n");
       const output = [];
       for (let index = 0; index < lines.length;) {
+        const flatCadTable = normalizeFlatCadObjectTableLine(lines[index]);
+        if (flatCadTable) {
+          output.push(...flatCadTable.split("\n"));
+          index += 1;
+          continue;
+        }
+
         const firstCells = splitLooseTableRow(lines[index]);
         if (!firstCells) {
           output.push(lines[index]);
@@ -8835,32 +8943,16 @@
     function handleBridgeLogLine(line) {
       const text = String(line || "");
       if (text.includes("Qt -> BRX: capabilities.list")) {
-        if (!shouldShowBrxCapabilitiesInChat()) {
-          return;
-        }
-        setCapabilitiesIndicator("loading", "Lade BRX-Capabilities");
         return;
       }
       if (text.includes("BRX -> Qt: ERROR capabilities.list")) {
-        if (!shouldShowBrxCapabilitiesInChat()) {
-          return;
-        }
-        setCapabilitiesIndicator("failed", "BRX-Capabilities fehlgeschlagen");
         return;
       }
       const match = text.match(/BRX -> Qt: (\d+) Capabilities, (\d+) Commands, (\d+) (?:Action|Agent)-Tools/);
       if (match) {
-        if (!shouldShowBrxCapabilitiesInChat()) {
-          return;
-        }
-        setCapabilitiesIndicator("done", `BRX-Capabilities geladen: ${match[1]} Methoden, ${match[2]} Commands, ${match[3]} Agent-Tools`);
         return;
       }
       if (text.includes("BRX Verbindung getrennt") || text.includes("capabilities.list konnte nicht gesendet")) {
-        if (!shouldShowBrxCapabilitiesInChat()) {
-          return;
-        }
-        setCapabilitiesIndicator("failed", "BRX-Capabilities nicht geladen");
         return;
       }
       if (addAiThinkingDetailFromLog(text)) {
@@ -9064,6 +9156,9 @@
           }
           bridge.clientStateLoaded.connect(applyClientStateFromQt);
           bridge.contextBudgetChanged.connect(applyContextBudget);
+          if (bridge.agentRuntimeStatusChanged) {
+            bridge.agentRuntimeStatusChanged.connect(applyAgentRuntimeStatus);
+          }
           if (bridge.uiThemeChanged) {
             bridge.uiThemeChanged.connect(applyUiTheme);
           }

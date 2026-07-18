@@ -1,4 +1,6 @@
-#include "BricsCadPage.h"
+﻿#include "BricsCadPage.h"
+
+#include "../agent/BrxAgent.h"
 
 #include <QApplication>
 #include <QClipboard>
@@ -163,6 +165,251 @@ constexpr int kWorkflowTrainingAiTimeoutMs = kAiModelResponseTimeoutMs;
 constexpr int kWorkflowTrainingOutputTokens = 16384;
 constexpr int kWorkflowTrainingCompactOutputTokens = 8192;
 constexpr qsizetype kMaxDocumentContextChars = 90000;
+
+QString brxValidationToolName(const QString& tool)
+{
+    if (tool == QStringLiteral("brx.sdk.entity.transformBy")
+        || tool == QStringLiteral("brx.sdk.blockReference.setPosition")) {
+        return QStringLiteral("geometry.move");
+    }
+    if (tool == QStringLiteral("brx.sdk.entity.copy")) {
+        return QStringLiteral("geometry.copy");
+    }
+    if (tool == QStringLiteral("brx.sdk.entity.rotateBy")) {
+        return QStringLiteral("geometry.rotate");
+    }
+    if (tool == QStringLiteral("brx.sdk.entity.scaleBy")) {
+        return QStringLiteral("geometry.scale");
+    }
+    if (tool == QStringLiteral("brx.sdk.entity.erase")) {
+        return QStringLiteral("geometry.delete");
+    }
+    if (tool == QStringLiteral("brx.sdk.entity.setLayer")) {
+        return QStringLiteral("entity.setLayer");
+    }
+    if (tool == QStringLiteral("brx.sdk.entity.setName")) {
+        return QStringLiteral("entity.setName");
+    }
+    if (tool == QStringLiteral("brx.sdk.selection.setPickfirst")) {
+        return QStringLiteral("selection.set");
+    }
+    if (tool == QStringLiteral("brx.sdk.bim.classification.set")) {
+        return QStringLiteral("bim.classify");
+    }
+    return tool;
+}
+
+QString nativeCommandNameFromLine(QString commandLine)
+{
+    commandLine = commandLine.trimmed();
+    while (commandLine.size() >= 2
+        && commandLine.at(0) == QLatin1Char('^')
+        && commandLine.at(1).toUpper() == QLatin1Char('C')) {
+        commandLine = commandLine.mid(2).trimmed();
+    }
+    const QString token = commandLine.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts).value(0);
+    QString command;
+    for (const QChar ch : token) {
+        if ((ch == QLatin1Char('_') || ch == QLatin1Char('.') || ch == QLatin1Char('-')) && command.isEmpty()) {
+            continue;
+        }
+        command.append(ch);
+    }
+    return command.trimmed().toUpper();
+}
+
+bool nativeCommandLineHasArguments(QString commandLine)
+{
+    commandLine = commandLine.trimmed();
+    while (commandLine.size() >= 2
+        && commandLine.at(0) == QLatin1Char('^')
+        && commandLine.at(1).toUpper() == QLatin1Char('C')) {
+        commandLine = commandLine.mid(2).trimmed();
+    }
+    const QStringList parts = commandLine.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
+    return parts.size() > 1;
+}
+
+bool textLooksLikeNativeCommandLine(QString text)
+{
+    text = text.trimmed();
+    while (text.size() >= 2
+        && text.at(0) == QLatin1Char('^')
+        && text.at(1).toUpper() == QLatin1Char('C')) {
+        text = text.mid(2).trimmed();
+    }
+    const QString token = text.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts).value(0);
+    if (token.isEmpty()) {
+        return false;
+    }
+    for (const QChar ch : token) {
+        if (ch.isLetter()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+QString commandLineFromTemplateAndArguments(const QString& commandTemplate, const QString& commandLine)
+{
+    const QString templ = commandTemplate.trimmed();
+    const QString line = commandLine.trimmed();
+    if (line.isEmpty()) {
+        return templ;
+    }
+    if (textLooksLikeNativeCommandLine(line) || templ.isEmpty()) {
+        return line;
+    }
+    return QStringLiteral("%1 %2").arg(templ, line).trimmed();
+}
+
+QJsonObject commandDescriptorFromCapabilities(const QJsonObject& capabilities, const QString& commandName)
+{
+    const QString normalized = commandName.trimmed().toUpper();
+    if (normalized.isEmpty()) {
+        return {};
+    }
+    for (const QJsonValue& value : capabilities.value(QStringLiteral("commands")).toArray()) {
+        const QJsonObject command = value.toObject();
+        if (command.value(QStringLiteral("name")).toString().trimmed().toUpper() == normalized
+            || command.value(QStringLiteral("commandName")).toString().trimmed().toUpper() == normalized
+            || command.value(QStringLiteral("nativeName")).toString().trimmed().toUpper() == normalized) {
+            return command;
+        }
+        for (const QJsonValue& aliasValue : command.value(QStringLiteral("aliases")).toArray()) {
+            if (aliasValue.toString().trimmed().toUpper() == normalized) {
+                return command;
+            }
+        }
+    }
+    return {};
+}
+
+QString canonicalCommandNameFromDescriptor(const QJsonObject& descriptor, const QString& fallback)
+{
+    return descriptor.value(QStringLiteral("commandName")).toString(
+        descriptor.value(QStringLiteral("nativeName")).toString(
+            descriptor.value(QStringLiteral("name")).toString(fallback))).trimmed().toUpper();
+}
+
+bool commandAllowsNoArguments(const QJsonObject& descriptor, const QString& commandName)
+{
+    if (descriptor.contains(QStringLiteral("allowedWithoutArguments"))) {
+        return descriptor.value(QStringLiteral("allowedWithoutArguments")).toBool(false);
+    }
+    const QString normalized = commandName.trimmed().toUpper();
+    return normalized == QStringLiteral("SAVE") || normalized == QStringLiteral("REDO");
+}
+
+QString workflowCommandExecuteValidationMessage(const QJsonObject& capabilities, const QJsonObject& params)
+{
+    const QString commandLine = params.value(QStringLiteral("commandLine")).toString().trimmed();
+    if (commandLine.isEmpty()) {
+        return QStringLiteral("command.execute braucht params.commandLine.");
+    }
+    if (commandLine.size() > 500) {
+        return QStringLiteral("command.execute.params.commandLine darf maximal 500 Zeichen haben.");
+    }
+    if (commandLine.contains(QLatin1Char(';'))
+        || commandLine.contains(QLatin1Char('\n'))
+        || commandLine.contains(QLatin1Char('\r'))) {
+        return QStringLiteral("command.execute erlaubt nur eine einzelne native Kommandozeile ohne Semikolon oder Zeilenumbruch.");
+    }
+    const QString commandName = nativeCommandNameFromLine(commandLine);
+    if (commandName.isEmpty()) {
+        return QStringLiteral("command.execute.params.commandLine enthaelt keinen Command-Namen.");
+    }
+    const QJsonObject descriptor = commandDescriptorFromCapabilities(capabilities, commandName);
+    if (descriptor.isEmpty()) {
+        return QStringLiteral("command.execute Command '%1' ist nicht in commands.list freigegeben.").arg(commandName);
+    }
+    const QString canonicalCommandName = canonicalCommandNameFromDescriptor(descriptor, commandName);
+    const QString explicitCommandName = params.value(QStringLiteral("commandName")).toString().trimmed().toUpper();
+    if (!explicitCommandName.isEmpty()) {
+        const QJsonObject explicitDescriptor = commandDescriptorFromCapabilities(capabilities, explicitCommandName);
+        const QString canonicalExplicitName = canonicalCommandNameFromDescriptor(explicitDescriptor, explicitCommandName);
+        if (canonicalExplicitName != canonicalCommandName) {
+        return QStringLiteral("command.execute.params.commandName (%1) passt nicht zur commandLine (%2).")
+            .arg(explicitCommandName, canonicalCommandName);
+        }
+    }
+    if (!nativeCommandLineHasArguments(commandLine) && !commandAllowsNoArguments(descriptor, canonicalCommandName)) {
+        return QStringLiteral("command.execute.params.commandLine braucht vollstaendige Argumente fuer %1.").arg(canonicalCommandName);
+    }
+    return {};
+}
+
+QJsonObject commandExecuteParamsTemplateFromWorkflowObject(const QJsonObject& object)
+{
+    QJsonObject params = object.value(QStringLiteral("paramsTemplate")).toObject();
+    const QJsonObject nestedCommandTemplate = object.value(QStringLiteral("commandTemplate")).toObject();
+    if (params.isEmpty() && !nestedCommandTemplate.isEmpty()) {
+        params = nestedCommandTemplate.value(QStringLiteral("paramsTemplate")).toObject(nestedCommandTemplate);
+    }
+
+    QString commandTemplate = object.value(QStringLiteral("commandTemplate")).toString().trimmed();
+    if (commandTemplate.isEmpty() && !nestedCommandTemplate.isEmpty()) {
+        commandTemplate = nestedCommandTemplate.value(QStringLiteral("commandName")).toString(
+            nestedCommandTemplate.value(QStringLiteral("command")).toString(
+                nestedCommandTemplate.value(QStringLiteral("name")).toString())).trimmed();
+    }
+    if (commandTemplate.isEmpty()) {
+        commandTemplate = object.value(QStringLiteral("commandName")).toString(
+            object.value(QStringLiteral("command")).toString()).trimmed();
+    }
+
+    const QString rawCommandLine = object.value(QStringLiteral("commandLine")).toString(
+        params.value(QStringLiteral("commandLine")).toString()).trimmed();
+    const QString composedCommandLine = commandLineFromTemplateAndArguments(commandTemplate, rawCommandLine);
+    if (!composedCommandLine.isEmpty()) {
+        params.insert(QStringLiteral("commandLine"), composedCommandLine);
+    }
+
+    QString commandName = object.value(QStringLiteral("commandName")).toString(
+        params.value(QStringLiteral("commandName")).toString()).trimmed().toUpper();
+    if (commandName.isEmpty() && !commandTemplate.isEmpty() && !textLooksLikeNativeCommandLine(rawCommandLine)) {
+        commandName = nativeCommandNameFromLine(commandTemplate);
+    }
+    if (commandName.isEmpty() && !composedCommandLine.isEmpty()) {
+        commandName = nativeCommandNameFromLine(composedCommandLine);
+    }
+    if (!commandName.isEmpty()) {
+        params.insert(QStringLiteral("commandName"), commandName);
+    }
+
+    if (object.contains(QStringLiteral("saveBefore")) && !params.contains(QStringLiteral("saveBefore"))) {
+        params.insert(QStringLiteral("saveBefore"), object.value(QStringLiteral("saveBefore")));
+    }
+    if (object.contains(QStringLiteral("reason")) && !params.contains(QStringLiteral("reason"))) {
+        params.insert(QStringLiteral("reason"), object.value(QStringLiteral("reason")));
+    }
+    params.remove(QStringLiteral("commandTemplate"));
+    params.remove(QStringLiteral("tool"));
+    params.remove(QStringLiteral("type"));
+    params.remove(QStringLiteral("title"));
+    params.remove(QStringLiteral("description"));
+    params.remove(QStringLiteral("id"));
+    return params;
+}
+
+QJsonObject normalizedWorkflowStepForExecution(QJsonObject step)
+{
+    const QString tool = step.value(QStringLiteral("tool")).toString().trimmed();
+    const QString type = step.value(QStringLiteral("type")).toString(
+        step.value(QStringLiteral("kind")).toString()).trimmed();
+    const bool commandShorthand = type.compare(QStringLiteral("Command"), Qt::CaseInsensitive) == 0
+        || step.contains(QStringLiteral("commandTemplate"))
+        || step.contains(QStringLiteral("commandLine"))
+        || step.contains(QStringLiteral("commandName"));
+    if ((tool.isEmpty() && commandShorthand) || tool == QStringLiteral("command.execute")) {
+        step.insert(QStringLiteral("tool"), QStringLiteral("command.execute"));
+        QJsonObject paramsTemplate = commandExecuteParamsTemplateFromWorkflowObject(step);
+        if (!paramsTemplate.isEmpty()) {
+            step.insert(QStringLiteral("paramsTemplate"), paramsTemplate);
+        }
+    }
+    return step;
+}
 
 enum class LocalModelFamily {
     GptOss,
@@ -516,11 +763,11 @@ QString promptWithDocumentContext(const QString& prompt, const QJsonObject& cont
         "%1\n\n"
         "[Dokumentkontext]\n"
         "Nutze ausschliesslich die folgenden extrahierten Auszuege fuer dokumentbezogene Fragen. "
-        "Wenn der gewünschte Seitenbereich oder Inhalt nicht enthalten ist, sage das klar und fordere einen engeren/anderen Bereich an.\n"
+        "Wenn der gewÃ¼nschte Seitenbereich oder Inhalt nicht enthalten ist, sage das klar und fordere einen engeren/anderen Bereich an.\n"
         "Dokumente:\n%2\n\n"
         "%3")
         .arg(prompt,
-            metadataLines.isEmpty() ? QStringLiteral("- Angehängtes Dokument") : metadataLines.join('\n'),
+            metadataLines.isEmpty() ? QStringLiteral("- AngehÃ¤ngtes Dokument") : metadataLines.join('\n'),
             selectedText);
 }
 
@@ -689,15 +936,15 @@ bool promptRequestsCadDataQuery(const QString& text)
         QStringLiteral("metriken"),
         QStringLiteral("abmess"),
         QStringLiteral("masse"),
-        QStringLiteral("maße"),
+        QStringLiteral("maÃŸe"),
         QStringLiteral("hoehe"),
-        QStringLiteral("hÃ¶he"),
+        QStringLiteral("hÃƒÂ¶he"),
         QStringLiteral("breite"),
         QStringLiteral("tiefe"),
         QStringLiteral("laenge"),
-        QStringLiteral("lÃ¤nge"),
+        QStringLiteral("lÃƒÂ¤nge"),
         QStringLiteral("flaeche"),
-        QStringLiteral("flÃ¤che"),
+        QStringLiteral("flÃƒÂ¤che"),
         QStringLiteral("volumen"),
         QStringLiteral("bounding"),
         QStringLiteral("bbox"),
@@ -720,7 +967,7 @@ bool promptRequestsCadDataQuery(const QString& text)
         QStringLiteral("fenster"),
         QStringLiteral("window"),
         QStringLiteral("tuer"),
-        QStringLiteral("tür"),
+        QStringLiteral("tÃ¼r"),
         QStringLiteral("door"),
     });
     const bool dataVerb = textMentionsAny(normalized, {
@@ -741,7 +988,7 @@ bool promptRequestsCadDataQuery(const QString& text)
         QStringLiteral("messe"),
         QStringLiteral("berechne"),
         QStringLiteral("ergaenz"),
-        QStringLiteral("ergÃ¤nz"),
+        QStringLiteral("ergÃƒÂ¤nz"),
         QStringLiteral("einbezieh"),
         QStringLiteral("versuche"),
         QStringLiteral("brauch"),
@@ -755,7 +1002,7 @@ bool promptRequestsCadDataQuery(const QString& text)
              QStringLiteral("layer"),
              QStringLiteral("bim"),
              QStringLiteral("waende"),
-             QStringLiteral("wände"),
+             QStringLiteral("wÃ¤nde"),
              QStringLiteral("walls"),
          });
     return (dataSubject && dataVerb) || allObjects;
@@ -779,10 +1026,10 @@ bool promptRequestsEntityRename(const QString& text)
         QStringLiteral("bim-wand"),
         QStringLiteral("bim wand"),
         QStringLiteral("bim-waende"),
-        QStringLiteral("bim wände"),
-        QStringLiteral("bim-wände"),
+        QStringLiteral("bim wÃ¤nde"),
+        QStringLiteral("bim-wÃ¤nde"),
         QStringLiteral("wand"),
-        QStringLiteral("wände"),
+        QStringLiteral("wÃ¤nde"),
         QStringLiteral("waende"),
         QStringLiteral("solid"),
         QStringLiteral("objekt"),
@@ -804,7 +1051,7 @@ bool promptMentionsRotationAngle(const QString& text)
     normalized.replace(',', '.');
 
     const QRegularExpression explicitUnitPattern(
-        QStringLiteral(R"((?:^|[^\p{L}\d])[-+]?\d+(?:\.\d+)?\s*(?:°|grad|degree|degrees|deg)\b)"),
+        QStringLiteral(R"((?:^|[^\p{L}\d])[-+]?\d+(?:\.\d+)?\s*(?:Â°|grad|degree|degrees|deg)\b)"),
         QRegularExpression::UseUnicodePropertiesOption | QRegularExpression::CaseInsensitiveOption);
     if (explicitUnitPattern.match(normalized).hasMatch()) {
         return true;
@@ -1032,9 +1279,9 @@ bool promptRequiresCompleteConversationContext(const QString& prompt)
     QString normalized = repairMojibakeText(prompt).toLower().trimmed();
     normalized.replace(QRegularExpression(QStringLiteral("\\s+")), QStringLiteral(" "));
     const bool reviewIntent = textMentionsAny(normalized, {
-        QStringLiteral("überprüf"), QStringLiteral("ueberpruef"), QStringLiteral("prüf"),
+        QStringLiteral("Ã¼berprÃ¼f"), QStringLiteral("ueberpruef"), QStringLiteral("prÃ¼f"),
         QStringLiteral("pruef"), QStringLiteral("kontrollier"), QStringLiteral("rechenfehler"),
-        QStringLiteral("formelfehler"), QStringLiteral("vollständig"), QStringLiteral("vollstaendig"),
+        QStringLiteral("formelfehler"), QStringLiteral("vollstÃ¤ndig"), QStringLiteral("vollstaendig"),
     });
     const bool wholeContextTarget = textMentionsAny(normalized, {
         QStringLiteral("workflow"), QStringLiteral("sitzung"), QStringLiteral("verlauf"),
@@ -1065,82 +1312,6 @@ QString capabilityProfileForRoute(const QString& route)
     return QStringLiteral("general");
 }
 
-QStringList policyRefsForToolName(const QString& name)
-{
-    Q_UNUSED(name);
-    return {};
-}
-
-void enrichAgentToolDefinition(QJsonObject& tool, const QJsonObject& catalogEntry = {})
-{
-    const QString name = tool.value("name").toString();
-    const QJsonObject inputSchema = tool.value("inputSchema").toObject();
-    const QJsonObject properties = inputSchema.value("properties").toObject();
-    const QJsonObject apiDoc = tool.value("apiDoc").toObject();
-
-    tool.insert("source", tool.value("virtual").toBool(false) ? QStringLiteral("qt") : QStringLiteral("brx"));
-    tool.insert("effectiveContractSource", tool.value("virtual").toBool(false)
-        ? QStringLiteral("qt-policy")
-        : QStringLiteral("brx-capability+qt-policy"));
-    tool.insert("policyRefs", stringsToJsonArray(policyRefsForToolName(name)));
-
-    QJsonObject capabilities = tool.value("capabilities").toObject();
-    capabilities.insert("requiresConfirmation", tool.value("confirmationRequired").toBool(true));
-    capabilities.insert("risk", tool.value("risk").toString("modifiesDrawing"));
-    capabilities.insert("bridgeMethod", tool.value("bridgeMethod").toString(name));
-    capabilities.insert("supportsSelector", properties.contains("selector"));
-    capabilities.insert("supportsTarget", properties.contains("target"));
-    capabilities.insert("supportsHandles", properties.contains("handles"));
-    capabilities.insert("supportsSaveBefore", properties.contains("saveBefore"));
-    capabilities.insert("supportsReason", properties.contains("reason"));
-    capabilities.insert("hasExamples", apiDoc.value("post").toObject().value("examples").isArray()
-        || apiDoc.value("examples").isArray());
-    tool.insert("capabilities", capabilities);
-
-    QJsonArray genericHints;
-    appendJsonStringUnique(genericHints, "Nutze dieses Tool nur, wenn die Nutzerabsicht exakt zur Toolbeschreibung und zum inputSchema passt.");
-    appendJsonStringUnique(genericHints, "Alle Pflichtfelder aus inputSchema/apiDoc.post.required muessen in params enthalten sein.");
-    appendJsonStringUnique(genericHints, "Qt validiert Toolname und Parameter lokal; BRX prueft den Vorschlag danach per actions.validate.");
-    mergeJsonStringArray(tool, "agentHints", genericHints);
-
-    QJsonArray genericConstraints;
-    appendJsonStringUnique(genericConstraints, "Erfinde keine zusaetzlichen Parameter ausserhalb des Schemas.");
-    appendJsonStringUnique(genericConstraints, "Nutze keine direkten AcDb-, LayerTable-, EntityTable- oder sonstigen Datenbank-Schreibzugriffe.");
-    if (properties.contains("saveBefore")) {
-        appendJsonStringUnique(genericConstraints, "saveBefore ist optional; bei einzelnen riskanten Schreibaktionen kann true verwendet werden, bei Qt-Batches setzt Qt nur die erste Aktion auf true.");
-    }
-    mergeJsonStringArray(tool, "semanticConstraints", genericConstraints);
-
-    if (!tool.contains("unsupportedOperations")) {
-        tool.insert("unsupportedOperations", QJsonArray{});
-    }
-    if (!tool.contains("examples")) {
-        const QJsonArray postExamples = apiDoc.value("post").toObject().value("examples").toArray();
-        const QJsonArray rootExamples = apiDoc.value("examples").toArray();
-        if (!postExamples.isEmpty()) {
-            tool.insert("examples", postExamples);
-        } else if (!rootExamples.isEmpty()) {
-            tool.insert("examples", rootExamples);
-        }
-    }
-
-    if (!catalogEntry.isEmpty()) {
-        tool.insert("domain", catalogEntry.value("domain").toString(tool.value("category").toString()));
-        tool.insert("keywords", catalogEntry.value("keywords").toArray());
-        tool.insert("policy", catalogEntry.value("policy").toString());
-        tool.insert("summary", catalogEntry.value("summary").toString(tool.value("description").toString()));
-        tool.insert("catalogPolicy", catalogEntry);
-        mergeJsonStringArray(tool, "agentHints", catalogEntry.value("agentHints").toArray());
-        mergeJsonStringArray(tool, "semanticConstraints", catalogEntry.value("semanticConstraints").toArray());
-        mergeJsonStringArray(tool, "unsupportedOperations", catalogEntry.value("unsupportedOperations").toArray());
-        const QJsonArray catalogExamples = catalogEntry.value("examples").toArray();
-        if (!catalogExamples.isEmpty()) {
-            tool.insert("examples", catalogExamples);
-        }
-    }
-
-}
-
 bool documentContextHasText(const QJsonObject& context)
 {
     return !context.value("selectedText").toString().trimmed().isEmpty();
@@ -1169,18 +1340,18 @@ bool promptDescribesArchitecturalWalls(const QString& prompt)
                QStringLiteral("waende"),
                QStringLiteral("aussenwand"),
                QStringLiteral("aussenwaende"),
-               QStringLiteral("wände"),
+               QStringLiteral("wÃ¤nde"),
                QStringLiteral("wall"),
                QStringLiteral("walls"),
            })
         && textMentionsAny(normalized, {
                QStringLiteral("wandstaerke"),
-               QStringLiteral("wandstärke"),
+               QStringLiteral("wandstÃ¤rke"),
                QStringLiteral("wanddicke"),
                QStringLiteral("wandhoehe"),
-               QStringLiteral("wandhöhe"),
+               QStringLiteral("wandhÃ¶he"),
                QStringLiteral("hoehe der waende"),
-               QStringLiteral("höhe der wände"),
+               QStringLiteral("hÃ¶he der wÃ¤nde"),
                QStringLiteral("raum"),
                QStringLiteral("grundriss"),
            });
@@ -1208,7 +1379,7 @@ bool promptTargetsBimObjects(const QString& prompt)
         QStringLiteral("fenster"),
         QStringLiteral("window"),
         QStringLiteral("tuer"),
-        QStringLiteral("tür"),
+        QStringLiteral("tÃ¼r"),
         QStringLiteral("door"),
         QStringLiteral("slab"),
         QStringLiteral("column"),
@@ -1263,14 +1434,14 @@ QString fallbackRouteNameForPrompt(const QString& prompt, const QJsonObject& doc
         QStringLiteral("fenster"),
         QStringLiteral("window"),
         QStringLiteral("tuer"),
-        QStringLiteral("tür"),
+        QStringLiteral("tÃ¼r"),
         QStringLiteral("door"),
     });
     const bool explanatoryQuestion =
         normalized.startsWith(QStringLiteral("was ist"))
         || normalized.startsWith(QStringLiteral("was bedeutet"))
         || normalized.startsWith(QStringLiteral("erklaere"))
-        || normalized.startsWith(QStringLiteral("erkläre"))
+        || normalized.startsWith(QStringLiteral("erklÃ¤re"))
         || normalized.contains(QStringLiteral("definition"));
     const bool mentionsBimWallAction = mentionsCad
         && !explanatoryQuestion
@@ -1284,9 +1455,9 @@ QString fallbackRouteNameForPrompt(const QString& prompt, const QJsonObject& doc
         QStringLiteral("anlegen"),
         QStringLiteral("lege"),
         QStringLiteral("loesche"),
-        QStringLiteral("lösche"),
+        QStringLiteral("lÃ¶sche"),
         QStringLiteral("aendere"),
-        QStringLiteral("ändere"),
+        QStringLiteral("Ã¤ndere"),
         QStringLiteral("setze"),
         QStringLiteral("verschiebe"),
         QStringLiteral("verschieben"),
@@ -1298,19 +1469,19 @@ QString fallbackRouteNameForPrompt(const QString& prompt, const QJsonObject& doc
         QStringLiteral("umwandel"),
         QStringLiteral("wandle"),
         QStringLiteral("faerbe"),
-        QStringLiteral("färbe"),
+        QStringLiteral("fÃ¤rbe"),
         QStringLiteral("skaliere"),
         QStringLiteral("rotiere"),
         QStringLiteral("drehe"),
         QStringLiteral("rotate"),
         QStringLiteral("selektiere"),
         QStringLiteral("waehle"),
-        QStringLiteral("wähle"),
+        QStringLiteral("wÃ¤hle"),
         QStringLiteral("select"),
         QStringLiteral("speichere"),
         QStringLiteral("fuehre"),
-        QStringLiteral("führe"),
-        QStringLiteral("ausführen"),
+        QStringLiteral("fÃ¼hre"),
+        QStringLiteral("ausfÃ¼hren"),
         QStringLiteral("ausfuehren"),
     }) || mentionsBimWallAction || mentionsCadDataQuery;
 
@@ -1557,10 +1728,10 @@ QString workflowTrainingSearchText(QString text);
 QString workflowSlug(QString text)
 {
     text = repairMojibakeText(text).trimmed().toLower();
-    text.replace(QStringLiteral("ä"), QStringLiteral("ae"));
-    text.replace(QStringLiteral("ö"), QStringLiteral("oe"));
-    text.replace(QStringLiteral("ü"), QStringLiteral("ue"));
-    text.replace(QStringLiteral("ß"), QStringLiteral("ss"));
+    text.replace(QStringLiteral("Ã¤"), QStringLiteral("ae"));
+    text.replace(QStringLiteral("Ã¶"), QStringLiteral("oe"));
+    text.replace(QStringLiteral("Ã¼"), QStringLiteral("ue"));
+    text.replace(QStringLiteral("ÃŸ"), QStringLiteral("ss"));
     text.replace(QRegularExpression(QStringLiteral("[^a-z0-9]+")), QStringLiteral("_"));
     text.replace(QRegularExpression(QStringLiteral("_+")), QStringLiteral("_"));
     while (text.startsWith(QLatin1Char('_'))) {
@@ -1870,7 +2041,7 @@ QStringList looseTableCells(const QString& line)
     if (trimmed.isEmpty()
         || trimmed.startsWith(QStringLiteral("- "))
         || trimmed.startsWith(QStringLiteral("* "))
-        || trimmed.startsWith(QStringLiteral("• "))
+        || trimmed.startsWith(QStringLiteral("â€¢ "))
         || QRegularExpression(QStringLiteral(R"(^\d+[.)]\s+)")).match(trimmed).hasMatch()
         || isMarkdownTableSeparatorLine(trimmed)
         || !markdownTableCells(trimmed).isEmpty()) {
@@ -1989,7 +2160,7 @@ QString structuredTablesValidationError(const QJsonArray& tables)
                     ? (columnIndex < row.toArray().size() ? row.toArray().at(columnIndex) : QJsonValue{})
                     : row.toObject().value(columnKeys.value(columnIndex));
                 if (cellIsExplicitlyEmpty(cell)) {
-                    return QStringLiteral("Formatierungsfehler: tables[%1].rows[%2].cells[%3] ist leer; nutze einen Textwert oder bewusst '—'")
+                    return QStringLiteral("Formatierungsfehler: tables[%1].rows[%2].cells[%3] ist leer; nutze einen Textwert oder bewusst 'â€”'")
                         .arg(i)
                         .arg(rowIndex)
                         .arg(columnIndex);
@@ -2463,7 +2634,7 @@ QString generalWorkflowMarkdownCell(const QJsonValue& value)
     text.replace(QLatin1Char('|'), QStringLiteral("\\|"));
     text.replace(QRegularExpression(QStringLiteral("\\s+")), QStringLiteral(" "));
     text = text.trimmed();
-    return text.isEmpty() ? QStringLiteral("—") : text;
+    return text.isEmpty() ? QStringLiteral("â€”") : text;
 }
 
 QString generalWorkflowTableMarkdown(const QJsonObject& table)
@@ -3076,7 +3247,7 @@ QString generalWorkflowDraftMessageForChat(const QJsonObject& workflow)
     if (!description.isEmpty()) {
         lines << QString() << description;
     }
-    lines << QString() << QStringLiteral("**Absätze**");
+    lines << QString() << QStringLiteral("**AbsÃ¤tze**");
     const QJsonArray blocks = generalWorkflowBlocks(workflow);
     for (int i = 0; i < blocks.size(); ++i) {
         const QJsonObject block = blocks.at(i).toObject();
@@ -3368,6 +3539,7 @@ bool workflowTrainingToolRelevantForPrompt(const QString& toolName, const QStrin
             || toolName == QStringLiteral("geometry.rotate")
             || toolName == QStringLiteral("geometry.scale")
             || toolName == QStringLiteral("rectangles.extrude")
+            || toolName == QStringLiteral("circle.extrude")
             || toolName == QStringLiteral("profile.extrude")
             || toolName == QStringLiteral("bim.classify")
             || toolName == QStringLiteral("bim.objects.query")
@@ -3388,6 +3560,7 @@ bool workflowTrainingToolRelevantForPrompt(const QString& toolName, const QStrin
     return toolName == QStringLiteral("geometry.create")
         || toolName == QStringLiteral("geometry.query")
         || toolName == QStringLiteral("rectangles.extrude")
+        || toolName == QStringLiteral("circle.extrude")
         || toolName == QStringLiteral("profile.extrude")
         || toolName == QStringLiteral("bim.classify")
         || toolName == QStringLiteral("bim.objects.query")
@@ -3443,7 +3616,7 @@ bool textProvidesMissingField(const QString& prompt, const QString& missingField
         return extractPromptNumberMm(prompt, &value)
             || textHasKeyedNumber(prompt, {
                 "distance", "distanz", "abstand", "amount", "offset", "versatz",
-                "delta", "verschiebung", "verschieben", "move", "extend", "verlaengern", "verlängern"});
+                "delta", "verschiebung", "verschieben", "move", "extend", "verlaengern", "verlÃ¤ngern"});
     }
     if (field == "direction" || field == "axis") {
         return textMentionsAny(normalized, {
@@ -3453,7 +3626,7 @@ bool textProvidesMissingField(const QString& prompt, const QString& missingField
             "rechts", "links", "oben", "unten"});
     }
     if (field == "face" || field == "subentity" || field == "subent" || field == "surface") {
-        return textMentionsAny(normalized, {"face", "flaeche", "fläche", "seite", "stirnseite"});
+        return textMentionsAny(normalized, {"face", "flaeche", "flÃ¤che", "seite", "stirnseite"});
     }
     if (field == "origin" || field == "center" || field == "centerpoint") {
         return normalized.contains("ursprung")
@@ -3495,11 +3668,11 @@ QStringList providedMissingFields(const QString& prompt, const QJsonArray& missi
 QString canonicalMissingField(QString field)
 {
     field = repairMojibakeText(field).trimmed().toLower();
-    field.remove(QRegularExpression(QStringLiteral("[^a-z0-9äöüß]")));
+    field.remove(QRegularExpression(QStringLiteral("[^a-z0-9Ã¤Ã¶Ã¼ÃŸ]")));
     if (field == QStringLiteral("height")
         || field == QStringLiteral("heightmm")
         || field == QStringLiteral("hoehe")
-        || field == QStringLiteral("höhe")
+        || field == QStringLiteral("hÃ¶he")
         || field == QStringLiteral("h")
         || field == QStringLiteral("z")) {
         return QStringLiteral("height");
@@ -3514,7 +3687,7 @@ QString canonicalMissingField(QString field)
         || field == QStringLiteral("length")
         || field == QStringLiteral("tiefe")
         || field == QStringLiteral("laenge")
-        || field == QStringLiteral("länge")
+        || field == QStringLiteral("lÃ¤nge")
         || field == QStringLiteral("y")) {
         return QStringLiteral("depth");
     }
@@ -3559,11 +3732,11 @@ QStringList inferredProvidedFieldsFromAskMessage(const QString& prompt, const QS
     const QString normalized = repairMojibakeText(askMessage).toLower();
     QStringList fields;
 
-    if (textMentionsAny(normalized, {"wie viel", "wieviel", "distanz", "abstand", "offset", "versatz", "verschieb", "verlaeng", "verläng", "mm"})
+    if (textMentionsAny(normalized, {"wie viel", "wieviel", "distanz", "abstand", "offset", "versatz", "verschieb", "verlaeng", "verlÃ¤ng", "mm"})
         && textProvidesMissingField(prompt, "distance", draft)) {
         fields << "distance";
     }
-    if (textMentionsAny(normalized, {"hoehe", "höhe", "height", "hoch", "z"})
+    if (textMentionsAny(normalized, {"hoehe", "hÃ¶he", "height", "hoch", "z"})
         && textProvidesMissingField(prompt, "heightMm", draft)) {
         fields << "heightMm";
     }
@@ -3571,7 +3744,7 @@ QStringList inferredProvidedFieldsFromAskMessage(const QString& prompt, const QS
         && textProvidesMissingField(prompt, "direction", draft)) {
         fields << "direction";
     }
-    if (textMentionsAny(normalized, {"face", "flaeche", "fläche", "seite", "stirnseite"})
+    if (textMentionsAny(normalized, {"face", "flaeche", "flÃ¤che", "seite", "stirnseite"})
         && textProvidesMissingField(prompt, "face", draft)) {
         fields << "face";
     }
@@ -3626,6 +3799,58 @@ QStringList stringsFromJsonArray(const QJsonArray& values)
     return result;
 }
 
+QJsonObject firstRepairActionFromObject(const QJsonObject& object)
+{
+    QJsonObject proposal = object.value(QStringLiteral("proposal")).toObject();
+    if (proposal.isEmpty()) {
+        proposal = object;
+    }
+
+    const QJsonObject failedAction = proposal.value(QStringLiteral("failedAction")).toObject();
+    if (!failedAction.value(QStringLiteral("tool")).toString().trimmed().isEmpty()) {
+        return failedAction;
+    }
+
+    const QJsonArray actions = proposal.value(QStringLiteral("actions")).toArray();
+    for (const QJsonValue& value : actions) {
+        const QJsonObject action = value.toObject();
+        if (!action.value(QStringLiteral("tool")).toString().trimmed().isEmpty()) {
+            return action;
+        }
+    }
+
+    const QString tool = proposal.value(QStringLiteral("tool")).toString().trimmed();
+    if (!tool.isEmpty()) {
+        return QJsonObject{
+            {QStringLiteral("tool"), tool},
+            {QStringLiteral("params"), proposal.value(QStringLiteral("params")).toObject()},
+        };
+    }
+    return {};
+}
+
+QJsonArray mergeToolArraysByName(QJsonArray base, const QJsonArray& extra)
+{
+    QSet<QString> known;
+    for (const QJsonValue& value : base) {
+        const QString name = value.toObject().value(QStringLiteral("name")).toString().trimmed();
+        if (!name.isEmpty()) {
+            known.insert(name);
+        }
+    }
+
+    for (const QJsonValue& value : extra) {
+        const QJsonObject tool = value.toObject();
+        const QString name = tool.value(QStringLiteral("name")).toString().trimmed();
+        if (name.isEmpty() || known.contains(name)) {
+            continue;
+        }
+        known.insert(name);
+        base.append(tool);
+    }
+    return base;
+}
+
 bool isWorkflowTrainingReviewConfirmationText(const QString& prompt)
 {
     const QString normalized = repairMojibakeText(prompt).trimmed().toLower();
@@ -3639,10 +3864,10 @@ bool isWorkflowTrainingReviewConfirmationText(const QString& prompt)
         || normalized == QStringLiteral("speichern")
         || normalized == QStringLiteral("workflow speichern")
         || normalized == QStringLiteral("bestaetigen")
-        || normalized == QStringLiteral("bestätigen")
+        || normalized == QStringLiteral("bestÃ¤tigen")
         || normalized == QStringLiteral("freigeben")
         || normalized == QStringLiteral("review bestaetigt")
-        || normalized == QStringLiteral("review bestätigt");
+        || normalized == QStringLiteral("review bestÃ¤tigt");
 }
 
 bool isWorkflowTrainingExplicitSaveText(const QString& prompt)
@@ -3659,13 +3884,13 @@ bool isGeneralWorkflowDeleteText(const QString& prompt)
 {
     const QString normalized = repairMojibakeText(prompt).trimmed().toLower();
     return normalized == QStringLiteral("workflow loeschen")
-        || normalized == QStringLiteral("workflow löschen")
+        || normalized == QStringLiteral("workflow lÃ¶schen")
         || normalized == QStringLiteral("workflow entfernen")
         || normalized == QStringLiteral("planungsthema loeschen")
-        || normalized == QStringLiteral("planungsthema löschen")
+        || normalized == QStringLiteral("planungsthema lÃ¶schen")
         || normalized == QStringLiteral("planungsthema entfernen")
         || normalized == QStringLiteral("berechnung loeschen")
-        || normalized == QStringLiteral("berechnung löschen")
+        || normalized == QStringLiteral("berechnung lÃ¶schen")
         || normalized == QStringLiteral("berechnung entfernen");
 }
 
@@ -3707,11 +3932,11 @@ bool isWorkflowTrainingRunText(const QString& prompt)
 {
     const QString normalized = repairMojibakeText(prompt).trimmed().toLower();
     return normalized == QStringLiteral("workflow ausfuehren")
-        || normalized == QStringLiteral("workflow ausführen")
+        || normalized == QStringLiteral("workflow ausfÃ¼hren")
         || normalized == QStringLiteral("workflow starten")
         || normalized == QStringLiteral("workflow testen")
         || normalized == QStringLiteral("ausfuehren")
-        || normalized == QStringLiteral("ausführen")
+        || normalized == QStringLiteral("ausfÃ¼hren")
         || normalized == QStringLiteral("starten")
         || normalized == QStringLiteral("testen");
 }
@@ -3761,7 +3986,7 @@ QStringList workflowObjectArraySummaries(const QJsonArray& values, int limit)
                 }
                 if (!text.isEmpty()
                     && text != QStringLiteral("-")
-                    && text != QStringLiteral("–")) {
+                    && text != QStringLiteral("â€“")) {
                     result << text;
                     if (result.size() >= limit) {
                         break;
@@ -4010,7 +4235,7 @@ QStringList workflowKeywordsForSelector(const QJsonObject& workflow, int maxCoun
                 || part == QStringLiteral("das")
                 || part == QStringLiteral("mit")
                 || part == QStringLiteral("fuer")
-                || part == QStringLiteral("für")
+                || part == QStringLiteral("fÃ¼r")
                 || part == QStringLiteral("eine")
                 || part == QStringLiteral("einen")) {
                 continue;
@@ -4234,6 +4459,9 @@ QStringList localWorkflowSelectionForPrompt(const QJsonArray& compactWorkflows, 
 
     QStringList ids;
     for (const auto& item : scored) {
+        if (item.first < 6) {
+            continue;
+        }
         if (!ids.contains(item.second)) {
             ids << item.second;
         }
@@ -4446,8 +4674,8 @@ QJsonObject agentResponseContractObject()
         {"learningUpdate", QJsonObject{
             {"optional", true},
             {"bricscadOnly", true},
-            {"policy", "Optionales Metadatum, kein Antworttyp. Kuratierte Workflows mit updateProtected=true oder source=canonical_building_workflow sind unveraenderlich. Die lokale AI darf nur eigene Workflows mit source=ai_runtime und updateProtected=false anlegen oder aktualisieren. Neue Workflows verwenden dieselbe kanonische Struktur wie brx-learning.json, einen fachlichen title mit hoechstens 6 Woertern und eine kurze description der konkreten Ausfuehrung. Generische Titel wie 'Aus erfolgreicher BRX-Ausfuehrung' sind verboten."},
-            {"lessonFields", QJsonArray{"id", "title", "description", "intent", "intentPatterns", "discipline", "dependsOn", "requiredArtifacts", "producesArtifacts", "requiredContext", "assumptions", "requiredSlots", "knownSlotValues", "derivedValues", "strategy", "executionBatches", "validationExamples", "knownFailures", "repairRules", "recommendedTools", "status", "source", "updateProtected"}},
+            {"policy", "Optionales Metadatum, kein Antworttyp. Kuratierte Workflows mit updateProtected=true oder source=canonical_building_workflow/canonical_bim_workflow/canonical_brx_workflow sind unveraenderlich. Die lokale AI darf nur eigene Workflows mit source=ai_runtime und updateProtected=false anlegen oder aktualisieren. Neue Workflows verwenden dieselbe kanonische Struktur wie brx-learning.json, einen fachlichen title mit hoechstens 6 Woertern und eine kurze description der konkreten Ausfuehrung. Generische Titel wie 'Aus erfolgreicher BRX-Ausfuehrung' sind verboten."},
+            {"lessonFields", QJsonArray{"id", "title", "description", "intent", "intentPatterns", "discipline", "dependsOn", "requiredArtifacts", "producesArtifacts", "requiredContext", "assumptions", "requiredSlots", "knownSlotValues", "derivedValues", "strategy", "lessonKind", "directTestEligible", "observedCommands", "commandTemplates", "postconditions", "readbacks", "executionBatches", "validationExamples", "knownFailures", "repairRules", "recommendedTools", "status", "source", "updateProtected"}},
         }},
         {"actionProposal", QJsonObject{
             {"required", QJsonArray{"type", "message", "proposal"}},
@@ -4662,57 +4890,57 @@ QJsonObject workflowTrainingAskUserFromPartialContent(const QString& content)
 
 QString repairMojibakeText(QString text)
 {
-    if (!text.contains(QStringLiteral("Ã"))
-        && !text.contains(QStringLiteral("Â"))
-        && !text.contains(QStringLiteral("â"))
-        && !text.contains(QStringLiteral("Î"))
-        && !text.contains(QStringLiteral("Ï"))) {
+    if (!text.contains(QStringLiteral("Ãƒ"))
+        && !text.contains(QStringLiteral("Ã‚"))
+        && !text.contains(QStringLiteral("Ã¢"))
+        && !text.contains(QStringLiteral("ÃŽ"))
+        && !text.contains(QStringLiteral("Ã"))) {
         return text;
     }
 
     const QList<QPair<QString, QString>> replacements = {
-        {QStringLiteral("â€ž"), QStringLiteral("„")},
-        {QStringLiteral("â€œ"), QStringLiteral("“")},
-        {QStringLiteral("â€"), QStringLiteral("”")},
-        {QStringLiteral("â€™"), QStringLiteral("’")},
-        {QStringLiteral("â€˜"), QStringLiteral("‘")},
-        {QStringLiteral("â€“"), QStringLiteral("–")},
-        {QStringLiteral("â€”"), QStringLiteral("—")},
-        {QStringLiteral("â€¦"), QStringLiteral("…")},
-        {QStringLiteral("â€¯"), QStringLiteral(" ")},
-        {QStringLiteral("â€‘"), QStringLiteral("-")},
-        {QStringLiteral("â»"), QStringLiteral("⁻")},
-        {QStringLiteral("âº"), QStringLiteral("⁺")},
-        {QStringLiteral("â‚‚"), QStringLiteral("₂")},
-        {QStringLiteral("â‚ƒ"), QStringLiteral("₃")},
-        {QStringLiteral("â‰ˆ"), QStringLiteral("≈")},
-        {QStringLiteral("â‰¤"), QStringLiteral("≤")},
-        {QStringLiteral("â‰¥"), QStringLiteral("≥")},
-        {QStringLiteral("â†’"), QStringLiteral("→")},
-        {QStringLiteral("Ã¤"), QStringLiteral("ä")},
-        {QStringLiteral("Ã¶"), QStringLiteral("ö")},
-        {QStringLiteral("Ã¼"), QStringLiteral("ü")},
-        {QStringLiteral("Ã„"), QStringLiteral("Ä")},
-        {QStringLiteral("Ã–"), QStringLiteral("Ö")},
-        {QStringLiteral("Ãœ"), QStringLiteral("Ü")},
-        {QStringLiteral("ÃŸ"), QStringLiteral("ß")},
-        {QStringLiteral("Ã©"), QStringLiteral("é")},
-        {QStringLiteral("Ã¨"), QStringLiteral("è")},
-        {QStringLiteral("Ã¡"), QStringLiteral("á")},
-        {QStringLiteral("Ã³"), QStringLiteral("ó")},
-        {QStringLiteral("Ã±"), QStringLiteral("ñ")},
-        {QStringLiteral("Ã§"), QStringLiteral("ç")},
-        {QStringLiteral("Ã—"), QStringLiteral("×")},
-        {QStringLiteral("Â«"), QStringLiteral("«")},
-        {QStringLiteral("Â»"), QStringLiteral("»")},
-        {QStringLiteral("Â°"), QStringLiteral("°")},
-        {QStringLiteral("Î”"), QStringLiteral("Δ")},
-        {QStringLiteral("Î´"), QStringLiteral("δ")},
-        {QStringLiteral("Îµ"), QStringLiteral("ε")},
-        {QStringLiteral("Ï"), QStringLiteral("ρ")},
-        {QStringLiteral("Ï"), QStringLiteral("φ")},
-        {QStringLiteral("Ï€"), QStringLiteral("π")},
-        {QStringLiteral("Â"), QStringLiteral("")},
+        {QStringLiteral("Ã¢â‚¬Å¾"), QStringLiteral("â€ž")},
+        {QStringLiteral("Ã¢â‚¬Å“"), QStringLiteral("â€œ")},
+        {QStringLiteral("Ã¢â‚¬Â"), QStringLiteral("â€")},
+        {QStringLiteral("Ã¢â‚¬â„¢"), QStringLiteral("â€™")},
+        {QStringLiteral("Ã¢â‚¬Ëœ"), QStringLiteral("â€˜")},
+        {QStringLiteral("Ã¢â‚¬â€œ"), QStringLiteral("â€“")},
+        {QStringLiteral("Ã¢â‚¬â€"), QStringLiteral("â€”")},
+        {QStringLiteral("Ã¢â‚¬Â¦"), QStringLiteral("â€¦")},
+        {QStringLiteral("Ã¢â‚¬Â¯"), QStringLiteral(" ")},
+        {QStringLiteral("Ã¢â‚¬â€˜"), QStringLiteral("-")},
+        {QStringLiteral("Ã¢ÂÂ»"), QStringLiteral("â»")},
+        {QStringLiteral("Ã¢ÂÂº"), QStringLiteral("âº")},
+        {QStringLiteral("Ã¢â€šâ€š"), QStringLiteral("â‚‚")},
+        {QStringLiteral("Ã¢â€šÆ’"), QStringLiteral("â‚ƒ")},
+        {QStringLiteral("Ã¢â€°Ë†"), QStringLiteral("â‰ˆ")},
+        {QStringLiteral("Ã¢â€°Â¤"), QStringLiteral("â‰¤")},
+        {QStringLiteral("Ã¢â€°Â¥"), QStringLiteral("â‰¥")},
+        {QStringLiteral("Ã¢â€ â€™"), QStringLiteral("â†’")},
+        {QStringLiteral("ÃƒÂ¤"), QStringLiteral("Ã¤")},
+        {QStringLiteral("ÃƒÂ¶"), QStringLiteral("Ã¶")},
+        {QStringLiteral("ÃƒÂ¼"), QStringLiteral("Ã¼")},
+        {QStringLiteral("Ãƒâ€ž"), QStringLiteral("Ã„")},
+        {QStringLiteral("Ãƒâ€“"), QStringLiteral("Ã–")},
+        {QStringLiteral("ÃƒÅ“"), QStringLiteral("Ãœ")},
+        {QStringLiteral("ÃƒÅ¸"), QStringLiteral("ÃŸ")},
+        {QStringLiteral("ÃƒÂ©"), QStringLiteral("Ã©")},
+        {QStringLiteral("ÃƒÂ¨"), QStringLiteral("Ã¨")},
+        {QStringLiteral("ÃƒÂ¡"), QStringLiteral("Ã¡")},
+        {QStringLiteral("ÃƒÂ³"), QStringLiteral("Ã³")},
+        {QStringLiteral("ÃƒÂ±"), QStringLiteral("Ã±")},
+        {QStringLiteral("ÃƒÂ§"), QStringLiteral("Ã§")},
+        {QStringLiteral("Ãƒâ€”"), QStringLiteral("Ã—")},
+        {QStringLiteral("Ã‚Â«"), QStringLiteral("Â«")},
+        {QStringLiteral("Ã‚Â»"), QStringLiteral("Â»")},
+        {QStringLiteral("Ã‚Â°"), QStringLiteral("Â°")},
+        {QStringLiteral("ÃŽâ€"), QStringLiteral("Î”")},
+        {QStringLiteral("ÃŽÂ´"), QStringLiteral("Î´")},
+        {QStringLiteral("ÃŽÂµ"), QStringLiteral("Îµ")},
+        {QStringLiteral("ÃÂ"), QStringLiteral("Ï")},
+        {QStringLiteral("ÃÂ†"), QStringLiteral("Ï†")},
+        {QStringLiteral("Ãâ‚¬"), QStringLiteral("Ï€")},
+        {QStringLiteral("Ã‚"), QStringLiteral("")},
     };
 
     for (const auto& replacement : replacements) {
@@ -4959,11 +5187,11 @@ QString workflowTrainingSearchText(QString text)
     text.replace(QChar(0x00fc), QStringLiteral("ue"));
     text.replace(QChar(0x00df), QStringLiteral("ss"));
     text.replace(QChar(0x00b2), QStringLiteral("2"));
-    text.replace(QStringLiteral("ä"), QStringLiteral("ae"));
-    text.replace(QStringLiteral("ö"), QStringLiteral("oe"));
-    text.replace(QStringLiteral("ü"), QStringLiteral("ue"));
-    text.replace(QStringLiteral("ß"), QStringLiteral("ss"));
-    text.replace(QStringLiteral("²"), QStringLiteral("2"));
+    text.replace(QStringLiteral("Ã¤"), QStringLiteral("ae"));
+    text.replace(QStringLiteral("Ã¶"), QStringLiteral("oe"));
+    text.replace(QStringLiteral("Ã¼"), QStringLiteral("ue"));
+    text.replace(QStringLiteral("ÃŸ"), QStringLiteral("ss"));
+    text.replace(QStringLiteral("Â²"), QStringLiteral("2"));
     text.replace(',', '.');
     return text;
 }
@@ -5485,7 +5713,7 @@ bool workflowTrainingPromptDelegatesChoices(const QString& prompt)
         || normalized.contains(QStringLiteral("wahle"))
         || normalized.contains(QStringLiteral("entscheide"))
         || normalized.contains(QStringLiteral("nutze dafuer"))
-        || normalized.contains(QStringLiteral("nutze dafür"))
+        || normalized.contains(QStringLiteral("nutze dafÃ¼r"))
         || normalized.contains(QStringLiteral("nach tga"))
         || normalized.contains(QStringLiteral("tga themen"))
         || normalized.contains(QStringLiteral("tga gruppen"));
@@ -5579,9 +5807,9 @@ bool workflowStepRepairQuestionAlreadyAnswered(
         && (combined.contains(QStringLiteral("separater rotate"))
             || combined.contains(QStringLiteral("separate rotate"))
             || combined.contains(QStringLiteral("separat ausfuehren"))
-            || combined.contains(QStringLiteral("separat ausführen"))
+            || combined.contains(QStringLiteral("separat ausfÃ¼hren"))
             || combined.contains(QStringLiteral("einzeln ausfuehren"))
-            || combined.contains(QStringLiteral("einzeln ausführen")))) {
+            || combined.contains(QStringLiteral("einzeln ausfÃ¼hren")))) {
         return true;
     }
 
@@ -5609,16 +5837,16 @@ bool workflowRunStepRemovalRequested(const QString& prompt, int currentIndex, in
         QStringLiteral("loesche"),
         QStringLiteral("loeschen"),
         QStringLiteral("loschen"),
-        QStringLiteral("löschen"),
+        QStringLiteral("lÃ¶schen"),
         QStringLiteral("ueberspring"),
-        QStringLiteral("überspring"),
+        QStringLiteral("Ã¼berspring"),
         QStringLiteral("streichen"),
         QStringLiteral("weg lassen"),
         QStringLiteral("weglassen"),
         QStringLiteral("ueberfluessig"),
-        QStringLiteral("überflüssig"),
+        QStringLiteral("Ã¼berflÃ¼ssig"),
         QStringLiteral("nicht benoetigt"),
-        QStringLiteral("nicht benötigt"),
+        QStringLiteral("nicht benÃ¶tigt"),
     });
     if (!removeIntent) {
         return false;
@@ -5658,15 +5886,15 @@ bool workflowRepairFeedbackRequestsStepInsertion(const QString& text)
         return false;
     }
     if (normalized.contains(QStringLiteral("im naechsten schritt"))
-        || normalized.contains(QStringLiteral("im nächsten schritt"))
+        || normalized.contains(QStringLiteral("im nÃ¤chsten schritt"))
         || normalized.contains(QStringLiteral("naechster schritt"))
-        || normalized.contains(QStringLiteral("nächster schritt"))
+        || normalized.contains(QStringLiteral("nÃ¤chster schritt"))
         || normalized.contains(QStringLiteral("zusaetzlich"))
-        || normalized.contains(QStringLiteral("zusätzlich"))
+        || normalized.contains(QStringLiteral("zusÃ¤tzlich"))
         || normalized.contains(QStringLiteral("hinzufueg"))
-        || normalized.contains(QStringLiteral("hinzufüg"))
+        || normalized.contains(QStringLiteral("hinzufÃ¼g"))
         || normalized.contains(QStringLiteral("einfueg"))
-        || normalized.contains(QStringLiteral("einfüg"))) {
+        || normalized.contains(QStringLiteral("einfÃ¼g"))) {
         return true;
     }
     return (normalized.contains(QStringLiteral("erst "))
@@ -5675,9 +5903,9 @@ bool workflowRepairFeedbackRequestsStepInsertion(const QString& text)
             || normalized.contains(QStringLiteral("davor")))
         && (normalized.contains(QStringLiteral("danach"))
             || normalized.contains(QStringLiteral("anschliessend"))
-            || normalized.contains(QStringLiteral("anschließend"))
+            || normalized.contains(QStringLiteral("anschlieÃŸend"))
             || normalized.contains(QStringLiteral("naechsten schritt"))
-            || normalized.contains(QStringLiteral("nächsten schritt")));
+            || normalized.contains(QStringLiteral("nÃ¤chsten schritt")));
 }
 
 bool workflowRepairInsertionBeforeCurrent(const QString& userFeedback, const QJsonObject& reply)
@@ -5723,6 +5951,7 @@ bool actionCanCreateRuntimeSelectionTarget(const QJsonObject& action)
     const QString tool = action.value("tool").toString().trimmed();
     if (tool == QStringLiteral("geometry.create")
         || tool == QStringLiteral("rectangles.extrude")
+        || tool == QStringLiteral("circle.extrude")
         || tool == QStringLiteral("profile.extrude")
         || tool == QStringLiteral("bim.objects.query")) {
         return true;
@@ -5769,10 +5998,14 @@ bool actionDependsOnRuntimeSelectionTarget(const QJsonObject& action)
         || scope == QStringLiteral("currentspace")
         || scope == QStringLiteral("current_space")) {
         return tool == QStringLiteral("bim.classify")
+            || tool == QStringLiteral("brx.sdk.bim.classification.set")
             || tool == QStringLiteral("bim.selection.set")
             || tool == QStringLiteral("rectangles.extrude")
+            || tool == QStringLiteral("circle.extrude")
             || tool == QStringLiteral("profile.extrude")
-            || tool.startsWith(QStringLiteral("geometry."));
+            || tool.startsWith(QStringLiteral("geometry."))
+            || tool.startsWith(QStringLiteral("brx.sdk.entity."))
+            || tool == QStringLiteral("brx.sdk.blockReference.setPosition");
     }
     return false;
 }
@@ -5829,12 +6062,12 @@ bool promptLooksLikeRectangularRoomWallRun(const QString& prompt)
                QStringLiteral("4 waende"),
                QStringLiteral("4 aussenwand"),
                QStringLiteral("4 aussenwaende"),
-               QStringLiteral("4 wände"),
+               QStringLiteral("4 wÃ¤nde"),
                QStringLiteral("vier wand"),
                QStringLiteral("vier waende"),
                QStringLiteral("vier aussenwand"),
                QStringLiteral("vier aussenwaende"),
-               QStringLiteral("vier wände"),
+               QStringLiteral("vier wÃ¤nde"),
                QStringLiteral("rechteckiger raum"),
                QStringLiteral("quadratmeter"),
                QStringLiteral("m2"),
@@ -6179,15 +6412,25 @@ QJsonArray pointsFromLatestGeometryQuery(const QJsonArray& previousResults)
 bool toolCanUseRuntimeSelectionHandles(const QString& tool)
 {
     return tool == QStringLiteral("geometry.move")
+        || tool == QStringLiteral("brx.sdk.entity.transformBy")
+        || tool == QStringLiteral("brx.sdk.blockReference.setPosition")
         || tool == QStringLiteral("geometry.copy")
+        || tool == QStringLiteral("brx.sdk.entity.copy")
         || tool == QStringLiteral("geometry.rotate")
+        || tool == QStringLiteral("brx.sdk.entity.rotateBy")
         || tool == QStringLiteral("geometry.scale")
+        || tool == QStringLiteral("brx.sdk.entity.scaleBy")
         || tool == QStringLiteral("geometry.delete")
+        || tool == QStringLiteral("brx.sdk.entity.erase")
         || tool == QStringLiteral("entity.setLayer")
+        || tool == QStringLiteral("brx.sdk.entity.setLayer")
         || tool == QStringLiteral("entity.setName")
+        || tool == QStringLiteral("brx.sdk.entity.setName")
         || tool == QStringLiteral("rectangles.extrude")
+        || tool == QStringLiteral("circle.extrude")
         || tool == QStringLiteral("profile.extrude")
-        || tool == QStringLiteral("bim.classify");
+        || tool == QStringLiteral("bim.classify")
+        || tool == QStringLiteral("brx.sdk.bim.classification.set");
 }
 
 QJsonArray uniqueStringArray(const QJsonArray& values)
@@ -6203,6 +6446,152 @@ QJsonArray uniqueStringArray(const QJsonArray& values)
         unique.append(text);
     }
     return unique;
+}
+
+bool toolAcceptsHandleSelectorForNormalization(const QString& tool)
+{
+    return toolCanUseRuntimeSelectionHandles(tool)
+        || tool == QStringLiteral("selection.set")
+        || tool == QStringLiteral("bim.selection.set")
+        || tool == QStringLiteral("geometry.query")
+        || tool == QStringLiteral("measurement.bbox")
+        || tool == QStringLiteral("measurement.length")
+        || tool == QStringLiteral("measurement.area")
+        || tool == QStringLiteral("entity.describe");
+}
+
+QJsonArray handlesFromSelectionSnapshot(const QJsonArray& selection)
+{
+    QJsonArray handles;
+    for (const QJsonValue& value : selection) {
+        const QJsonObject item = value.toObject();
+        const QString handle = item.value(QStringLiteral("handle")).toString().trimmed().toUpper();
+        if (!handle.isEmpty()) {
+            handles.append(handle);
+        }
+    }
+    return uniqueStringArray(handles);
+}
+
+bool looksLikeCadHandleToken(const QString& token, bool allowNumericOnly)
+{
+    const QString normalized = token.trimmed().toUpper();
+    if (normalized.isEmpty() || normalized.size() > 16) {
+        return false;
+    }
+    bool hasHexLetter = false;
+    bool hasDigit = false;
+    for (const QChar ch : normalized) {
+        const ushort code = ch.unicode();
+        if (code >= '0' && code <= '9') {
+            hasDigit = true;
+            continue;
+        }
+        if (code >= 'A' && code <= 'F') {
+            hasHexLetter = true;
+            continue;
+        }
+        return false;
+    }
+    return allowNumericOnly ? hasDigit : (hasDigit && hasHexLetter);
+}
+
+QJsonArray explicitCadHandlesFromText(const QString& text)
+{
+    QJsonArray handles;
+    QStringList seen;
+    auto appendHandle = [&](const QString& token, bool allowNumericOnly) {
+        QString handle = token.trimmed().toUpper();
+        handle.remove(QRegularExpression(QStringLiteral(R"(^[#=:\s]+|[,;.\s]+$)")));
+        if (!looksLikeCadHandleToken(handle, allowNumericOnly) || seen.contains(handle)) {
+            return;
+        }
+        seen << handle;
+        handles.append(handle);
+    };
+
+    const QRegularExpression keywordPattern(
+        QStringLiteral(R"((?:\bhandle\b|\bhandles\b|\bobjekt(?:e)?\b|\bentity\b|\bentities\b|\belement(?:e)?\b)\s*(?:id)?\s*[:=#]?\s*((?:[#]?[0-9a-fA-F]{1,16})(?:\s*(?:,|;|/|\+|\bund\b|\band\b)\s*[#]?[0-9a-fA-F]{1,16})*))"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::UseUnicodePropertiesOption);
+    QRegularExpressionMatchIterator keywordMatches = keywordPattern.globalMatch(text);
+    while (keywordMatches.hasNext()) {
+        const QRegularExpressionMatch match = keywordMatches.next();
+        const QString group = match.captured(1);
+        QRegularExpressionMatchIterator tokenMatches =
+            QRegularExpression(QStringLiteral(R"([0-9a-fA-F]{1,16})")).globalMatch(group);
+        while (tokenMatches.hasNext()) {
+            appendHandle(tokenMatches.next().captured(0), true);
+        }
+    }
+
+    if (!handles.isEmpty()) {
+        return handles;
+    }
+
+    const QString normalized = workflowTrainingSearchText(text);
+    if (!textMentionsAny(normalized, {
+            QStringLiteral("handle"),
+            QStringLiteral("objekt"),
+            QStringLiteral("object"),
+            QStringLiteral("entity"),
+            QStringLiteral("element"),
+            QStringLiteral("verschieb"),
+            QStringLiteral("move"),
+            QStringLiteral("rotier"),
+            QStringLiteral("rotate"),
+            QStringLiteral("kopier"),
+            QStringLiteral("copy"),
+            QStringLiteral("loesch"),
+            QStringLiteral("delete"),
+        })) {
+        return handles;
+    }
+
+    const QRegularExpression standalonePattern(
+        QStringLiteral(R"(\b(?=[0-9a-fA-F]*[a-fA-F])(?=[0-9a-fA-F]*\d)[0-9a-fA-F]{2,16}\b)"),
+        QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatchIterator standaloneMatches = standalonePattern.globalMatch(text);
+    while (standaloneMatches.hasNext()) {
+        appendHandle(standaloneMatches.next().captured(0), false);
+    }
+    return handles;
+}
+
+QJsonObject paramsWithConcreteHandleSelector(
+    const QString& tool,
+    QJsonObject params,
+    const QString& promptText,
+    const QJsonArray& currentSelection)
+{
+    if (!toolAcceptsHandleSelectorForNormalization(tool)) {
+        return params;
+    }
+
+    QJsonArray explicitHandles = explicitCadHandlesFromText(promptText);
+    if (!explicitHandles.isEmpty()) {
+        QJsonObject selector = params.value(QStringLiteral("selector")).toObject();
+        selector.insert(QStringLiteral("scope"), QStringLiteral("handles"));
+        selector.insert(QStringLiteral("handles"), explicitHandles);
+        params.insert(QStringLiteral("selector"), selector);
+        params.remove(QStringLiteral("handle"));
+        params.remove(QStringLiteral("handles"));
+        return params;
+    }
+
+    QJsonObject selector = params.value(QStringLiteral("selector")).toObject();
+    if (selector.value(QStringLiteral("scope")).toString().compare(QStringLiteral("selection"), Qt::CaseInsensitive) != 0
+        || selector.value(QStringLiteral("handles")).isArray()) {
+        return params;
+    }
+
+    const QJsonArray selectedHandles = handlesFromSelectionSnapshot(currentSelection);
+    if (selectedHandles.isEmpty()) {
+        return params;
+    }
+    selector.insert(QStringLiteral("scope"), QStringLiteral("handles"));
+    selector.insert(QStringLiteral("handles"), selectedHandles);
+    params.insert(QStringLiteral("selector"), selector);
+    return params;
 }
 
 QJsonArray handlesFromLatestGeometryQuery(const QJsonArray& previousResults)
@@ -6320,7 +6709,10 @@ QJsonArray latestSelectionSetHandlesFromBatchResults(const QJsonArray& previousR
 
 QJsonObject paramsWithRuntimeBatchHandles(const QString& tool, QJsonObject params, const QJsonArray& previousResults)
 {
-    if (tool == QStringLiteral("bim.selection.set")
+    if ((tool == QStringLiteral("bim.selection.set")
+            || tool == QStringLiteral("geometry.move")
+            || tool == QStringLiteral("brx.sdk.entity.transformBy")
+            || tool == QStringLiteral("brx.sdk.blockReference.setPosition"))
         && params.value(QStringLiteral("autoBimHandlesFromLastQuery")).toBool(false)) {
         const QJsonArray handles = handlesFromLatestBimQuery(previousResults);
         params.remove(QStringLiteral("autoBimHandlesFromLastQuery"));
@@ -6416,7 +6808,7 @@ QJsonObject paramsWithRuntimeBatchHandles(const QString& tool, QJsonObject param
         }
     }
 
-    if ((tool == QStringLiteral("rectangles.extrude") || tool == QStringLiteral("profile.extrude"))
+    if ((tool == QStringLiteral("rectangles.extrude") || tool == QStringLiteral("circle.extrude") || tool == QStringLiteral("profile.extrude"))
         && params.value(QStringLiteral("autoHandlesFromBatch")).toBool(false)) {
         QJsonArray handles = createdGeometryHandlesFromBatchResults(previousResults);
         const QJsonArray createdHandleIndexes = params.value(QStringLiteral("createdGeometryHandleIndexes")).toArray();
@@ -6456,6 +6848,9 @@ QJsonObject paramsWithRuntimeBatchHandles(const QString& tool, QJsonObject param
             if (tool == QStringLiteral("rectangles.extrude")) {
                 selector.insert(QStringLiteral("kind"), QStringLiteral("rectangle"));
                 selector.insert(QStringLiteral("shape"), QStringLiteral("rectangle"));
+            } else if (tool == QStringLiteral("circle.extrude")) {
+                selector.insert(QStringLiteral("kind"), QStringLiteral("circle"));
+                selector.insert(QStringLiteral("shape"), QStringLiteral("circle"));
             }
             params.insert(QStringLiteral("selector"), selector);
         }
@@ -6540,13 +6935,13 @@ QJsonObject normalizedWorkflowRuntimeSelectorAction(
         const bool hasTarget = !params.value("target").toString().trimmed().isEmpty();
         const bool hasHandles = params.value("handles").isArray() || !params.value("handle").toString().trimmed().isEmpty();
         if (!hasSelector && !hasHandles) {
-            if (tool == QStringLiteral("bim.classify") && !hasTarget) {
+            if ((tool == QStringLiteral("bim.classify") || tool == QStringLiteral("brx.sdk.bim.classification.set")) && !hasTarget) {
                 params.insert(QStringLiteral("target"), QStringLiteral("selection"));
                 action.insert(paramsKey, params);
                 if (changed) {
                     *changed = true;
                 }
-            } else if (tool != QStringLiteral("bim.classify")) {
+            } else if (tool != QStringLiteral("bim.classify") && tool != QStringLiteral("brx.sdk.bim.classification.set")) {
                 params.insert(QStringLiteral("selector"), workflowSelectionSelectorFromPreviousStep(previousAction, paramsKey));
                 action.insert(paramsKey, params);
                 if (changed) {
@@ -6702,6 +7097,7 @@ BricsCadPage::BricsCadPage(ConfigManager& config, QWidget* parent)
     : QWidget(parent)
     , m_config(config)
     , m_aiNetwork(new QNetworkAccessManager(this))
+    , m_aiScheduler(new LocalAiJobScheduler(this))
     , m_bridgeToken(generateBridgeToken())
 {
     m_reasoningEffort = normalizedReasoningEffort(m_config.aiReasoningEffort());
@@ -6734,6 +7130,25 @@ BricsCadPage::BricsCadPage(ConfigManager& config, QWidget* parent)
     m_agentWebView->setUrl(QUrl(QStringLiteral("qrc:/web/ai-assistant.html?profile=unified&theme=%1&lang=%2")
         .arg(effectiveWebTheme(m_config.theme()), effectiveUiLanguage(m_config.language()))));
 
+    QObject::connect(m_aiScheduler, &LocalAiJobScheduler::statusChanged, this, [this](const QJsonObject& status) {
+        emitAgentRuntimeStatus(status);
+        const bool foregroundActive = status.value(QStringLiteral("activeForeground")).toInt() > 0;
+        if (m_agentBusy != foregroundActive) {
+            setAgentBusy(foregroundActive);
+        }
+    });
+    QObject::connect(m_aiScheduler, &LocalAiJobScheduler::jobStarted, this, [this](const QString& id, const QString& kind, bool background) {
+        appendBridgeLog(QString("AI Runtime: Job gestartet kind=%1 id=%2%3")
+            .arg(kind, id.left(8), background ? QStringLiteral(" background") : QString()));
+    });
+    QObject::connect(m_aiScheduler, &LocalAiJobScheduler::jobFinished, this, [this](const QString& id, const QString& kind, bool background, bool aborted) {
+        appendBridgeLog(QString("AI Runtime: Job beendet kind=%1 id=%2%3%4")
+            .arg(kind,
+                id.left(8),
+                background ? QStringLiteral(" background") : QString(),
+                aborted ? QStringLiteral(" aborted") : QString()));
+    });
+
     m_localAiPollTimer = new QTimer(this);
     m_localAiPollTimer->setSingleShot(true);
     QObject::connect(m_localAiPollTimer, &QTimer::timeout, this, [this]() {
@@ -6755,8 +7170,7 @@ BricsCadPage::BricsCadPage(ConfigManager& config, QWidget* parent)
     if (m_brxLearning.document().isEmpty()) {
         appendBridgeLog(QStringLiteral("BRX Learning: brx-learning.json konnte nicht geladen werden: %1").arg(learningError));
     } else {
-        appendBridgeLog(QStringLiteral("BRX Learning: %1 Tools, %2 Lessons, %3 Repair-Regeln, Quelle=%4")
-            .arg(m_brxLearning.metadata().value(QStringLiteral("toolProfileCount")).toInt(m_brxLearning.toolProfiles().size()))
+        appendBridgeLog(QStringLiteral("BRX Learning: %1 Lessons, %2 Repair-Regeln, Quelle=%3")
             .arg(m_brxLearning.metadata().value(QStringLiteral("lessonCount")).toInt())
             .arg(m_brxLearning.metadata().value(QStringLiteral("repairRuleCount")).toInt())
             .arg(m_brxLearning.metadata().value(QStringLiteral("source")).toString()));
@@ -6834,15 +7248,23 @@ BricsCadPage::BricsCadPage(ConfigManager& config, QWidget* parent)
     QObject::connect(m_agentBridge, &AiWebBridge::workflowDeleteRequested, this, [this](const QString& workflowId) {
         QString deletedPath;
         QString errorMessage;
+        const bool chatWorkspace = isChatWorkspace();
         if (!deleteWorkflowById(workflowId, &deletedPath, &errorMessage)) {
-            appendAgentChat("Barebone-Qt", errorMessage.isEmpty()
+            const QString message = errorMessage.isEmpty()
                 ? QStringLiteral("Workflow konnte nicht geloescht werden.")
-                : errorMessage);
+                : errorMessage;
+            if (chatWorkspace) {
+                appendAgentChat("Barebone-Qt", message);
+            } else {
+                appendBridgeLog(QString("BRX Learning Delete: %1").arg(message));
+            }
             return;
         }
-        appendAgentChat("Barebone-Qt", isChatWorkspace()
-            ? QString("Workflow geloescht: %1").arg(deletedPath)
-            : QString("Learning-Lesson deaktiviert. Gespeichert in: %1").arg(deletedPath));
+        if (chatWorkspace) {
+            appendAgentChat("Barebone-Qt", QString("Workflow geloescht: %1").arg(deletedPath));
+        } else {
+            appendBridgeLog(QString("BRX Learning geloescht: %1").arg(deletedPath));
+        }
     });
     QObject::connect(m_agentBridge, &AiWebBridge::workflowSelectionCleared, this, [this]() {
         clearSelectedWorkflowForChat();
@@ -6972,7 +7394,7 @@ void BricsCadPage::refreshLocalContextWindow(bool force)
     const QString baseUrl = normalizedAiBaseUrl(m_config.aiBaseUrl(), QStringLiteral("local"));
     const QUrl url = lmStudioModelsUrlFromOpenAiBaseUrl(baseUrl);
     if (!url.isValid()) {
-        setLocalAiStatus(QStringLiteral("Lokale AI URL ungültig"), false);
+        setLocalAiStatus(QStringLiteral("Lokale AI URL ungÃ¼ltig"), false);
         emitContextBudget(-1, false, QStringLiteral("LM Studio Kontext: ungueltige URL"));
         scheduleLocalAiStatusPoll();
         return;
@@ -7001,7 +7423,7 @@ void BricsCadPage::refreshLocalContextWindow(bool force)
         const QJsonDocument document = QJsonDocument::fromJson(body, &parseError);
         if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
             appendBridgeLog(QString("LM Studio Kontext: ungueltige JSON Antwort: %1").arg(parseError.errorString()));
-            setLocalAiStatus(QStringLiteral("Lokale AI Antwort ungültig"), false);
+            setLocalAiStatus(QStringLiteral("Lokale AI Antwort ungÃ¼ltig"), false);
             emitContextBudget(-1, false, QStringLiteral("Kontextlaenge nicht abrufbar"));
             scheduleLocalAiStatusPoll();
             reply->deleteLater();
@@ -7224,7 +7646,7 @@ BricsCadPage::ContextBuildResult BricsCadPage::buildGeneralMessagesForBudget(
     if (!selectedWorkflow.isEmpty()) {
         const QString workflowText = semanticJsonContextText(selectedWorkflow).trimmed();
         if (!workflowText.isEmpty()) {
-            userSections.append(QStringLiteral("## Ausgewählter Workflow\n%1").arg(workflowText));
+            userSections.append(QStringLiteral("## AusgewÃ¤hlter Workflow\n%1").arg(workflowText));
         }
     }
 
@@ -7749,7 +8171,7 @@ QJsonObject BricsCadPage::conversationAccessForFocusedContext(const QJsonObject&
                 {"params", QJsonObject{{"count", "1..10"}, {"fullText", "boolean optional"}}},
             },
         }},
-        {"policy", "Wenn focusedConversationContext fuer Korrektur, Fehlersuche oder Verweise wie 'wie vorher' nicht reicht, antworte mit type=context_request und einer session.history.* Methode. Fuer eine ausdrueckliche Gesamtpruefung eines geladenen Workflows, vollstaendige Formeln oder ungekürzte Rechenschritte verwende session.history.full. Diese Methoden liefern nur bereinigte Chatnachrichten, keine Tools, Policies oder Systemprompts."},
+        {"policy", "Wenn focusedConversationContext fuer Korrektur, Fehlersuche oder Verweise wie 'wie vorher' nicht reicht, antworte mit type=context_request und einer session.history.* Methode. Fuer eine ausdrueckliche Gesamtpruefung eines geladenen Workflows, vollstaendige Formeln oder ungekÃ¼rzte Rechenschritte verwende session.history.full. Diese Methoden liefern nur bereinigte Chatnachrichten, keine Tools, Policies oder Systemprompts."},
     };
 }
 
@@ -7806,6 +8228,16 @@ void BricsCadPage::emitContextBudget(int estimatedTokens, bool minimized, const 
         {"detail", detail},
     }](AiWebBridge* target) {
         Q_EMIT target->contextBudgetChanged(payload);
+    });
+}
+
+void BricsCadPage::emitAgentRuntimeStatus(const QJsonObject& status) const
+{
+    if (!m_agentBridge) {
+        return;
+    }
+    emitToWebAsync(m_agentBridge, [payload = status.toVariantMap()](AiWebBridge* target) {
+        Q_EMIT target->agentRuntimeStatusChanged(payload);
     });
 }
 
@@ -7911,14 +8343,22 @@ bool BricsCadPage::isBricsCadMode() const
 void BricsCadPage::sendAgentPrompt(const QString& promptText, const QJsonObject& documentContext)
 {
     if (m_agentBusy) {
-        appendBridgeLog("AI Agent: Prompt ignoriert, weil bereits eine Anfrage laeuft");
-        appendAgentChat("Barebone-Qt", "Die AI verarbeitet noch eine Anfrage. Nutze Stoppen oder warte auf die Antwort.");
+        m_deferredAgentPrompts.append(DeferredAgentPrompt{promptText, documentContext});
+        appendBridgeLog(QString("AI Runtime: Foreground-Prompt eingereiht queue=%1").arg(m_deferredAgentPrompts.size()));
         return;
     }
 
     const QString prompt = promptText.trimmed();
     if (prompt.isEmpty()) {
         return;
+    }
+
+    if (isBricsCadMode()) {
+        // Drawing context is deliberately turn-local. Manual BricsCAD activity
+        // is not observed in the background; every prompt starts from a clean
+        // cache and fills it only through explicit read-only BRX requests.
+        m_drawingContextStore.clear();
+        m_currentSelection = {};
     }
 
     const bool confirmsPendingProposal = isAgentConfirmation(prompt) && !m_pendingAgentProposal.isEmpty();
@@ -7938,7 +8378,7 @@ void BricsCadPage::sendAgentPrompt(const QString& promptText, const QJsonObject&
     if (isChatWorkspace()) {
         if (isGeneralWorkflowDeleteText(prompt)) {
             if (m_selectedWorkflow.isEmpty()) {
-                appendAgentChat("Barebone-Qt", "Es ist kein gespeicherter Workflow ausgewählt, der geloescht werden kann.");
+                appendAgentChat("Barebone-Qt", "Es ist kein gespeicherter Workflow ausgewÃ¤hlt, der geloescht werden kann.");
                 return;
             }
             QString deletedPath;
@@ -8126,31 +8566,34 @@ void BricsCadPage::routeUnifiedAgentPrompt(const QString& prompt, const QJsonObj
     }
     request.setTransferTimeout(kAiModelResponseTimeoutMs);
 
-    setAgentBusy(true);
     appendBridgeLog(QString("Qt -> AI Router: mode=%1 provider=%2 endpoint=%3 model=%4 timeoutMs=%5")
         .arg(mode, provider, url.toString(), model)
         .arg(kAiModelResponseTimeoutMs));
 
     const int operationGeneration = m_operationGeneration;
-    QNetworkReply* reply = m_aiNetwork->post(request, QJsonDocument(payload).toJson(QJsonDocument::Compact));
-    QObject::connect(reply, &QNetworkReply::finished, this, [this, reply, prompt, documentContext, fallbackRoute, mode, operationGeneration]() {
+    enqueueAiPost(
+        request,
+        payload,
+        QStringLiteral("Router"),
+        95,
+        false,
+        false,
+        {},
+        [this, prompt, documentContext, fallbackRoute, mode, operationGeneration](const LocalAiJobScheduler::Result& result) {
         if (operationGeneration != m_operationGeneration) {
-            reply->deleteLater();
             return;
         }
-        setAgentBusy(false);
 
-        const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        const QByteArray body = reply->readAll();
-        if (reply->error() != QNetworkReply::NoError) {
+        const int httpStatus = result.httpStatus;
+        const QByteArray body = result.body;
+        if (result.networkError != QNetworkReply::NoError) {
             appendBridgeLog(QString("AI Router: Fehler http=%1 %2, Fallback route=%3")
                 .arg(httpStatus)
-                .arg(reply->errorString())
+                .arg(result.errorString)
                 .arg(fallbackRoute.value("route").toString()));
             if (!body.isEmpty()) {
                 appendBridgeLog(QString("AI Router Body: %1").arg(QString::fromUtf8(body).left(800)));
             }
-            reply->deleteLater();
             continueUnifiedAgentRequest(prompt, documentContext, fallbackRoute);
             return;
         }
@@ -8161,7 +8604,6 @@ void BricsCadPage::routeUnifiedAgentPrompt(const QString& prompt, const QJsonObj
             appendBridgeLog(QString("AI Router: OpenAI JSON ungueltig (%1), Fallback route=%2")
                 .arg(parseError.errorString(), fallbackRoute.value("route").toString()));
             appendBridgeLog(QString("AI Router Body: %1").arg(QString::fromUtf8(body).left(800)));
-            reply->deleteLater();
             continueUnifiedAgentRequest(prompt, documentContext, fallbackRoute);
             return;
         }
@@ -8172,7 +8614,6 @@ void BricsCadPage::routeUnifiedAgentPrompt(const QString& prompt, const QJsonObj
         if (content.isEmpty()) {
             appendBridgeLog(QString("AI Router: leere Antwort, Fallback route=%1")
                 .arg(fallbackRoute.value("route").toString()));
-            reply->deleteLater();
             continueUnifiedAgentRequest(prompt, documentContext, fallbackRoute);
             return;
         }
@@ -8199,7 +8640,6 @@ void BricsCadPage::routeUnifiedAgentPrompt(const QString& prompt, const QJsonObj
                 route.value("route").toString(),
                 route.value("capabilityProfile").toString(),
                 route.value("reason").toString().left(240)));
-        reply->deleteLater();
         continueUnifiedAgentRequest(prompt, documentContext, route);
     });
 }
@@ -8265,9 +8705,31 @@ void BricsCadPage::continueUnifiedAgentRequest(
         return;
     }
 
+    const QString normalizedPromptForContext = workflowTrainingSearchText(prompt);
+    const bool initialDrawingContextNeeded =
+        !routeAllowsCadActions(normalizedRoute)
+        || promptRequestsCadDataQuery(prompt)
+        || shouldPrefetchSelectionDescription(prompt)
+        || !normalizedRoute.value(QStringLiteral("selectedWorkflows")).toArray().isEmpty()
+        || textMentionsAny(normalizedPromptForContext, {
+            QStringLiteral("zeichnung"),
+            QStringLiteral("vollstaendig"),
+            QStringLiteral("vollstÃ¤ndig"),
+            QStringLiteral("einlesen"),
+            QStringLiteral("verstehen"),
+            QStringLiteral("analyse"),
+            QStringLiteral("analysiere"),
+            QStringLiteral("heizlast"),
+            QStringLiteral("berechn"),
+            QStringLiteral("dokument"),
+            QStringLiteral("checkliste"),
+            QStringLiteral("raumbuch"),
+        });
+
     if (isBricsCadMode()
         && routeAllowsCadContext(normalizedRoute)
         && m_brxAuthenticated
+        && initialDrawingContextNeeded
         && !normalizedRoute.value(QStringLiteral("drawingContextPrefetchAttempted")).toBool(false)) {
         QJsonObject drawingRoute = normalizedRoute;
         drawingRoute.insert(QStringLiteral("drawingContextPrefetchAttempted"), true);
@@ -8299,7 +8761,7 @@ void BricsCadPage::selectToolsForUnifiedAgentRequest(
     const QJsonObject& route)
 {
     const QJsonObject normalizedRoute = normalizedAgentRouteForMode(route, prompt, documentContext, m_chatMode);
-    const QJsonArray plainTools = compactToolSelectorList();
+    const QJsonArray plainTools = BrxAgent::compactToolIndex(availableAgentTools());
     const QJsonArray plainLearningLessons = compactWorkflowSelectorList();
     if (plainTools.isEmpty() && plainLearningLessons.isEmpty()) {
         QJsonObject fallbackRoute = normalizedRoute;
@@ -8406,7 +8868,6 @@ void BricsCadPage::selectToolsForUnifiedAgentRequest(
     }
     request.setTransferTimeout(kAiModelResponseTimeoutMs);
 
-    setAgentBusy(true);
     appendBridgeLog(QString("Qt -> AI Tool/Learning Selector: tools=%1 lessons=%2 provider=%3 endpoint=%4 model=%5 timeoutMs=%6")
         .arg(plainTools.size())
         .arg(plainLearningLessons.size())
@@ -8414,15 +8875,21 @@ void BricsCadPage::selectToolsForUnifiedAgentRequest(
         .arg(kAiModelResponseTimeoutMs));
 
     const int operationGeneration = m_operationGeneration;
-    QNetworkReply* reply = m_aiNetwork->post(request, QJsonDocument(payload).toJson(QJsonDocument::Compact));
-    QObject::connect(reply, &QNetworkReply::finished, this, [this, reply, prompt, documentContext, normalizedRoute, operationGeneration]() {
+    enqueueAiPost(
+        request,
+        payload,
+        QStringLiteral("ToolSelector"),
+        90,
+        false,
+        false,
+        {},
+        [this, prompt, documentContext, normalizedRoute, operationGeneration](const LocalAiJobScheduler::Result& result) {
         if (operationGeneration != m_operationGeneration) {
-            reply->deleteLater();
             return;
         }
 
-        const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        const QByteArray body = reply->readAll();
+        const int httpStatus = result.httpStatus;
+        const QByteArray body = result.body;
         QJsonObject selectedRoute = normalizedRoute;
         QStringList selectedToolNames;
         QStringList selectedLessonIds;
@@ -8453,10 +8920,10 @@ void BricsCadPage::selectToolsForUnifiedAgentRequest(
             return ids;
         }();
 
-        if (reply->error() != QNetworkReply::NoError) {
+        if (result.networkError != QNetworkReply::NoError) {
                 appendBridgeLog(QString("AI Tool/Learning Selector: Fehler http=%1 %2, nutze lokale Auswahl")
                 .arg(httpStatus)
-                .arg(reply->errorString()));
+                .arg(result.errorString));
         } else {
             QJsonParseError parseError;
             const QJsonDocument responseDocument = QJsonDocument::fromJson(body, &parseError);
@@ -8561,9 +9028,7 @@ void BricsCadPage::selectToolsForUnifiedAgentRequest(
         }
         selectedRoute.insert(QStringLiteral("toolSelectionAttempted"), true);
         selectedRoute.insert(QStringLiteral("workflowSelectionAttempted"), true);
-        setAgentBusy(false);
         continueUnifiedAgentRequest(prompt, documentContext, selectedRoute);
-        reply->deleteLater();
     });
 }
 
@@ -8689,23 +9154,26 @@ void BricsCadPage::requestFocusedConversationContext(
     request.setTransferTimeout(kFocusedContextAiTimeoutMs);
 
     appendBridgeLog("AI Agent: fokussiere Sitzungsverlauf fuer aktuellen Prompt");
-    setAgentBusy(true);
     const int operationGeneration = m_operationGeneration;
-    QNetworkReply* reply = m_aiNetwork->post(request, QJsonDocument(payload).toJson(QJsonDocument::Compact));
-    QObject::connect(reply, &QNetworkReply::finished, this, [this, reply, continuation = std::move(continuation), prompt, operationGeneration]() mutable {
+    enqueueAiPost(
+        request,
+        payload,
+        QStringLiteral("ContextContinuation"),
+        85,
+        false,
+        false,
+        {},
+        [this, continuation = std::move(continuation), prompt, operationGeneration](const LocalAiJobScheduler::Result& result) mutable {
         if (operationGeneration != m_operationGeneration) {
-            reply->deleteLater();
             return;
         }
-        setAgentBusy(false);
 
-        const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        const QByteArray body = reply->readAll();
-        if (reply->error() != QNetworkReply::NoError) {
+        const int httpStatus = result.httpStatus;
+        const QByteArray body = result.body;
+        if (result.networkError != QNetworkReply::NoError) {
             appendBridgeLog(QString("AI Kontext-Fokus: Fehler http=%1 %2, nutze alte Kontextkuerzung")
                 .arg(httpStatus)
-                .arg(reply->errorString()));
-            reply->deleteLater();
+                .arg(result.errorString));
             continuation({});
             return;
         }
@@ -8715,7 +9183,6 @@ void BricsCadPage::requestFocusedConversationContext(
         if (parseError.error != QJsonParseError::NoError || !responseDocument.isObject()) {
             appendBridgeLog(QString("AI Kontext-Fokus: OpenAI JSON ungueltig (%1), nutze alte Kontextkuerzung")
                 .arg(parseError.errorString()));
-            reply->deleteLater();
             continuation({});
             return;
         }
@@ -8730,7 +9197,6 @@ void BricsCadPage::requestFocusedConversationContext(
             : QJsonObject{};
         if (focusedContext.isEmpty()) {
             appendBridgeLog("AI Kontext-Fokus: keine gueltige fokussierte Zusammenfassung, nutze alte Kontextkuerzung");
-            reply->deleteLater();
             continuation({});
             return;
         }
@@ -8738,7 +9204,6 @@ void BricsCadPage::requestFocusedConversationContext(
             .arg(focusedContext.value(QStringLiteral("topic")).toString().left(120))
             .arg(focusedContext.value(QStringLiteral("confidence")).toDouble(), 0, 'f', 2)
             .arg(focusedContext.value(QStringLiteral("relevantMessageIndexes")).toArray().size()));
-        reply->deleteLater();
         continuation(focusedContext);
     });
 }
@@ -8766,6 +9231,12 @@ void BricsCadPage::sendUnifiedAgentRequestWithPrefetchedContext(
         [this, prompt, method, params, documentContext, route](const QJsonObject& response) {
             setAgentBusy(false);
             appendJsonDebugLines(m_bridgeLog, response.value("debug").toArray());
+            m_drawingContextStore.updateFromContextResponse(method, params, response);
+            if (method == QStringLiteral("selection.describe")) {
+                m_currentSelection = response.value(QStringLiteral("ok")).toBool(false)
+                    ? response.value(QStringLiteral("result")).toObject().value(QStringLiteral("objects")).toArray()
+                    : QJsonArray{};
+            }
             QJsonObject envelope = agentRequestEnvelope(prompt, documentContext, route);
             envelope.insert("prefetchedContext", QJsonObject{
                 {"request", QJsonObject{{"method", method}, {"params", params}}},
@@ -8853,13 +9324,15 @@ void BricsCadPage::sendUnifiedAgentRequestWithDrawingContext(
     QPointer<BricsCadPage> guard(this);
 
     auto finish = [this, prompt, documentContext, route, results]() {
-        QJsonObject envelope = agentRequestEnvelope(prompt, documentContext, route);
-        envelope.insert("prefetchedDrawingContext", QJsonObject{
+        const QJsonObject prefetchedDrawingContext{
             {"schema", "barebone.brx.prefetched-drawing-context.v1"},
             {"source", "BRX read-only snapshot before final agent run"},
-            {"policy", "Nutze diesen aktuellen Zeichnungszustand als primaeren BricsCAD-Kontext fuer Toolwahl, Parameter, Layernamen, Handles, BIM-Namen/-Typen, GUIDs, Objekttypen, Abmessungen und Plausibilitaetspruefung. Der BIM-Snapshot ist auf 100 Objekte begrenzt; vollstaendige Properties werden nur mit einer gezielten bim.objects.query-Abfrage nachgeladen. Der Kontext ist read-only und ersetzt keine BRX-Preflight-Validierung."},
+            {"policy", "Nutze diesen aktuellen Zeichnungszustand als primaeren BricsCAD-Kontext fuer Toolwahl, Parameter, Layernamen, Handles, BIM-Namen/-Typen, GUIDs, Objekttypen, Abmessungen und Plausibilitaetspruefung. Bei unklarer mutierender SDK-Strategie nutze qt.brx.db.compatibility und qt.brx.tools.describe, statt feste BIM-Sonderlogik anzunehmen. Der BIM-Snapshot ist auf 100 Objekte begrenzt; vollstaendige Properties werden nur mit einer gezielten bim.objects.query-Abfrage nachgeladen. Der Kontext ist read-only und ersetzt keine BRX-Preflight-Validierung."},
             {"requests", *results},
-        });
+        };
+        m_drawingContextStore.updateFromPrefetchedContext(prefetchedDrawingContext);
+        QJsonObject envelope = agentRequestEnvelope(prompt, documentContext, route);
+        envelope.insert("prefetchedDrawingContext", prefetchedDrawingContext);
         sendAgentEnvelope(envelope, prompt, true, "prompt+drawing-context");
     };
 
@@ -8900,6 +9373,10 @@ void BricsCadPage::sendUnifiedAgentRequestWithDrawingContext(
                 };
                 if (response.value(QStringLiteral("ok")).toBool(false)) {
                     const QJsonObject result = response.value(QStringLiteral("result")).toObject();
+                    m_drawingContextStore.updateFromContextResponse(method, params, response);
+                    if (method == QStringLiteral("selection.describe")) {
+                        m_currentSelection = result.value(QStringLiteral("objects")).toArray();
+                    }
                     entry.insert(QStringLiteral("result"), compactBrxResponseForAgent(result));
                     const int count = result.value(QStringLiteral("count")).toInt(
                         result.value(QStringLiteral("objects")).toArray().size()
@@ -8936,6 +9413,35 @@ static ParsedModelOutput parseModelOutput(
     const QJsonObject& response,
     AgentResponseKind responseKind);
 
+QString BricsCadPage::enqueueAiPost(
+    QNetworkRequest request,
+    const QJsonObject& payload,
+    const QString& kind,
+    int priority,
+    bool background,
+    bool cancellable,
+    const QString& dedupeKey,
+    std::function<void(const LocalAiJobScheduler::Result&)> callback)
+{
+    if (!m_aiScheduler) {
+        return {};
+    }
+    const int maxConcurrent = m_config.aiProvider() == QStringLiteral("local") ? 4 : 1;
+    m_aiScheduler->setMaxConcurrentJobs(maxConcurrent);
+
+    LocalAiJobScheduler::Job job;
+    job.kind = kind;
+    job.priority = priority;
+    job.background = background;
+    job.cancellable = cancellable;
+    job.dedupeKey = dedupeKey;
+    job.request = request;
+    job.body = QJsonDocument(payload).toJson(QJsonDocument::Compact);
+    job.operationGeneration = m_operationGeneration;
+    job.callback = std::move(callback);
+    return m_aiScheduler->enqueue(std::move(job));
+}
+
 void BricsCadPage::sendAgentEnvelope(const QJsonObject& envelope, const QString& userHistoryContent, bool storeUserMessage, const QString& logLabel)
 {
     const QString provider = m_config.aiProvider();
@@ -8966,9 +9472,9 @@ void BricsCadPage::sendAgentEnvelope(const QJsonObject& envelope, const QString&
 
     const QString corePrompt = agentResourceText(QStringLiteral(":/agent/policies/core.md"));
     const QString generalPlainPrompt = QStringLiteral(
-        "Du bist der allgemeine AI-Assistent für Barebone-Qt. %1 "
-        "Antworte direkt. Verwende Markdown-Überschriften, Tabellen und echte Aufzählungen, wenn sie die Lesbarkeit verbessern. "
-        "Führe bei Berechnungen die Einheit an jedem eingesetzten Wert und jedem Zwischenergebnis mit und zeige notwendige SI-Umrechnungen. "
+        "Du bist der allgemeine AI-Assistent fÃ¼r Barebone-Qt. %1 "
+        "Antworte direkt. Verwende Markdown-Ãœberschriften, Tabellen und echte AufzÃ¤hlungen, wenn sie die Lesbarkeit verbessern. "
+        "FÃ¼hre bei Berechnungen die Einheit an jedem eingesetzten Wert und jedem Zwischenergebnis mit und zeige notwendige SI-Umrechnungen. "
         "Rufe im Allgemeinen Modus keine CAD-/BRX-Funktionen auf und schlage keine Zeichnungsaktionen vor.")
         .arg(aiLanguageInstruction(m_config));
     const QJsonObject systemMessage{
@@ -9176,12 +9682,12 @@ void BricsCadPage::sendAgentEnvelope(const QJsonObject& envelope, const QString&
         emitContextBudget(
             contextBuild.estimatedTokens,
             true,
-            QStringLiteral("Vollständiger Pflichtkontext überschreitet das Eingabebudget"));
+            QStringLiteral("VollstÃ¤ndiger Pflichtkontext Ã¼berschreitet das Eingabebudget"));
         appendAgentChat(
             QStringLiteral("Barebone-Qt"),
             QStringLiteral(
-                "Der vollständige verpflichtende Workflow-, Dokument- oder Sitzungsverlauf passt nicht in das aktuelle Kontextfenster. "
-                "Die Anfrage wurde nicht gekürzt oder an die AI gesendet. Bitte vergrößere das Kontextfenster oder reduziere den ausgewählten Kontext."));
+                "Der vollstÃ¤ndige verpflichtende Workflow-, Dokument- oder Sitzungsverlauf passt nicht in das aktuelle Kontextfenster. "
+                "Die Anfrage wurde nicht gekÃ¼rzt oder an die AI gesendet. Bitte vergrÃ¶ÃŸere das Kontextfenster oder reduziere den ausgewÃ¤hlten Kontext."));
         return;
     }
 
@@ -9192,7 +9698,7 @@ void BricsCadPage::sendAgentEnvelope(const QJsonObject& envelope, const QString&
         QStringList details;
         if (contextBuild.compressedHistoryMessages > 0) {
             details << (plainGeneralResponse
-                ? QStringLiteral("%1 ältere Nachrichten vollständig ausgelassen").arg(contextBuild.compressedHistoryMessages)
+                ? QStringLiteral("%1 Ã¤ltere Nachrichten vollstÃ¤ndig ausgelassen").arg(contextBuild.compressedHistoryMessages)
                 : (hasFocusedConversationContext
                     ? QStringLiteral("%1 aeltere Nachrichten ueber Fokus-Zusammenfassung ersetzt").arg(contextBuild.compressedHistoryMessages)
                     : QStringLiteral("%1 aeltere Nachrichten komprimiert").arg(contextBuild.compressedHistoryMessages)));
@@ -9247,7 +9753,6 @@ void BricsCadPage::sendAgentEnvelope(const QJsonObject& envelope, const QString&
     }
     request.setTransferTimeout(kAiModelResponseTimeoutMs);
 
-    setAgentBusy(true);
     const QString reasoningLog = (useResponsesApi || isGemma4ReasoningModel(model))
         ? QString(" reasoning=%1").arg(reasoningEffortForModel(model, requestReasoningEffort))
         : QString();
@@ -9300,25 +9805,32 @@ void BricsCadPage::sendAgentEnvelope(const QJsonObject& envelope, const QString&
     }
 
     const int operationGeneration = m_operationGeneration;
-    QNetworkReply* reply = m_aiNetwork->post(request, QJsonDocument(payload).toJson(QJsonDocument::Compact));
-    QObject::connect(reply, &QNetworkReply::finished, this, [this, reply, userHistoryContent, storeUserMessage, operationGeneration, plainGeneralResponse]() {
+    const QString jobKind = plainGeneralResponse
+        ? QStringLiteral("ForegroundChat")
+        : (routeAllowsCadActions(route) ? QStringLiteral("CadAction") : QStringLiteral("ContextContinuation"));
+    enqueueAiPost(
+        request,
+        payload,
+        jobKind,
+        routeAllowsCadActions(route) ? 100 : 80,
+        false,
+        false,
+        {},
+        [this, userHistoryContent, storeUserMessage, operationGeneration, plainGeneralResponse](const LocalAiJobScheduler::Result& result) {
         if (operationGeneration != m_operationGeneration) {
-            reply->deleteLater();
             return;
         }
-        setAgentBusy(false);
 
-        const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        const QByteArray body = reply->readAll();
-        if (reply->error() != QNetworkReply::NoError) {
+        const int httpStatus = result.httpStatus;
+        const QByteArray body = result.body;
+        if (result.networkError != QNetworkReply::NoError) {
             appendAgentChat("Barebone-Qt", QString("Fehler bei der AI Anfrage: provider=%1 http=%2 %3")
                 .arg(m_config.aiProvider())
                 .arg(httpStatus)
-                .arg(reply->errorString()));
+                .arg(result.errorString));
             if (!body.isEmpty()) {
                 appendBridgeLog(QString("AI Body: %1").arg(QString::fromUtf8(body).left(800)));
             }
-            reply->deleteLater();
             return;
         }
 
@@ -9327,7 +9839,6 @@ void BricsCadPage::sendAgentEnvelope(const QJsonObject& envelope, const QString&
         if (parseError.error != QJsonParseError::NoError || !responseDocument.isObject()) {
             appendAgentChat("AI", QString("Antwort ist kein gueltiges OpenAI JSON: %1").arg(parseError.errorString()));
             appendBridgeLog(QString("AI Body: %1").arg(QString::fromUtf8(body).left(800)));
-            reply->deleteLater();
             return;
         }
 
@@ -9360,10 +9871,9 @@ void BricsCadPage::sendAgentEnvelope(const QJsonObject& envelope, const QString&
                     retryEnvelope.insert(QStringLiteral("type"), QStringLiteral("finalization_retry"));
                     retryEnvelope.insert(QStringLiteral("instruction"), QStringLiteral(
                         "Die vorherige Ausgabe enthielt nur Reasoning und keinen finalen Inhalt. "
-                        "Antworte jetzt ohne weiteres Reasoning direkt als sichtbare Markdown-Antwort und erfülle die ursprüngliche Nutzeranfrage vollständig."));
+                        "Antworte jetzt ohne weiteres Reasoning direkt als sichtbare Markdown-Antwort und erfÃ¼lle die ursprÃ¼ngliche Nutzeranfrage vollstÃ¤ndig."));
                     appendBridgeLog(QStringLiteral(
                         "AI Allgemeiner Modus: kompakter Finalisierungsversuch mit minimalem Reasoning"));
-                    reply->deleteLater();
                     sendAgentEnvelope(
                         retryEnvelope,
                         userHistoryContent,
@@ -9372,7 +9882,6 @@ void BricsCadPage::sendAgentEnvelope(const QJsonObject& envelope, const QString&
                     return;
                 }
                 appendAgentChat("AI", "Leere Antwort erhalten.");
-                reply->deleteLater();
                 return;
             }
             if (!reasoningText.trimmed().isEmpty() && m_agentValidationRetries == 0) {
@@ -9384,11 +9893,9 @@ void BricsCadPage::sendAgentEnvelope(const QJsonObject& envelope, const QString&
                     reasoningText,
                     {},
                     "Die vorherige Ausgabe endete nach Reasoning ohne finale Antwort. Wiederhole das Reasoning nicht. Antworte jetzt sofort und ausschliesslich mit genau einem kurzen gueltigen Barebone-JSON-Objekt.")) {
-                reply->deleteLater();
                 return;
             }
             appendAgentChat("Barebone-Qt", "Die lokale AI hat ihr Ausgabebudget im Reasoning verbraucht und auch im kompakten Finalisierungsversuch keine finale JSON-Antwort geliefert.");
-            reply->deleteLater();
             return;
         }
         appendBridgeLog(QString(plainGeneralResponse ? "AI Antwort: %1" : "AI JSON: %1").arg(content.left(1600)));
@@ -9410,7 +9917,6 @@ void BricsCadPage::sendAgentEnvelope(const QJsonObject& envelope, const QString&
         }
         m_nextAgentMessageContinuationAvailable = false;
         m_nextAgentMessageContinuationReason.clear();
-        reply->deleteLater();
     });
 }
 
@@ -9721,11 +10227,22 @@ bool BricsCadPage::deleteWorkflowById(const QString& workflowId, QString* delete
         return deleteGeneralWorkflowById(workflowId, deletedPath, errorMessage);
     }
 
-    if (!m_brxLearning.deprecateLesson(workflowId, errorMessage)) {
+    if (!m_brxLearning.deleteLesson(workflowId, errorMessage)) {
         return false;
     }
     if (deletedPath) {
         *deletedPath = m_brxLearning.sourcePath();
+    }
+    if (m_selectedWorkflowId == workflowId
+        || workflowSlug(m_selectedWorkflow.value(QStringLiteral("id")).toString()) == workflowSlug(workflowId)) {
+        m_selectedWorkflowId.clear();
+        m_selectedWorkflow = {};
+        m_selectedWorkflowSlotValues = {};
+        if (m_agentBridge) {
+            emitToWebAsync(m_agentBridge, [](AiWebBridge* target) {
+                Q_EMIT target->selectedWorkflowChanged(QVariantMap{});
+            });
+        }
     }
     emitWorkflowListToWeb();
     return true;
@@ -9752,6 +10269,14 @@ QJsonObject BricsCadPage::selectedWorkflowSummary() const
         {"recommendedTools", m_selectedWorkflow.value("recommendedTools").toArray()},
         {"executionBatches", m_selectedWorkflow.value("executionBatches").toArray()},
         {"validationExamples", m_selectedWorkflow.value("validationExamples").toArray()},
+        {"observedCommands", m_selectedWorkflow.value("observedCommands").toArray()},
+        {"observedTraces", m_selectedWorkflow.value("observedTraces").toArray()},
+        {"semanticActions", m_selectedWorkflow.value("semanticActions").toArray()},
+        {"requiredRuntimeContext", m_selectedWorkflow.value("requiredRuntimeContext").toObject()},
+        {"missingBindings", m_selectedWorkflow.value("missingBindings").toArray()},
+        {"commandTemplates", m_selectedWorkflow.value("commandTemplates").toArray()},
+        {"postconditions", m_selectedWorkflow.value("postconditions").toArray()},
+        {"readbacks", m_selectedWorkflow.value("readbacks").toArray()},
         {"updateProtected", m_selectedWorkflow.value("updateProtected").toBool(false)},
         {"selectedSlotValues", m_selectedWorkflowSlotValues},
     };
@@ -9816,9 +10341,11 @@ QJsonArray BricsCadPage::selectedLearningLessonsForRoute(const QJsonObject& rout
     for (const QString& id : routeWorkflowIds(route, 3)) {
         appendLesson(m_brxLearning.lessonById(id));
     }
-    const QJsonArray relevant = m_brxLearning.relevantLessons(prompt, 3);
-    for (const QJsonValue& value : relevant) {
-        appendLesson(value.toObject());
+    if (!route.value(QStringLiteral("toolSelectionAttempted")).toBool(false)) {
+        const QJsonArray relevant = m_brxLearning.relevantLessons(prompt, 3);
+        for (const QJsonValue& value : relevant) {
+            appendLesson(value.toObject());
+        }
     }
     return lessons;
 }
@@ -9925,7 +10452,7 @@ QJsonArray BricsCadPage::materializedWorkflowTestActions(const QJsonObject& work
     for (const QJsonValue& batchValue : workflow.value(QStringLiteral("executionBatches")).toArray()) {
         const QJsonObject batch = batchValue.toObject();
         for (const QJsonValue& stepValue : batch.value(QStringLiteral("steps")).toArray()) {
-            const QJsonObject step = stepValue.toObject();
+            const QJsonObject step = normalizedWorkflowStepForExecution(stepValue.toObject());
             QString resolveError;
             const QJsonObject params = resolve(step.value(QStringLiteral("paramsTemplate")), &resolveError).toObject();
             if (!resolveError.isEmpty()) {
@@ -9941,7 +10468,54 @@ QJsonArray BricsCadPage::materializedWorkflowTestActions(const QJsonObject& work
             });
         }
     }
-    if (actions.isEmpty() && errorMessage) *errorMessage = QStringLiteral("Workflow enthaelt keine ausfuehrbaren Schritte");
+    if (actions.isEmpty() && workflow.value(QStringLiteral("directTestEligible")).toBool(false)) {
+        int commandIndex = 0;
+        for (const QJsonValue& templateValue : workflow.value(QStringLiteral("commandTemplates")).toArray()) {
+            const QJsonObject commandTemplate = templateValue.toObject();
+            QString tool = commandTemplate.value(QStringLiteral("tool")).toString(QStringLiteral("command.execute")).trimmed();
+            if (tool.isEmpty()) {
+                tool = QStringLiteral("command.execute");
+            }
+            QJsonObject normalizedCommandTemplate = normalizedWorkflowStepForExecution(commandTemplate);
+            QJsonObject paramsTemplate = normalizedCommandTemplate.value(QStringLiteral("paramsTemplate")).toObject();
+            if (paramsTemplate.isEmpty()) {
+                paramsTemplate = commandExecuteParamsTemplateFromWorkflowObject(commandTemplate);
+            }
+            if (paramsTemplate.isEmpty()) {
+                paramsTemplate = commandTemplate;
+                paramsTemplate.remove(QStringLiteral("id"));
+                paramsTemplate.remove(QStringLiteral("title"));
+                paramsTemplate.remove(QStringLiteral("tool"));
+                paramsTemplate.remove(QStringLiteral("description"));
+            }
+            QString resolveError;
+            const QJsonObject params = resolve(paramsTemplate, &resolveError).toObject();
+            if (!resolveError.isEmpty()) {
+                if (errorMessage) *errorMessage = QStringLiteral("Command-Template '%1': %2")
+                    .arg(commandTemplate.value(QStringLiteral("id")).toString(QString::number(commandIndex + 1)), resolveError);
+                return {};
+            }
+            actions.append(QJsonObject{
+                {QStringLiteral("id"), commandTemplate.value(QStringLiteral("id")).toString(QStringLiteral("command_template_%1").arg(++commandIndex))},
+                {QStringLiteral("title"), commandTemplate.value(QStringLiteral("title")).toString(QStringLiteral("Native BricsCAD Command"))},
+                {QStringLiteral("batchId"), QStringLiteral("commandTemplates")},
+                {QStringLiteral("tool"), tool},
+                {QStringLiteral("params"), params},
+            });
+        }
+    }
+    if (actions.isEmpty() && errorMessage) {
+        const QString lessonKind = workflow.value(QStringLiteral("lessonKind")).toString();
+        const bool commandObservation = !workflow.value(QStringLiteral("observedCommands")).toArray().isEmpty()
+            || jsonStringArrayToStringList(workflow.value(QStringLiteral("recommendedTools")).toArray()).contains(QStringLiteral("command.execute"));
+        if (!workflow.value(QStringLiteral("directTestEligible")).toBool(true)
+            || lessonKind == QStringLiteral("interaction")
+            || commandObservation) {
+            *errorMessage = QStringLiteral("Diese Lesson ist eine Beobachtung und noch nicht direkt ausfuehrbar. Fuer den Workflow-Direkt-Test braucht sie executionBatches mit vollstaendigen steps oder ein command.execute-commandTemplate mit commandLine.");
+        } else {
+            *errorMessage = QStringLiteral("Workflow enthaelt keine ausfuehrbaren Schritte");
+        }
+    }
     return actions;
 }
 
@@ -9972,8 +10546,22 @@ void BricsCadPage::runBrxWorkflowTest(const QString& workflowId)
     }
     for (const QJsonValue& value : actions) {
         const QJsonObject action = value.toObject();
-        if (toolDefinition(action.value(QStringLiteral("tool")).toString()).isEmpty()) {
-            finishBrxWorkflowTest(QStringLiteral("failed"), QStringLiteral("BRX Tool fehlt: %1").arg(action.value(QStringLiteral("tool")).toString()));
+        const QString tool = action.value(QStringLiteral("tool")).toString();
+        if (toolDefinition(tool).isEmpty()) {
+            finishBrxWorkflowTest(QStringLiteral("failed"), QStringLiteral("BRX Tool fehlt: %1").arg(tool));
+            return;
+        }
+        if (tool == QStringLiteral("command.execute")) {
+            const QString commandError = workflowCommandExecuteValidationMessage(
+                capabilitiesWithLearnedCommands(m_brxCapabilities),
+                action.value(QStringLiteral("params")).toObject());
+            if (!commandError.isEmpty()) {
+                finishBrxWorkflowTest(QStringLiteral("failed"), commandError, -1, action);
+                return;
+            }
+        }
+        if (tool == QStringLiteral("commands.list")) {
+            finishBrxWorkflowTest(QStringLiteral("failed"), QStringLiteral("commands.list ist read-only Kontext und kein ausfuehrbarer Workflow-Schritt. Nutze command.execute mit vollstaendiger commandLine."));
             return;
         }
     }
@@ -10024,9 +10612,12 @@ void BricsCadPage::executeBrxWorkflowTestStep(int index, QJsonArray results)
         finishBrxWorkflowTest(QStringLiteral("failed"), QStringLiteral("Runtime-Bindung lieferte keine BIM-Handles aus der vorherigen bim.objects.query-Abfrage."), index, QJsonObject{{"tool",tool},{"params",params}}, results);
         return;
     }
+    if (tool == QStringLiteral("command.execute")) {
+        params = commandExecuteParamsWithLearnedAuthorization(params);
+    }
     const QVariantMap progress{{"workflowId",m_workflowTestWorkflow.value("id").toString()},{"title",m_workflowTestWorkflow.value("title").toString()},{"phase","preflight"},{"current",index+1},{"total",m_workflowTestActions.size()},{"stepId",action.value("id").toString()},{"tool",tool}};
     if (m_agentBridge) Q_EMIT m_agentBridge->workflowRunProgress(progress);
-    const QJsonObject preflight{{"source","workflow_direct_test"},{"actions",QJsonArray{QJsonObject{{"tool",tool},{"params",params}}}}};
+    const QJsonObject preflight{{"source","workflow_direct_test"},{"actions",QJsonArray{QJsonObject{{"tool",brxValidationToolName(tool)},{"params",params}}}}};
     const bool preflightQueued = sendBridgeRequest(QStringLiteral("actions.validate"), preflight, 15000,
         [this,index,results,action,tool,params](const QJsonObject& validation) mutable {
             if (!validation.value("ok").toBool(false) || !validation.value("result").toObject().value("valid").toBool(false)) {
@@ -10034,7 +10625,10 @@ void BricsCadPage::executeBrxWorkflowTestStep(int index, QJsonArray results)
                 return;
             }
             QJsonObject validatedParams = params;
-            if (tool.startsWith(QStringLiteral("bim."))) {
+            if (tool.startsWith(QStringLiteral("bim."))
+                || tool == QStringLiteral("geometry.move")
+                || tool == QStringLiteral("brx.sdk.entity.transformBy")
+                || tool == QStringLiteral("brx.sdk.blockReference.setPosition")) {
                 const QJsonArray validationActions = validation.value(QStringLiteral("result")).toObject()
                     .value(QStringLiteral("actions")).toArray();
                 if (!validationActions.isEmpty()) {
@@ -10044,7 +10638,7 @@ void BricsCadPage::executeBrxWorkflowTestStep(int index, QJsonArray results)
             }
             QTimer::singleShot(kAgentBatchActionDelayMs, this, [this,index,results,action,tool,params = validatedParams]() mutable {
                 if (m_agentBridge) Q_EMIT m_agentBridge->workflowRunProgress(QVariantMap{{"workflowId",m_workflowTestWorkflow.value("id").toString()},{"title",m_workflowTestWorkflow.value("title").toString()},{"phase","executing"},{"current",index+1},{"total",m_workflowTestActions.size()},{"stepId",action.value("id").toString()},{"tool",tool}});
-                const bool executionQueued = sendBridgeRequest(bridgeMethodForTool(tool), params, 30000,
+                const bool executionQueued = sendBridgeActionRequest(bridgeMethodForTool(tool), params, 30000,
                     [this,index,results,action,tool,params](const QJsonObject& response) mutable {
                         if (!response.value("ok").toBool(false)) {
                             finishBrxWorkflowTest(QStringLiteral("failed"), bridgeErrorMessage(response, QStringLiteral("BRX-Ausfuehrung fehlgeschlagen")), index, QJsonObject{{"tool",tool},{"params",params}}, results);
@@ -10070,10 +10664,47 @@ void BricsCadPage::executeBrxWorkflowTestStep(int index, QJsonArray results)
                             finishBrxWorkflowTest(QStringLiteral("failed"), QStringLiteral("BIM-Klassifizierung wurde nicht fuer alle ausgewaehlten Wand-Solids abgeschlossen."), index, QJsonObject{{"tool",tool},{"params",params},{"classificationResult",result}}, results);
                             return;
                         }
-                        results.append(QJsonObject{{"index",index+1},{"tool",tool},{"params",params},{"response",response},{"result",result}});
-                        QTimer::singleShot(kAgentBatchActionDelayMs, this, [this,index,results]() mutable {
-                            executeBrxWorkflowTestStep(index+1, results);
-                        });
+                        auto appendResultAndContinue = [this, index, results, tool, params, response](QJsonObject finalResult) mutable {
+                            results.append(QJsonObject{{"index",index+1},{"tool",tool},{"params",params},{"response",response},{"result",finalResult}});
+                            QTimer::singleShot(kAgentBatchActionDelayMs, this, [this,index,results]() mutable {
+                                executeBrxWorkflowTestStep(index+1, results);
+                            });
+                        };
+                        if (tool == QStringLiteral("command.execute")
+                            && bridgeCapabilitiesContainMethod(m_brxCapabilities, QStringLiteral("geometry.query"))) {
+                            QTimer::singleShot(kAgentBatchActionDelayMs, this,
+                                [this, appendResultAndContinue, result]() mutable {
+                                    const QJsonObject readbackParams{
+                                        {QStringLiteral("selector"), QJsonObject{{QStringLiteral("scope"), QStringLiteral("currentSpace")}}},
+                                        {QStringLiteral("include"), QJsonArray{QStringLiteral("metrics")}},
+                                        {QStringLiteral("limit"), 100},
+                                    };
+                                    const bool readbackQueued = sendBridgeRequest(
+                                        QStringLiteral("geometry.query"),
+                                        readbackParams,
+                                        15000,
+                                        [appendResultAndContinue, result, readbackParams](const QJsonObject& readbackResponse) mutable {
+                                            QJsonObject finalResult = result;
+                                            if (readbackResponse.value(QStringLiteral("ok")).toBool(false)) {
+                                                finalResult.insert(QStringLiteral("readback"), QJsonObject{
+                                                    {QStringLiteral("method"), QStringLiteral("geometry.query")},
+                                                    {QStringLiteral("params"), readbackParams},
+                                                    {QStringLiteral("result"), readbackResponse.value(QStringLiteral("result")).toObject()},
+                                                });
+                                            } else {
+                                                finalResult.insert(QStringLiteral("readbackError"), bridgeErrorMessage(readbackResponse, QStringLiteral("Readback nach command.execute fehlgeschlagen")));
+                                            }
+                                            appendResultAndContinue(finalResult);
+                                        });
+                                    if (!readbackQueued) {
+                                        QJsonObject finalResult = result;
+                                        finalResult.insert(QStringLiteral("readbackError"), QStringLiteral("Readback nach command.execute konnte nicht gesendet werden."));
+                                        appendResultAndContinue(finalResult);
+                                    }
+                                });
+                            return;
+                        }
+                        appendResultAndContinue(result);
                     });
                 if (!executionQueued) finishBrxWorkflowTest(QStringLiteral("failed"), QStringLiteral("BRX-Ausfuehrungsanfrage konnte nicht gesendet werden."), index, QJsonObject{{"tool",tool},{"params",params}}, results);
             });
@@ -10138,19 +10769,25 @@ void BricsCadPage::requestWorkflowFailureAnalysis(const QJsonObject& result)
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
     request.setTransferTimeout(60000);
-    QNetworkReply* reply = m_aiNetwork->post(request, QJsonDocument(payload).toJson(QJsonDocument::Compact));
-    QObject::connect(reply, &QNetworkReply::finished, this, [this,reply]() {
-        const QByteArray body = reply->readAll();
-        if (reply->error() == QNetworkReply::NoError) {
+    enqueueAiPost(
+        request,
+        payload,
+        QStringLiteral("WorkflowLearning"),
+        30,
+        false,
+        true,
+        {},
+        [this](const LocalAiJobScheduler::Result& result) {
+        const QByteArray body = result.body;
+        if (result.networkError == QNetworkReply::NoError) {
             const QJsonDocument document = QJsonDocument::fromJson(body);
             QString reasoning;
             const QString text = repairMojibakeText(
                 aiChatCompletionContent(document.object(), &reasoning)).trimmed();
             if (!text.isEmpty()) appendAgentChat(QStringLiteral("AI Testanalyse"), text);
         } else {
-            appendBridgeLog(QStringLiteral("AI Testanalyse nicht verfuegbar: %1").arg(reply->errorString()));
+            appendBridgeLog(QStringLiteral("AI Testanalyse nicht verfuegbar: %1").arg(result.errorString));
         }
-        reply->deleteLater();
     });
 }
 
@@ -10464,6 +11101,7 @@ QJsonObject BricsCadPage::workflowTrainingEnvelope(const QString& prompt, bool c
                  QStringLiteral("geometry.scale"),
                  QStringLiteral("geometry.delete"),
                  QStringLiteral("rectangles.extrude"),
+                 QStringLiteral("circle.extrude"),
                  QStringLiteral("profile.extrude"),
                  QStringLiteral("bim.classify"),
                  QStringLiteral("bim.objects.query"),
@@ -10532,7 +11170,7 @@ QJsonObject BricsCadPage::workflowTrainingEnvelope(const QString& prompt, bool c
             "Wenn ein Schritt unmittelbar zuvor mit geometry.create ein Rechteck erzeugt, verwende im naechsten rectangles.extrude selector={\"scope\":\"lastResult\",\"kind\":\"rectangle\"}, nicht scope=selection. "
             "Bei normalen mehrschrittigen Vorschlaegen kann ein direkt nachfolgendes bim.classify target=lastExtruded nutzen. "
             "Bei gespeicherten Workflows, die Schritt fuer Schritt mit Nutzerfeedback ausgefuehrt werden, bevorzuge nach dem Extrudieren einen expliziten Selector oder selection.set und danach bim.classify target=selection, weil jeder Schritt einzeln per BRX validiert wird. "
-            "Wenn ein Workflow BricsCAD-Geometrie auswerten oder tabellarisch dokumentieren soll, nutze geometry.query, selection.describe oder entity.describe mit include=[\"metrics\",\"geometry\"] und einem sinnvollen positiven limit >= 1; nutze niemals limit=0. Fuer klassifizierte BIM-Objekte und Properties nutze bim.objects.query mit include=[\"core\",\"geometry\"] beziehungsweise gezielt zusaetzlich \"properties\". "
+            "Wenn ein Workflow BricsCAD-Geometrie auswerten oder tabellarisch dokumentieren soll, nutze geometry.query, selection.describe oder entity.describe mit include=[\"metrics\",\"geometry\"] und einem sinnvollen positiven limit >= 1; nutze niemals limit=0. Fuer BIM Door/Window/Wall Mutationen loese Zielobjekte erst read-only auf und vergleiche dann passende Kandidaten ueber qt.brx.db.compatibility, bevor du einen validierbaren Toolpfad vorschlaegst. Fuer klassifizierte BIM-Objekte und Properties nutze bim.objects.query mit include=[\"core\",\"geometry\"] beziehungsweise gezielt zusaetzlich \"properties\". "
             "Beschreibe im Workflow, dass Qt die objects-Ergebnisse als Markdown-Tabelle mit Handle, Typ, Art, Form, Layer, Bounds und Metriken im Chatfenster anzeigen kann. "
             "Nutze keine Felder toolName/arguments in constructionStrategy fuer Werkzeugaufrufe."},
         {"responseContract", QJsonObject{
@@ -10683,7 +11321,7 @@ QJsonObject BricsCadPage::workflowTrainingEnvelope(const QString& prompt, bool c
             {"batchPolicy", "Komplexe Ablaufe gehoeren in executionBatches[].steps mit mode=sequential und stopOnFailure=true. Fuer workflow_update muss zusaetzlich workflow.steps die gleiche ausfuehrbare Sequenz flach enthalten."},
             {"validationPolicy", "workflow_update muss validationExamples[].actions mit konkreten, platzhalterfreien Beispielaktionen enthalten. Verkettete Beispiele duerfen lastResult nutzen, aber nicht eine leere selection voraussetzen. Fuer step-by-step Workflows nach einer Extrusion zuerst selection.set verwenden und danach bim.classify target=selection."},
             {"tableOutputPolicy", "Fuer allgemeine Geometrie-Auswertung als Tabelle nutze read-only Tools geometry.query, selection.describe oder entity.describe. Fuer BIM-Objekt- und Propertytabellen nutze bim.objects.query. limit muss >= 1 sein; Qt erzeugt aus dem Query-Ergebnis die Objekt- und bei include=properties zusaetzlich die Property-Markdowntabelle."},
-            {"bimDataPolicy", "Bei BIM-Objektnamen wie Window 11 ist der Text kein Datenbank-Handle. Nutze bim.objects.query mit selector.scope=names und selector.names. Folgeschritte verwenden autoBimHandlesFromLastQuery=true, damit Qt ausschliesslich die konkret gelesenen Handles an bim.selection.set bindet. Properties werden nur gezielt mit include=properties nachgeladen."},
+            {"bimDataPolicy", "Bei BIM-Objektnamen wie Window 11 ist der Text kein Datenbank-Handle. Nutze bim.objects.query mit selector.scope=names und selector.names. Folgeschritte verwenden autoBimHandlesFromLastQuery=true, wenn das gewaehlte Tool diese Runtime-Bindung unterstuetzt; andernfalls nutze explizite selector.scope=handles aus der Abfrage. Properties werden nur gezielt mit include=properties nachgeladen."},
         }},
         {"knownToolNames", toolNames},
         {"effectiveTools", effectiveTools},
@@ -11061,8 +11699,9 @@ bool BricsCadPage::validateWorkflowForTraining(QJsonObject& workflow, QString& e
                 errorMessage = QStringLiteral("workflow.executionBatches[%1].steps braucht mindestens einen Werkzeugschritt").arg(batchIndex);
                 return false;
             }
+            QJsonArray normalizedBatchSteps;
             for (int stepIndex = 0; stepIndex < batchSteps.size(); ++stepIndex) {
-                const QJsonObject step = batchSteps.at(stepIndex).toObject();
+                const QJsonObject step = normalizedWorkflowStepForExecution(batchSteps.at(stepIndex).toObject());
                 const QString stepPrefix = QStringLiteral("workflow.executionBatches[%1].steps").arg(batchIndex);
                 if (!validateWorkflowStepForTraining(step, stepIndex, errorMessage, stepPrefix)) {
                     return false;
@@ -11079,7 +11718,9 @@ bool BricsCadPage::validateWorkflowForTraining(QJsonObject& workflow, QString& e
                     }
                 }
                 flattenedBatchSteps.append(step);
+                normalizedBatchSteps.append(step);
             }
+            batch.insert(QStringLiteral("steps"), normalizedBatchSteps);
             normalizedBatches.append(batch);
         }
         workflow.insert(QStringLiteral("executionBatches"), normalizedBatches);
@@ -11099,8 +11740,9 @@ bool BricsCadPage::validateWorkflowForTraining(QJsonObject& workflow, QString& e
         return false;
     }
 
+    QJsonArray normalizedSteps;
     for (int i = 0; i < steps.size(); ++i) {
-        const QJsonObject step = steps.at(i).toObject();
+        const QJsonObject step = normalizedWorkflowStepForExecution(steps.at(i).toObject());
         if (!validateWorkflowStepForTraining(step, i, errorMessage)) {
             return false;
         }
@@ -11115,7 +11757,9 @@ bool BricsCadPage::validateWorkflowForTraining(QJsonObject& workflow, QString& e
                 return false;
             }
         }
+        normalizedSteps.append(step);
     }
+    workflow.insert(QStringLiteral("steps"), normalizedSteps);
 
     if (!workflow.value("constructionStrategy").isArray()) {
         workflow.insert("constructionStrategy", QJsonArray{});
@@ -11447,8 +12091,8 @@ void BricsCadPage::emitWorkflowTrainingFinalSavePrompt()
     payload.insert(QStringLiteral("title"), QStringLiteral("Workflow speichern"));
     payload.insert(QStringLiteral("message"), isChatWorkspace()
         ? (title.isEmpty()
-            ? QStringLiteral("Mit Speichern wird ein neuer Workflow angelegt. Wenn der Titel anders lauten soll, antworte vor dem Speichern mit dem gewünschten Titel.")
-            : QStringLiteral("Titelvorschlag: \"%1\". Mit Speichern wird immer ein neuer Workflow angelegt. Wenn der Titel anders lauten soll, antworte vor dem Speichern mit dem gewünschten Titel.").arg(title))
+            ? QStringLiteral("Mit Speichern wird ein neuer Workflow angelegt. Wenn der Titel anders lauten soll, antworte vor dem Speichern mit dem gewÃ¼nschten Titel.")
+            : QStringLiteral("Titelvorschlag: \"%1\". Mit Speichern wird immer ein neuer Workflow angelegt. Wenn der Titel anders lauten soll, antworte vor dem Speichern mit dem gewÃ¼nschten Titel.").arg(title))
         : (title.isEmpty()
             ? QStringLiteral("Der Workflow wurde erfolgreich getestet. Mit Speichern wird daraus eine Workflow-Datei.")
             : QStringLiteral("Der Workflow \"%1\" wurde erfolgreich getestet. Mit Speichern wird daraus eine Workflow-Datei.").arg(title)));
@@ -11740,7 +12384,6 @@ void BricsCadPage::sendWorkflowTrainingPrompt(const QString& prompt, bool compac
     }
     request.setTransferTimeout(kWorkflowTrainingAiTimeoutMs);
 
-    setAgentBusy(true);
     appendBridgeLog(QString("Qt -> AI Workflow Training: provider=%1 endpoint=%2 model=%3 compact=%4 timeoutMs=%5 maxTokens=%6 context=%7")
         .arg(provider,
             url.toString(),
@@ -11751,17 +12394,22 @@ void BricsCadPage::sendWorkflowTrainingPrompt(const QString& prompt, bool compac
         .arg(effectiveContextWindowTokens()));
 
     const int operationGeneration = m_operationGeneration;
-    QNetworkReply* reply = m_aiNetwork->post(request, QJsonDocument(payload).toJson(QJsonDocument::Compact));
-    QObject::connect(reply, &QNetworkReply::finished, this, [this, reply, prompt, compactContext, operationGeneration]() {
+    enqueueAiPost(
+        request,
+        payload,
+        QStringLiteral("WorkflowLearning"),
+        70,
+        false,
+        false,
+        {},
+        [this, prompt, compactContext, operationGeneration](const LocalAiJobScheduler::Result& result) {
         if (operationGeneration != m_operationGeneration) {
-            reply->deleteLater();
             return;
         }
-        setAgentBusy(false);
 
-        const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        const QByteArray body = reply->readAll();
-        if (reply->error() != QNetworkReply::NoError) {
+        const int httpStatus = result.httpStatus;
+        const QByteArray body = result.body;
+        if (result.networkError != QNetworkReply::NoError) {
             if (!body.isEmpty()) {
                 appendBridgeLog(QString("AI Workflow Body: %1").arg(QString::fromUtf8(body).left(800)));
             }
@@ -11772,15 +12420,13 @@ void BricsCadPage::sendWorkflowTrainingPrompt(const QString& prompt, bool compac
                     || bodyText.contains(QStringLiteral("exceeds")));
             if (!compactContext && contextOverflow) {
                 appendBridgeLog("Workflow Training: LMStudio meldet Kontextueberschreitung, wiederhole kompakt");
-                reply->deleteLater();
                 sendWorkflowTrainingPrompt(prompt, true);
                 return;
             }
             appendAgentChat("AI", QString("Fehler bei der Workflow-Training-Anfrage: provider=%1 http=%2 %3")
                 .arg(m_config.aiProvider())
                 .arg(httpStatus)
-                .arg(reply->errorString()));
-            reply->deleteLater();
+                .arg(result.errorString));
             return;
         }
 
@@ -11789,7 +12435,6 @@ void BricsCadPage::sendWorkflowTrainingPrompt(const QString& prompt, bool compac
         if (parseError.error != QJsonParseError::NoError || !responseDocument.isObject()) {
             appendAgentChat("AI", QString("Workflow-Training-Antwort ist kein gueltiges OpenAI JSON: %1").arg(parseError.errorString()));
             appendBridgeLog(QString("AI Workflow Body: %1").arg(QString::fromUtf8(body).left(800)));
-            reply->deleteLater();
             return;
         }
 
@@ -11818,7 +12463,6 @@ void BricsCadPage::sendWorkflowTrainingPrompt(const QString& prompt, bool compac
                     .arg(normalizedAskUser.left(800)));
                 rememberExchange(normalizedAskUser);
                 handleWorkflowTrainingReply(normalizedAskUser);
-                reply->deleteLater();
                 return;
             }
 
@@ -11826,12 +12470,10 @@ void BricsCadPage::sendWorkflowTrainingPrompt(const QString& prompt, bool compac
                 sendWorkflowTrainingPrompt(
                     QStringLiteral("Deine letzte Workflow-Training-Antwort wurde vom Modell wegen max_tokens abgeschnitten. Antworte jetzt kurz und ausschliesslich mit barebone.workflow.training.response.v1 JSON. Wenn es ein Entwurf ist, nutze type=workflow_draft mit kurzer workflowDraft-Zusammenfassung. Wenn noch Daten fehlen, nutze type=ask_user mit message, missing und questions, aber ohne workflow.steps und ohne validationExamples. Wenn nur neue Angaben erkannt wurden, nutze slot_update. Wenn genug Daten vorhanden sind oder der Nutzer speichern will, nutze workflow_update kompakt."),
                     true);
-                reply->deleteLater();
                 return;
             }
 
             appendAgentChat("AI", "Die Workflow-Training-Antwort wurde vom Modell abgeschnitten. Bitte sende die Trainingsanweisung noch einmal knapper oder reduziere die geforderten Workflow-Details.");
-            reply->deleteLater();
             return;
         }
 
@@ -11844,11 +12486,9 @@ void BricsCadPage::sendWorkflowTrainingPrompt(const QString& prompt, bool compac
                     reasoningText,
                     {},
                     QStringLiteral("Die AI hat im Trainingsmodus keine finale JSON-Antwort geliefert. Antworte jetzt kurz und ausschliesslich mit barebone.workflow.training.response.v1 JSON."))) {
-                reply->deleteLater();
                 return;
             }
             appendAgentChat("AI", "Leere Antwort im Trainingsmodus erhalten. Bitte sende die Trainingsanweisung noch einmal knapper oder stelle Reasoning auf niedrig.");
-            reply->deleteLater();
             return;
         }
 
@@ -11866,7 +12506,6 @@ void BricsCadPage::sendWorkflowTrainingPrompt(const QString& prompt, bool compac
             rememberExchange(content);
         }
         handleWorkflowTrainingReply(content);
-        reply->deleteLater();
     });
 }
 
@@ -12275,10 +12914,10 @@ void BricsCadPage::recordBrxLearningExecutionFailure(const QJsonObject& proposal
 QString BricsCadPage::brxLearningFeedbackOutcome(const QString& prompt) const
 {
     QString text = repairMojibakeText(prompt).toLower().simplified();
-    text.replace(QStringLiteral("ä"), QStringLiteral("ae"));
-    text.replace(QStringLiteral("ö"), QStringLiteral("oe"));
-    text.replace(QStringLiteral("ü"), QStringLiteral("ue"));
-    text.replace(QStringLiteral("ß"), QStringLiteral("ss"));
+    text.replace(QStringLiteral("Ã¤"), QStringLiteral("ae"));
+    text.replace(QStringLiteral("Ã¶"), QStringLiteral("oe"));
+    text.replace(QStringLiteral("Ã¼"), QStringLiteral("ue"));
+    text.replace(QStringLiteral("ÃŸ"), QStringLiteral("ss"));
     text.replace(QRegularExpression(QStringLiteral(R"([^\w\s]+)")), QStringLiteral(" "));
     text = text.simplified();
     if (text.isEmpty()) {
@@ -12461,7 +13100,7 @@ void BricsCadPage::saveGeneralWorkflowFromTraining(
                 "Erstelle keine knappe Kurzfassung. Wenn selectedMessageText vorhanden ist, nutze diese markierte AI-Nachricht als primaeren fachlichen Workflow-Inhalt; conversation und compressedTitleContext dienen dann zur Einordnung und Titelwahl, nicht zum Einmischen fremder Themen. "
                 "Wenn selectedMessageText leer ist, kombiniere detailreich alle fachlichen Informationen aus conversation, pendingWorkflow und userInstruction. "
                 "Bewahre Tabellen, Formeln, Beispiele, Rechenschritte, Annahmen, Hinweise, Nutzerkorrekturen und offene Unsicherheiten. "
-                "Unterteile nur grob nach Absätzen; fachliche Tiefe gehoert in blocks[].text, nicht in eine komplexe JSON-Verschachtelung. "
+                "Unterteile nur grob nach AbsÃ¤tzen; fachliche Tiefe gehoert in blocks[].text, nicht in eine komplexe JSON-Verschachtelung. "
                 "Bei Berechnungen muss nach jeder Grundgleichung eine kurze Symbolerklaerung der verwendeten Groessen folgen. "
                 "Rechenschritte muessen Einheiten an jeder eingesetzten Zahl und jedem Summanden fuehren; keine reine Zahlenkette mit Einheit nur am Ende. "
                 "Wenn Eingabewerte nicht in SI-Einheiten vorliegen, zeige zuerst die Umrechnung in SI-Einheiten. "
@@ -12533,31 +13172,34 @@ void BricsCadPage::saveGeneralWorkflowFromTraining(
     }
     request.setTransferTimeout(kAiModelResponseTimeoutMs);
 
-    setAgentBusy(true);
     clearWorkflowTrainingPrompts();
     appendBridgeLog(QString("Qt -> AI General Workflow Prepare Save: retry=%1 provider=%2 endpoint=%3 model=%4")
         .arg(retryCount)
         .arg(provider, url.toString(), model));
 
     const int operationGeneration = m_operationGeneration;
-    QNetworkReply* reply = m_aiNetwork->post(request, QJsonDocument(payload).toJson(QJsonDocument::Compact));
-    QObject::connect(reply, &QNetworkReply::finished, this, [this, reply, operationGeneration, saveContext]() {
+    enqueueAiPost(
+        request,
+        payload,
+        QStringLiteral("WorkflowLearning"),
+        70,
+        false,
+        false,
+        {},
+        [this, operationGeneration, saveContext](const LocalAiJobScheduler::Result& result) {
         if (operationGeneration != m_operationGeneration) {
-            reply->deleteLater();
             return;
         }
-        setAgentBusy(false);
-        const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        const QByteArray body = reply->readAll();
-        if (reply->error() != QNetworkReply::NoError) {
+        const int httpStatus = result.httpStatus;
+        const QByteArray body = result.body;
+        if (result.networkError != QNetworkReply::NoError) {
             if (!body.isEmpty()) {
                 appendBridgeLog(QString("AI General Workflow Prepare Save Body: %1").arg(QString::fromUtf8(body).left(800)));
             }
             appendAgentChat("Barebone-Qt", QString("Workflow konnte nicht vorbereitet werden: provider=%1 http=%2 %3")
                 .arg(m_config.aiProvider())
                 .arg(httpStatus)
-                .arg(reply->errorString()));
-            reply->deleteLater();
+                .arg(result.errorString));
             return;
         }
 
@@ -12565,7 +13207,6 @@ void BricsCadPage::saveGeneralWorkflowFromTraining(
         const QJsonDocument responseDocument = QJsonDocument::fromJson(body, &parseError);
         if (parseError.error != QJsonParseError::NoError || !responseDocument.isObject()) {
             appendAgentChat("Barebone-Qt", QString("Speicherantwort ist kein gueltiges OpenAI JSON: %1").arg(parseError.errorString()));
-            reply->deleteLater();
             return;
         }
 
@@ -12580,11 +13221,9 @@ void BricsCadPage::saveGeneralWorkflowFromTraining(
                     saveContext,
                     content,
                     QStringLiteral("Die AI hat kein gueltiges Workflow-JSON geliefert. Antworte ausschliesslich mit genau einem JSON-Objekt nach barebone.general.workflow.save.response.v1."))) {
-                reply->deleteLater();
                 return;
             }
             appendAgentChat("Barebone-Qt", "Workflow konnte nicht vorbereitet werden: Die AI hat kein gueltiges Workflow-JSON geliefert.");
-            reply->deleteLater();
             return;
         }
 
@@ -12593,11 +13232,9 @@ void BricsCadPage::saveGeneralWorkflowFromTraining(
         if (!validationError.isEmpty()) {
             const QString rejectedJson = QString::fromUtf8(QJsonDocument(workflow).toJson(QJsonDocument::Compact));
             if (retryGeneralWorkflowSaveAfterValidationFailure(saveContext, rejectedJson, validationError)) {
-                reply->deleteLater();
                 return;
             }
             appendAgentChat("Barebone-Qt", QString("Workflow ist noch nicht speicherbereit: %1").arg(validationError));
-            reply->deleteLater();
             return;
         }
 
@@ -12605,11 +13242,9 @@ void BricsCadPage::saveGeneralWorkflowFromTraining(
         if (!formattingError.isEmpty()) {
             const QString rejectedJson = QString::fromUtf8(QJsonDocument(workflow).toJson(QJsonDocument::Compact));
             if (retryGeneralWorkflowSaveAfterValidationFailure(saveContext, rejectedJson, formattingError)) {
-                reply->deleteLater();
                 return;
             }
             appendAgentChat("Barebone-Qt", QString("Workflow ist noch nicht speicherbereit: %1").arg(formattingError));
-            reply->deleteLater();
             return;
         }
 
@@ -12623,7 +13258,6 @@ void BricsCadPage::saveGeneralWorkflowFromTraining(
         m_trainingPhase = QStringLiteral("general_ready_to_save");
         appendAgentChat("AI", generalWorkflowDraftMessageForChat(workflow));
         emitWorkflowTrainingFinalSavePrompt();
-        reply->deleteLater();
     });
 }
 void BricsCadPage::handleWorkflowTrainingReply(const QString& content)
@@ -12965,9 +13599,9 @@ void BricsCadPage::handleAgentReply(const QString& content)
         const QString normalizedOriginalPrompt = workflowTrainingSearchText(m_lastAgentUserPrompt);
         const bool originalPromptRequestsMutation = textMentionsAny(normalizedOriginalPrompt, {
             QStringLiteral("zeichne"), QStringLiteral("erstelle"), QStringLiteral("erzeuge"),
-            QStringLiteral("einfueg"), QStringLiteral("einfüg"), QStringLiteral("verschieb"),
+            QStringLiteral("einfueg"), QStringLiteral("einfÃ¼g"), QStringLiteral("verschieb"),
             QStringLiteral("kopier"), QStringLiteral("extrudi"), QStringLiteral("loesch"),
-            QStringLiteral("lösch"), QStringLiteral("setz"), QStringLiteral("zuweis")});
+            QStringLiteral("lÃ¶sch"), QStringLiteral("setz"), QStringLiteral("zuweis")});
         if (!proposal.value(QStringLiteral("requiresConfirmation")).toBool(true)
             && originalPromptRequestsMutation
             && routeAllowsCadActions(m_lastAgentRoute)) {
@@ -13241,12 +13875,47 @@ bool BricsCadPage::retryAgentAfterValidationFailure(
         {"repeatedRejectedResponse", repeatedResponse},
         {"policy", "Your previous response was not shown to the user. Correct it using the available tools and schemas."},
     });
+
+    const QJsonObject failedAction = firstRepairActionFromObject(rejectedObject);
+    QJsonObject repairToolParams{
+        {QStringLiteral("phase"), QStringLiteral("preflight")},
+        {QStringLiteral("retry"), m_agentValidationRetries},
+        {QStringLiteral("prompt"), m_lastAgentUserPrompt},
+        {QStringLiteral("validationError"), errorMessage},
+        {QStringLiteral("error"), errorMessage},
+        {QStringLiteral("rejectedObject"), rejectedObject},
+        {QStringLiteral("repeatedRejectedResponse"), repeatedResponse},
+    };
+    if (!failedAction.isEmpty()) {
+        repairToolParams.insert(QStringLiteral("failedTool"), failedAction.value(QStringLiteral("tool")).toString());
+        repairToolParams.insert(QStringLiteral("failedParams"), failedAction.value(QStringLiteral("params")).toObject());
+    }
+    const QJsonArray allRepairTools = availableAgentTools();
+    QJsonObject repairMode = BrxAgent::repairToolContext(allRepairTools, repairToolParams);
+    repairMode.insert(QStringLiteral("recentExecution"), m_drawingContextStore.executionHistory(QJsonObject{
+        {QStringLiteral("limit"), 20},
+    }));
+    repairMode.insert(QStringLiteral("workflowRepairContext"), m_drawingContextStore.repairContext(QJsonObject{
+        {QStringLiteral("limit"), 80},
+    }));
+    envelope.insert(QStringLiteral("repairMode"), repairMode);
+    const QStringList repairCandidateNames = stringsFromJsonArray(repairMode.value(QStringLiteral("candidateToolNames")).toArray());
+    const QJsonArray repairCandidateTools = BrxAgent::toolsByNames(allRepairTools, repairCandidateNames);
+    const QJsonArray augmentedTools = mergeToolArraysByName(
+        envelope.value(QStringLiteral("effectiveTools")).toArray(),
+        repairCandidateTools);
+    envelope.insert(QStringLiteral("tools"), augmentedTools);
+    envelope.insert(QStringLiteral("effectiveTools"), augmentedTools);
+
     QString retryInstruction =
         QStringLiteral("Korrigiere deine letzte Antwort. Antworte ausschliesslich mit einem gueltigen JSON-Objekt. "
         "Nutze Barebone-Agent-JSON v2 mit schema=\"barebone.agent.response.v2\". "
         "Setze sessionTitle direkt auf Top-Level des Antwortobjekts, nicht in proposal, draft, metadata oder learningUpdate. "
         "Nutze keinen freien Plan und keine Pseudo-Actions. Wenn die Aufgabe ausfuehrbar ist, liefere genau einen action_proposal fuer den naechsten sicheren Schritt. "
         "Nutze im BricsCAD-Modus kein workflow_run_proposal; korrigiere intern und plane mit effectiveTools und brxLearningContext. "
+        "Nutze repairMode.allToolIndex als vollstaendigen Toolraum; wiederhole nicht denselben abgelehnten Tool-/Param-Pfad. "
+        "Wenn effectiveTools fuer die Reparatur nicht reichen, lade mit context_request qt.brx.tools.describe names=[...] oder all=true weitere Toolkarten nach. "
+        "Bei unklarer Zielklasse oder Geometriekompatibilitaet nutze vor ask_user qt.brx.db.compatibility. "
         "Direkte BricsCAD-DB-Schreibvorgaenge, AcDb-/LayerTable-/EntityTable-Mutationen und Pseudo-Tools fuer DB-Writes sind verboten; nutze ausschliesslich tools[].name. "
         "Wenn mehrere unabhaengige Aktionen mit bekannten Parametern erforderlich sind, liefere ein action_proposal mit proposal.actions:[{\"tool\":\"...\",\"params\":{...}},...] und proposal.continueAfterSuccess=false. "
         "Fuer mehrere Layer mit Namen/Farben nutze bevorzugt layers.ensureMany mit params.layers. "
@@ -13401,6 +14070,7 @@ QJsonObject BricsCadPage::normalizedAgentProposal(const QJsonObject& proposal) c
             QJsonObject action = normalizedActions.at(i).toObject();
             const QString tool = action.value(QStringLiteral("tool")).toString();
             const bool extrusion = tool == QStringLiteral("rectangles.extrude")
+                || tool == QStringLiteral("circle.extrude")
                 || tool == QStringLiteral("profile.extrude");
 
             if (extrusion && explicitSelectionRequested && !materializedActions.isEmpty()) {
@@ -13509,6 +14179,17 @@ QJsonObject BricsCadPage::normalizedAgentAction(const QJsonObject& action) const
         params.remove("height");
     }
 
+    if ((tool == QStringLiteral("rectangles.extrude")
+            || tool == QStringLiteral("circle.extrude")
+            || tool == QStringLiteral("profile.extrude"))
+        && !params.contains(QStringLiteral("heightMm"))) {
+        if (params.contains(QStringLiteral("z"))) {
+            params.insert(QStringLiteral("heightMm"), params.value(QStringLiteral("z")));
+        } else if (params.contains(QStringLiteral("height"))) {
+            params.insert(QStringLiteral("heightMm"), params.value(QStringLiteral("height")));
+        }
+    }
+
     if (tool == QStringLiteral("layers.create")) {
         const QString originalName = params.value(QStringLiteral("name")).toString().trimmed();
         if (!promptExplicitlyNamesLayer(m_lastAgentUserPrompt, originalName)) {
@@ -13539,6 +14220,15 @@ QJsonObject BricsCadPage::normalizedAgentAction(const QJsonObject& action) const
             params.insert(QStringLiteral("layers"), normalizedLayers);
         }
     }
+
+    params = paramsWithConcreteHandleSelector(
+        tool,
+        params,
+        QStringLiteral("%1\n%2\n%3")
+            .arg(m_lastAgentUserPrompt,
+                normalized.value(QStringLiteral("reason")).toString(),
+                normalized.value(QStringLiteral("message")).toString()),
+        m_currentSelection);
 
     if ((tool == QStringLiteral("geometry.query")
             || tool == QStringLiteral("measurement.bbox")
@@ -13622,7 +14312,7 @@ QJsonObject BricsCadPage::normalizedAgentAction(const QJsonObject& action) const
         if (textMentionsAny(activePrompt, {
                 QStringLiteral("eigenschaft"), QStringLiteral("properties"),
                 QStringLiteral("property"), QStringLiteral("vollstaendig"),
-                QStringLiteral("vollständig")})) {
+                QStringLiteral("vollstÃ¤ndig")})) {
             appendJsonStringUnique(include, QStringLiteral("properties"));
         }
         params.insert(QStringLiteral("include"), include);
@@ -13729,7 +14419,10 @@ QJsonObject BricsCadPage::agentPreflightParams(const QJsonObject& proposal) cons
     for (int actionIndex = 0; actionIndex < proposalActions.size(); ++actionIndex) {
         const QJsonObject action = proposalActions.at(actionIndex).toObject();
         const QString tool = action.value(QStringLiteral("tool")).toString();
-        const QJsonObject actionParams = action.value(QStringLiteral("params")).toObject();
+        QJsonObject actionParams = action.value(QStringLiteral("params")).toObject();
+        if (tool == QStringLiteral("command.execute")) {
+            actionParams = commandExecuteParamsWithLearnedAuthorization(actionParams);
+        }
         const bool autoBimHandles = actionParams.value(QStringLiteral("autoBimHandlesFromLastQuery")).toBool(false);
         const bool resolvesRuntimeHandles = actionParams.value(QStringLiteral("autoHandlesFromBatch")).toBool(false)
             || actionParams.value(QStringLiteral("autoPointHandlesFromBatch")).toBool(false)
@@ -13744,7 +14437,7 @@ QJsonObject BricsCadPage::agentPreflightParams(const QJsonObject& proposal) cons
             .value(QStringLiteral("scope")).toString().trimmed();
         if (autoBimHandles) {
             actions.append(QJsonObject{
-                {QStringLiteral("tool"), tool},
+                {QStringLiteral("tool"), brxValidationToolName(tool)},
                 {QStringLiteral("params"), actionParams},
                 {QStringLiteral("clientActionIndex"), actionIndex},
             });
@@ -13761,7 +14454,7 @@ QJsonObject BricsCadPage::agentPreflightParams(const QJsonObject& proposal) cons
         }
         runtimeHandleResultPending = false;
         actions.append(QJsonObject{
-            {QStringLiteral("tool"), tool},
+            {QStringLiteral("tool"), brxValidationToolName(tool)},
             {QStringLiteral("params"), actionParams},
             {QStringLiteral("clientActionIndex"), actionIndex},
         });
@@ -13788,7 +14481,10 @@ QJsonObject proposalWithBimValidationTargets(
         }
         QJsonObject action = actions.at(actionIndex).toObject();
         const QString tool = action.value(QStringLiteral("tool")).toString();
-        if (tool != QStringLiteral("bim.selection.set")) {
+        if (tool != QStringLiteral("bim.selection.set")
+            && tool != QStringLiteral("geometry.move")
+            && tool != QStringLiteral("brx.sdk.entity.transformBy")
+            && tool != QStringLiteral("brx.sdk.blockReference.setPosition")) {
             continue;
         }
         action.insert(QStringLiteral("params"), paramsWithBimValidationTargets(
@@ -13896,7 +14592,7 @@ QJsonObject executionStatsForActions(const QJsonArray& actions, const QJsonArray
             if (summaryLower.contains(QStringLiteral("skipped existing"))
                 || summaryLower.contains(QStringLiteral("existiert bereits"))
                 || summaryLower.contains(QStringLiteral("uebersprungen"))
-                || summaryLower.contains(QStringLiteral("übersprungen"))) {
+                || summaryLower.contains(QStringLiteral("Ã¼bersprungen"))) {
                 ++layerSkippedExisting;
                 if (!name.isEmpty()) {
                     skippedLayerNames.append(name);
@@ -14056,6 +14752,7 @@ void BricsCadPage::preflightAgentProposal(const QString& rejectedContent, const 
 
             appendJsonDebugLines(m_bridgeLog, response.value("debug").toArray());
             const QJsonObject result = response.value("result").toObject();
+            m_drawingContextStore.ingestValidationResult(proposal, response);
             const bool transportOk = response.value("ok").toBool(false);
             const bool valid = transportOk && result.value("valid").toBool(false);
             if (valid) {
@@ -14131,6 +14828,110 @@ void BricsCadPage::preflightAgentProposal(const QString& rejectedContent, const 
     }
 }
 
+QJsonObject BricsCadPage::localAgentContextResponse(const QString& method, const QJsonObject& params) const
+{
+    QJsonObject result;
+    bool ok = true;
+    QString error;
+
+    if (method == QStringLiteral("qt.tools.describe")
+        || method == QStringLiteral("qt.brx.tools.describe")) {
+        result = BrxAgent::describeTools(availableAgentTools(), params);
+    } else if (method == QStringLiteral("qt.brx.db.schema")) {
+        result = BrxAgent::dbSchema();
+    } else if (method == QStringLiteral("qt.brx.sdk.catalog")) {
+        result = BrxAgent::sdkCatalog(params);
+    } else if (method == QStringLiteral("qt.brx.db.compatibility")) {
+        QJsonObject compatibilityParams = params;
+        if (!compatibilityParams.contains(QStringLiteral("storeFacts"))) {
+            compatibilityParams.insert(QStringLiteral("storeFacts"), m_drawingContextStore.inspect(params).value(QStringLiteral("facts")).toArray());
+        }
+        result = BrxAgent::dbCompatibility(compatibilityParams);
+    } else if (method == QStringLiteral("qt.brx.workflow.testPlan")) {
+        result = BrxAgent::workflowTestPlan(params);
+    } else if (method == QStringLiteral("qt.brx.workflow.repairHints")) {
+        result = BrxAgent::workflowRepairHints(params, m_drawingContextStore.repairContext(params));
+    } else if (method == QStringLiteral("qt.brx.context.manifest")) {
+        result = m_drawingContextStore.contextManifest();
+    } else if (method == QStringLiteral("qt.brx.context.fetch")) {
+        result = m_drawingContextStore.fetch(params);
+    } else if (method == QStringLiteral("qt.brx.execution.history")) {
+        result = m_drawingContextStore.executionHistory(params);
+    } else if (method == QStringLiteral("qt.brx.workflow.repairContext")) {
+        result = m_drawingContextStore.repairContext(params);
+    } else if (method == QStringLiteral("qt.learning.describe")) {
+        QJsonArray lessons;
+        const int limit = std::clamp(params.value(QStringLiteral("limit")).toInt(3), 1, 8);
+        for (const QJsonValue& value : params.value(QStringLiteral("ids")).toArray()) {
+            const QString id = value.toString().trimmed();
+            if (id.isEmpty()) {
+                continue;
+            }
+            const QJsonObject lesson = m_brxLearning.lessonById(id);
+            if (!lesson.isEmpty()) {
+                lessons.append(lesson);
+            }
+            if (lessons.size() >= limit) {
+                break;
+            }
+        }
+        if (lessons.isEmpty()) {
+            const QString query = params.value(QStringLiteral("query")).toString(
+                m_lastAgentUserPrompt).trimmed();
+            lessons = m_brxLearning.relevantLessons(query, limit);
+        }
+        result = QJsonObject{
+            {QStringLiteral("schema"), QStringLiteral("barebone.qt.learning.describe.result.v1")},
+            {QStringLiteral("source"), QStringLiteral("BricsCadLearningAgent")},
+            {QStringLiteral("count"), lessons.size()},
+            {QStringLiteral("lessons"), lessons},
+            {QStringLiteral("policy"), QStringLiteral("Lessons sind Erfahrungswissen. Werte aus Prompt und Zeichnungskontext haben Vorrang vor Beispieldaten.")},
+        };
+    } else if (method == QStringLiteral("qt.documents.describe")) {
+        bool minimized = false;
+        result = QJsonObject{
+            {QStringLiteral("schema"), QStringLiteral("barebone.qt.documents.describe.result.v1")},
+            {QStringLiteral("documentContext"), documentContextWithTokenBudget(
+                m_lastDocumentContext,
+                std::clamp(params.value(QStringLiteral("tokenBudget")).toInt(6000), 500, 30000),
+                &minimized)},
+            {QStringLiteral("minimized"), minimized},
+        };
+    } else if (method == QStringLiteral("qt.drawing.manifest")) {
+        result = m_drawingContextStore.manifest();
+    } else if (method == QStringLiteral("qt.drawing.query")) {
+        result = m_drawingContextStore.query(params);
+    } else if (method == QStringLiteral("qt.brx.db.query")
+        || method == QStringLiteral("qt.brx.db.inspect")) {
+        result = BrxAgent::dbContextFromStoreResult(
+            method,
+            params,
+            method == QStringLiteral("qt.brx.db.inspect")
+                ? m_drawingContextStore.inspect(params)
+                : m_drawingContextStore.query(params));
+    } else if (method == QStringLiteral("qt.brx.db.fullContext")) {
+        result = m_drawingContextStore.fullContext(params);
+    } else if (method == QStringLiteral("qt.drawing.fullScan")) {
+        result = m_drawingContextStore.fullScan(params);
+    } else {
+        ok = false;
+        error = QStringLiteral("Unbekannte lokale Qt-Kontextmethode.");
+    }
+
+    QJsonObject response{
+        {QStringLiteral("schema"), QStringLiteral("barebone.qt.local-context.response.v1")},
+        {QStringLiteral("type"), QStringLiteral("response")},
+        {QStringLiteral("ok"), ok},
+        {QStringLiteral("method"), method},
+    };
+    if (ok) {
+        response.insert(QStringLiteral("result"), result);
+    } else {
+        response.insert(QStringLiteral("error"), error);
+    }
+    return response;
+}
+
 void BricsCadPage::handleAgentContextRequest(const QJsonObject& request)
 {
     QJsonObject normalizedRequest = request;
@@ -14174,6 +14975,15 @@ void BricsCadPage::handleAgentContextRequest(const QJsonObject& request)
             .arg(method.isEmpty() ? "<leer>" : method));
         return;
     }
+    if (method.startsWith(QStringLiteral("qt."))) {
+        appendBridgeLog(QString("AI -> Qt lokaler Kontext: %1 %2")
+            .arg(method, QString::fromUtf8(QJsonDocument(params).toJson(QJsonDocument::Compact))));
+        const QJsonObject response = localAgentContextResponse(method, params);
+        const int count = response.value(QStringLiteral("result")).toObject().value(QStringLiteral("count")).toInt(-1);
+        appendBridgeLog(QString("Qt -> AI lokaler Kontext: %1 count=%2").arg(method).arg(count));
+        continueAgentWithContextResult(normalizedRequest, response);
+        return;
+    }
     if (!m_brxAuthenticated) {
         appendAgentChat("Barebone-Qt", "AI Kontextabfrage kann nicht ausgefuehrt werden: BRX Plugin ist nicht verbunden.");
         return;
@@ -14188,6 +14998,15 @@ void BricsCadPage::handleAgentContextRequest(const QJsonObject& request)
         15000,
         [this, normalizedRequest, method](const QJsonObject& response) {
             appendJsonDebugLines(m_bridgeLog, response.value("debug").toArray());
+            m_drawingContextStore.updateFromContextResponse(
+                method,
+                normalizedRequest.value(QStringLiteral("params")).toObject(),
+                response);
+            if (method == QStringLiteral("selection.describe")) {
+                m_currentSelection = response.value(QStringLiteral("ok")).toBool(false)
+                    ? response.value(QStringLiteral("result")).toObject().value(QStringLiteral("objects")).toArray()
+                    : QJsonArray{};
+            }
             if (!response.value("ok").toBool(false)) {
                 const QString message = bridgeErrorMessage(response, "Kontextabfrage fehlgeschlagen");
                 appendAgentChat("BRX", QString("Kontextabfrage %1 fehlgeschlagen: %2").arg(method, message));
@@ -14348,6 +15167,7 @@ void BricsCadPage::executeAgentActionBatch(const QJsonObject& proposal, const QJ
         }
         const QJsonObject compactBatchResult = compactBatchResultForAgent(batchResult);
         m_lastAgentToolResult = compactBatchResult;
+        m_drawingContextStore.recordActionBatchResult(batchResult);
         m_pendingAgentDraft = {};
         m_agentValidationRetries = 0;
         clearAgentProposal();
@@ -14395,6 +15215,7 @@ void BricsCadPage::executeAgentActionBatch(const QJsonObject& proposal, const QJ
     const bool needsBimQueryHandles = action.value(QStringLiteral("params")).toObject()
         .value(QStringLiteral("autoBimHandlesFromLastQuery")).toBool(false);
     QJsonObject params = paramsWithRuntimeBatchHandles(tool, action.value("params").toObject(), results);
+    params = paramsWithConcreteHandleSelector(tool, params, m_lastAgentUserPrompt, m_currentSelection);
     if (needsBimQueryHandles) {
         const QJsonObject selector = params.value(QStringLiteral("selector")).toObject();
         if (selector.value(QStringLiteral("scope")).toString().compare(QStringLiteral("handles"), Qt::CaseInsensitive) != 0
@@ -14421,6 +15242,9 @@ void BricsCadPage::executeAgentActionBatch(const QJsonObject& proposal, const QJ
             return;
         }
     }
+    if (tool == QStringLiteral("command.execute")) {
+        params = commandExecuteParamsWithLearnedAuthorization(params);
+    }
     if (actions.size() > 1) {
         params.insert("saveBefore", index == 0);
     }
@@ -14431,9 +15255,9 @@ void BricsCadPage::executeAgentActionBatch(const QJsonObject& proposal, const QJ
             .arg(index + 1)
             .arg(actions.size())
             .arg(bridgeMethod)
-            .arg(params.value("saveBefore").toBool(false) ? "true" : "false"));
+            .arg(params.value("saveBefore").toBool(true) ? "true" : "false"));
 
-        const bool queued = sendBridgeRequest(
+        const bool queued = sendBridgeActionRequest(
             bridgeMethod,
             params,
             30000,
@@ -14464,6 +15288,7 @@ void BricsCadPage::executeAgentActionBatch(const QJsonObject& proposal, const QJ
                 }
 
                 const QJsonObject result = response.value("result").toObject();
+                m_drawingContextStore.updateFromContextResponse(bridgeMethod, params, response);
                 if (tool == QStringLiteral("pipes.validateNetwork")
                     && result.contains(QStringLiteral("valid"))
                     && !result.value(QStringLiteral("valid")).toBool(false)) {
@@ -14524,7 +15349,7 @@ void BricsCadPage::executeAgentActionBatch(const QJsonObject& proposal, const QJ
 
     QJsonArray preflightActions;
     preflightActions.append(QJsonObject{
-        {"tool", tool},
+        {"tool", brxValidationToolName(tool)},
         {"params", params},
     });
     const QJsonObject preflightParams{
@@ -14543,13 +15368,22 @@ void BricsCadPage::executeAgentActionBatch(const QJsonObject& proposal, const QJ
         [this, proposal, actions, index, results, tool, bridgeMethod, params, executeCurrentAction](const QJsonObject& response) mutable {
             appendJsonDebugLines(m_bridgeLog, response.value("debug").toArray());
             const QJsonObject result = response.value("result").toObject();
+            m_drawingContextStore.ingestValidationResult(QJsonObject{
+                {QStringLiteral("source"), QStringLiteral("agent_batch_step_preflight")},
+                {QStringLiteral("index"), index + 1},
+                {QStringLiteral("tool"), tool},
+                {QStringLiteral("params"), params},
+            }, response);
             const bool valid = response.value("ok").toBool(false) && result.value("valid").toBool(false);
             if (valid) {
                 appendBridgeLog(QString("BRX Preflight: Batch-Aktion %1/%2 gueltig")
                     .arg(index + 1)
                     .arg(actions.size()));
                 QJsonObject validatedParams = params;
-                if (tool.startsWith(QStringLiteral("bim."))) {
+                if (tool.startsWith(QStringLiteral("bim."))
+                    || tool == QStringLiteral("geometry.move")
+                    || tool == QStringLiteral("brx.sdk.entity.transformBy")
+                    || tool == QStringLiteral("brx.sdk.blockReference.setPosition")) {
                     const QJsonArray validationActions = result.value(QStringLiteral("actions")).toArray();
                     if (!validationActions.isEmpty()) {
                         validatedParams = paramsWithBimValidationTargets(
@@ -14736,8 +15570,38 @@ void BricsCadPage::continueAgentAfterToolFailure(
     const QJsonArray effectiveTools = availableAgentToolsForRoute(
         normalizedAgentRouteForMode(m_lastAgentRoute, m_lastAgentUserPrompt, m_lastDocumentContext, m_chatMode),
         m_lastAgentUserPrompt);
-    envelope.insert("tools", effectiveTools);
-    envelope.insert("effectiveTools", effectiveTools);
+    const QJsonObject failedActionForRepair = firstRepairActionFromObject(QJsonObject{
+        {QStringLiteral("proposal"), proposal},
+        {QStringLiteral("failedAction"), proposal.value(QStringLiteral("failedAction")).toObject()},
+    });
+    QJsonObject repairToolParams{
+        {QStringLiteral("phase"), QStringLiteral("execution")},
+        {QStringLiteral("retry"), m_agentValidationRetries},
+        {QStringLiteral("prompt"), m_lastAgentUserPrompt},
+        {QStringLiteral("executionError"), errorMessage},
+        {QStringLiteral("error"), errorMessage},
+        {QStringLiteral("failedProposal"), proposal},
+        {QStringLiteral("toolResponse"), response},
+    };
+    if (!failedActionForRepair.isEmpty()) {
+        repairToolParams.insert(QStringLiteral("failedTool"), failedActionForRepair.value(QStringLiteral("tool")).toString());
+        repairToolParams.insert(QStringLiteral("failedParams"), failedActionForRepair.value(QStringLiteral("params")).toObject());
+    }
+    const QJsonArray allRepairTools = availableAgentTools();
+    QJsonObject repairMode = BrxAgent::repairToolContext(allRepairTools, repairToolParams);
+    repairMode.insert(QStringLiteral("recentExecution"), m_drawingContextStore.executionHistory(QJsonObject{
+        {QStringLiteral("limit"), 30},
+    }));
+    repairMode.insert(QStringLiteral("workflowRepairContext"), m_drawingContextStore.repairContext(QJsonObject{
+        {QStringLiteral("limit"), 120},
+    }));
+    envelope.insert(QStringLiteral("repairMode"), repairMode);
+    const QStringList repairCandidateNames = stringsFromJsonArray(repairMode.value(QStringLiteral("candidateToolNames")).toArray());
+    const QJsonArray augmentedTools = mergeToolArraysByName(
+        effectiveTools,
+        BrxAgent::toolsByNames(allRepairTools, repairCandidateNames));
+    envelope.insert("tools", augmentedTools);
+    envelope.insert("effectiveTools", augmentedTools);
     envelope.insert("expectedResponse", "barebone-agent-json-v2-strict-object");
     envelope.insert("agentLoop", QJsonObject{
         {"retry", m_agentValidationRetries},
@@ -14746,7 +15610,9 @@ void BricsCadPage::continueAgentAfterToolFailure(
     });
     envelope.insert("instruction",
         "Die bestaetigte Aktion wurde von BRX abgelehnt. Wiederhole nicht denselben Vorschlag. "
-        "Nutze executionError, failedProposal, tools[].inputSchema und apiDoc.post, um params oder tool zu korrigieren. "
+        "Nutze executionError, failedProposal, repairMode.allToolIndex, tools[].inputSchema und apiDoc.post, um params oder tool zu korrigieren. "
+        "Wenn tools/effectiveTools nicht reichen, lade mit context_request qt.brx.tools.describe names=[...] oder all=true weitere Toolkarten nach. "
+        "Bei unklarer Zielklasse oder Geometriekompatibilitaet nutze vor ask_user qt.brx.db.compatibility. "
         "Wenn du eine korrigierte Aktion ausfuehren willst, antworte mit genau einem action_proposal. "
         "Nutze dabei keine direkten BricsCAD-DB-Schreibvorgaenge, keine AcDb-/LayerTable-/EntityTable-Mutationen und keine Pseudo-Tools; nur tools[].name ist erlaubt. "
         "Wenn echte Informationen fehlen, nutze ask_user. Wenn Sitzungsverlauf fehlt, nutze context_request mit conversationAccess.allowedMethods. Wenn Zeichnungskontext fehlt, nutze context_request. "
@@ -14983,11 +15849,35 @@ void BricsCadPage::setAgentBusy(bool busy)
     if (m_agentBridge) {
         emitWebStatus(m_agentBridge, busy ? QStringLiteral("thinking") : QStringLiteral("idle"));
     }
+    if (!busy) {
+        processDeferredAgentPrompt();
+    }
+}
+
+void BricsCadPage::processDeferredAgentPrompt()
+{
+    if (m_agentBusy || m_deferredAgentPrompts.isEmpty()) {
+        return;
+    }
+    const DeferredAgentPrompt next = m_deferredAgentPrompts.takeFirst();
+    QTimer::singleShot(0, this, [this, next]() {
+        if (!m_agentBusy) {
+            appendBridgeLog(QString("AI Runtime: eingereihten Foreground-Prompt gestartet queue=%1")
+                .arg(m_deferredAgentPrompts.size()));
+            sendAgentPrompt(next.prompt, next.documentContext);
+        } else {
+            m_deferredAgentPrompts.prepend(next);
+        }
+    });
 }
 
 void BricsCadPage::cancelCurrentOperation()
 {
     ++m_operationGeneration;
+    m_deferredAgentPrompts.clear();
+    if (m_aiScheduler) {
+        m_aiScheduler->abortAll();
+    }
 
     if (!m_workflowTestActions.isEmpty()) {
         finishBrxWorkflowTest(QStringLiteral("cancelled"), QStringLiteral("Workflowtest wurde durch den Nutzer abgebrochen."));
@@ -15040,11 +15930,11 @@ bool BricsCadPage::isAgentConfirmation(const QString& prompt) const
     return normalized == "ja"
         || normalized == "ok"
         || normalized == "ausfuehren"
-        || normalized == QStringLiteral("ausführen")
+        || normalized == QStringLiteral("ausfÃ¼hren")
         || normalized == "mach"
         || normalized == "mach das"
         || normalized == "bestaetigen"
-        || normalized == QStringLiteral("bestätigen");
+        || normalized == QStringLiteral("bestÃ¤tigen");
 }
 
 bool BricsCadPage::validateAgentProposal(const QJsonObject& proposal, QString& errorMessage) const
@@ -15184,8 +16074,26 @@ bool BricsCadPage::validateAgentProposal(const QJsonObject& proposal, QString& e
                     .arg(i + 1).arg(actionTool);
                 return false;
             }
-            if (actionTool == QStringLiteral("rectangles.extrude") || actionTool == QStringLiteral("profile.extrude")) {
+            if (actionTool == QStringLiteral("rectangles.extrude")
+                || actionTool == QStringLiteral("circle.extrude")
+                || actionTool == QStringLiteral("profile.extrude")) {
                 const QString targetLayer = actionParams.value(QStringLiteral("layer")).toString().trimmed();
+                const QJsonObject actionSelector = actionParams.value(QStringLiteral("selector")).toObject();
+                const QString selectorKind = actionSelector.value(QStringLiteral("kind")).toString().trimmed();
+                const QString selectorShape = actionSelector.value(QStringLiteral("shape")).toString().trimmed();
+                const bool profileCircleSelector = actionTool == QStringLiteral("profile.extrude")
+                    && (selectorKind.compare(QStringLiteral("circle"), Qt::CaseInsensitive) == 0
+                        || selectorShape.compare(QStringLiteral("circle"), Qt::CaseInsensitive) == 0);
+                const bool layerOptionalWithSourceProfile = actionTool == QStringLiteral("circle.extrude")
+                    || profileCircleSelector;
+                if (layerOptionalWithSourceProfile && targetLayer.isEmpty()) {
+                    // circle.extrude is backed by profile.extrude. When the
+                    // dedicated circle tool is unavailable, profile.extrude
+                    // with selector.kind/shape=circle is the compatible
+                    // fallback. BRX assigns the created cylinder to the source
+                    // circle layer when the user did not request a different
+                    // target layer.
+                } else {
                 if (targetLayer.isEmpty()) {
                     errorMessage = QString("Batch-Aktion %1 (%2) braucht params.layer als expliziten Ziellayer")
                         .arg(i + 1).arg(actionTool);
@@ -15206,10 +16114,12 @@ bool BricsCadPage::validateAgentProposal(const QJsonObject& proposal, QString& e
                         .arg(i + 1).arg(actionTool, targetLayer);
                     return false;
                 }
+                }
             }
             if (priorCreatedGeometryInBatch
                 && promptLooksLikeRectangularRoomWallRun(m_lastAgentUserPrompt)
                 && (actionTool == QStringLiteral("rectangles.extrude")
+                    || actionTool == QStringLiteral("circle.extrude")
                     || actionTool == QStringLiteral("selection.set")
                     || actionTool == QStringLiteral("bim.classify"))) {
                 const QJsonObject selector = actionParams.value(QStringLiteral("selector")).toObject();
@@ -15245,8 +16155,8 @@ bool BricsCadPage::validateAgentProposal(const QJsonObject& proposal, QString& e
         const QJsonObject action = actions.first().toObject();
         const QString nextIntent = proposal.value("nextIntent").toString().trimmed();
         const bool repeatedPrompt = QRegularExpression(QStringLiteral(R"(\b([2-9]|[1-9][0-9]+)\b)")).match(m_lastAgentUserPrompt).hasMatch()
-            || textMentionsAny(m_lastAgentUserPrompt.toLower(), {"mehrere", "viele", "zehn", "zwei", "drei", "vier", "fuenf", "fünf", "sechs", "sieben", "acht", "neun"});
-        const bool loopLikeNextIntent = textMentionsAny(nextIntent.toLower(), {"naechst", "nächst", "next", "weiter"});
+            || textMentionsAny(m_lastAgentUserPrompt.toLower(), {"mehrere", "viele", "zehn", "zwei", "drei", "vier", "fuenf", "fÃ¼nf", "sechs", "sieben", "acht", "neun"});
+        const bool loopLikeNextIntent = textMentionsAny(nextIntent.toLower(), {"naechst", "nÃ¤chst", "next", "weiter"});
         if (proposal.value("continueAfterSuccess").toBool(false) && repeatedPrompt && loopLikeNextIntent) {
             errorMessage = "Mehrere unabhaengige Wiederholaktionen muessen als action_proposal mit actions[] gebuendelt werden; nicht per continueAfterSuccess einzeln nachfordern";
             return false;
@@ -15333,9 +16243,11 @@ bool BricsCadPage::validateAgentAction(const QJsonObject& action, QString& error
         activePrompt.append(QLatin1Char('\n')).append(actionValidationContext);
     }
     activePrompt = activePrompt.toLower();
-    if (tool == "geometry.move"
-        && textMentionsAny(activePrompt, {"face", "flaeche", "fläche", "seite", "stirnseite", "verlaengern", "verlängern", "extend"})) {
-        errorMessage = "geometry.move verschiebt ganze Entities und ist nicht fuer einzelnes Face-Verlaengern freigegeben. Nutze measurement.bbox plus Ersatz-Workflow oder melde fehlende Capability.";
+    if ((tool == QStringLiteral("geometry.move")
+            || tool == QStringLiteral("brx.sdk.entity.transformBy")
+            || tool == QStringLiteral("brx.sdk.blockReference.setPosition"))
+        && textMentionsAny(activePrompt, {"face", "flaeche", "flÃ¤che", "seite", "stirnseite", "verlaengern", "verlÃ¤ngern", "extend"})) {
+        errorMessage = QStringLiteral("%1 verschiebt ganze Entities und ist nicht fuer einzelnes Face-Verlaengern freigegeben. Nutze measurement.bbox plus Ersatz-Workflow oder melde fehlende Capability.").arg(tool);
         return false;
     }
     if (promptRequestsEntityRename(activePrompt)
@@ -15344,7 +16256,7 @@ bool BricsCadPage::validateAgentAction(const QJsonObject& action, QString& error
         return false;
     }
 
-    if (tool == QStringLiteral("geometry.rotate")
+    if ((tool == QStringLiteral("geometry.rotate") || tool == QStringLiteral("brx.sdk.entity.rotateBy"))
         && !promptMentionsRotationAngle(activePrompt)
         && (params.contains(QStringLiteral("angleDeg")) || params.contains(QStringLiteral("angleRad")))) {
         errorMessage = QStringLiteral("%1 darf angleDeg/angleRad nicht aus Beispielen, Lessons oder Defaults raten. Wenn der Nutzer keinen Rotationswinkel nennt, frage mit ask_user gezielt nach dem Winkel.").arg(tool);
@@ -15363,28 +16275,28 @@ bool BricsCadPage::validateAgentAction(const QJsonObject& action, QString& error
         }
     }
 
-    if (tool == "geometry.scale") {
+    if (tool == QStringLiteral("geometry.scale") || tool == QStringLiteral("brx.sdk.entity.scaleBy")) {
         if (params.contains("xFactor") || params.contains("yFactor") || params.contains("zFactor")) {
-            errorMessage = "geometry.scale ist nur fuer uniforme Skalierung mit factor freigegeben; xFactor/yFactor/zFactor sind nicht erlaubt. Fuer Verlaengern in einer Achse measurement.bbox plus Ersatz-Workflow verwenden.";
+            errorMessage = QStringLiteral("%1 ist nur fuer uniforme Skalierung mit factor freigegeben; xFactor/yFactor/zFactor sind nicht erlaubt. Fuer Verlaengern in einer Achse measurement.bbox plus Ersatz-Workflow verwenden.").arg(tool);
             return false;
         }
         const double factor = params.value("factor").toDouble(0.0);
         if (factor <= 0.0) {
-            errorMessage = "geometry.scale braucht factor > 0";
+            errorMessage = QStringLiteral("%1 braucht factor > 0").arg(tool);
             return false;
         }
     }
 
-    if (tool == "bim.classify") {
+    if (tool == QStringLiteral("bim.classify") || tool == QStringLiteral("brx.sdk.bim.classification.set")) {
         if (!promptAllowsBimWallClassification(activePrompt)) {
-            errorMessage = "bim.classify ist nur erlaubt, wenn der Nutzer BIM/Klassifizierung verlangt oder eine klare architektonische Wandaufgabe mit Wandstaerke/Wandhoehe/Raumbezug beschreibt.";
+            errorMessage = QStringLiteral("%1 ist nur erlaubt, wenn der Nutzer BIM/Klassifizierung verlangt oder eine klare architektonische Wandaufgabe mit Wandstaerke/Wandhoehe/Raumbezug beschreibt.").arg(tool);
             return false;
         }
         const QJsonObject selector = params.value("selector").toObject();
         if (selector.value("scope").toString().compare(QStringLiteral("currentSpace"), Qt::CaseInsensitive) == 0
             && !selector.contains(QStringLiteral("layer"))
             && !selector.contains(QStringLiteral("handles"))) {
-            errorMessage = "bim.classify mit selector.scope=currentSpace braucht einen Layer- oder Handle-Filter, damit nicht zu breit klassifiziert wird.";
+            errorMessage = QStringLiteral("%1 mit selector.scope=currentSpace braucht einen Layer- oder Handle-Filter, damit nicht zu breit klassifiziert wird.").arg(tool);
             return false;
         }
     }
@@ -15398,7 +16310,10 @@ bool BricsCadPage::validateAgentAction(const QJsonObject& action, QString& error
 
     QJsonObject inputSchema = definition.value("inputSchema").toObject();
     if (params.value(QStringLiteral("autoBimHandlesFromLastQuery")).toBool(false)
-        && tool == QStringLiteral("bim.selection.set")) {
+        && (tool == QStringLiteral("bim.selection.set")
+            || tool == QStringLiteral("geometry.move")
+            || tool == QStringLiteral("brx.sdk.entity.transformBy")
+            || tool == QStringLiteral("brx.sdk.blockReference.setPosition"))) {
         QJsonArray requiredWithoutRuntimeSelector;
         for (const QJsonValue& value : inputSchema.value(QStringLiteral("required")).toArray()) {
             if (value.toString() != QStringLiteral("selector")) {
@@ -15691,349 +16606,46 @@ QJsonArray BricsCadPage::availableAgentTools() const
     if (!kAgentActionToolsEnabled) {
         return {};
     }
-
-    const QJsonArray methods = m_brxCapabilities.value("methods").toArray();
-    if (methods.isEmpty()) {
-        return {};
-    }
-
-    QJsonArray tools;
-    for (const QJsonValue& value : methods) {
-        const QJsonObject method = value.toObject();
-        const QString name = method.value("name").toString();
-        if (name.isEmpty() || !bridgeCapabilityMethodAvailable(method)) {
-            continue;
-        }
-        QJsonObject tool;
-        tool.insert("name", name);
-        tool.insert("title", name);
-        tool.insert("description", method.value("description").toString());
-        tool.insert("bridgeMethod", name);
-        const QString risk = method.value("risk").toString("modifiesDrawing");
-        tool.insert("kind", method.value("kind").toString(risk == QStringLiteral("readOnly") ? QStringLiteral("query") : QStringLiteral("action")));
-        tool.insert("risk", method.value("risk").toString("modifiesDrawing"));
-        tool.insert("category", method.value("category").toString("bridge"));
-        tool.insert("resultSchema", method.value("resultSchema").toString());
-        tool.insert("confirmationRequired", method.value("risk").toString() != "readOnly");
-        tool.insert("inputSchema", method.value("paramsSchema").toObject(QJsonObject{{"type", "object"}, {"properties", QJsonObject{}}}));
-        if (method.contains("apiDoc")) {
-            tool.insert("apiDoc", method.value("apiDoc").toObject());
-        }
-        enrichAgentToolDefinition(tool, m_brxLearning.toolProfile(name));
-        tools.append(tool);
-    }
-
-    tools.append(layersEnsureManyToolDefinition());
-    return tools;
-}
-
-QJsonArray BricsCadPage::agentToolsByNames(const QStringList& names) const
-{
-    if (names.isEmpty()) {
-        return {};
-    }
-
-    QSet<QString> wanted;
-    for (const QString& name : names) {
-        const QString trimmed = name.trimmed();
-        if (!trimmed.isEmpty()) {
-            wanted.insert(trimmed);
-        }
-    }
-    if (wanted.isEmpty()) {
-        return {};
-    }
-
-    QJsonArray selected;
-    for (const QJsonValue& value : availableAgentTools()) {
-        const QJsonObject tool = value.toObject();
-        if (wanted.contains(tool.value(QStringLiteral("name")).toString())) {
-            selected.append(tool);
-        }
-    }
-    return selected;
-}
-
-QJsonArray BricsCadPage::compactToolSelectorList() const
-{
-    QJsonArray tools;
-    for (const QJsonValue& value : availableAgentTools()) {
-        const QJsonObject tool = value.toObject();
-        const QString name = tool.value(QStringLiteral("name")).toString().trimmed();
-        if (name.isEmpty()) {
-            continue;
-        }
-
-        QJsonArray parameterNames;
-        const QJsonObject properties = tool.value(QStringLiteral("inputSchema")).toObject()
-            .value(QStringLiteral("properties")).toObject();
-        for (auto it = properties.constBegin(); it != properties.constEnd(); ++it) {
-            parameterNames.append(it.key());
-        }
-
-        QJsonObject compact{
-            {"name", name},
-            {"title", tool.value(QStringLiteral("title")).toString()},
-            {"domain", tool.value(QStringLiteral("domain")).toString(tool.value(QStringLiteral("category")).toString())},
-            {"summary", tool.value(QStringLiteral("summary")).toString(
-                tool.value(QStringLiteral("policy")).toString(tool.value(QStringLiteral("description")).toString())).left(320)},
-            {"keywords", tool.value(QStringLiteral("keywords")).toArray()},
-            {"parameters", parameterNames},
-        };
-
-        const QJsonArray hints = tool.value(QStringLiteral("agentHints")).toArray();
-        if (!hints.isEmpty()) {
-            QJsonArray compactHints;
-            for (int i = 0; i < hints.size() && i < 3; ++i) {
-                compactHints.append(hints.at(i).toString().left(180));
-            }
-            compact.insert(QStringLiteral("hints"), compactHints);
-        }
-        const QJsonArray unsupported = tool.value(QStringLiteral("unsupportedOperations")).toArray();
-        if (!unsupported.isEmpty()) {
-            compact.insert(QStringLiteral("unsupported"), unsupported);
-        }
-        const QJsonValue compatibleGeometry = tool.value(QStringLiteral("inputSchema")).toObject()
-            .value(QStringLiteral("compatibleGeometry"));
-        if (!compatibleGeometry.isUndefined()) {
-            compact.insert(QStringLiteral("compatibleGeometry"), compatibleGeometry);
-        }
-        tools.append(compact);
-    }
-    return tools;
+    return BrxAgent::buildToolCatalog(m_brxCapabilities);
 }
 
 QJsonArray BricsCadPage::availableAgentToolsForRoute(const QJsonObject& route, const QString& prompt) const
 {
-    if (!routeAllowsCadActions(route)) {
-        return {};
-    }
-
-    const QJsonArray allTools = availableAgentTools();
-    if (allTools.isEmpty()) {
-        return {};
-    }
-
-    const QString normalized = workflowTrainingSearchText(prompt);
-    const bool bimObjectIntent = promptTargetsBimObjects(normalized);
-    const bool bimSelectionIntent = bimObjectIntent && textMentionsAny(normalized, {
-        QStringLiteral("auswahl"), QStringLiteral("selekt"), QStringLiteral("waehle"),
-        QStringLiteral("wähle"), QStringLiteral("select")});
-    const QStringList selectedTools = jsonStringArrayToStringList(route.value(QStringLiteral("selectedTools")).toArray());
-    if (!selectedTools.isEmpty()) {
-        QStringList selectedToolNames = selectedTools;
-        if (selectedToolNames.contains(QStringLiteral("rectangles.extrude"))
-            || selectedToolNames.contains(QStringLiteral("profile.extrude"))) {
-            if (!selectedToolNames.contains(QStringLiteral("entity.setLayer"))) {
-                selectedToolNames << QStringLiteral("entity.setLayer");
-            }
-        }
-        if (!isChatWorkspace() && promptRequestsCadDataQuery(prompt)) {
-            for (const QString& toolName : QStringList{
-                     QStringLiteral("geometry.query"),
-                     QStringLiteral("measurement.bbox"),
-                     QStringLiteral("measurement.length"),
-                     QStringLiteral("measurement.area"),
-                     QStringLiteral("entity.describe"),
-                     QStringLiteral("selection.describe")}) {
-                if (!selectedToolNames.contains(toolName)) {
-                    selectedToolNames << toolName;
-                }
-            }
-        }
-        if (bimObjectIntent) {
-            const QStringList bimTools{
-                QStringLiteral("bim.objects.query"),
-                bimSelectionIntent ? QStringLiteral("bim.selection.set") : QString(),
-            };
-            for (const QString& toolName : bimTools) {
-                if (!toolName.isEmpty() && !selectedToolNames.contains(toolName)) {
-                    selectedToolNames << toolName;
-                }
-            }
-        }
-        // selectedTools is a relevance hint only. The final agent receives every
-        // BRX capability that is available and not explicitly disabled.
-    }
-
-    if (isChatWorkspace()) {
-        return {};
-    }
-
-    QStringList selectedWorkflowTools;
+    QJsonArray workflowTools;
     QJsonArray selectedWorkflowToolValues = m_selectedWorkflow.value("recommendedTools").toArray();
     if (selectedWorkflowToolValues.isEmpty()) {
         selectedWorkflowToolValues = m_selectedWorkflow.value("preferredTools").toArray();
     }
     for (const QJsonValue& value : selectedWorkflowToolValues) {
         const QString tool = value.toString().trimmed();
-        if (!tool.isEmpty() && !selectedWorkflowTools.contains(tool)) {
-            selectedWorkflowTools << tool;
+        if (!tool.isEmpty() && !jsonStringArrayToStringList(workflowTools).contains(tool)) {
+            workflowTools.append(tool);
         }
     }
     for (const QJsonValue& workflowValue : selectedWorkflowObjectsForRoute(route)) {
         const QJsonObject workflow = workflowValue.toObject();
         for (const QString& tool : workflowToolNamesForSelector(workflow, 12)) {
-            if (!tool.isEmpty() && !selectedWorkflowTools.contains(tool)) {
-                selectedWorkflowTools << tool;
+            if (!tool.isEmpty() && !jsonStringArrayToStringList(workflowTools).contains(tool)) {
+                workflowTools.append(tool);
             }
         }
     }
     for (const QJsonValue& lessonValue : selectedLearningLessonsForRoute(route, prompt)) {
         const QJsonObject lesson = lessonValue.toObject();
         for (const QString& tool : workflowToolNamesForSelector(lesson, 12)) {
-            if (!tool.isEmpty() && !selectedWorkflowTools.contains(tool)) {
-                selectedWorkflowTools << tool;
+            if (!tool.isEmpty() && !jsonStringArrayToStringList(workflowTools).contains(tool)) {
+                workflowTools.append(tool);
             }
         }
     }
-    const bool layerIntent = textMentionsAny(normalized, {
-        QStringLiteral("layer"),
-        QStringLiteral("ebene"),
-        QStringLiteral("tga"),
-        QStringLiteral("heizung"),
-        QStringLiteral("sanit"),
-        QStringLiteral("lueft"),
-        QStringLiteral("lüft"),
-        QStringLiteral("elektro"),
-    });
-    const bool handleReferenceIntent = QRegularExpression(
-        QStringLiteral(R"(\b[a-f][0-9a-f]{1,7}\b)"),
-        QRegularExpression::CaseInsensitiveOption).match(normalized).hasMatch();
-    const bool dataQueryIntent = promptRequestsCadDataQuery(normalized);
-    const bool geometryIntent = handleReferenceIntent || dataQueryIntent || bimObjectIntent || textMentionsAny(normalized, {
-        QStringLiteral("geometrie"),
-        QStringLiteral("kreis"),
-        QStringLiteral("rechteck"),
-        QStringLiteral("linie"),
-        QStringLiteral("polyline"),
-        QStringLiteral("wand"),
-        QStringLiteral("objekt"),
-        QStringLiteral("object"),
-        QStringLiteral("entity"),
-        QStringLiteral("handle"),
-        QStringLiteral("solid"),
-        QStringLiteral("bim"),
-        QStringLiteral("klassifiz"),
-        QStringLiteral("klassifizi"),
-        QStringLiteral("box"),
-        QStringLiteral("extrusion"),
-        QStringLiteral("extrudi"),
-        QStringLiteral("verschiebe"),
-        QStringLiteral("kopiere"),
-        QStringLiteral("rotiere"),
-        QStringLiteral("skaliere"),
-        QStringLiteral("weise"),
-        QStringLiteral("zuweis"),
-        QStringLiteral("zuordn"),
-        QStringLiteral("setze"),
-        QStringLiteral("loesche"),
-        QStringLiteral("lösche"),
-        QStringLiteral("auswahl"),
-        QStringLiteral("selekt"),
-        QStringLiteral("waehle"),
-        QStringLiteral("select"),
-    });
-    const bool entityRenameIntent = promptRequestsEntityRename(normalized);
-    const bool createIntent = geometryIntent && textMentionsAny(normalized, {
-        QStringLiteral("zeichne"),
-        QStringLiteral("zeichnen"),
-        QStringLiteral("erstelle"),
-        QStringLiteral("erzeuge"),
-        QStringLiteral("anlegen"),
-        QStringLiteral("neu"),
-        QStringLiteral("wand"),
-        QStringLiteral("waende"),
-        QStringLiteral("wände"),
-        QStringLiteral("rechteck"),
-        QStringLiteral("linie"),
-        QStringLiteral("kreis"),
-        QStringLiteral("box"),
-        QStringLiteral("raum"),
-        QStringLiteral("grundriss"),
-    });
-    const bool extrudeIntent = geometryIntent && textMentionsAny(normalized, {
-        QStringLiteral("extrudi"),
-        QStringLiteral("hoehe"),
-        QStringLiteral("höhe"),
-        QStringLiteral("3d"),
-        QStringLiteral("solid"),
-        QStringLiteral("wandhoehe"),
-        QStringLiteral("wandhöhe"),
-    });
-    const bool classifyIntent = geometryIntent && promptAllowsBimWallClassification(normalized);
-    const bool selectionIntent = geometryIntent && textMentionsAny(normalized, {
-        QStringLiteral("auswahl"),
-        QStringLiteral("selekt"),
-        QStringLiteral("waehle"),
-        QStringLiteral("select"),
-        QStringLiteral("alle"),
-        QStringLiteral("layer"),
-    });
-    const bool entityLayerIntent = layerIntent && geometryIntent && textMentionsAny(normalized, {
-        QStringLiteral("weise"),
-        QStringLiteral("zuweis"),
-        QStringLiteral("zuordn"),
-        QStringLiteral("setze"),
-        QStringLiteral("assign"),
-        QStringLiteral("auf layer"),
-        QStringLiteral("in layer"),
-        QStringLiteral("layer zu"),
-    });
-    const bool moveIntent = geometryIntent && textMentionsAny(normalized, {QStringLiteral("verschieb"), QStringLiteral("move")});
-    const bool copyIntent = geometryIntent && textMentionsAny(normalized, {QStringLiteral("kopiere"), QStringLiteral("copy")});
-    const bool rotateIntent = geometryIntent && textMentionsAny(normalized, {QStringLiteral("rotier"), QStringLiteral("dreh"), QStringLiteral("rotate")});
-    const bool scaleIntent = geometryIntent && textMentionsAny(normalized, {QStringLiteral("skaliere"), QStringLiteral("scale")});
-    const bool deleteIntent = geometryIntent && textMentionsAny(normalized, {QStringLiteral("loesche"), QStringLiteral("lösche"), QStringLiteral("delete")});
-    const bool saveIntent = textMentionsAny(normalized, {QStringLiteral("speicher"), QStringLiteral("save")});
-
-    if (!layerIntent && !geometryIntent && selectedWorkflowTools.isEmpty()) {
-        return allTools;
-    }
-
-    QJsonArray filtered;
-    for (const QJsonValue& value : allTools) {
-        const QJsonObject tool = value.toObject();
-        const QString name = tool.value("name").toString();
-        const bool readOnlyTool = tool.value(QStringLiteral("risk")).toString() == QStringLiteral("readOnly")
-            || tool.value(QStringLiteral("kind")).toString() == QStringLiteral("query");
-        bool include = false;
-        if (layerIntent && !entityRenameIntent) {
-            include = name.startsWith(QStringLiteral("layers."))
-                || name == QStringLiteral("layers.ensureMany")
-                || readOnlyTool
-                || name == QStringLiteral("command.execute");
-        }
-        if (geometryIntent) {
-            include = include
-                || readOnlyTool
-                || (createIntent && name == QStringLiteral("geometry.create"))
-                || (moveIntent && name == QStringLiteral("geometry.move"))
-                || (copyIntent && name == QStringLiteral("geometry.copy"))
-                || (rotateIntent && name == QStringLiteral("geometry.rotate"))
-                || (scaleIntent && name == QStringLiteral("geometry.scale"))
-                || (deleteIntent && name == QStringLiteral("geometry.delete"))
-                || (extrudeIntent && (name == QStringLiteral("rectangles.extrude") || name == QStringLiteral("profile.extrude")))
-                || (classifyIntent && name == QStringLiteral("bim.classify"))
-                || (bimObjectIntent && name == QStringLiteral("bim.objects.query"))
-                || (bimObjectIntent && selectionIntent && name == QStringLiteral("bim.selection.set"))
-                || (entityLayerIntent && name == QStringLiteral("entity.setLayer"))
-                || (selectionIntent && name.startsWith(QStringLiteral("selection.")))
-                || (!entityRenameIntent && name == QStringLiteral("command.execute"));
-        }
-        if (saveIntent && name == QStringLiteral("document.save")) {
-            include = true;
-        }
-        if (selectedWorkflowTools.contains(name)) {
-            include = true;
-        }
-        if (include) {
-            filtered.append(tool);
-        }
-    }
-
-    Q_UNUSED(filtered);
-    return allTools;
+    return BrxAgent::selectToolsForRoute(
+        availableAgentTools(),
+        route,
+        prompt,
+        QJsonObject{
+            {QStringLiteral("chatWorkspace"), isChatWorkspace()},
+            {QStringLiteral("workflowTools"), workflowTools},
+        });
 }
 
 QJsonArray BricsCadPage::readOnlyMethodsForRoute(const QJsonObject& route) const
@@ -16041,11 +16653,24 @@ QJsonArray BricsCadPage::readOnlyMethodsForRoute(const QJsonObject& route) const
     if (!routeAllowsCadContext(route)) {
         return {};
     }
-    if (!m_brxAuthenticated) {
-        return {};
-    }
 
     QJsonArray readOnlyMethods;
+    auto appendLocalMethods = [&readOnlyMethods]() {
+        for (const QJsonValue& value : BrxAgent::localContextMethods()) {
+            const QString name = value.toString();
+            readOnlyMethods.append(QJsonObject{
+                {QStringLiteral("name"), name},
+                {QStringLiteral("risk"), QStringLiteral("readOnly")},
+                {QStringLiteral("source"), QStringLiteral("qt-context-broker")},
+            });
+        }
+    };
+
+    if (!m_brxAuthenticated) {
+        appendLocalMethods();
+        return readOnlyMethods;
+    }
+
     const QJsonArray methods = m_brxCapabilities.value("methods").toArray();
     for (const QJsonValue& value : methods) {
         const QJsonObject method = value.toObject();
@@ -16055,6 +16680,7 @@ QJsonArray BricsCadPage::readOnlyMethodsForRoute(const QJsonObject& route) const
         }
     }
     if (!readOnlyMethods.isEmpty()) {
+        appendLocalMethods();
         return readOnlyMethods;
     }
 
@@ -16070,61 +16696,8 @@ QJsonArray BricsCadPage::readOnlyMethodsForRoute(const QJsonObject& route) const
              QStringLiteral("measurement.area")}) {
         readOnlyMethods.append(QJsonObject{{"name", method}, {"risk", "readOnly"}});
     }
+    appendLocalMethods();
     return readOnlyMethods;
-}
-
-QJsonObject BricsCadPage::layersEnsureManyToolDefinition() const
-{
-    QJsonObject tool{
-        {"name", "layers.ensureMany"},
-        {"title", "Mehrere Layer sicher anlegen"},
-        {"description", "Qt-internes virtuelles Tool fuer kompakte Layer-Batches. Barebone-Qt expandiert layers[] vor Preflight und Ausfuehrung in einzelne layers.create-Aktionen."},
-        {"bridgeMethod", "layers.create"},
-        {"kind", "action"},
-        {"risk", "modifiesDrawing"},
-        {"category", "layer"},
-        {"confirmationRequired", true},
-        {"virtual", true},
-        {"expandsTo", "layers.create[]"},
-        {"inputSchema", QJsonObject{
-            {"type", "object"},
-            {"required", QJsonArray{"layers"}},
-            {"properties", QJsonObject{
-                {"layers", QJsonObject{
-                    {"type", "array"},
-                    {"items", QJsonObject{
-                        {"type", "object"},
-                        {"required", QJsonArray{"name"}},
-                        {"properties", QJsonObject{
-                            {"name", QJsonObject{{"type", "string"}}},
-                            {"colorIndex", QJsonObject{{"type", "number"}, {"minimum", 1}}},
-                        }},
-                    }},
-                }},
-                {"reason", QJsonObject{{"type", "string"}}},
-            }},
-        }},
-        {"apiDoc", QJsonObject{
-            {"method", "layers.ensureMany"},
-            {"virtual", true},
-            {"required", QJsonArray{"layers"}},
-            {"bodySchema", QJsonObject{
-                {"type", "object"},
-                {"properties", QJsonObject{
-                    {"layers", "array of {name, optional colorIndex}; max batch count applies"},
-                    {"reason", "optional reason shown in proposal"},
-                }},
-            }},
-            {"examples", QJsonArray{
-                QJsonObject{{"layers", QJsonArray{
-                    QJsonObject{{"name", "Heizung"}, {"colorIndex", 1}},
-                    QJsonObject{{"name", "Sanitär"}, {"colorIndex", 5}},
-                }}},
-            }},
-        }},
-    };
-    enrichAgentToolDefinition(tool, m_brxLearning.toolProfile(QStringLiteral("layers.ensureMany")));
-    return tool;
 }
 
 QJsonObject BricsCadPage::toolDefinition(const QString& name) const
@@ -16174,6 +16747,11 @@ bool BricsCadPage::isAllowedContextMethod(const QString& method) const
     if (method.isEmpty()) {
         return false;
     }
+    for (const QJsonValue& value : BrxAgent::localContextMethods()) {
+        if (value.toString() == method) {
+            return true;
+        }
+    }
 
     const QJsonArray methods = m_brxCapabilities.value("methods").toArray();
     if (!methods.isEmpty()) {
@@ -16213,30 +16791,12 @@ void BricsCadPage::requestBridgeCapabilities()
                 return;
             }
             m_brxCapabilities = response.value("result").toObject();
+            m_drawingContextStore.ingestCapabilityResponse(QStringLiteral("capabilities.list"), responseWithLearnedCommands(QStringLiteral("capabilities.list"), response));
             const int methodCount = m_brxCapabilities.value("methods").toArray().size();
             const int commandCount = m_brxCapabilities.value("commands").toArray().size();
             const int toolCount = availableAgentTools().size();
-            appendBridgeLog(QString("BRX -> Qt: %1 Capabilities, %2 Commands, %3 Agent-Tools")
-                .arg(methodCount)
-                .arg(commandCount)
-                .arg(toolCount));
-            QStringList missingCatalogEntries;
-            for (const QJsonValue& value : m_brxCapabilities.value("methods").toArray()) {
-                const QJsonObject method = value.toObject();
-                const QString name = method.value("name").toString();
-                if (!name.isEmpty()
-                    && bridgeCapabilityMethodAvailable(method)
-                    && m_brxLearning.toolProfile(name).isEmpty()) {
-                    missingCatalogEntries << name;
-                }
-            }
-            if (m_brxLearning.toolProfile(QStringLiteral("layers.ensureMany")).isEmpty()) {
-                missingCatalogEntries << QStringLiteral("layers.ensureMany");
-            }
-            if (!missingCatalogEntries.isEmpty()) {
-                appendBridgeLog(QString("BRX Learning Toolprofile: fehlende Eintraege fuer %1")
-                    .arg(missingCatalogEntries.join(QStringLiteral(", "))));
-            }
+            Q_UNUSED(methodCount);
+            Q_UNUSED(commandCount);
             emitCapabilitiesStatusToWeb();
             if (toolCount <= 0) {
                 QStringList methodNames;
@@ -16259,6 +16819,192 @@ void BricsCadPage::requestBridgeCapabilities()
     }
 }
 
+QJsonArray BricsCadPage::learnedCommandDescriptors() const
+{
+    QMap<QString, QJsonObject> byCommand;
+    const QJsonArray lessons = m_brxLearning.document().value(QStringLiteral("lessons")).toArray();
+
+    auto appendCommand = [&byCommand](QString commandName, const QString& lessonId, const QString& title) {
+        commandName = nativeCommandNameFromLine(commandName).isEmpty()
+            ? commandName.trimmed().toUpper()
+            : nativeCommandNameFromLine(commandName);
+        commandName = commandName.trimmed().toUpper();
+        if (commandName.isEmpty()) {
+            return;
+        }
+        QJsonObject descriptor = byCommand.value(commandName);
+        if (descriptor.isEmpty()) {
+            descriptor = QJsonObject{
+                {QStringLiteral("name"), commandName},
+                {QStringLiteral("commandName"), commandName},
+                {QStringLiteral("nativeName"), commandName},
+                {QStringLiteral("localizedName"), commandName},
+                {QStringLiteral("aliases"), QJsonArray{}},
+                {QStringLiteral("commandLine"), true},
+                {QStringLiteral("requiresArguments"), true},
+                {QStringLiteral("allowedWithoutArguments"), false},
+                {QStringLiteral("expectedSideEffects"), QStringLiteral("drawing")},
+                {QStringLiteral("preferredTool"), QStringLiteral("command.execute")},
+                {QStringLiteral("directTestEligible"), true},
+                {QStringLiteral("source"), QStringLiteral("validatedLearning")},
+                {QStringLiteral("description"), QStringLiteral("Aus validiertem BRX-Learning automatisch freigegebener nativer BricsCAD-Command.")},
+                {QStringLiteral("learningIds"), QJsonArray{}},
+                {QStringLiteral("learningTitles"), QJsonArray{}},
+            };
+        }
+        QJsonArray ids = descriptor.value(QStringLiteral("learningIds")).toArray();
+        if (!lessonId.isEmpty() && !jsonStringArrayToStringList(ids, 64).contains(lessonId)) {
+            ids.append(lessonId);
+        }
+        descriptor.insert(QStringLiteral("learningIds"), ids);
+        QJsonArray titles = descriptor.value(QStringLiteral("learningTitles")).toArray();
+        if (!title.isEmpty() && !jsonStringArrayToStringList(titles, 64).contains(title)) {
+            titles.append(title.left(120));
+        }
+        descriptor.insert(QStringLiteral("learningTitles"), titles);
+        byCommand.insert(commandName, descriptor);
+    };
+
+    auto collectFromAction = [&appendCommand](const QJsonObject& action, const QString& lessonId, const QString& title) {
+        if (action.value(QStringLiteral("tool")).toString() != QStringLiteral("command.execute")) {
+            return;
+        }
+        const QJsonObject params = action.value(QStringLiteral("paramsTemplate")).toObject(
+            action.value(QStringLiteral("params")).toObject(action));
+        const QString commandLine = params.value(QStringLiteral("commandLine")).toString(
+            action.value(QStringLiteral("commandLine")).toString()).trimmed();
+        const QString commandName = params.value(QStringLiteral("commandName")).toString(
+            nativeCommandNameFromLine(commandLine));
+        appendCommand(commandName, lessonId, title);
+    };
+
+    for (const QJsonValue& value : lessons) {
+        const QJsonObject lesson = value.toObject();
+        if (lesson.value(QStringLiteral("status")).toString(QStringLiteral("active")) != QStringLiteral("active")) {
+            continue;
+        }
+        const QString lessonKind = lesson.value(QStringLiteral("lessonKind")).toString();
+        const bool validated = lesson.value(QStringLiteral("directTestEligible")).toBool(false)
+            || lessonKind == QStringLiteral("command_template")
+            || lessonKind == QStringLiteral("workflow")
+            || !lesson.value(QStringLiteral("validationExamples")).toArray().isEmpty();
+        if (!validated) {
+            continue;
+        }
+
+        const QString lessonId = lesson.value(QStringLiteral("id")).toString();
+        const QString title = lesson.value(QStringLiteral("title")).toString(lesson.value(QStringLiteral("topic")).toString());
+
+        for (const QJsonValue& templateValue : lesson.value(QStringLiteral("commandTemplates")).toArray()) {
+            const QJsonObject commandTemplate = templateValue.toObject();
+            const QJsonObject params = commandExecuteParamsTemplateFromWorkflowObject(commandTemplate);
+            appendCommand(params.value(QStringLiteral("commandName")).toString(
+                nativeCommandNameFromLine(params.value(QStringLiteral("commandLine")).toString())),
+                lessonId,
+                title);
+        }
+
+        for (const QJsonValue& batchValue : lesson.value(QStringLiteral("executionBatches")).toArray()) {
+            for (const QJsonValue& stepValue : batchValue.toObject().value(QStringLiteral("steps")).toArray()) {
+                collectFromAction(normalizedWorkflowStepForExecution(stepValue.toObject()), lessonId, title);
+            }
+        }
+        for (const QJsonValue& shapeValue : lesson.value(QStringLiteral("validActionShapes")).toArray()) {
+            collectFromAction(normalizedWorkflowStepForExecution(shapeValue.toObject()), lessonId, title);
+        }
+        for (const QJsonValue& exampleValue : lesson.value(QStringLiteral("validationExamples")).toArray()) {
+            for (const QJsonValue& actionValue : exampleValue.toObject().value(QStringLiteral("actions")).toArray()) {
+                collectFromAction(normalizedWorkflowStepForExecution(actionValue.toObject()), lessonId, title);
+            }
+        }
+        if (lesson.value(QStringLiteral("directTestEligible")).toBool(false)) {
+            for (const QJsonValue& observedValue : lesson.value(QStringLiteral("observedCommands")).toArray()) {
+                appendCommand(observedValue.toObject().value(QStringLiteral("commandName")).toString(), lessonId, title);
+            }
+        }
+    }
+
+    QJsonArray result;
+    for (auto it = byCommand.constBegin(); it != byCommand.constEnd(); ++it) {
+        result.append(it.value());
+    }
+    return result;
+}
+
+QJsonObject BricsCadPage::capabilitiesWithLearnedCommands(QJsonObject capabilities) const
+{
+    QJsonArray commands = capabilities.value(QStringLiteral("commands")).toArray();
+    QSet<QString> existing;
+    for (const QJsonValue& value : commands) {
+        const QJsonObject command = value.toObject();
+        const QString name = command.value(QStringLiteral("commandName")).toString(
+            command.value(QStringLiteral("nativeName")).toString(
+                command.value(QStringLiteral("name")).toString())).trimmed().toUpper();
+        if (!name.isEmpty()) {
+            existing.insert(name);
+        }
+        for (const QJsonValue& aliasValue : command.value(QStringLiteral("aliases")).toArray()) {
+            const QString alias = aliasValue.toString().trimmed().toUpper();
+            if (!alias.isEmpty()) {
+                existing.insert(alias);
+            }
+        }
+    }
+    for (const QJsonValue& value : learnedCommandDescriptors()) {
+        const QJsonObject descriptor = value.toObject();
+        const QString name = descriptor.value(QStringLiteral("commandName")).toString(
+            descriptor.value(QStringLiteral("name")).toString()).trimmed().toUpper();
+        if (name.isEmpty() || existing.contains(name)) {
+            continue;
+        }
+        existing.insert(name);
+        commands.append(descriptor);
+    }
+    capabilities.insert(QStringLiteral("commands"), commands);
+    return capabilities;
+}
+
+QJsonObject BricsCadPage::responseWithLearnedCommands(const QString& method, QJsonObject response) const
+{
+    if (!response.value(QStringLiteral("ok")).toBool(false)) {
+        return response;
+    }
+    if (method == QStringLiteral("capabilities.list")) {
+        response.insert(QStringLiteral("result"), capabilitiesWithLearnedCommands(response.value(QStringLiteral("result")).toObject()));
+        return response;
+    }
+    if (method == QStringLiteral("commands.list")) {
+        QJsonObject result = response.value(QStringLiteral("result")).toObject();
+        QJsonObject capabilities;
+        capabilities.insert(QStringLiteral("commands"), result.value(QStringLiteral("commands")).toArray());
+        result.insert(QStringLiteral("commands"), capabilitiesWithLearnedCommands(capabilities).value(QStringLiteral("commands")).toArray());
+        response.insert(QStringLiteral("result"), result);
+    }
+    return response;
+}
+
+QJsonObject BricsCadPage::commandExecuteParamsWithLearnedAuthorization(const QJsonObject& params) const
+{
+    const QString commandName = nativeCommandNameFromLine(params.value(QStringLiteral("commandLine")).toString());
+    if (commandName.isEmpty()) {
+        return params;
+    }
+    QJsonArray whitelist;
+    for (const QJsonValue& value : learnedCommandDescriptors()) {
+        const QString learned = value.toObject().value(QStringLiteral("commandName")).toString(
+            value.toObject().value(QStringLiteral("name")).toString()).trimmed().toUpper();
+        if (!learned.isEmpty()) {
+            whitelist.append(learned);
+        }
+    }
+    if (whitelist.isEmpty() || !jsonStringArrayToStringList(whitelist, 256).contains(commandName)) {
+        return params;
+    }
+    QJsonObject authorized = params;
+    authorized.insert(QStringLiteral("qtLearnedCommandWhitelist"), whitelist);
+    return authorized;
+}
+
 QJsonObject BricsCadPage::currentAgentContext() const
 {
     return QJsonObject{
@@ -16270,6 +17016,8 @@ QJsonObject BricsCadPage::currentAgentContext() const
         {"lastToolResultSchema", m_lastAgentToolResult.value("schema").toString()},
         {"capabilitiesLoaded", !m_brxCapabilities.isEmpty()},
         {"currentSelection", m_currentSelection},
+        {"drawingContextStore", m_drawingContextStore.agentContext()},
+        {"brxContextManifest", m_drawingContextStore.contextManifest()},
     };
 }
 
@@ -16351,6 +17099,7 @@ QJsonObject BricsCadPage::compactAgentStateSummary(
         {"pendingDraftAvailable", !m_pendingAgentDraft.isEmpty()},
         {"lastToolResultAvailable", !m_lastAgentToolResult.isEmpty()},
         {"lastToolResultSummary", m_lastAgentToolResult.value("summary").toString()},
+        {"drawingContextManifest", m_drawingContextStore.manifest()},
         {"selectedWorkflows", workflowSummaries},
         {"selectedLearningLessons", learningSummaries},
         {"compressionPolicy", "Nutze diese Zusammenfassung als Orientierung. Wenn Details fehlen, frage gezielt nach oder nutze erlaubte read-only Kontextmethoden statt lange Historie zu rekonstruieren."},
@@ -16359,10 +17108,9 @@ QJsonObject BricsCadPage::compactAgentStateSummary(
 
 QJsonObject capabilitySummary(const QJsonObject& capabilities)
 {
-    QJsonArray actionTools;
-    QJsonArray readOnlyMethods;
-    QJsonArray unavailableMethods;
-    QJsonArray commands;
+    int actionTools = 0;
+    int readOnlyMethods = 0;
+    int unavailableMethods = 0;
     const QJsonArray methods = capabilities.value(QStringLiteral("methods")).toArray();
     for (const QJsonValue& value : methods) {
         const QJsonObject method = value.toObject();
@@ -16371,28 +17119,23 @@ QJsonObject capabilitySummary(const QJsonObject& capabilities)
             continue;
         }
         if (!bridgeCapabilityMethodAvailable(method)) {
-            unavailableMethods.append(name);
+            ++unavailableMethods;
             continue;
         }
         if (method.value(QStringLiteral("kind")).toString() == QStringLiteral("action")) {
-            actionTools.append(name);
+            ++actionTools;
         } else if (method.value(QStringLiteral("risk")).toString() == QStringLiteral("readOnly")) {
-            readOnlyMethods.append(name);
+            ++readOnlyMethods;
         }
     }
-    for (const QJsonValue& value : capabilities.value(QStringLiteral("commands")).toArray()) {
-        const QJsonObject command = value.toObject();
-        const QString name = command.value(QStringLiteral("name")).toString().trimmed();
-        if (!name.isEmpty()) {
-            commands.append(name);
-        }
-    }
+    const QJsonDocument compactDoc(capabilities);
     return QJsonObject{
-        {"methods", actionTools.size() + readOnlyMethods.size()},
-        {"actionTools", actionTools},
-        {"readOnlyMethods", readOnlyMethods},
-        {"unavailableMethods", unavailableMethods},
-        {"commands", commands},
+        {"methods", actionTools + readOnlyMethods},
+        {"actionToolCount", actionTools},
+        {"readOnlyMethodCount", readOnlyMethods},
+        {"unavailableMethodCount", unavailableMethods},
+        {"commandCount", capabilities.value(QStringLiteral("commands")).toArray().size()},
+        {"capabilityHash", QString::number(qHash(QString::fromUtf8(compactDoc.toJson(QJsonDocument::Compact))), 16)},
     };
 }
 
@@ -16409,11 +17152,20 @@ QJsonObject BricsCadPage::agentRequestEnvelope(const QString& prompt, const QJso
             selectedToolNames.append(name);
         }
     }
+    const QStringList selectedLearningIds = routeWorkflowIds(normalizedRoute, 3);
+    const QString primaryLearningId = !m_selectedWorkflowId.isEmpty()
+        ? m_selectedWorkflowId
+        : (selectedLearningIds.isEmpty() ? QString() : selectedLearningIds.first());
+    const int learningContextLessonLimit = (!primaryLearningId.isEmpty()
+            || !selectedLearningIds.isEmpty()
+            || !m_selectedWorkflow.isEmpty())
+        ? 3
+        : 0;
     QJsonObject brxLearningContext = isChatWorkspace()
         ? QJsonObject{}
-        : m_brxLearning.contextForPrompt(prompt, 3, m_selectedWorkflowId, selectedToolNames);
-    if (!isChatWorkspace() && !m_selectedWorkflowId.isEmpty()) {
-        brxLearningContext.insert(QStringLiteral("selectedWorkflowId"), m_selectedWorkflowId);
+        : m_brxLearning.contextForPrompt(prompt, learningContextLessonLimit, primaryLearningId, selectedToolNames);
+    if (!isChatWorkspace() && !primaryLearningId.isEmpty()) {
+        brxLearningContext.insert(QStringLiteral("selectedWorkflowId"), primaryLearningId);
     }
     QJsonArray workflowCapsules;
     for (int i = 0; i < selectedWorkflows.size() && i < 3; ++i) {
@@ -16446,7 +17198,7 @@ QJsonObject BricsCadPage::agentRequestEnvelope(const QString& prompt, const QJso
             envelope.insert(QStringLiteral("completeConversationContext"), QJsonObject{
                 {QStringLiteral("required"), true},
                 {QStringLiteral("reason"), QStringLiteral(
-                    "Der Nutzer verlangt eine Gesamtprüfung des vollständigen Sitzungs- oder Workflowkontexts.")},
+                    "Der Nutzer verlangt eine GesamtprÃ¼fung des vollstÃ¤ndigen Sitzungs- oder Workflowkontexts.")},
             });
         }
         return envelope;
@@ -16523,6 +17275,24 @@ QJsonObject BricsCadPage::agentRequestEnvelope(const QString& prompt, const QJso
         ? capabilitySummary(m_brxCapabilities)
         : QJsonObject{});
     envelope.insert("readOnlyMethods", readOnlyMethods);
+    envelope.insert("agentRuntime", QJsonObject{
+        {QStringLiteral("schema"), QStringLiteral("barebone.qt.agent-runtime.v1")},
+        {QStringLiteral("orchestrator"), QStringLiteral("BricsCadPage+ContextBroker")},
+        {QStringLiteral("profiles"), QJsonArray{
+            QStringLiteral("CadActionAgent"),
+            QStringLiteral("BrxAgent"),
+            QStringLiteral("DrawingUnderstandingAgent"),
+            QStringLiteral("CalculationAgent"),
+            QStringLiteral("DocumentationAgent"),
+            QStringLiteral("WorkflowLearningAgent"),
+            QStringLiteral("ClarificationAgent"),
+        }},
+        {QStringLiteral("contextBroker"), QJsonObject{
+            {QStringLiteral("localMethods"), BrxAgent::localContextMethods()},
+            {QStringLiteral("drawingContextAvailable"), m_drawingContextStore.hasSnapshot()},
+            {QStringLiteral("policy"), QStringLiteral("Wenn Tool-, Learning-, Dokument- oder Zeichnungsdetails fehlen, fordere sie per context_request qt.* an. Frage den Nutzer erst, wenn Qt/BRX-Kontext und lokale Defaults nicht reichen oder eine fachliche Entscheidung fehlt.")},
+        }},
+    });
     envelope.insert("brxLearningProfile", isChatWorkspace() ? QJsonObject{} : m_brxLearning.metadata());
     envelope.insert("brxLearningContext", brxLearningContext);
     envelope.insert("brxLearningUpdatePolicy", isChatWorkspace()
@@ -16530,16 +17300,16 @@ QJsonObject BricsCadPage::agentRequestEnvelope(const QString& prompt, const QJso
         : QJsonObject{
             {"allowed", true},
             {"fieldName", "learningUpdate"},
-            {"policy", "Wenn aus einer erfolgreichen Ausfuehrung, Reparatur oder bestaetigtem Feedback wiederverwendbares BRX-Wissen entsteht, darfst du optional learningUpdate mitsenden. Workflows mit updateProtected=true oder source=canonical_building_workflow sind unveraenderlich. Aktualisiere ausschliesslich eigene Workflows mit source=ai_runtime und updateProtected=false; lege andernfalls einen neuen AI-Workflow in derselben kanonischen Struktur an. Jede Lesson braucht einen fachlichen title mit hoechstens 6 Woertern und eine kurze description der konkreten Ausfuehrung; generische Titel wie 'Aus erfolgreicher BRX-Ausfuehrung' sind verboten. Erzeuge keine AI-Duplikate und nutze nur Toolnamen aus effectiveTools[].name. Rohr-/Luft- und Raumbeschriftungsworkflows muessen Technikraumname, Bounds und Startpunkt als requiredForExecution-Pflichtslots fuehren; Punktnetze verwenden die Qt-Runtime-Bindings aus der ausgewaehlten Lesson."},
+            {"policy", "Wenn aus einer erfolgreichen Ausfuehrung, Reparatur oder bestaetigtem Feedback wiederverwendbares BRX-Wissen entsteht, darfst du optional learningUpdate mitsenden. Workflows mit updateProtected=true oder source=canonical_building_workflow/canonical_bim_workflow/canonical_brx_workflow sind unveraenderlich. Aktualisiere ausschliesslich eigene Workflows mit source=ai_runtime und updateProtected=false; lege andernfalls einen neuen AI-Workflow in derselben kanonischen Struktur an. Jede Lesson braucht einen fachlichen title mit hoechstens 6 Woertern und eine kurze description der konkreten Ausfuehrung; generische Titel wie 'Aus erfolgreicher BRX-Ausfuehrung' sind verboten. Erzeuge keine AI-Duplikate und nutze nur Toolnamen aus effectiveTools[].name. Rohr-/Luft- und Raumbeschriftungsworkflows muessen Technikraumname, Bounds und Startpunkt als requiredForExecution-Pflichtslots fuehren; Punktnetze verwenden die Qt-Runtime-Bindings aus der ausgewaehlten Lesson."},
             {"allowedTopLevelKeys", QJsonArray{"lesson", "lessons", "repairRule", "repairRules"}},
         });
     envelope.insert("tryBeforeFailPolicy", isChatWorkspace()
         ? QJsonObject{}
         : QJsonObject{
             {"policy", "Erst read-only Kontext abrufen, dann plausible Defaults ableiten, dann BRX-validieren. Frage nur gezielt nach, wenn Lesen, Defaults und Repair nicht reichen."},
-            {"dataQueryPolicy", "Bei klassifizierten BIM-Objekten, BIM-Namen, GUIDs, Component Type oder Properties zuerst bim.objects.query nutzen; Properties nur gezielt mit include=properties. Fuer allgemeine Geometrie, Abmessungen, Bounds oder Messwerte geometry.query mit include=[\"metrics\",\"geometry\",\"dimensions\"] und danach bei Bedarf measurement.bbox nutzen. Antworte nicht mit 'nicht verfuegbar', bevor diese read-only Fallbacks versucht wurden."},
+            {"dataQueryPolicy", "Bei klassifizierten BIM-Objekten, BIM-Namen, GUIDs, Component Type oder Properties zuerst bim.objects.query oder qt.brx.db.inspect nutzen; Properties nur gezielt mit include=properties. Fuer allgemeine Geometrie, Abmessungen, Bounds oder Messwerte geometry.query mit include=[\"metrics\",\"geometry\",\"dimensions\"] und danach bei Bedarf measurement.bbox nutzen. Wenn eine mutierende SDK-Strategie unklar ist, fordere qt.brx.db.compatibility und qt.brx.tools.describe an. Antworte nicht mit 'nicht verfuegbar', bevor diese read-only Fallbacks versucht wurden."},
             {"learningPolicy", "Lessons sind Erfahrungswissen, keine starren Rezepte. Pruefe Prompt, Zeichnungskontext und Berechnung, bevor du Lesson-Werte uebernimmst. BIM-Folgeschritte nach bim.objects.query verwenden autoBimHandlesFromLastQuery und werden von Qt in exakte Handles materialisiert. Bei selbst erzeugten Objekten muessen Folgeschritte exakte Handles, lastResult/lastExtruded oder autoHandlesFromBatch nutzen; keine breiten currentSpace/Layer-Selektoren."},
-            {"extrusionLayerPolicy", "Jede rectangles.extrude/profile.extrude Aktion braucht params.layer als expliziten Ziellayer. Qt ergaenzt die anschliessende entity.setLayer Aktion deterministisch. Bei mehreren erzeugten Profilen exakte Handles oder createdGeometryHandleIndexes verwenden; scope=lastResult allein darf nicht stellvertretend fuer mehrere Profile verwendet werden."},
+            {"extrusionLayerPolicy", "Fuer Kreis- oder Zylinder-Anfragen circle.extrude bevorzugen. Wenn circle.extrude nicht in effectiveTools vorhanden ist, nutze profile.extrude mit selector.kind=circle oder selector.shape=circle; frage nicht nach manueller Extrusion. circle.extrude und profile.extrude mit eindeutigem Kreisselector duerfen ohne layer laufen und nutzen dann den Quelllayer des Kreises. rectangles.extrude ist nur fuer geschlossene Rechteck-Polylinien. Qt ergaenzt bei explizitem Ziellayer die anschliessende entity.setLayer Aktion deterministisch. Bei mehreren erzeugten Profilen exakte Handles oder createdGeometryHandleIndexes verwenden; scope=lastResult allein darf nicht stellvertretend fuer mehrere Profile verwendet werden."},
             {"techniqueRoomPolicy", "In den Gebaeude-Workflows 03 bis 07 ist ein validierter Raum mit dem exakten Namen Technikraum Pflicht. Workflows 04 bis 07 duerfen ohne Technikraumbounds und einen darin liegenden Netzstartpunkt nicht fortfahren. Alle Rohr- und Luftnetze beginnen an diesem Punkt und bleiben innerhalb der validierten Grundrissbounds."},
             {"routePointPolicy", "Rohrwege nicht direkt als Polylinie erfinden: zuerst geometry.create POINT fuer den wandnahen Technikraum-Verteilerstart, jeden Bogen/Richtungswechsel/T-Knoten, jede Wanddurchfuehrung und jeden Nutzerendpunkt. geometry.query muss mit autoPointHandlesFromBatch/createdPointHandleIndexes exakt diese neuen Punkte lesen; geometry.create POLYLINE muss mit autoPointsFromLastQuery/queriedPointIndexes deren Readback-Koordinaten verwenden. pipes.validateNetwork bindet neue Polylinien ueber lokale autoPolylineHandlesFromBatch/createdPolylineHandleIndexes. Die kanonischen Workflows enden mit der validierten 2D-Netzkontur und erzeugen keine Rohrkoerper."},
             {"testDefaultPolicy", "Workflow testDefaults gelten ausschliesslich fuer den deterministischen Overlay-Test. Felder aus requiresUserConfirmationInAgentMode, insbesondere diameterMm, muessen bei regulaeren AI-Aktionen vom Nutzer genannt oder bestaetigt werden und duerfen nicht stillschweigend aus testDefaults uebernommen werden."},
@@ -16560,6 +17330,7 @@ QJsonObject BricsCadPage::agentRequestEnvelope(const QString& prompt, const QJso
             {"recommendedFlow", QJsonArray{"actions.list", "layers.list", "geometry.query", "selection.describe", "entity.describe", "measurement.bbox", "measurement.length", "measurement.area"}},
             {"fields", QJsonArray{"handle", "type", "kind", "shape", "layer", "bounds", "dimensions.widthX", "dimensions.depthY", "dimensions.heightZ", "dimensions.unit", "geometry.vertices", "metrics.length", "metrics.area", "metrics.height", "metrics.volume"}},
             {"tableColumns", QJsonArray{"Handle", "Typ", "Layer", "Breite X", "Tiefe Y", "Hoehe Z", "Laenge", "Flaeche", "Volumen", "Hinweis"}},
+            {"tableMarkdownPolicy", "Wenn der Nutzer eine Tabelle verlangt, gib eine echte Markdown-Pipe-Tabelle aus: Header-Zeile, direkt darunter eine | --- |-Trennzeile fuer jede Spalte, danach genau eine eigene Zeile pro Objekt. Tabellenzeilen niemals als Einzeiler zusammenkleben."},
             {"policy", "Use fetched geometry data to classify entities. Fuer alle Objekte/alle Layer selector.scope=currentSpace ohne selector.layer verwenden. Frage nicht nach Datei-Export, solange der Nutzer eine Tabelle im Chat verlangt oder keinen Export nennt. Do not assume an action exists just because the user asks for it."},
         }
         : QJsonObject{});
@@ -16580,9 +17351,9 @@ QJsonObject BricsCadPage::agentRequestEnvelope(const QString& prompt, const QJso
             {"policy", "Do not invent solid.face.move, face.move or use geometry.move for a single face. geometry.move moves whole entities."},
         }},
         {"directDatabaseWrites", QJsonObject{
-            {"available", false},
-            {"reason", "Direct BricsCAD database writes are disabled because DB write mutations have caused renderer instability."},
-            {"policy", "Never propose AcDb writes, LayerTable writes, EntityTable writes, direct database mutation workflows, or pseudo tools for database writes. Use only tools[].name exposed by Qt."},
+            {"available", true},
+            {"reason", "BRX database writes are available only through validated BrxAgent/BRX tools, never through free C++ or unvalidated command strings."},
+            {"policy", "Use only effectiveTools[].name exposed by Qt. For low-level SDK intent use brx.sdk.* toolcards and qt.brx.db.compatibility, then produce a normal action_proposal validated by actions.validate."},
         }},
         {"entityRename", QJsonObject{
             {"available", false},
@@ -16607,7 +17378,7 @@ QJsonObject BricsCadPage::agentRequestEnvelope(const QString& prompt, const QJso
         {"maxBatchActions", kMaxAgentBatchActions},
         {"batchDelayMs", kAgentBatchActionDelayMs},
         {"batchPolicy", "Use proposal.actions[] for independent repeated actions with known params. For multiple layer creates with names/colors, prefer the virtual Qt tool layers.ensureMany; Qt expands it into individual layers.create actions. Qt executes internal batches as individual BRX requests, waits for each BRX response, sets saveBefore=true only on the first action, and stops on the first failure. Do not use continueAfterSuccess for simple repetition."},
-        {"extrusionLayerPolicy", "Every rectangles.extrude/profile.extrude action must include params.layer. Qt deterministically appends the matching entity.setLayer action. When several profiles were created, use exact handles or createdGeometryHandleIndexes; never use lastResult alone for the whole set."},
+        {"extrusionLayerPolicy", "For circle or cylinder requests prefer circle.extrude. If circle.extrude is not exposed in effectiveTools, use profile.extrude with selector.kind=circle or selector.shape=circle; do not ask the user to extrude manually. circle.extrude and profile.extrude with an explicit circle selector may omit layer and then keep the source circle layer. rectangles.extrude is only for closed rectangle polylines. Qt deterministically appends entity.setLayer when a target layer is explicit. When several profiles were created, use exact handles or createdGeometryHandleIndexes; never use lastResult alone for the whole set."},
         {"preflightValidation", "Before user confirmation, Qt calls BRX actions.validate for the whole proposal. For BIM actions Qt shows resolvedHandles/targetFingerprints and forwards them into execution params; BRX resolves the original selector again and rejects identity drift. During internal batch execution Qt also calls actions.validate for the current action. If validation rejects a proposal, correct params/tool or ask_user for missing data; never repeat the same invalid proposal."},
         {"nativeCommandPolicy", "The agent may choose command.execute when a native BricsCAD command is the better fit. command.execute must contain exactly one complete command line from commands.list, no semicolon or newline, and is always validated by BRX actions.validate before user confirmation."},
         {"databaseWritePolicy", "Direct BricsCAD DB writes are forbidden. Proposals must use only tools[].name; never suggest AcDb, LayerTable, EntityTable, database mutation, or DB batch write operations."},
@@ -16769,6 +17540,8 @@ void BricsCadPage::handleBridgeSocket(QTcpSocket* socket)
             m_brxAuthenticated = false;
             m_brxReadBuffer.clear();
             m_brxJsonAccumulator.clear();
+            m_drawingContextStore.clear();
+            m_currentSelection = {};
             if (!m_preserveQueuedAgentPromptOnDisconnect) {
                 m_queuedAgentPrompt.clear();
             }
@@ -16874,14 +17647,11 @@ void BricsCadPage::handleBridgeMessage(const QJsonObject& message)
     }
 
     if (type == "event") {
-        const QString event = message.value("event").toString();
-        if (event == "debug") {
+        // Realtime drawing/selection events are intentionally ignored. The
+        // only retained event is explicit BRX debug output; drawing context is
+        // fetched synchronously for a concrete Qt prompt.
+        if (message.value("event").toString() == QStringLiteral("debug")) {
             appendBridgeLog(QString("BRX Debug: %1").arg(message.value("message").toString()));
-        } else if (event == "selection.changed") {
-            m_currentSelection = message.value("selection").toArray();
-            appendBridgeLog(QString("BRX Auswahl: %1 Geometrien im AI Kontext").arg(m_currentSelection.size()));
-        } else if (!event.isEmpty()) {
-            appendBridgeLog(QString("BRX Event: %1").arg(event));
         }
         return;
     }
@@ -16961,6 +17731,21 @@ bool BricsCadPage::sendBridgeRequest(
     return true;
 }
 
+bool BricsCadPage::sendBridgeActionRequest(
+    const QString& method,
+    const QJsonObject& params,
+    int timeoutMs,
+    std::function<void(const QJsonObject&)> handler)
+{
+    return sendBridgeRequest(
+        method,
+        params,
+        timeoutMs,
+        [handler = std::move(handler)](const QJsonObject& response) mutable {
+            handler(response);
+        });
+}
+
 void BricsCadPage::completeBridgeRequest(int id, const QJsonObject& message)
 {
     if (!m_pendingRequests.contains(id)) {
@@ -16978,7 +17763,7 @@ void BricsCadPage::completeBridgeRequest(int id, const QJsonObject& message)
         return;
     }
     if (pending.handler) {
-        pending.handler(message);
+        pending.handler(responseWithLearnedCommands(pending.method, message));
     }
 }
 
