@@ -33,12 +33,10 @@
     <qresource prefix="/agent">
         <file alias="policies/core.md">../agent/policies/core.md</file>
         <file alias="policies/general.md">../agent/policies/general.md</file>
-        <file alias="policies/bricscad-safety.md">../agent/policies/bricscad-safety.md</file>
         <file alias="policies/documents.md">../agent/policies/documents.md</file>
         <file alias="contracts/response-v2.json">../agent/contracts/response-v2.json</file>
         <file alias="contracts/router-v1.json">../agent/contracts/router-v1.json</file>
         <file alias="contracts/router-general-v1.json">../agent/contracts/router-general-v1.json</file>
-        <file alias="contracts/router-bricscad-v1.json">../agent/contracts/router-bricscad-v1.json</file>
         <file alias="general-workflows/bemessung_der_trinkwasserinstallation_nach_din_1988_300.json">../agent/general-workflows/bemessung_der_trinkwasserinstallation_nach_din_1988_300.json</file>
         <file alias="general-workflows/heizlastberechnung_nach_din_en_12831.json">../agent/general-workflows/heizlastberechnung_nach_din_en_12831.json</file>
     </qresource>

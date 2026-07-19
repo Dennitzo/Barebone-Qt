@@ -15,7 +15,6 @@
     "Classify only. Do not answer the user.",
     "Do not propose or execute actions.",
     "Use document_qa for attached-document questions.",
-    "Use general_chat for ordinary chat and non-CAD tasks.",
-    "Never choose BricsCAD routes in general mode."
+    "Use general_chat for ordinary chat."
   ]
 }

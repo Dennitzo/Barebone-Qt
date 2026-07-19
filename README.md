@@ -70,23 +70,8 @@ The BRX build output is standardized to:
 build\brx-msvc\bricscad\BareboneBrx.brx
 ```
 
-Load the resulting `BareboneBrx.brx` in BricsCAD with `APPLOAD`. The diagnostic commands are `BBPING`, `BBINFO`, and `BBLOG`; `BBLOG` opens the BricsCAD-owned bridge log window. Drawing and selection state are read only for an explicit Qt request; the plugin does not track manual drawing activity in the background.
+Load the resulting `BareboneBrx.brx` in BricsCAD with `APPLOAD`. The diagnostic commands are `BBPING` and `BBINFO`.
 
-Barebone-Qt starts the local bridge server on `127.0.0.1:47626` and writes a per-run auth token to `%TEMP%\BareboneQtBridge.token`. The BRX plugin connects to that server as a reconnecting client and keeps one newline-delimited JSON connection open. The BricsCAD tab uses this bridge to fetch the current drawing layers and to extrude closed rectangular polylines on the selected layer by the configured height in millimeters.
+Barebone-Qt starts the local bridge server on `127.0.0.1:47626` and writes a per-run auth token to `%TEMP%\BareboneQtBridge.token`. The BRX plugin connects to that server as a reconnecting client and sends only the authenticated `hello` message. Incoming JSON requests are answered with a minimal “not active” error.
 
-The bridge protocol uses request IDs and versioned result payloads. `rectangles.extrude` supports the detail levels `summary`, `element`, and `geometry`; Barebone-Qt currently requests `element`, which returns compact BIM-ready element data without full profile geometry:
-
-```json
-{"id":2,"type":"request","method":"rectangles.extrude","params":{"layer":"0","heightMm":3000,"detail":"element","saveBefore":true}}
-{"id":2,"type":"response","ok":true,"result":{"schema":"barebone.bricscad.rectangles.extrude.result.v1","detail":"element","units":"mm","coordinateSystem":"WCS","layer":"0","heightMm":3000,"saveBefore":true,"savedBefore":true,"found":1,"extruded":1,"skipped":0,"errors":0,"elements":[{"schema":"barebone.bricscad.element.v1","operation":"extruded","sourceHandle":"A5","solidHandle":"A7","sourceEntityKind":"polyline","entityKind":"3dSolid","bimClass":null,"layer":"0","heightMm":3000,"lengthMm":6300,"thicknessMm":390,"boundingBoxStatus":"actual","boundingBox":{"min":[0,0,0],"max":[6300,390,3000]},"sourceProfile":{"boundingBox":{"min":[0,0,0],"max":[6300,390,0]}}}]}}
-```
-
-For AI-assisted workflows, Barebone-Qt now uses live BRX capabilities instead of a generated tool registry. Read-only context methods such as `geometry.query`, `selection.describe`, and `entity.describe` can fetch current drawing data on demand; drawing-changing actions still require a user-confirmed tool proposal before Barebone-Qt forwards them to BRX.
-
-### BRX BIM tools
-
-The BRX V26 plugin exposes dedicated BIM tools for querying classified objects and setting the editor selection: `bim.objects.query` and `bim.selection.set`. A compact read-only BIM snapshot is included in relevant BricsCAD AI requests; complete qualified BIM/IFC/Quantity properties are fetched only on demand.
-
-All entity transformations use `geometry.move` and `geometry.rotate`.
-
-These tools target the pinned BRX SDK `26.1.05.0` and require an x64 Visual Studio 2022 (`v143`) build. At runtime, BricsCAD must expose the BIM feature for the active license and `RUNASLEVEL`; unavailable BIM APIs are reported through `capabilities.list` and rejected before execution. The implementation uses `BimClassification` and the BRX Generic Properties API from `brx26.lib`; `Ice.lib` is not required because IFC import/export is outside this feature.
+The BricsCAD tab is currently a fresh second chat shell named “BricsCAD”. It contains no CAD action pipeline, no workflow runtime, no capability catalog, no SDK fallback tools, and no automatic drawing access. The plugin is intentionally reduced to the connection skeleton so the BricsCAD integration can be rebuilt from a clean base.

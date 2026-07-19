@@ -3,6 +3,7 @@
 #include "../core/ConfigManager.h"
 
 #include "BricsCadPage.h"
+#include "ChatPage.h"
 #include "SettingsPage.h"
 #include "TemplatePage.h"
 
@@ -35,7 +36,7 @@ private:
     QPushButton* m_settingsButton = nullptr;
     QWidget* m_dropdownContent = nullptr;
     QStackedWidget* m_pages = nullptr;
-    TemplatePage* m_dashboard = nullptr;
+    ChatPage* m_dashboard = nullptr;
     TemplatePage* m_template = nullptr;
     BricsCadPage* m_bricsCad = nullptr;
     SettingsPage* m_settings = nullptr;

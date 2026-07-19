@@ -2,8 +2,10 @@ $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
 $index = Get-Content -LiteralPath (Join-Path $root "index.html") -Raw
-$cpp = Get-Content -LiteralPath (Join-Path $root "src/ui/BricsCadPage.cpp") -Raw
-$pageHeader = Get-Content -LiteralPath (Join-Path $root "src/ui/BricsCadPage.h") -Raw
+$cpp = Get-Content -LiteralPath (Join-Path $root "src/ui/ChatPage.cpp") -Raw
+$pageHeader = Get-Content -LiteralPath (Join-Path $root "src/ui/ChatPage.h") -Raw
+$bricsCpp = Get-Content -LiteralPath (Join-Path $root "src/ui/BricsCadPage.cpp") -Raw
+$bricsHeader = Get-Content -LiteralPath (Join-Path $root "src/ui/BricsCadPage.h") -Raw
 $bridgeCpp = Get-Content -LiteralPath (Join-Path $root "src/ui/AiWebBridge.cpp") -Raw
 $bridgeHeader = Get-Content -LiteralPath (Join-Path $root "src/ui/AiWebBridge.h") -Raw
 $resources = Get-Content -LiteralPath (Join-Path $root "resources/resources.qrc") -Raw
@@ -124,8 +126,10 @@ if ($embeddedWoff2Count -lt 20) {
 # survive. The strings are checked across both JavaScript and C++ runtime code.
 $runtimeSources = @(
     @{ Name = "index.html"; Text = $index },
-    @{ Name = "BricsCadPage.cpp"; Text = $cpp },
-    @{ Name = "BricsCadPage.h"; Text = $pageHeader },
+    @{ Name = "ChatPage.cpp"; Text = $cpp },
+    @{ Name = "ChatPage.h"; Text = $pageHeader },
+    @{ Name = "BricsCadPage.cpp"; Text = $bricsCpp },
+    @{ Name = "BricsCadPage.h"; Text = $bricsHeader },
     @{ Name = "AiWebBridge.cpp"; Text = $bridgeCpp },
     @{ Name = "AiWebBridge.h"; Text = $bridgeHeader }
 )
@@ -161,15 +165,15 @@ foreach ($fragment in $forbiddenCppPromptFragments) {
     Assert-NotContains $cpp $fragment "KaTeX model-prompt contract"
 }
 
-# Structured JSON remains valid for CAD/workflow agents, so inspect only the
-# system prompt used by the plain general-chat branch.
-$generalPromptStart = $cpp.IndexOf("const QString generalPlainPrompt", [System.StringComparison]::Ordinal)
+# Inspect only the plain ChatPage system prompt. BricsCAD now uses the same
+# chat shell and no longer has a CAD/tool envelope.
+$generalPromptStart = $cpp.IndexOf("QString systemPrompt", [System.StringComparison]::Ordinal)
 if ($generalPromptStart -lt 0) {
-    throw "General-chat prompt declaration 'generalPlainPrompt' is missing."
+    throw "ChatPage system prompt declaration is missing."
 }
-$generalPromptEnd = $cpp.IndexOf("const QJsonObject systemMessage", $generalPromptStart, [System.StringComparison]::Ordinal)
+$generalPromptEnd = $cpp.IndexOf("if (m_workspace == Workspace::BricsCad)", $generalPromptStart, [System.StringComparison]::Ordinal)
 if ($generalPromptEnd -lt 0) {
-    throw "Could not determine the end of the general-chat prompt."
+    throw "Could not determine the end of the ChatPage general prompt."
 }
 $generalPrompt = $cpp.Substring($generalPromptStart, $generalPromptEnd - $generalPromptStart)
 $forbiddenGeneralContractFragments = @(
@@ -184,10 +188,6 @@ foreach ($fragment in $forbiddenGeneralContractFragments) {
     Assert-NotContains $generalPrompt $fragment "structured Barebone contract in general chat"
 }
 
-Assert-ContainsAny $generalPrompt @("Markdown") "retained general-chat Markdown rule"
-Assert-ContainsAny $generalPrompt @("Einheit") "retained general-chat unit rule"
-Assert-ContainsAny $generalPrompt @("SI-Umrechnung", "SI-Einheiten") "retained general-chat SI conversion rule"
-Assert-ContainsAny $generalPrompt @("keine CAD", "keine BricsCAD", "CAD-/BRX") "general-chat CAD isolation rule"
-Assert-ContainsAny $generalPrompt @("keine BRX", "keine BricsCAD", "CAD-/BRX") "general-chat BRX isolation rule"
+Assert-ContainsAny $generalPrompt @("Antworte", "Answer") "retained plain chat instruction"
 
 Write-Host "Model-native offline KaTeX contract checks passed."

@@ -2139,7 +2139,7 @@
         <div class="chat-item">
           <button class="chat-link active" type="button">
             <span class="chat-short">BA</span>
-            <span class="chat-title">BricsCAD AI Assistent</span>
+            <span class="chat-title">BricsCAD Chat</span>
           </button>
         </div>
       </nav>
@@ -2263,7 +2263,7 @@
             </div>
           </form>
 
-          <div class="disclaimer" id="mode-disclaimer">AI kann Fehler machen. BricsCAD-Aktionen werden erst nach Bestätigung ausgeführt.</div>
+          <div class="disclaimer" id="mode-disclaimer">AI kann Fehler machen. BricsCAD ist aktuell eine Chat-Hülle ohne CAD-Ausführung.</div>
         </div>
       </section>
     </main>
@@ -2300,7 +2300,7 @@
             <option value="statusAsc">Status A-Z</option>
           </select>
           <div class="workflow-filter-row" id="workflow-learning-filters" hidden>
-            <select class="workflow-sort" id="workflow-kind-filter" aria-label="Learning-Typ filtern">
+            <select class="workflow-sort" id="workflow-kind-filter" aria-label="Workflow-Typ filtern">
               <option value="all">Alle Typen</option>
               <option value="tool">Tools</option>
               <option value="lesson">Lessons</option>
@@ -2308,7 +2308,7 @@
               <option value="example">Beispiele</option>
               <option value="tool_prompt_mapping">Tool Mapping</option>
             </select>
-            <select class="workflow-sort" id="workflow-status-filter" aria-label="Learning-Status filtern">
+            <select class="workflow-sort" id="workflow-status-filter" aria-label="Workflow-Status filtern">
               <option value="all">Alle Status</option>
               <option value="active">Aktiv</option>
               <option value="deprecated">Veraltet</option>
@@ -2379,14 +2379,14 @@
         medium: "Mittel",
         high: "Hoch",
         mode: "Modus",
-        disclaimerChat: "AI kann Fehler machen. Im Chat Modus können keine BricsCAD-Aktionen ausgeführt werden.",
-        disclaimerGeneral: "AI kann Fehler machen. Im Allgemeinen Modus können keine BricsCAD-Aktionen ausgeführt werden.",
-        disclaimerBricscad: "AI kann Fehler machen. BricsCAD-Aktionen werden erst nach Bestätigung ausgeführt.",
+        disclaimerChat: "AI kann Fehler machen. Dies ist ein reiner Chat-Modus.",
+        disclaimerGeneral: "AI kann Fehler machen. Dies ist ein allgemeiner Chat-Modus.",
+        disclaimerBricscad: "AI kann Fehler machen. BricsCAD ist aktuell eine Chat-Hülle ohne CAD-Ausführung.",
         closeWorkflows: "Workflows schließen",
         searchWorkflows: "Workflows suchen",
         sortWorkflows: "Workflows sortieren",
-        filterWorkflowKind: "Learning-Typ filtern",
-        filterWorkflowStatus: "Learning-Status filtern",
+        filterWorkflowKind: "Workflow-Typ filtern",
+        filterWorkflowStatus: "Workflow-Status filtern",
         allTypes: "Alle Typen",
         allStatuses: "Alle Status",
         activeStatus: "Aktiv",
@@ -2401,7 +2401,7 @@
         nameAscending: "Name A-Z",
         nameDescending: "Name Z-A",
         workflowEmpty: "Wähle einen Workflow aus. Danach kannst du ihn als Kontext im Chat nutzen.",
-        learningEmpty: "Waehle einen BRX-Learning-Eintrag aus, um Details, Gewichtung, Tools, Lessons, Repair-Regeln oder Beispiele anzuzeigen.",
+        learningEmpty: "Wähle einen Workflow aus, um Details anzuzeigen.",
         selectWorkflow: "Workflow auswählen",
         executeWorkflow: "Workflow ausführen",
         informationOnly: "Informationseintrag",
@@ -2442,8 +2442,8 @@
         batch: "Batch",
         step: "Schritt",
         greetingChat: "Worüber möchtest du sprechen?",
-        greetingBricscad: "Was möchtest du mit BricsCAD tun?",
-        trainingIntro: "Trainingsmodus aktiv. Beschreibe den neuen BricsCAD Workflow, den wir erstellen wollen.",
+        greetingBricscad: "Worüber möchtest du im BricsCAD Chat sprechen?",
+        trainingIntro: "Trainingsmodus ist in der frischen BricsCAD-Hülle nicht aktiv.",
         thinking: "Denkt nach",
         thought: "Gedacht",
         workflowSaveThinking: "Ich bereite die ausgewählte AI-Nachricht als Workflow vor.",
@@ -2494,14 +2494,14 @@
         medium: "Medium",
         high: "High",
         mode: "Mode",
-        disclaimerChat: "AI can make mistakes. BricsCAD actions cannot be executed in Chat mode.",
-        disclaimerGeneral: "AI can make mistakes. BricsCAD actions cannot be executed in General mode.",
-        disclaimerBricscad: "AI can make mistakes. BricsCAD actions are executed only after confirmation.",
+        disclaimerChat: "AI can make mistakes. This is a plain chat mode.",
+        disclaimerGeneral: "AI can make mistakes. This is a general chat mode.",
+        disclaimerBricscad: "AI can make mistakes. BricsCAD is currently a chat shell without CAD execution.",
         closeWorkflows: "Close workflows",
         searchWorkflows: "Search workflows",
         sortWorkflows: "Sort workflows",
-        filterWorkflowKind: "Filter learning type",
-        filterWorkflowStatus: "Filter learning status",
+        filterWorkflowKind: "Filter workflow type",
+        filterWorkflowStatus: "Filter workflow status",
         allTypes: "All types",
         allStatuses: "All statuses",
         activeStatus: "Active",
@@ -2516,7 +2516,7 @@
         nameAscending: "Name A-Z",
         nameDescending: "Name Z-A",
         workflowEmpty: "Select a workflow. It will be used as context in chat.",
-        learningEmpty: "Select a BRX learning entry to inspect details, weighting, tools, lessons, repair rules, or examples.",
+        learningEmpty: "Select a workflow to inspect details.",
         selectWorkflow: "Select workflow",
         executeWorkflow: "Run workflow",
         informationOnly: "Information only",
@@ -2557,8 +2557,8 @@
         batch: "Batch",
         step: "Step",
         greetingChat: "What would you like to talk about?",
-        greetingBricscad: "What would you like to do with BricsCAD?",
-        trainingIntro: "Training mode active. Describe the new BricsCAD workflow we should create.",
+        greetingBricscad: "What would you like to discuss in BricsCAD chat?",
+        trainingIntro: "Training mode is not active in the fresh BricsCAD shell.",
         thinking: "Thinking",
         thought: "Thought",
         workflowSaveThinking: "I am preparing the selected AI message as a workflow.",
@@ -5181,7 +5181,7 @@
         trainingBaseModeIndicator.hidden = true;
         trainingBaseModeIndicator.style.display = "none";
       }
-      const showWorkflowButton = isChatWorkspace() || isBricsCadWorkspace();
+      const showWorkflowButton = isChatWorkspace();
       workflowsButton.hidden = !showWorkflowButton;
       workflowsButton.disabled = !showWorkflowButton;
       workflowsButton.style.display = showWorkflowButton ? "" : "none";
@@ -5666,7 +5666,7 @@
       if (mode === "training") {
         return t("trainingMode");
       }
-      return mode === "general" ? "Chat" : "BricsCAD AI Assistent";
+      return mode === "general" ? "Chat" : "BricsCAD Chat";
     }
 
     function modeLabel(mode) {
@@ -5934,7 +5934,7 @@
     }
 
     function normalizeSession(session, index) {
-      const fallback = createSession(index === 0 ? "BricsCAD AI Assistent" : `Neuer Chat ${index + 1}`);
+      const fallback = createSession(index === 0 ? "BricsCAD Chat" : `Neuer Chat ${index + 1}`);
       const sessionTrainingMode = false;
       const rawMessages = Array.isArray(session.messages) && session.messages.length
         ? session.messages.map(normalizeMessage)
@@ -5942,7 +5942,7 @@
       const messages = sessionTrainingMode
         ? rawMessages.filter((message) => !(
             message.speaker === "AI"
-            && message.message === "Was möchtest du mit BricsCAD tun?"
+            && message.message === "Worüber möchtest du im BricsCAD Chat sprechen?"
           ))
         : rawMessages;
       if (sessionTrainingMode && !messages.length) {
@@ -6239,7 +6239,7 @@
         input.focus();
         return;
       }
-      if ((isGeneralWorkflowWorkspace() || isBricsCadWorkspace())
+      if (isGeneralWorkflowWorkspace()
           && (normalizedCommand === "workflow speichern" || normalizedCommand === "save workflow")) {
         showThinkingIndicator();
         addThinkingDetail(isBricsCadWorkspace()
@@ -6287,15 +6287,15 @@
         || text === t("greetingBricscad")
         || text === t("trainingIntro")
         || text === "Worüber möchtest du sprechen?"
-        || text === "Was möchtest du mit BricsCAD tun?"
+        || text === "Worüber möchtest du im BricsCAD Chat sprechen?"
         || text === "What would you like to talk about?"
-        || text === "What would you like to do with BricsCAD?"
-        || text === "Training mode active. Describe the new BricsCAD workflow we should create."
-        || text === "Trainingsmodus aktiv. Beschreibe den neuen BricsCAD Workflow, den wir erstellen wollen.";
+        || text === "What would you like to discuss in BricsCAD chat?"
+        || text === "Training mode is not active in the fresh BricsCAD shell."
+        || text === "Trainingsmodus ist in der frischen BricsCAD-Hülle nicht aktiv.";
     }
 
     function shouldShowWorkflowFooterForMessage(message, role) {
-      if ((!isGeneralWorkflowWorkspace() && !isBricsCadWorkspace()) || role !== "assistant") {
+      if (!isGeneralWorkflowWorkspace() || role !== "assistant") {
         return false;
       }
       if (isInitialAssistantGreeting(message)) {
@@ -7879,7 +7879,7 @@
     function isDefaultSessionTitle(title) {
       const value = String(title || "").trim();
       return !value
-        || value === "BricsCAD AI Assistent"
+        || value === "BricsCAD Chat"
         || value === "Allgemeiner Chat"
         || value === "Trainingsmodus"
         || /^Neue Sitzung \d+$/.test(value)
@@ -7935,8 +7935,8 @@
     function isDuplicateTrainingIntro(normalized) {
       const trainingIntros = [
         t("trainingIntro"),
-        "Trainingsmodus aktiv. Beschreibe den neuen BricsCAD Workflow, den wir erstellen wollen.",
-        "Training mode active. Describe the new BricsCAD workflow we should create."
+        "Trainingsmodus ist in der frischen BricsCAD-Hülle nicht aktiv.",
+        "Training mode is not active in the fresh BricsCAD shell."
       ];
       return normalized.speaker === "Barebone-Qt"
         && trainingIntros.includes(normalized.message)
@@ -8724,7 +8724,6 @@
       let value = String(reason || "").trim();
       value = value
         .replace(/^BRX-Ausfuehrung fehlgeschlagen,\s*korrigiere Vorschlag:\s*/i, "BRX-Rückmeldung wird berücksichtigt: ")
-        .replace(/^action_proposal ist nicht gueltig:\s*/i, "Aktionsvorschlag wird korrigiert: ")
         .replace(/^Antwort ist kein gueltiges Barebone-Agent-JSON\.\s*/i, "Antwortformat wird korrigiert. ")
         .replace(/^Die Trainingsantwort konnte nicht als JSON gelesen werden\.\s*/i, "Workflow-JSON wird repariert. ")
         .replace(/^Die AI hat im Trainingsmodus keine finale JSON-Antwort geliefert\.\s*/i, "Workflow-Antwort wird kompakter angefordert. ");
@@ -8766,602 +8765,48 @@
     }
 
     function aiRequestLabel(label) {
-      const value = String(label || "");
-      if (value.startsWith("agent_loop_")) {
-        return "Ich denke erneut nach und korrigiere die Antwort.";
-      }
-      if (value.startsWith("tool_error_loop_")) {
-        return "Ich denke erneut nach und korrigiere den Vorschlag nach der BRX-Rückmeldung.";
-      }
-      if (value === "tool_result") {
-        return "Ich werte die BRX-Rückmeldung aus.";
-      }
-      if (value === "drawing_context_result" || value === "prompt+drawing-context") {
-        return "Ich werte den Zeichnungskontext aus.";
-      }
-      if (value === "prompt+context") {
-        return "Ich werte den vorbereiteten Kontext aus.";
-      }
-      if (value === "execution_summary") {
-        return "Ich erstelle eine kurze Abschlusszusammenfassung.";
-      }
-      return "Ich werte die Anfrage mit dem vorbereiteten Kontext aus.";
+      return "Ich werte die Anfrage aus.";
     }
 
     function addAiThinkingDetailFromLog(line) {
       const text = stripLogTimestamp(line);
-      let match = text.match(/^Qt -> AI Router: .*mode=([^\s]+).*model=([^\s]+).*timeoutMs=(\d+)/);
-      if (match) {
+      if (text.includes("Qt -> AI Chat:")) {
+        updateAiThinkingDetail("Ich sende die Nachricht an die lokale AI.", "ai-request");
         return true;
       }
-
-      match = text.match(/^AI Pipeline: Nachrichtenverlauf fokussieren messages=(\d+)/);
-      if (match) {
-        updateAiThinkingDetail(`Ich komprimiere ${match[1]} vorherige Nachricht${match[1] === "1" ? "" : "en"} für diesen Prompt.`, "conversation-history");
+      if (text.includes("AI Chat Fehler:")) {
+        updateAiThinkingDetail("Die AI-Anfrage ist fehlgeschlagen.", "ai-request");
         return true;
       }
-
-      match = text.match(/^AI Pipeline: Nachrichtenverlauf kompakt bereit messages=(\d+)/);
-      if (match) {
-        updateAiThinkingDetail(match[1] === "0"
-          ? "Es gibt noch keinen relevanten vorherigen Nachrichtenverlauf."
-          : `Ich nutze ${match[1]} Nachricht${match[1] === "1" ? "" : "en"} als kompakten Verlaufskontext.`,
-          "conversation-history");
+      if (text.includes("AI Chat JSON Fehler:")) {
+        updateAiThinkingDetail("Die AI-Antwort konnte nicht gelesen werden.", "ai-request");
         return true;
       }
-
-      match = text.match(/^AI Kontext-Fokus: topic=(.*?) confidence=([0-9.]+) relevant=(\d+)/);
-      if (match) {
-        updateAiThinkingDetail(`Ich nutze komprimierten Nachrichtenverlauf zum Thema „${compactLogText(match[1], 70)}“ (${match[3]} relevante Nachricht${match[3] === "1" ? "" : "en"}).`, "conversation-history");
-        return true;
-      }
-
-      match = text.match(/^AI Pipeline: effectiveTools tools=([^\s]+)\s+history=(yes|no)/);
-      if (match) {
-        const tools = match[1] && match[1] !== "-"
-          ? match[1].split(",").filter(Boolean)
-          : [];
-        const historyText = match[2] === "yes" ? "mit Verlaufskontext" : "ohne Verlaufskontext";
-        updateAiThinkingDetail(`Ich wähle ${tools.length} effektive BRX/SDK-Tool${tools.length === 1 ? "" : "s"} ${historyText}.`, "tool-selector");
-        return true;
-      }
-
-      match = text.match(/^AI Pipeline: Workflow-Kontext\s+(.+)/);
-      if (match) {
-        updateAiThinkingDetail(`Ich nutze den passenden Workflow „${compactLogText(match[1], 90)}“ als fachlichen Kontext.`, "workflow-context");
-        return true;
-      }
-
-      if (text.includes("AI Pipeline: Zeichnungskontext abrufen")) {
-        updateAiThinkingDetail("Ich rufe aktuellen Zeichnungskontext aus BricsCAD ab.", "drawing-context");
-        return true;
-      }
-
-      if (text.includes("AI Pipeline: Berechnungen vorbereiten")) {
-        updateAiThinkingDetail("Ich führe notwendige Berechnungen mit dem vorbereiteten Kontext durch.", "ai-reasoning");
-        return true;
-      }
-
-      if (text.includes("AI Pipeline: AI Reasoning startet")) {
-        if (activeReasoningRunId) {
-          return true;
-        }
-        updateAiThinkingDetail("Ich starte die finale AI-Auswertung mit Verlauf, Tools und Zeichnungskontext.", "ai-reasoning");
-        return true;
-      }
-
-      match = text.match(/^Qt -> AI Tool Selector: tools=(\d+)/);
-      if (match) {
-        updateAiThinkingDetail(`Ich lasse die AI aus ${match[1]} verfügbaren Werkzeugen die passenden auswählen.`, "tool-selector");
-        return true;
-      }
-
-      match = text.match(/^AI -> Qt Sitzungsverlauf: ([\w.]+)\s+(.*)$/);
-      if (match) {
-        updateAiThinkingDetail("Ich brauche mehr Sitzungsverlauf und lade relevante Nachrichten nach.", "conversation-history");
-        return true;
-      }
-
-      match = text.match(/^Qt -> AI Sitzungsverlauf: ([\w.]+)\s+count=(\d+)/);
-      if (match) {
-        updateAiThinkingDetail(`Ich habe ${match[2]} Nachricht${match[2] === "1" ? "" : "en"} aus dem Sitzungsverlauf nachgeladen.`, "conversation-history");
-        return true;
-      }
-
-      if (text.includes("AI Agent: nutze nachgeladenen Sitzungsverlauf als Zusatzkontext")) {
-        updateAiThinkingDetail("Ich nutze den nachgeladenen Verlauf als Zusatzkontext.", "conversation-history");
-        return true;
-      }
-
-      match = text.match(/^Qt -> AI Tool\/Workflow Selector: tools=(\d+) workflows=(\d+)/);
-      if (match) {
-        updateAiThinkingDetail(`Ich prüfe ${match[1]} Werkzeuge und ${match[2]} Learning-Lessons.`, "tool-selector");
-        return true;
-      }
-
-      match = text.match(/^Qt -> BRX Zeichnungskontext: (.*)$/);
-      if (match) {
-        updateAiThinkingDetail("Ich lese den aktuellen Zeichnungszustand aus BricsCAD.", "drawing-context");
-        return true;
-      }
-
-      match = text.match(/^Qt -> BRX Zeichnungskontext (\d+)\/(\d+): ([\w.]+)/);
-      if (match) {
-        updateAiThinkingDetail(`Ich lese Zeichnungskontext ${match[1]}/${match[2]}: ${match[3]}.`, "drawing-context");
-        return true;
-      }
-
-      match = text.match(/^BRX -> Qt Zeichnungskontext: ([\w.]+) count=(\d+)/);
-      if (match) {
-        updateAiThinkingDetail(`BRX liefert Zeichnungskontext aus ${match[1]} (${match[2]} Eintraege).`, "drawing-context");
-        return true;
-      }
-
-      match = text.match(/^BRX -> Qt Zeichnungskontext: (\d+) Abfragen bereit/);
-      if (match) {
-        updateAiThinkingDetail("Ich nutze den aktuellen Zeichnungszustand als Zusatzkontext.", "drawing-context");
-        return true;
-      }
-
-      match = text.match(/^Qt -> AI Tool\/Learning Selector: tools=(\d+) lessons=(\d+)/);
-      if (match) {
-        updateAiThinkingDetail(`Ich prüfe ${match[1]} BRX-Agent-Tools und ${match[2]} relevante Learning-Lessons.`, "tool-selector");
-        return true;
-      }
-
-      match = text.match(/^AI Tool Selector: tools=([^\s]+)(?:\s+reason=(.*))?/);
-      if (match) {
-        const tools = match[1].split(",").filter(Boolean);
-        updateAiThinkingDetail(`Ich nutze ${tools.length} passende Werkzeug${tools.length === 1 ? "" : "e"}: ${tools.join(", ")}.`, "tool-selector");
-        return true;
-      }
-
-      match = text.match(/^AI Tool\/Workflow Selector: tools=([^\s]+)\s+workflows=([^\s]*)(?:\s+reason=(.*))?/);
-      if (match) {
-        const tools = match[1].split(",").filter(Boolean);
-        const workflows = match[2].split(",").filter(Boolean);
-        const suffix = match[3] ? ` ${compactLogText(match[3], 100)}` : "";
-        updateAiThinkingDetail(`Ich nutze ${tools.length} Werkzeug${tools.length === 1 ? "" : "e"} und ${workflows.length} Learning-Lesson${workflows.length === 1 ? "" : "s"} als Kontext.${suffix}`, "tool-selector");
-        return true;
-      }
-
-      match = text.match(/^AI Tool\/Learning Selector: tools=([^\s]+)\s+lessons=([^\s]*)(?:\s+reason=(.*))?/);
-      if (match) {
-        const tools = match[1].split(",").filter(Boolean);
-        const lessons = match[2].split(",").filter(Boolean);
-        const suffix = match[3] ? ` ${compactLogText(match[3], 100)}` : "";
-        updateAiThinkingDetail(`Ich nutze ${tools.length} Werkzeug${tools.length === 1 ? "" : "e"} und ${lessons.length} Learning-Lesson${lessons.length === 1 ? "" : "s"} als Kontext.${suffix}`, "tool-selector");
-        return true;
-      }
-
-      match = text.match(/^AI Tool\/Workflow Selector: workflows=([^\s]+)(?:\s+reason=(.*))?/);
-      if (match) {
-        const workflows = match[1].split(",").filter(Boolean);
-        const suffix = match[2] ? ` ${compactLogText(match[2], 100)}` : "";
-        updateAiThinkingDetail(`Ich nutze ${workflows.length} Learning-Lesson${workflows.length === 1 ? "" : "s"} als Kontext.${suffix}`, "tool-selector");
-        return true;
-      }
-
-      match = text.match(/^AI Tool\/Learning Selector: lessons=([^\s]+)(?:\s+reason=(.*))?/);
-      if (match) {
-        const lessons = match[1].split(",").filter(Boolean);
-        const suffix = match[2] ? ` ${compactLogText(match[2], 100)}` : "";
-        updateAiThinkingDetail(`Ich nutze ${lessons.length} Learning-Lesson${lessons.length === 1 ? "" : "s"} als Kontext.${suffix}`, "tool-selector");
-        return true;
-      }
-
-      match = text.match(/^AI Tool\/Workflow Selector: lokale Workflow-Auswahl (.*)$/);
-      if (match) {
-        const workflows = match[1].split(",").filter(Boolean);
-        updateAiThinkingDetail(`Ich nutze lokal ${workflows.length} passende Learning-Lesson${workflows.length === 1 ? "" : "s"} als Kontext.`, "tool-selector");
-        return true;
-      }
-
-      match = text.match(/^AI Tool\/Learning Selector: lokale Lesson-Auswahl (.*)$/);
-      if (match) {
-        const lessons = match[1].split(",").filter(Boolean);
-        updateAiThinkingDetail(`Ich nutze lokal ${lessons.length} passende Learning-Lesson${lessons.length === 1 ? "" : "s"} als Kontext.`, "tool-selector");
-        return true;
-      }
-
-      match = text.match(/^AI Workflow-Auswahl: decision=([^\s]+)\s+workflow=([^\s]+)\s+reason=(.*)$/);
-      if (match) {
-        const labels = {
-          "direct": "Der Workflow passt direkt.",
-          "adapted": "Ich passe einen Workflow an die Anfrage an.",
-          "extended": "Ich erweitere einen Workflow mit Zusatzschritten.",
-          "deviated": "Ich nutze den Workflow nur als Vorlage.",
-          "no_fit": "Kein Workflow passt ausreichend; ich plane frei mit den Werkzeugen."
-        };
-        const suffix = match[3] ? ` ${compactLogText(match[3], 120)}` : "";
-        updateAiThinkingDetail(`${labels[match[1]] || `Workflow-Entscheidung: ${match[1]}.`}${suffix}`, "workflow-selection");
-        return true;
-      }
-
-      match = text.match(/^AI Workflow-Run-Vorschlag: (\d+) Aktionen workflow=(.*)$/);
-      if (match) {
-        updateAiThinkingDetail(`Ich bereite einen Workflow-Run mit ${match[1]} Schritt${match[1] === "1" ? "" : "en"} vor.`, "workflow-run");
-        return true;
-      }
-
-      match = text.match(/^AI Envelope: mode=([^\s]+) route=([^\s]+) profile=([^\s]+) toolsSent=([^\s]+) policyRefs=(.*)$/);
-      if (match) {
-        if (match[1] === "general" || match[2] === "general_chat") {
-          return true;
-        }
-        const tools = match[4] && match[4] !== "-"
-          ? match[4].split(",").filter(Boolean).length
-          : 0;
-        const toolText = tools > 0 ? ` mit ${tools} passenden Tool${tools === 1 ? "" : "s"}` : " ohne Toolfreigabe";
-        updateAiThinkingDetail(`Ich bereite den Kontext vor: ${routeDisplayName(match[2])}${toolText}.`);
-        return true;
-      }
-
-      match = text.match(/^Qt -> AI Agent: ([^\s]+) provider=.*model=([^\s]+).*timeoutMs=(\d+)(?:\s+maxTokens=(\d+)\s+context=(\d+))?/);
-      if (match) {
-        aiThinkingState.requests += 1;
-        const label = match[1];
-        const isInitialPrompt = label.startsWith("prompt/");
-        if (isInitialPrompt && aiThinkingState.requests === 1) {
-          return true;
-        }
-        updateAiThinkingDetail(aiRequestLabel(label));
-        return true;
-      }
-
-      match = text.match(/^Qt -> AI Workflow Training: .*compact=(true|false).*timeoutMs=(\d+)(?:\s+maxTokens=(\d+)\s+context=(\d+))?/);
-      if (match) {
-        aiThinkingState.requests += 1;
-        const compact = match[1] === "true";
-        const isRepeatedAiRequest = aiThinkingState.requests > 1
-          || aiThinkingState.workflowRetries > 0
-          || aiThinkingState.retries > 0;
-        if (!isRepeatedAiRequest) {
-          return true;
-        }
-        updateAiThinkingDetail(compact
-          ? "Ich fordere eine kompakte Workflow-Antwort an."
-          : "Ich sende den Workflow-Entwurf erneut an die AI.",
-          "workflow-ai-request");
-        return true;
-      }
-
-      if (text.includes("Workflow Training Review: Vor dem Speichern")) {
-        updateAiThinkingDetail("Ich prüfe den Workflow vor dem Speichern punktweise.", "workflow-review");
-        return true;
-      }
-
-      if (text.includes("Workflow Training Review: Nutzerantwort wird zur Ueberarbeitung")) {
-        updateAiThinkingDetail("Ich überarbeite den Workflow anhand der Review-Antwort.", "workflow-review");
-        return true;
-      }
-
-      if (text.includes("Workflow Training Review: Nutzer hat die Vor-Speicher-Review bestaetigt")) {
-        updateAiThinkingDetail("Die Review ist bestätigt; ich bereite die finale Validierung vor.", "workflow-review");
-        return true;
-      }
-
-      match = text.match(/^Workflow Run: Vorschlag aus (.*) mit (\d+) Aktionen/);
-      if (match) {
-        updateAiThinkingDetail(`Ich bereite den Workflow „${match[1]}“ mit ${match[2]} Schritt${match[2] === "1" ? "" : "en"} vor.`, "workflow-run");
-        return true;
-      }
-
-      match = text.match(/^Qt -> AI Workflow Step Review: step=(\d+)\/(\d+) failed=(true|false)/);
-      if (match) {
-        updateAiThinkingDetail(
-          match[3] === "true"
-            ? `Ich lasse die AI den fehlgeschlagenen Workflow-Schritt ${match[1]}/${match[2]} prüfen.`
-            : `Ich lasse die AI Workflow-Schritt ${match[1]}/${match[2]} auswerten.`,
-          "workflow-step-review");
-        return true;
-      }
-
-      match = text.match(/^AI Workflow Step Review: decision=([^\s]+)\s+message=(.*)$/);
-      if (match) {
-        const decisionLabels = {
-          "continue": "AI bestätigt den nächsten Workflow-Schritt.",
-          "ask_user": "AI benötigt eine Nutzerentscheidung zum Workflow.",
-          "repair_action": "AI korrigiert eine Workflow-Aktion.",
-          "repair_workflow": "AI überführt den Workflow in die Trainingskorrektur.",
-          "stop_success": "AI bewertet den Workflow als abgeschlossen.",
-          "stop_failed": "AI bricht den Workflow mit Begründung ab."
-        };
-        const suffix = match[2] ? ` ${compactLogText(match[2], 100)}` : "";
-        updateAiThinkingDetail(`${decisionLabels[match[1]] || `AI entscheidet: ${match[1]}.`}${suffix}`, "workflow-step-review");
-        return true;
-      }
-
-      match = text.match(/^Workflow Step Review: Aktion (\d+)\/(\d+) durch AI-Korrektur ersetzt/);
-      if (match) {
-        updateAiThinkingDetail(`Ich ersetze Workflow-Aktion ${match[1]}/${match[2]} durch die AI-Korrektur und validiere erneut.`, "workflow-step-repair");
-        return true;
-      }
-
-      if (text.includes("Workflow Step Review: Workflow-Reparatur im Trainingsmodus gestartet")) {
-        updateAiThinkingDetail("Ich öffne den Workflow mit BRX-Log im Trainingsmodus zur Reparatur.", "workflow-step-repair");
-        return true;
-      }
-
-      match = text.match(/^AI Agent Loop (\d+)\/(\d+):\s*(.*)$/);
-      if (match) {
-        aiThinkingState.retries = Number(match[1] || "0");
-        updateAiThinkingDetail(
-          `Ich denke erneut nach und korrigiere die Antwort (${match[1]}/${match[2]}): ${compactAiRetryReason(match[3])}`,
-          "ai-retry");
-        return true;
-      }
-
-      match = text.match(/^AI Agent Loop: abgebrochen nach (\d+) Versuchen:\s*(.*)$/);
-      if (match) {
-        updateAiThinkingDetail(
-          `Ich stoppe die automatische Korrektur nach ${match[1]} Versuchen: ${compactAiRetryReason(match[2])}`,
-          "ai-retry");
-        return true;
-      }
-
-      match = text.match(/^AI Agent Loop: BRX-Fehlerkorrektur nach (\d+) Versuchen abgebrochen:\s*(.*)$/);
-      if (match) {
-        updateAiThinkingDetail(
-          `Ich stoppe die BRX-Fehlerkorrektur nach ${match[1]} Versuchen: ${compactAiRetryReason(match[2])}`,
-          "ai-retry");
-        return true;
-      }
-
-      match = text.match(/^Workflow Training Loop (\d+)\/(\d+):\s*(.*)$/);
-      if (match) {
-        aiThinkingState.workflowRetries = Number(match[1] || "0");
-        updateAiThinkingDetail(
-          `Ich überarbeite den Workflow-Entwurf (${match[1]}/${match[2]}): ${compactAiRetryReason(match[3])}`,
-          "workflow-retry");
-        return true;
-      }
-
-      match = text.match(/^Workflow Training Loop: abgebrochen nach (\d+) Versuchen:\s*(.*)$/);
-      if (match) {
-        updateAiThinkingDetail(
-          `Ich stoppe die Workflow-Korrektur nach ${match[1]} Versuchen: ${compactAiRetryReason(match[2])}`,
-          "workflow-retry");
-        return true;
-      }
-
-      if (text.includes("AI Kontext: automatisch minimiert")) {
-        updateAiThinkingDetail("Ich kürze den Kontext automatisch, damit die Anfrage in das Modellfenster passt.", "ai-context");
-        return true;
-      }
-
-      if (text.includes("AI Kontext: budgetbedingt minimiert")) {
-        updateAiThinkingDetail("Ich halte den fokussierten Kontext knapp, damit die Anfrage in das Modellfenster passt.", "ai-context");
-        return true;
-      }
-
-      if (text.includes("AI Workflow: Antwort wurde vom Modell wegen Tokenlimit abgeschnitten")) {
-        updateAiThinkingDetail("Die Workflow-Antwort war zu lang; ich fordere eine kürzere, gültige Antwort an.", "workflow-retry");
-        return true;
-      }
-
-      if (text.includes("AI Workflow: abgeschnittene ask_user Rueckfrage rekonstruiert")) {
-        updateAiThinkingDetail("Die Workflow-Antwort war abgeschnitten; ich zeige die erkennbare Rückfrage an.", "workflow-retry");
-        return true;
-      }
-
       return false;
     }
-
     function toolDisplayName(tool) {
-      const names = {
-        "actions.validate": "Vorschlag prüfen",
-        "layers.ensureMany": "mehrere Layer anlegen",
-        "layers.create": "Layer anlegen",
-        "layers.rename": "Layer umbenennen",
-        "layers.setColor": "Layerfarbe setzen",
-        "geometry.create": "Geometrie erstellen",
-        "geometry.move": "Geometrie verschieben",
-        "geometry.copy": "Geometrie kopieren",
-        "geometry.rotate": "Geometrie drehen",
-        "geometry.scale": "Geometrie skalieren",
-        "geometry.delete": "Geometrie löschen",
-        "rectangles.extrude": "Rechtecke extrudieren",
-        "profile.extrude": "Profil extrudieren",
-        "bim.create": "BIM-Element erstellen",
-        "bim.move": "BIM-Element verschieben",
-        "bim.classify": "BIM klassifizieren",
-        "selection.set": "Auswahl setzen",
-        "document.save": "Zeichnung speichern",
-        "undo.last": "Rückgängig",
-        "undo.redo": "Wiederholen",
-      };
-      return names[tool] || tool || "Aktion";
-    }
-
-    function batchSummaryTextFromLog(payload) {
-      const text = String(payload || "");
-      let completed = null;
-      let requested = null;
-      let failed = null;
-
-      try {
-        const result = JSON.parse(text);
-        if (result && typeof result === "object") {
-          completed = Number.isFinite(Number(result.actionsCompleted)) ? Number(result.actionsCompleted) : completed;
-          requested = Number.isFinite(Number(result.actionsRequested)) ? Number(result.actionsRequested) : requested;
-          failed = Number.isFinite(Number(result.failed)) ? Number(result.failed) : failed;
-        }
-      } catch {
-        const completedMatch = text.match(/"actionsCompleted"\s*:\s*(\d+)/);
-        const requestedMatch = text.match(/"actionsRequested"\s*:\s*(\d+)/);
-        const failedMatch = text.match(/"failed"\s*:\s*(\d+)/);
-        if (completedMatch) {
-          completed = Number(completedMatch[1]);
-        }
-        if (requestedMatch) {
-          requested = Number(requestedMatch[1]);
-        }
-        if (failedMatch) {
-          failed = Number(failedMatch[1]);
-        }
-      }
-
-      if (completed !== null && requested !== null) {
-        if (failed && failed > 0) {
-          return `BRX meldet: ${completed}/${requested} Aktionen abgeschlossen, ${failed} fehlgeschlagen.`;
-        }
-        return `BRX meldet: ${completed}/${requested} Aktionen abgeschlossen.`;
-      }
-      return "BRX meldet: Batch-Ausführung abgeschlossen.";
-    }
-
-    function updateBatchThinking(text) {
-      addThinkingDetail(text, { key: "batch-progress" });
+      return tool || "Aktion";
     }
 
     function addBrxThinkingDetailFromLog(line) {
       const text = stripLogTimestamp(line);
-      let match = text.match(/^AI Agent: Nutzer bestaetigt; fuehre (\d+) Aktionen nacheinander aus/);
-      if (match) {
-        batchThinkingState = { active: true, current: 0, total: Number(match[1] || "0") };
-        addThinkingDetail(`Bestätigt. Ich führe ${match[1]} Aktionen nacheinander aus.`);
+      if (text.includes("BRX Plugin verbunden")) {
+        addThinkingDetail("BRX Plugin ist mit der minimalen Chat-Hülle verbunden.");
         return true;
       }
-
-      match = text.match(/^AI Agent: Nutzer bestaetigt; fuehre ([\w.]+) ueber ([\w.]+) aus/);
-      if (match) {
-        batchThinkingState = { active: false, current: 0, total: 0 };
-        addThinkingDetail(`Bestätigt. Ich führe ${toolDisplayName(match[1])} in BricsCAD aus.`);
+      if (text.includes("BRX Verbindung getrennt")) {
+        addThinkingDetail("BRX Plugin ist getrennt.");
         return true;
       }
-
-      match = text.match(/^Qt -> BRX: actions\.validate Batch-Aktion (\d+)\/(\d+)/);
-      if (match) {
-        batchThinkingState = { active: true, current: Number(match[1] || "0"), total: Number(match[2] || "0") };
-        updateBatchThinking(`Ich prüfe Aktion ${match[1]}/${match[2]} in BricsCAD.`);
-        return true;
-      }
-
-      match = text.match(/^BRX Preflight: Batch-Aktion (\d+)\/(\d+) gueltig/);
-      if (match) {
-        batchThinkingState = { active: true, current: Number(match[1] || "0"), total: Number(match[2] || "0") };
-        updateBatchThinking(`BRX bestätigt Aktion ${match[1]}/${match[2]}.`);
-        return true;
-      }
-
-      match = text.match(/^BRX Preflight: Batch-Aktion (\d+)\/(\d+) abgelehnt:\s*(.*)$/);
-      if (match) {
-        addThinkingDetail(`BRX stoppt Aktion ${match[1]}/${match[2]}: ${compactLogText(match[3])}`);
-        return true;
-      }
-
-      match = text.match(/^Qt -> BRX Batch (\d+)\/(\d+): ([\w.]+) saveBefore=(true|false)/);
-      if (match) {
-        const saveHint = match[4] === "true" ? " mit Sicherung" : "";
-        batchThinkingState = { active: true, current: Number(match[1] || "0"), total: Number(match[2] || "0") };
-        updateBatchThinking(`Ich führe Aktion ${match[1]}/${match[2]} in BricsCAD aus: ${toolDisplayName(match[3])}${saveHint}.`);
-        return true;
-      }
-
-      match = text.match(/^Qt -> BRX: actions\.validate (\d+)\/(\d+) direkt pruefbare Aktion\(en\)/);
-      if (match) {
-        addThinkingDetail(`Ich lasse ${match[1]} von ${match[2]} geplanten Aktionen direkt von BRX prÃ¼fen; runtime-gebundene Messungen werden bei der AusfÃ¼hrung geprÃ¼ft.`);
-        return true;
-      }
-
-      match = text.match(/^Qt -> BRX: actions\.validate (\d+) Aktion\(en\)/);
-      if (match) {
-        const count = Number(match[1] || "0");
-        addThinkingDetail(count > 1
-          ? `Ich lasse ${count} geplante Aktionen von BRX prüfen.`
-          : "Ich lasse die geplante Aktion von BRX prüfen.");
-        return true;
-      }
-
-      if (text.includes("BRX Preflight: gueltig mit Warnungen")) {
-        addThinkingDetail("BRX bestätigt den Vorschlag mit Hinweisen.");
-        return true;
-      }
-
-      if (text.includes("BRX Preflight: gueltig")) {
-        addThinkingDetail("BRX bestätigt: der Vorschlag ist ausführbar.");
-        return true;
-      }
-
-      match = text.match(/^BRX Preflight: abgelehnt:\s*(.*)$/);
-      if (match) {
-        addThinkingDetail(`BRX lehnt den Vorschlag ab: ${compactLogText(match[1])}`);
-        return true;
-      }
-
-      match = text.match(/^BRX -> Qt: ERROR ([\w.]+)\s*(.*)$/);
-      if (match) {
-        addThinkingDetail(`BRX meldet einen Fehler bei ${toolDisplayName(match[1])}: ${compactLogText(match[2])}`);
-        return true;
-      }
-
-      match = text.match(/^BRX -> Qt: ([\w.]+) ausgefuehrt/);
-      if (match) {
-        if (batchThinkingState.active && batchThinkingState.total > 1) {
-          updateBatchThinking(`BRX meldet: Aktion ${batchThinkingState.current}/${batchThinkingState.total} abgeschlossen.`);
-        } else {
-          addThinkingDetail(`BRX meldet: ${toolDisplayName(match[1])} abgeschlossen.`);
-        }
-        return true;
-      }
-
-      match = text.match(/^BRX Batch:\s*(.*)$/);
-      if (match) {
-        batchThinkingState = { active: false, current: 0, total: 0 };
-        addThinkingDetail(batchSummaryTextFromLog(match[1]));
-        return true;
-      }
-
       return false;
     }
-
     function handleBridgeLogLine(line) {
       const text = String(line || "");
-      if (text.includes("Qt -> BRX: capabilities.list")) {
-        return;
-      }
-      if (text.includes("BRX -> Qt: ERROR capabilities.list")) {
-        return;
-      }
-      const match = text.match(/BRX -> Qt: (\d+) Capabilities, (\d+) Commands, (\d+) (?:Action|Agent)-Tools/);
-      if (match) {
-        return;
-      }
-      if (text.includes("BRX Verbindung getrennt") || text.includes("capabilities.list konnte nicht gesendet")) {
-        return;
-      }
-      if (addAiThinkingDetailFromLog(text)) {
-        return;
-      }
-      const loopMatch = text.match(/AI Agent Loop[^:]*: .*/);
-      if (loopMatch) {
-        addThinkingDetail(`Ich prüfe die Antwort erneut: ${loopMatch[0].replace(/^AI Agent Loop[^:]*:\s*/, "")}`);
-        return;
-      }
-      if (text.includes("AI Agent: fasse BRX Ergebnis fuer den Chat zusammen")) {
-        pendingExecutionSummary = true;
-        return;
-      }
-      if (text.includes("AI JSON:")) {
-        return;
-      }
-      if (text.includes("AI Vorschlag:")) {
-        addThinkingDetail(`Ich habe einen ausführbaren Vorschlag vorbereitet: ${text.replace(/^\[[^\]]+\]\s*AI Vorschlag:\s*/, "")}`);
-        return;
-      }
-      if (text.includes("AI -> Qt Kontextabfrage")) {
-        addThinkingDetail(`Ich hole Zeichnungskontext: ${text.replace(/^\[[^\]]+\]\s*AI -> Qt Kontextabfrage:\s*/, "")}`);
-        return;
-      }
       if (addBrxThinkingDetailFromLog(text)) {
         return;
       }
-      if ((isBusy || thinkingIndicator) && text.includes("BRX -> Qt Kontext")) {
-        addThinkingDetail(`Ich berücksichtige den BRX-Kontext: ${text.replace(/^\[[^\]]+\]\s*/, "")}`);
-      }
+      addAiThinkingDetailFromLog(text);
     }
-
     function toggleSidebar() {
       applySidebarCollapsed(!sidebarCollapsed);
     }
@@ -9404,7 +8849,7 @@
       }
     });
     workflowsButton.addEventListener("click", () => {
-      if (isChatWorkspace() || isBricsCadWorkspace()) {
+      if (isChatWorkspace()) {
         openWorkflowOverlay();
       }
     });

@@ -5,58 +5,18 @@
   "topLevel": {
     "required": ["schema", "type", "message", "sessionTitle"],
     "schema": "barebone.agent.response.v2",
-    "allowedTypes": ["message", "ask_user", "context_request", "action_proposal", "plan"],
+    "allowedTypes": ["message"],
     "sessionTitlePolicy": "Set sessionTitle as a top-level field on every response. Derive a short, specific German session title from the user prompt and conversation focus; max 6 words; avoid generic titles."
-  },
-  "sessionTitle": {
-    "recommended": true,
-    "maxWords": 6,
-    "policy": "Kurzer Sitzungsname aus komprimiertem Kontext; keine generischen Titel wie Neuer Chat, Allgemeiner Chat, Workflow oder Frage."
   },
   "message": {
     "required": ["type", "message"]
-  },
-  "actionProposal": {
-    "required": ["type", "message", "proposal"],
-    "proposalRequired": ["requiresConfirmation", "actions"],
-    "actionShape": {
-      "required": ["tool", "params"],
-      "toolSource": "effectiveTools[].name",
-      "paramsSource": "effectiveTools[].inputSchema"
-    },
-    "forbiddenTopLevelFields": ["tool", "params", "actions"]
-  },
-  "askUser": {
-    "required": ["type", "message", "missing"],
-    "draftPolicy": "If a draft is included, use draft.proposal with the same proposal shape as action_proposal."
-  },
-  "contextRequest": {
-    "required": ["type", "message", "method", "params"],
-    "methodSource": "readOnlyMethods[].name"
   },
   "routeRules": {
     "general_chat": {
       "allowedTypes": ["message"]
     },
     "document_qa": {
-      "allowedTypes": ["message", "ask_user"]
-    },
-    "document_qa_with_cad_context": {
-      "allowedTypes": ["message", "ask_user", "context_request"]
-    },
-    "bricscad_question": {
-      "allowedTypes": ["message", "ask_user", "context_request"]
-    },
-    "bricscad_action": {
-      "allowedTypes": ["ask_user", "context_request", "action_proposal"]
-    },
-    "validation_retry": {
-      "allowedTypes": ["ask_user", "context_request", "action_proposal"]
-    },
-    "execution_summary": {
       "allowedTypes": ["message"]
     }
-  },
-  "defaultsPolicy": "Ask only for mandatory unknown data. For domain-standard requests, propose sensible defaults and list them in assumptions. If execution.delegatedValueChoice is true, choose plausible safe default/example values yourself and never ask the user for those delegated values.",
-  "bricscadReadOnlyPolicy": "For BricsCAD table, object-data, metrics, dimensions, height/width/depth, bounds, or fetch requests, use read-only context_request or read-only action_proposal with geometry.query first and measurement.bbox as fallback. For all objects/all layers use selector.scope=currentSpace without selector.layer. Do not ask for chat-vs-file export unless the user asks for export. Do not claim dimensions are unavailable before trying the configured read-only fallback tools."
+  }
 }
