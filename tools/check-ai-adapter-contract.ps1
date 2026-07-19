@@ -45,7 +45,7 @@ $sendSection = Function-Section "void BricsCadPage::sendAgentEnvelope" "QString 
 foreach ($fragment in @(
     'QStringLiteral("general_chat")',
     'QStringLiteral("document_qa")',
-    "buildGeneralMessagesForBudget(envelope, systemMessage",
+    "buildGeneralMessagesForBudget(slottedEnvelope, systemMessage",
     "AgentResponseKind::VisibleMarkdown",
     "appendAgentChat(QStringLiteral(`"AI`"), content)"
 )) {
@@ -76,7 +76,7 @@ if ($historySection.Contains("compressedHistorySummary") -or $historySection.Con
     throw "General-chat context selection must not summarize, character-truncate, or forward persistence metadata."
 }
 
-$continueSection = Function-Section "void BricsCadPage::continueUnifiedAgentRequest" "void BricsCadPage::selectToolsForUnifiedAgentRequest"
+$continueSection = Function-Section "void BricsCadPage::continueUnifiedAgentRequest" "void BricsCadPage::sendUnifiedAgentRequest"
 Assert-Contains $continueSection "if (isChatWorkspace())" "local chat-history selection"
 Assert-Contains $continueSection "if (!isChatWorkspace()" "AI focus restricted to non-chat workspace"
 

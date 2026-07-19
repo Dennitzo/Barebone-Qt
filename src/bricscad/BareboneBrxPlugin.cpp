@@ -79,12 +79,6 @@ struct BridgeMethodDescriptor {
     const char* apiPost;        // JSON object fragment or nullptr
 };
 
-struct BridgeCommandDescriptor {
-    const char* name;
-    const char* description;
-    const char* json;           // JSON object fragment or nullptr
-};
-
 std::string jsonEscape(const std::string& value);
 
 constexpr const char* kSelectorSchema = R"({
@@ -137,7 +131,6 @@ const BridgeMethodDescriptor kBridgeMethods[] = {
         R"({"type":"object","required":["selector","roomHeightMm","dimensionLayer","labelLayer","techniqueRoomBounds"],"properties":{"selector":{"type":"object"},"roomNames":{"type":"array","items":{"type":"string"}},"roomHeightMm":{"type":"number","exclusiveMinimum":0},"dimensionLayer":{"type":"string"},"labelLayer":{"type":"string"},"techniqueRoomBounds":{"type":"object"},"decimalPlaces":{"type":"number","minimum":0,"maximum":2},"textHeightMm":{"type":"number","exclusiveMinimum":0},"offsetMm":{"type":"number","minimum":0},"saveBefore":{"type":"boolean"}}})",
         R"({"method":"annotations.createRoomDimensions","required":["selector","roomHeightMm","dimensionLayer","labelLayer","techniqueRoomBounds"]})",
     },
-    {"commands.list", "query", "readOnly", "Liefert eine Low-Level-Startliste nativer BricsCAD-Kommandos und zugehoeriger Bridge-Tools.", nullptr, nullptr},
     {"layers.list", "query", "readOnly", "Listet Layer der aktiven Zeichnung.", nullptr, nullptr},
     {
         "geometry.query",
@@ -245,7 +238,7 @@ const BridgeMethodDescriptor kBridgeMethods[] = {
         "geometry.create",
         "action",
         "modifiesDrawing",
-        "Erzeugt neue Grundgeometrie direkt in der Zeichnung.",
+        "Erzeugt neue Grundgeometrie direkt in der Zeichnung, darunter Boxen und Rechtecke fuer Grundrisse, Aussenwaende und Innenwaende.",
         R"JSON({
 "type":"object",
 "required":["geometry"],
@@ -330,7 +323,7 @@ const BridgeMethodDescriptor kBridgeMethods[] = {
         "rectangles.extrude",
         "action",
         "modifiesDrawing",
-        "Extrudiert geschlossene Rechteck-Polylinien ueber die BRX API.",
+        "Extrudiert geschlossene Rechteck-Polylinien ueber die BRX API, etwa fuer Grundrisse, Aussenwaende und Innenwaende.",
         R"JSON({
 "type":"object",
 "required":["heightMm"],
@@ -388,7 +381,7 @@ const BridgeMethodDescriptor kBridgeMethods[] = {
 "required":[],
 "bodySchema":{"type":"object","properties":{
   "steps":{"type":"number","minimum":1,"description":"Anzahl der Schritte fuer UNDO"},
-  "saveBefore":{"type":"boolean","description":"Default: true"},
+  "saveBefore":{"type":"boolean","description":"Default: true; automatic pre-action save runs once before the first mutation"},
   "reason":{"type":"string"}
 }},
 "examples":[{"steps":1,"saveBefore":true}]
@@ -398,7 +391,7 @@ const BridgeMethodDescriptor kBridgeMethods[] = {
         "bim.classify",
         "action",
         "modifiesDrawing",
-        "Klassifiziert 3D-Solids als BIM-Element.",
+        "Klassifiziert 3D-Solids als BIM-Element, insbesondere Grundriss-Aussenwaende und Innenwaende als BIMWall.",
         R"JSON({
 "type":"object",
 "required":["classification"],
@@ -409,7 +402,7 @@ const BridgeMethodDescriptor kBridgeMethods[] = {
     "handles":{"type":"array","items":{"type":"string"}},
     "kind":{"type":"string","enum":["solid"]}
   }},
-  "classification":{"type":"string","enum":["BIMWall"]},
+  "classification":{"type":"string","enum":["BIMWall","BIMColumn","BIMSlab","BIMBeam"]},
   "saveBefore":{"type":"boolean"},
   "reason":{"type":"string"}
 },
@@ -426,10 +419,10 @@ const BridgeMethodDescriptor kBridgeMethods[] = {
     "handles":{"type":"array","items":{"type":"string"}},
     "kind":{"type":"string","enum":["solid"]}
   }},
-  "classification":{"type":"string","enum":["BIMWall"]},
+  "classification":{"type":"string","enum":["BIMWall","BIMColumn","BIMSlab","BIMBeam"]},
   "saveBefore":{"type":"boolean"}
 }},
-"examples":[{"classification":"BIMWall","target":"lastExtruded","saveBefore":true},{"classification":"BIMWall","selector":{"scope":"selection","kind":"solid"},"saveBefore":true}]
+"examples":[{"classification":"BIMWall","target":"lastExtruded","saveBefore":true},{"classification":"BIMColumn","selector":{"scope":"selection","kind":"solid"},"saveBefore":true},{"classification":"BIMBeam","selector":{"scope":"handles","handles":["A7"],"kind":"solid"},"saveBefore":true}]
 })JSON",
     },
     {
@@ -474,7 +467,7 @@ const BridgeMethodDescriptor kBridgeMethods[] = {
   "heightMm":"positive extrusion height in mm",
   "direction":"optional extrusion direction vector; z-axis is default",
   "detail":"summary|element|geometry",
-  "saveBefore":"boolean default true"
+  "saveBefore":"boolean default true; automatic pre-action save runs once before mutation"
 }},
 "examples":[{"heightMm":1000,"selector":{"scope":"handles","handles":["104C"],"kind":"circle"},"layer":"0","saveBefore":true},{"heightMm":1000,"selector":{"scope":"selection","kind":"circle"},"layer":"0","saveBefore":true}]
 })JSON",
@@ -521,7 +514,7 @@ const BridgeMethodDescriptor kBridgeMethods[] = {
   "direction":"optional extrusion direction vector; z-axis is default",
   "taperAngleDeg":"optional taper angle; native command support can depend on BricsCAD",
   "detail":"summary|element|geometry",
-  "saveBefore":"boolean default true"
+  "saveBefore":"boolean default true; automatic pre-action save runs once before mutation"
 }},
 "examples":[{"heightMm":1000,"selector":{"scope":"lastResult"},"saveBefore":true},{"heightMm":3000,"selector":{"scope":"selection","kind":"profile"},"saveBefore":true},{"heightMm":1000,"layer":"0","detail":"element"}]
 })JSON",
@@ -541,9 +534,6 @@ const BridgeMethodDescriptor kBridgeMethods[] = {
   "fromPoint":{"type":"object","properties":{"x":{"type":"number"},"y":{"type":"number"},"z":{"type":"number"}}},
   "toPoint":{"type":"object","properties":{"x":{"type":"number"},"y":{"type":"number"},"z":{"type":"number"}}},
   "units":{"type":"string","enum":["mm","drawing"],"default":"drawing"},
-  "autoBimHandlesFromLastQuery":{"type":"boolean"},
-  "resolvedHandles":{"type":"array","items":{"type":"string"}},
-  "targetFingerprints":{"type":"array","items":{"type":"object"}},
   "saveBefore":{"type":"boolean"},
   "reason":{"type":"string"}
 },
@@ -553,8 +543,39 @@ const BridgeMethodDescriptor kBridgeMethods[] = {
 "method":"geometry.move",
 "required":["selector"],
 "oneOfRequired":[["vector"],["offset"],["fromPoint","toPoint"]],
-"bodySchema":{"type":"object","properties":{"selector":"Selector","vector":"{x,y,z} offset","fromPoint":"{x,y,z}","toPoint":"{x,y,z}","units":"drawing (default) or mm","autoBimHandlesFromLastQuery":"bind exact handles from preceding BIM query","saveBefore":"boolean default true"}},
+"bodySchema":{"type":"object","properties":{"selector":"Selector fuer reine Nicht-BIM-Geometrie","vector":"{x,y,z} offset","fromPoint":"{x,y,z}","toPoint":"{x,y,z}","units":"drawing (default) or mm","saveBefore":"boolean default true; automatic pre-action save runs once before mutation"}},
 "examples":[{"selector":{"scope":"selection"},"vector":{"x":100,"y":0,"z":0},"units":"drawing"},{"selector":{"scope":"handles","handles":["A7"]},"fromPoint":{"x":0,"y":0,"z":0},"toPoint":{"x":100,"y":0,"z":0},"units":"mm"}]
+})JSON",
+    },
+    {
+        "bim.move",
+        "action",
+        "modifiesDrawing",
+        "Verschiebt klassifizierte BIM-Objekte per konkretem Selector um einen Vektor oder von einem Punkt zu einem Zielpunkt.",
+        R"JSON({
+"type":"object",
+"required":["selector"],
+"properties":{
+  "selector":{"type":"object"},
+  "vector":{"type":"object","properties":{"x":{"type":"number"},"y":{"type":"number"},"z":{"type":"number"}}},
+  "offset":{"type":"object","properties":{"x":{"type":"number"},"y":{"type":"number"},"z":{"type":"number"}}},
+  "fromPoint":{"type":"object","properties":{"x":{"type":"number"},"y":{"type":"number"},"z":{"type":"number"}}},
+  "toPoint":{"type":"object","properties":{"x":{"type":"number"},"y":{"type":"number"},"z":{"type":"number"}}},
+  "units":{"type":"string","enum":["mm","drawing"],"default":"drawing"},
+  "autoBimHandlesFromLastQuery":{"type":"boolean"},
+  "resolvedHandles":{"type":"array","items":{"type":"string"}},
+  "targetFingerprints":{"type":"array","items":{"type":"object"}},
+  "saveBefore":{"type":"boolean"},
+  "reason":{"type":"string"}
+},
+"oneOfRequired":[["vector"],["offset"],["fromPoint","toPoint"]]
+})JSON",
+        R"JSON({
+"method":"bim.move",
+"required":["selector"],
+"oneOfRequired":[["vector"],["offset"],["fromPoint","toPoint"]],
+"bodySchema":{"type":"object","properties":{"selector":"BIM selector: handles, names oder selection; currentSpace ist fuer Mutation verboten","vector":"{x,y,z} offset","fromPoint":"{x,y,z}","toPoint":"{x,y,z}","units":"drawing (default) or mm","autoBimHandlesFromLastQuery":"bind exact handles from preceding BIM query","resolvedHandles":"filled by actions.validate","targetFingerprints":"filled by actions.validate","saveBefore":"boolean default true; automatic pre-action save runs once before mutation"}},
+"examples":[{"selector":{"scope":"names","names":["Door 01"]},"vector":{"x":100,"y":0,"z":0},"units":"mm","saveBefore":true},{"selector":{"scope":"handles","handles":["A7"]},"fromPoint":{"x":0,"y":0,"z":0},"toPoint":{"x":100,"y":0,"z":0},"units":"mm"}]
 })JSON",
     },
     {
@@ -573,8 +594,8 @@ const BridgeMethodDescriptor kBridgeMethods[] = {
         R"JSON({
 "method":"brx.sdk.assoc.evaluate",
 "required":[],
-"bodySchema":{"type":"object","properties":{"selector":"optional context selector","saveBefore":"boolean default false","reason":"optional repair reason"}},
-"examples":[{"reason":"Refresh BIM/association graph after a moved hosted object","saveBefore":false}]
+"bodySchema":{"type":"object","properties":{"selector":"optional context selector","saveBefore":"boolean default true","reason":"optional repair reason"}},
+"examples":[{"reason":"Refresh BIM/association graph after a moved hosted object","saveBefore":true}]
 })JSON",
     },
     {
@@ -600,7 +621,7 @@ const BridgeMethodDescriptor kBridgeMethods[] = {
 "method":"geometry.copy",
 "required":["selector"],
 "oneOfRequired":[["vector"],["offset"],["spacing"]],
-"bodySchema":{"type":"object","properties":{"selector":"Selector","vector":"single copy offset","count":"number of copies; default 1","spacing":"repeated-copy offset","saveBefore":"boolean default true"}},
+"bodySchema":{"type":"object","properties":{"selector":"Selector","vector":"single copy offset","count":"number of copies; default 1","spacing":"repeated-copy offset","saveBefore":"boolean default true; automatic pre-action save runs once before mutation"}},
 "examples":[{"selector":{"scope":"selection"},"vector":{"x":500,"y":0,"z":0},"count":2}]
 })JSON",
     },
@@ -628,7 +649,7 @@ const BridgeMethodDescriptor kBridgeMethods[] = {
 "method":"geometry.rotate",
 "required":["selector"],
 "oneOfRequired":[["angleDeg"],["angleRad"]],
-"bodySchema":{"type":"object","properties":{"selector":"Selector; after selection.set prefer scope=handles with affectedHandles instead of scope=selection","basePoint":"rotation center","basePointMode":"entityCenter/eachEntityCenter rotates every entity around its own extents center; selectionCenter rotates around the combined selection extents center","axis":"rotation axis; Z default","angleDeg":"user-provided degrees; no default","angleRad":"user-provided radians; no default","saveBefore":"boolean default true"}},
+"bodySchema":{"type":"object","properties":{"selector":"Selector; after selection.set prefer scope=handles with affectedHandles instead of scope=selection","basePoint":"rotation center","basePointMode":"entityCenter/eachEntityCenter rotates every entity around its own extents center; selectionCenter rotates around the combined selection extents center","axis":"rotation axis; Z default","angleDeg":"user-provided degrees; no default","angleRad":"user-provided radians; no default","saveBefore":"boolean default true; automatic pre-action save runs once before mutation"}},
 "examples":[{"selector":{"scope":"selection"},"basePoint":{"x":0,"y":0,"z":0},"angleDeg":90}]
 })JSON",
     },
@@ -651,7 +672,7 @@ R"JSON({
         R"JSON({
 "method":"geometry.scale",
 "required":["selector","factor"],
-"bodySchema":{"type":"object","properties":{"selector":"Selector","basePoint":"scale origin; default 0,0,0","factor":"uniform scale factor only; do not use for one-axis extension or lengthening","saveBefore":"boolean default true"}},
+"bodySchema":{"type":"object","properties":{"selector":"Selector","basePoint":"scale origin; default 0,0,0","factor":"uniform scale factor only; do not use for one-axis extension or lengthening","saveBefore":"boolean default true; automatic pre-action save runs once before mutation"}},
 "examples":[{"selector":{"scope":"selection"},"basePoint":{"x":0,"y":0,"z":0},"factor":2}]
 })JSON",
     },
@@ -673,7 +694,7 @@ R"JSON({
         R"JSON({
 "method":"geometry.delete",
 "required":["selector","confirm"],
-"bodySchema":{"type":"object","properties":{"selector":"Selector","confirm":"must be true","saveBefore":"boolean default true"}},
+"bodySchema":{"type":"object","properties":{"selector":"Selector","confirm":"must be true","saveBefore":"boolean default true; automatic pre-action save runs once before mutation"}},
 "examples":[{"selector":{"scope":"handles","handles":["A7"]},"confirm":true}]
 })JSON",
     },
@@ -717,7 +738,7 @@ R"JSON({
         R"JSON({
 "method":"entity.setLayer",
 "required":["selector","layer"],
-"bodySchema":{"type":"object","properties":{"selector":"Selector for existing entities; use scope=handles for explicit handles like A8","layer":"target layer name","targetLayer":"alias for layer","createIfMissing":"optional boolean; creates target layer before assignment when missing","saveBefore":"boolean default true"}},
+"bodySchema":{"type":"object","properties":{"selector":"Selector for existing entities; use scope=handles for explicit handles like A8","layer":"target layer name","targetLayer":"alias for layer","createIfMissing":"optional boolean; creates target layer before assignment when missing","saveBefore":"boolean default true; automatic pre-action save runs once before mutation"}},
 "examples":[{"selector":{"scope":"handles","handles":["A8"]},"layer":"Haus - Wände","createIfMissing":true,"saveBefore":true}]
 })JSON",
     },
@@ -739,7 +760,7 @@ R"JSON({
         R"JSON({
 "method":"entity.setName",
 "required":["selector","name"],
-"bodySchema":{"type":"object","properties":{"selector":"Selector for existing entities","name":"meaningful entity name","saveBefore":"boolean default true"}},
+"bodySchema":{"type":"object","properties":{"selector":"Selector for existing entities","name":"meaningful entity name","saveBefore":"boolean default true; automatic pre-action save runs once before mutation"}},
 "examples":[{"selector":{"scope":"lastResult"},"name":"Badezimmer Wand","saveBefore":true}]
 })JSON",
     },
@@ -761,7 +782,7 @@ R"JSON({
         R"JSON({
 "method":"layers.create",
 "required":["name"],
-"bodySchema":{"type":"object","properties":{"name":"layer name","colorIndex":"ACI color index 1..255 optional","saveBefore":"boolean default true"}},
+"bodySchema":{"type":"object","properties":{"name":"layer name","colorIndex":"ACI color index 1..255 optional","saveBefore":"boolean default true; automatic pre-action save runs once before mutation"}},
 "examples":[{"name":"AI Walls","colorIndex":1}]
 })JSON",
     },
@@ -783,7 +804,7 @@ R"JSON({
         R"JSON({
 "method":"layers.rename",
 "required":["oldName","newName"],
-"bodySchema":{"type":"object","properties":{"oldName":"existing layer name","newName":"new layer name","saveBefore":"boolean default true"}},
+"bodySchema":{"type":"object","properties":{"oldName":"existing layer name","newName":"new layer name","saveBefore":"boolean default true; automatic pre-action save runs once before mutation"}},
 "examples":[{"oldName":"Layer1","newName":"AI Walls"}]
 })JSON",
     },
@@ -805,7 +826,7 @@ R"JSON({
         R"JSON({
 "method":"layers.setColor",
 "required":["name","colorIndex"],
-"bodySchema":{"type":"object","properties":{"name":"layer name","colorIndex":"ACI color index 1..255","saveBefore":"boolean default true"}},
+"bodySchema":{"type":"object","properties":{"name":"layer name","colorIndex":"ACI color index 1..255","saveBefore":"boolean default true; automatic pre-action save runs once before mutation"}},
 "examples":[{"name":"AI Walls","colorIndex":3}]
 })JSON",
     },
@@ -826,48 +847,8 @@ R"JSON({
         R"JSON({
 "method":"layers.batch",
 "required":["actions"],
-"bodySchema":{"type":"object","properties":{"actions":"array of {tool|method|operation, params}; supported operations: layers.create, layers.rename, layers.setColor","saveBefore":"boolean default true"}},
+"bodySchema":{"type":"object","properties":{"actions":"array of {tool|method|operation, params}; supported operations: layers.create, layers.rename, layers.setColor","saveBefore":"boolean default true; automatic pre-action save runs once before mutation"}},
 "examples":[{"actions":[{"tool":"layers.create","params":{"name":"Layer1"}},{"tool":"layers.setColor","params":{"name":"Layer1","colorIndex":3}}],"saveBefore":true}]
-})JSON",
-    },
-    {
-        "command.execute",
-        "action",
-        "modifiesDrawing",
-        "Sendet eine vorvalidierte native BricsCAD-Kommandozeile an das aktive Dokument.",
-        R"JSON({
-"type":"object",
-"required":["commandLine"],
-"properties":{
-  "commandLine":{"type":"string"},
-  "commandName":{"type":"string"},
-  "saveBefore":{"type":"boolean"},
-  "reason":{"type":"string"}
-}
-})JSON",
-        R"JSON({
-"method":"command.execute",
-"required":["commandLine"],
-"bodySchema":{"type":"object","properties":{"commandLine":"single native BricsCAD command line from commands.list; no scripts or multi-command lines","commandName":"optional normalized command name; must match commandLine","saveBefore":"boolean default true"}},
-"examples":[{"commandLine":"_.-LAYER _New AI Walls","saveBefore":true}]
-})JSON",
-    },
-    {
-        "document.save",
-        "action",
-        "modifiesDocument",
-        "Speichert die aktive Zeichnung explizit.",
-        R"JSON({
-"type":"object",
-"properties":{
-  "reason":{"type":"string"}
-}
-})JSON",
-        R"JSON({
-"method":"document.save",
-"required":[],
-"bodySchema":{"type":"object","properties":{"reason":"optional reason shown in logs"}},
-"examples":[{"reason":"checkpoint before AI action"}]
 })JSON",
     },
     {
@@ -931,81 +912,15 @@ R"JSON({
         R"JSON({
 "method":"undo.redo",
 "required":[],
-"bodySchema":{"type":"object","properties":{"steps":"number >= 1; default 1","saveBefore":"boolean default true"}},
+"bodySchema":{"type":"object","properties":{"steps":"number >= 1; default 1","saveBefore":"boolean default true; automatic pre-action save runs once before mutation"}},
 "examples":[{"steps":1}]
 })JSON",
     },
 };
 
-const BridgeCommandDescriptor kBridgeCommands[] = {
-    {"RECTANGLE", "Zeichnet ein Rechteck ueber zwei Eckpunkte oder Optionen.",
-     R"({"commandLine":true})"},
-    {"LINE", "Zeichnet eine Linie ueber zwei oder mehr Punkte.",
-     R"({"commandLine":true,"bridgeTool":"geometry.create","params":{"start":{"type":"point","required":true},"end":{"type":"point","required":true}}})"},
-    {"PLINE", "Zeichnet eine Polylinie.",
-     R"({"commandLine":true,"bridgeTool":"geometry.create","params":{"points":{"type":"array","required":true},"closed":{"type":"boolean"}}})"},
-    {"CIRCLE", "Zeichnet einen Kreis.",
-     R"({"commandLine":true,"bridgeTool":"geometry.create","params":{"center":{"type":"point","required":true},"radius":{"type":"number","required":true}}})"},
-    {"ARC", "Zeichnet einen Bogen.",
-     R"({"commandLine":true,"bridgeTool":"geometry.create"})"},
-    {"ELLIPSE", "Zeichnet eine Ellipse.",
-     R"({"commandLine":true,"bridgeTool":"geometry.create"})"},
-    {"POINT", "Setzt einen Punkt.",
-     R"({"commandLine":true,"bridgeTool":"geometry.create"})"},
-    {"BOX", "Erzeugt einen 3D-Quader.",
-     R"({"commandLine":true,"bridgeTool":"geometry.create"})"},
-    {"EXTRUDE", "Extrudiert 2D-Profile zu 3D-Solids.",
-     R"({"selectionSet":true,"commandLine":true,"params":{"heightMm":{"type":"number","unit":"mm","required":true}}})"},
-    {"MOVE", "Verschiebt Entities.",
-     R"({"selectionSet":true,"commandLine":true,"bridgeTool":"geometry.move"})"},
-    {"COPY", "Kopiert Entities.",
-     R"({"selectionSet":true,"commandLine":true,"bridgeTool":"geometry.copy"})"},
-    {"ROTATE", "Rotiert Entities.",
-     R"({"selectionSet":true,"commandLine":true,"bridgeTool":"geometry.rotate"})"},
-    {"SCALE", "Skaliert Entities uniform. Nicht fuer einachsiges Verlaengern verwenden.",
-     R"({"selectionSet":true,"commandLine":true,"bridgeTool":"geometry.scale","limits":"uniform factor only; not for one-axis extension"})"},
-    {"ERASE", "Loescht Entities.",
-     R"({"selectionSet":true,"commandLine":true,"bridgeTool":"geometry.delete"})"},
-    {"LAYER", "Verwaltet Layer.",
-     R"({"commandLine":true,"bridgeTool":"layers.create|layers.rename|layers.setColor"})"},
-    {"SAVE", "Speichert die Zeichnung.",
-     R"({"commandLine":true,"bridgeTool":"document.save"})"},
-    {"UNDO", "Macht zuletzt ausgefuehrte Aktionen rueckgaengig.",
-     R"({"selectionSet":false,"commandLine":true,"params":{"steps":{"type":"number","minimum":1,"required":false}}})"},
-    {"REDO", "Stellt rueckgaengig gemachte Aktion wieder her.",
-     R"({"selectionSet":false,"commandLine":true,"bridgeTool":"undo.redo"})"},
-    {"BIMCLASSIFY", "Klassifiziert Entities als BIM-Elemente.",
-     R"({"selectionSet":true,"commandLine":true,"params":{"classification":{"enum":["BIMWall"],"required":true}},"options":[{"option":"Wall","classification":"BIMWall"},{"option":"Column","classification":"BIMColumn"},{"option":"Slab","classification":"BIMSlab"},{"option":"Beam","classification":"BIMBeam"}]})"},
-    {"UNION", "Vereint 3D-Solids.",
-     R"({"selectionSet":true,"commandLine":true,"status":"contextOnly"})"},
-    {"SUBTRACT", "Subtrahiert 3D-Solids.",
-     R"({"selectionSet":true,"commandLine":true,"status":"contextOnly"})"},
-    {"INTERSECT", "Bildet Schnittmenge von 3D-Solids.",
-     R"({"selectionSet":true,"commandLine":true,"status":"contextOnly"})"},
-    {"SWEEP", "Swept Profil entlang eines Pfads.",
-     R"({"selectionSet":true,"commandLine":true,"status":"contextOnly"})"},
-    {"LOFT", "Erzeugt Flaechen/Solids aus Profilen.",
-     R"({"selectionSet":true,"commandLine":true,"status":"contextOnly"})"},
-    {"OFFSET", "Versetzt Kurven/Polylinien.",
-     R"({"selectionSet":true,"commandLine":true,"status":"contextOnly"})"},
-    {"TRIM", "Trimmt Geometrie.",
-     R"({"selectionSet":true,"commandLine":true,"status":"contextOnly"})"},
-    {"EXTEND", "Verlaengert Geometrie.",
-     R"({"selectionSet":true,"commandLine":true,"status":"contextOnly"})"},
-    {"FILLET", "Erzeugt Rundungen.",
-     R"({"selectionSet":true,"commandLine":true,"status":"contextOnly"})"},
-    {"CHAMFER", "Erzeugt Fasen.",
-     R"({"selectionSet":true,"commandLine":true,"status":"contextOnly"})"},
-};
-
 std::size_t bridgeMethodCount()
 {
     return sizeof(kBridgeMethods) / sizeof(kBridgeMethods[0]);
-}
-
-std::size_t bridgeCommandCount()
-{
-    return sizeof(kBridgeCommands) / sizeof(kBridgeCommands[0]);
 }
 
 const char* methodCategory(const char* name)
@@ -1041,6 +956,7 @@ bool isStructuredBimTool(const char* name)
     const std::string method(name);
     return method == "bim.objects.query"
         || method == "bim.selection.set"
+        || method == "bim.move"
         || method == "bim.classify";
 }
 
@@ -1069,115 +985,6 @@ void appendMethodDescriptor(std::ostringstream& out, const BridgeMethodDescripto
     out << "}" << (isLast ? "" : ",");
 }
 
-std::string descriptorUpperAscii(std::string value)
-{
-    for (char& ch : value) {
-        ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
-    }
-    return value;
-}
-
-bool descriptorAllowsNoArguments(const std::string& commandName)
-{
-    static const std::set<std::string> allowedWithoutArguments{
-        "REDO",
-        "SAVE",
-    };
-    return allowedWithoutArguments.find(descriptorUpperAscii(commandName)) != allowedWithoutArguments.end();
-}
-
-std::string commandAliasesJson(const std::string& commandName)
-{
-    const std::string command = descriptorUpperAscii(commandName);
-    if (command == "RECTANGLE") return "[\"RECTANG\",\"RECHTECK\"]";
-    if (command == "LINE") return "[\"LINIE\"]";
-    if (command == "PLINE") return "[\"POLYLINE\",\"POLYLINIE\"]";
-    if (command == "CIRCLE") return "[\"KREIS\"]";
-    if (command == "ARC") return "[\"BOGEN\"]";
-    if (command == "POINT") return "[\"PUNKT\"]";
-    if (command == "BOX") return "[\"QUADER\"]";
-    if (command == "EXTRUDE") return "[\"EXTRUSION\"]";
-    if (command == "MOVE") return "[\"SCHIEBEN\",\"VERSCHIEBEN\"]";
-    if (command == "COPY") return "[\"KOPIEREN\"]";
-    if (command == "ROTATE") return "[\"DREHEN\"]";
-    if (command == "SCALE") return "[\"SKALIEREN\",\"VARIA\"]";
-    if (command == "ERASE") return "[\"DELETE\",\"LOESCHEN\"]";
-    if (command == "UNDO") return "[\"U\",\"Z\"]";
-    return "[]";
-}
-
-std::string commandPreferredTool(const std::string& commandName)
-{
-    const std::string command = descriptorUpperAscii(commandName);
-    if (command == "LINE" || command == "PLINE" || command == "POLYLINE"
-        || command == "CIRCLE" || command == "ARC" || command == "ELLIPSE"
-        || command == "POINT" || command == "BOX") return "geometry.create";
-    if (command == "MOVE" || command == "MANIP_MOVE" || command == "MANIPMOVE") return "geometry.move";
-    if (command == "COPY") return "geometry.copy";
-    if (command == "ROTATE") return "geometry.rotate";
-    if (command == "SCALE") return "geometry.scale";
-    if (command == "ERASE") return "geometry.delete";
-    if (command == "EXTRUDE") return "profile.extrude";
-    if (command == "RECTANGLE") return "geometry.create";
-    if (command == "LAYER") return "layers.create|layers.rename|layers.setColor|entity.setLayer";
-    if (command == "SAVE") return "document.save";
-    if (command == "UNDO") return "undo.last";
-    if (command == "REDO") return "undo.redo";
-    if (command == "BIMCLASSIFY") return "bim.classify";
-    return "";
-}
-
-std::string commandExpectedSideEffects(const std::string& commandName)
-{
-    const std::string command = descriptorUpperAscii(commandName);
-    if (command == "SAVE") return "document";
-    if (command == "UNDO" || command == "REDO") return "history";
-    if (command == "LAYER") return "layers";
-    if (command == "BIMCLASSIFY") return "bim";
-    if (command == "RECTANGLE" || command == "LINE" || command == "PLINE" || command == "POLYLINE"
-        || command == "CIRCLE" || command == "ARC" || command == "ELLIPSE" || command == "POINT"
-        || command == "BOX" || command == "EXTRUDE" || command == "MOVE" || command == "COPY"
-        || command == "ROTATE" || command == "SCALE" || command == "ERASE" || command == "UNION"
-        || command == "SUBTRACT" || command == "INTERSECT" || command == "SWEEP" || command == "LOFT"
-        || command == "OFFSET" || command == "TRIM" || command == "EXTEND" || command == "FILLET"
-        || command == "CHAMFER") {
-        return "drawing";
-    }
-    return "unknown";
-}
-
-void appendCommandDescriptor(std::ostringstream& out, const BridgeCommandDescriptor& command, bool isLast)
-{
-    out << "{\"name\":\"" << jsonEscape(command.name)
-        << "\",\"description\":\"" << jsonEscape(command.description) << "\"";
-    if (command.json != nullptr) {
-        const std::string fragment = command.json;
-        const std::size_t first = fragment.find_first_not_of(" \t\r\n");
-        const std::size_t last = fragment.find_last_not_of(" \t\r\n");
-        if (first != std::string::npos && fragment.at(first) == '{' && fragment.at(last) == '}') {
-            out << "," << fragment.substr(first + 1, last - first - 1);
-        } else {
-            out << "," << fragment;
-        }
-    }
-    const std::string name = descriptorUpperAscii(command.name);
-    const std::string preferredTool = commandPreferredTool(name);
-    const bool directTestEligible = command.json == nullptr
-        || std::string(command.json).find("\"status\":\"contextOnly\"") == std::string::npos;
-    out << ",\"commandName\":\"" << jsonEscape(name) << "\""
-        << ",\"nativeName\":\"" << jsonEscape(name) << "\""
-        << ",\"localizedName\":\"" << jsonEscape(name) << "\""
-        << ",\"aliases\":" << commandAliasesJson(name)
-        << ",\"requiresArguments\":" << (descriptorAllowsNoArguments(name) ? "false" : "true")
-        << ",\"allowedWithoutArguments\":" << (descriptorAllowsNoArguments(name) ? "true" : "false")
-        << ",\"expectedSideEffects\":\"" << jsonEscape(commandExpectedSideEffects(name)) << "\""
-        << ",\"directTestEligible\":" << (directTestEligible ? "true" : "false");
-    if (!preferredTool.empty()) {
-        out << ",\"preferredTool\":\"" << jsonEscape(preferredTool) << "\"";
-    }
-    out << "}" << (isLast ? "" : ",");
-}
-
 } // namespace BrxToolRegistry
 
 struct JsonPoint3d;
@@ -1186,6 +993,7 @@ AcDbDatabase* workingDatabase();
 AcDbObjectIdArray lastExtrudedSolidIds();
 AcDbObjectIdArray lastResultObjectIds();
 int runNativeExtrudeCommand(const ads_name selectionSet, double heightMm, std::vector<std::string>& debugLines);
+int runNativeBimClassifyCommand(const ads_name selectionSet, const std::string& bimClass, std::vector<std::string>& debugLines);
 std::mutex g_lastExtrudedSolidsMutex;
 std::vector<AcDbObjectId> g_lastExtrudedSolidIds;
 std::string g_lastExtrudedLayer;
@@ -1651,8 +1459,8 @@ bool requiresCommandContext(const std::string& request)
     }
     const std::string command = toUpperAscii(parts.front());
     static constexpr const char* kCommandContextRequests[] = {
-        "POSTCOMMAND",
         "GEOMETRYCREATE",
+        "GEOMETRYMOVE",
         "GEOMETRYCOPY",
         "GEOMETRYROTATE",
         "GEOMETRYSCALE",
@@ -1669,6 +1477,7 @@ bool requiresCommandContext(const std::string& request)
         "PROFILEEXTRUDE",
         "EXTRUDE",
         "EXTRUDESELECTOR",
+        "BIMMOVE",
         "BIMCLASSIFY",
         "BIMCLASSIFYSELECTOR",
         "UNDO",
@@ -1681,7 +1490,6 @@ bool requiresCommandContext(const std::string& request)
         "ACTIONS",
         "LAYERS",
         "ACTIONVALIDATE",
-        "GEOMETRYMOVE",
         "GEOMETRYQUERY",
         "SELECTIONDESCRIBE",
         "ENTITYDESCRIBE",
@@ -2183,10 +1991,6 @@ std::string jsonCapabilitiesResponseFromDescriptors(int id)
     for (std::size_t i = 0; i < BrxToolRegistry::bridgeMethodCount(); ++i) {
         BrxToolRegistry::appendMethodDescriptor(response, BrxToolRegistry::kBridgeMethods[i], i + 1 == BrxToolRegistry::bridgeMethodCount());
     }
-    response << "],\"commands\":[";
-    for (std::size_t i = 0; i < BrxToolRegistry::bridgeCommandCount(); ++i) {
-        BrxToolRegistry::appendCommandDescriptor(response, BrxToolRegistry::kBridgeCommands[i], i + 1 == BrxToolRegistry::bridgeCommandCount());
-    }
     response << "],\"selectorSchema\":" << kSelectorSchema
         << "},\"debug\":[]}\n";
     return response.str();
@@ -2223,22 +2027,6 @@ std::string jsonActionsResponseFromDescriptors(int id)
             response << ",\"paramsSchema\":" << method.paramsSchema;
         }
         response << ",\"post\":" << method.apiPost << "}";
-    }
-    response << "]},\"debug\":[]}\n";
-    return response.str();
-}
-
-std::string jsonCommandsResponseFromDescriptors(int id)
-{
-    std::ostringstream response;
-    response << "{\"id\":" << id
-        << ",\"type\":\"response\""
-        << ",\"ok\":true"
-        << ",\"result\":{\"schema\":\"barebone.bricscad.commands.v1\","
-        << "\"description\":\"Startliste bekannter nativer BricsCAD-Kommandos mit zugehoerigen Bridge-Tools. Die AI kann je nach Aufgabe zwischen freigegebenen Tools und validierter nativer command.execute-Ausfuehrung waehlen.\","
-        << "\"commands\":[";
-    for (std::size_t i = 0; i < BrxToolRegistry::bridgeCommandCount(); ++i) {
-        BrxToolRegistry::appendCommandDescriptor(response, BrxToolRegistry::kBridgeCommands[i], i + 1 == BrxToolRegistry::bridgeCommandCount());
     }
     response << "]},\"debug\":[]}\n";
     return response.str();
@@ -2294,8 +2082,23 @@ std::string normalizeDetail(std::string detail)
 std::string normalizeBimClass(std::string value)
 {
     value = toUpperAscii(trim(std::move(value)));
+    value.erase(std::remove_if(value.begin(), value.end(), [](unsigned char ch) {
+        return std::isspace(ch) != 0 || ch == '_' || ch == '-';
+    }), value.end());
+    if (value.rfind("BIM", 0) == 0) {
+        value.erase(0, 3);
+    }
     if (value == "BIMWALL" || value == "WALL" || value == "BIM WALL") {
         return "BIMWall";
+    }
+    if (value == "COLUMN" || value == "STUETZE" || value == "STUTZE" || value == "SAEULE" || value == "SAULE") {
+        return "BIMColumn";
+    }
+    if (value == "SLAB" || value == "DECKE" || value == "BODENPLATTE" || value == "PLATTE") {
+        return "BIMSlab";
+    }
+    if (value == "BEAM" || value == "TRAEGER" || value == "TRAGER" || value == "BALKEN") {
+        return "BIMBeam";
     }
     return {};
 }
@@ -2466,32 +2269,6 @@ std::string jsonResponseFromProtocol(int id, const std::string& method, const st
             << ",\"created\":" << protocolIntValue(parts, "CREATED")
             << ",\"handle\":\"" << jsonEscape(handle) << "\""
             << ",\"layer\":\"" << jsonEscape(layer) << "\""
-            << ",\"saveBefore\":" << (saveBefore ? "true" : "false")
-            << ",\"savedBefore\":" << (savedBefore ? "true" : "false")
-            << "}"
-            << ",\"debug\":" << jsonDebugArray(debugLines)
-            << "}\n";
-        return response.str();
-    }
-
-    if (method == "command.execute") {
-        const std::vector<std::string> parts = splitTabs(summary);
-        const std::string command = percentDecode(protocolStringValue(parts, "COMMAND"));
-        const std::string commandName = percentDecode(protocolStringValue(parts, "COMMAND_NAME"));
-        const int posted = protocolIntValue(parts, "POSTED");
-        const std::string commandLine = percentDecode(protocolStringValue(parts, "COMMAND_LINE"));
-        const bool saveBefore = protocolIntValue(parts, "SAVE_BEFORE") != 0;
-        const bool savedBefore = protocolIntValue(parts, "SAVED_BEFORE") != 0;
-
-        std::ostringstream response;
-        response << "{\"id\":" << id
-            << ",\"type\":\"response\""
-            << ",\"ok\":true"
-            << ",\"result\":{\"schema\":\"barebone.bricscad.command.execute.result.v1\""
-            << ",\"command\":\"" << jsonEscape(command) << "\""
-            << ",\"commandName\":\"" << jsonEscape(commandName) << "\""
-            << ",\"posted\":" << posted
-            << ",\"commandLine\":\"" << jsonEscape(commandLine) << "\""
             << ",\"saveBefore\":" << (saveBefore ? "true" : "false")
             << ",\"savedBefore\":" << (savedBefore ? "true" : "false")
             << "}"
@@ -2927,6 +2704,21 @@ bool saveWorkingDatabaseBeforeAction(AcDbDatabase* database, std::vector<std::st
         return false;
     }
 
+    if (acDocManager == nullptr) {
+        errorMessage = "BricsCAD Document Manager ist nicht verfuegbar";
+        return false;
+    }
+
+    AcApDocument* document = acDocManager->curDocument();
+    if (document == nullptr || document->database() != database) {
+        errorMessage = "Pre-Action-Save hat kein gueltiges aktives Dokument";
+        return false;
+    }
+    if (document->isReadOnly()) {
+        errorMessage = "Pre-Action-Save ist fuer ein schreibgeschuetztes Dokument nicht moeglich";
+        return false;
+    }
+
     const ACHAR* filename = nullptr;
     const Acad::ErrorStatus filenameStatus = database->getFilename(filename);
     appendDebug(debugLines, "Pre-action save filename lookup: " + errorStatusText(filenameStatus));
@@ -2936,11 +2728,17 @@ bool saveWorkingDatabaseBeforeAction(AcDbDatabase* database, std::vector<std::st
         return false;
     }
 
+    if (acDocManager->isApplicationContext()) {
+        errorMessage = "Pre-Action-Save braucht BricsCAD Command Context; Mutation wurde nicht ausgefuehrt";
+        appendDebug(debugLines, "Pre-action save blocked in application context");
+        return false;
+    }
+
     appendDebug(debugLines, "Pre-action save target=" + acharToUtf8(filename));
-    const Acad::ErrorStatus saveStatus = database->save();
-    appendDebug(debugLines, "Pre-action save status: " + errorStatusText(saveStatus));
-    if (saveStatus != Acad::eOk) {
-        errorMessage = "Auto-Speichern vor Aktion fehlgeschlagen: " + errorStatusText(saveStatus);
+    const int status = acedCommand(RTSTR, _T("_.QSAVE"), RTNONE);
+    appendDebug(debugLines, "Pre-action save acedCommand _.QSAVE status=" + std::to_string(status));
+    if (status != RTNORM) {
+        errorMessage = "Auto-Speichern vor Aktion fehlgeschlagen: QSAVE status=" + std::to_string(status);
         return false;
     }
 
@@ -4585,6 +4383,81 @@ void appendMoveBimFingerprints(
     }
 }
 
+BrxBimSdk::ResolveResult resolveBimTargetsByObjectIds(
+    AcDbDatabase* database,
+    const AcDbObjectIdArray& ids,
+    BrxBimSdk::ResolvePurpose purpose)
+{
+    BrxBimSdk::Selector selector;
+    selector.scope = BrxBimSdk::SelectorScope::Handles;
+    for (int i = 0; i < ids.length(); ++i) {
+        selector.handles.push_back(objectHandleText(ids.at(i)));
+    }
+    return BrxBimSdk::resolve(database, selector, purpose);
+}
+
+bool validateNonZeroVector(
+    const std::string& paramsJson,
+    const std::string& tool,
+    std::vector<std::string>& errors,
+    std::vector<std::string>& missing);
+
+bool validateSelectorForAction(
+    const ActionValidationState& state,
+    const std::string& paramsJson,
+    const std::string& tool,
+    bool requireObjects,
+    AcDbObjectIdArray* resolvedIds,
+    std::vector<std::string>& errors,
+    std::vector<std::string>& missing,
+    std::vector<std::string>& debugLines);
+
+void validateMoveActionParams(
+    ActionValidationState& state,
+    const std::string& paramsJson,
+    ActionValidationResult& result,
+    std::vector<std::string>& debugLines,
+    bool bimOnly)
+{
+    AcDbObjectIdArray ids;
+    const bool autoFromBimQuery = jsonBoolProperty(paramsJson, "autoBimHandlesFromLastQuery").value_or(false);
+    if (bimOnly) {
+        BrxBimSdk::Selector selector;
+        if (bimSelectorForActionValidation(
+                state, paramsJson, result.tool, BrxBimSdk::ResolvePurpose::DrawingMutation, selector, result)) {
+            if (selector.scope == BrxBimSdk::SelectorScope::CurrentSpace) {
+                addUniqueMessage(result.errors,
+                    "bim.move blockiert scope=currentSpace fuer Mutationen; nutze exakte handles, names oder selection mit Preflight-Fingerprints");
+            } else {
+                const BrxBimSdk::ResolveResult resolved = BrxBimSdk::resolve(
+                    state.database, selector, BrxBimSdk::ResolvePurpose::DrawingMutation);
+                appendBimResolveValidation(resolved, result);
+                ids = resolved.ids;
+            }
+        }
+    } else {
+        if (autoFromBimQuery) {
+            addUniqueMessage(result.errors,
+                "geometry.move unterstuetzt autoBimHandlesFromLastQuery nicht mehr; BIM-Ziele mit bim.move verwenden");
+        }
+        validateSelectorForAction(state, paramsJson, result.tool, true, &ids, result.errors, result.missing, debugLines);
+        for (int i = 0; i < ids.length(); ++i) {
+            appendUniqueString(result.resolvedHandles, objectHandleText(ids.at(i)));
+        }
+        if (!ids.isEmpty() && BrxBimSdk::availability().available) {
+            const BrxBimSdk::ResolveResult resolved = resolveBimTargetsByObjectIds(
+                state.database, ids, BrxBimSdk::ResolvePurpose::Query);
+            if (!resolved.fingerprints.empty()) {
+                addUniqueMessage(result.errors,
+                    "geometry.move Ziel enthaelt BIM-Objekte; bim.move verwenden");
+            }
+        }
+    }
+    validateMoveTargetDatabaseState(ids, result);
+    validateBimUnits(state.database, paramsJson, result.tool, result);
+    validateNonZeroVector(paramsJson, result.tool, result.errors, result.missing);
+}
+
 bool layerExistsInDatabase(AcDbDatabase* database, const std::string& layerName)
 {
     if (database == nullptr || trim(layerName).empty()) {
@@ -5142,136 +5015,6 @@ void validateLayerBatchParams(
     }
 }
 
-std::string stripCommandPrefixes(std::string token)
-{
-    token = trim(token);
-    while (!token.empty() && (token.front() == '_' || token.front() == '.' || token.front() == '-')) {
-        token.erase(token.begin());
-    }
-    return toUpperAscii(token);
-}
-
-std::string nativeCommandNameFromLine(const std::string& commandLine)
-{
-    std::string text = trim(commandLine);
-    while (text.size() >= 2 && text[0] == '^' && (text[1] == 'C' || text[1] == 'c')) {
-        text = trim(text.substr(2));
-    }
-    const std::size_t separator = text.find_first_of(" \t");
-    const std::string token = separator == std::string::npos ? text : text.substr(0, separator);
-    return stripCommandPrefixes(token);
-}
-
-bool nativeCommandLineHasArguments(const std::string& commandLine)
-{
-    std::string text = trim(commandLine);
-    while (text.size() >= 2 && text[0] == '^' && (text[1] == 'C' || text[1] == 'c')) {
-        text = trim(text.substr(2));
-    }
-    const std::size_t separator = text.find_first_of(" \t");
-    if (separator == std::string::npos) {
-        return false;
-    }
-    return !trim(text.substr(separator + 1)).empty();
-}
-
-std::string canonicalBridgeCommandName(const std::string& commandName)
-{
-    const std::string normalized = toUpperAscii(stripCommandPrefixes(commandName));
-    if (normalized == "RECTANG" || normalized == "RECHTECK") return "RECTANGLE";
-    if (normalized == "LINIE") return "LINE";
-    if (normalized == "POLYLINE" || normalized == "POLYLINIE") return "PLINE";
-    if (normalized == "KREIS") return "CIRCLE";
-    if (normalized == "BOGEN") return "ARC";
-    if (normalized == "PUNKT") return "POINT";
-    if (normalized == "QUADER") return "BOX";
-    if (normalized == "EXTRUSION") return "EXTRUDE";
-    if (normalized == "SCHIEBEN" || normalized == "VERSCHIEBEN") return "MOVE";
-    if (normalized == "KOPIEREN") return "COPY";
-    if (normalized == "DREHEN") return "ROTATE";
-    if (normalized == "SKALIEREN" || normalized == "VARIA") return "SCALE";
-    if (normalized == "DELETE" || normalized == "LOESCHEN") return "ERASE";
-    if (normalized == "U" || normalized == "Z") return "UNDO";
-    return normalized;
-}
-
-bool isKnownBridgeCommand(const std::string& commandName)
-{
-    const std::string normalized = canonicalBridgeCommandName(commandName);
-    for (const BridgeCommandDescriptor& command : BrxToolRegistry::kBridgeCommands) {
-        if (toUpperAscii(command.name) == normalized) {
-            return true;
-        }
-    }
-    return false;
-}
-
-bool commandExecuteAllowsNoArguments(const std::string& commandName)
-{
-    static const std::set<std::string> allowedWithoutArguments{
-        "REDO",
-        "SAVE",
-    };
-    return allowedWithoutArguments.find(canonicalBridgeCommandName(commandName)) != allowedWithoutArguments.end();
-}
-
-bool learnedCommandWhitelistContains(const std::string& paramsJson, const std::string& commandName)
-{
-    const std::optional<std::string> whitelist = jsonArrayProperty(paramsJson, "qtLearnedCommandWhitelist");
-    if (!whitelist.has_value()) {
-        return false;
-    }
-    const std::string canonical = canonicalBridgeCommandName(commandName);
-    for (const std::string& item : jsonStringArrayValues(*whitelist)) {
-        if (canonicalBridgeCommandName(item) == canonical) {
-            return true;
-        }
-    }
-    return false;
-}
-
-void validateCommandExecuteParams(const std::string& paramsJson, ActionValidationResult& result)
-{
-    const std::string commandLine = trim(jsonStringProperty(paramsJson, "commandLine").value_or(""));
-    if (commandLine.empty()) {
-        addUniqueMessage(result.missing, "command.execute.params.commandLine");
-        return;
-    }
-    if (commandLine.size() > 500) {
-        addUniqueMessage(result.errors, "command.execute.params.commandLine darf maximal 500 Zeichen haben");
-    }
-    if (commandLine.find('\n') != std::string::npos
-        || commandLine.find('\r') != std::string::npos
-        || commandLine.find(';') != std::string::npos) {
-        addUniqueMessage(result.errors, "command.execute erlaubt nur eine einzelne native Kommandozeile ohne Semikolon oder Zeilenumbruch");
-    }
-
-    const std::string commandName = canonicalBridgeCommandName(nativeCommandNameFromLine(commandLine));
-    if (commandName.empty()) {
-        addUniqueMessage(result.missing, "command.execute.params.commandLine.command");
-        return;
-    }
-    const std::string explicitCommandName = canonicalBridgeCommandName(jsonStringProperty(paramsJson, "commandName").value_or(""));
-    if (!explicitCommandName.empty() && explicitCommandName != commandName) {
-        addUniqueMessage(result.errors, "command.execute.params.commandName stimmt nicht mit commandLine ueberein: " + explicitCommandName + " != " + commandName);
-    }
-    if (!isKnownBridgeCommand(commandName) && !learnedCommandWhitelistContains(paramsJson, commandName)) {
-        addUniqueMessage(result.errors, "command.execute command '" + commandName + "' ist nicht in commands.list freigegeben");
-        return;
-    }
-    if (commandName == "BIMCLASSIFY") {
-        const BrxBimSdk::Availability state = BrxBimSdk::availability();
-        if (!state.available) {
-            addUniqueMessage(result.errors, "bim.classify nicht verfuegbar: " + state.reason);
-            return;
-        }
-    }
-    if (!nativeCommandLineHasArguments(commandLine) && !commandExecuteAllowsNoArguments(commandName)) {
-        addUniqueMessage(result.missing, "command.execute.params.commandLine braucht vollstaendige Argumente fuer " + commandName);
-    }
-    addUniqueMessage(result.hints, "command.execute wird vor Nutzerbestaetigung validiert und als einzelne native BricsCAD-Kommandozeile gepostet");
-}
-
 bool validateActionObject(
     const std::string& actionJson,
     ActionValidationState& state,
@@ -5404,27 +5147,9 @@ bool validateActionObject(
             }
         }
     } else if (result.tool == "geometry.move") {
-        AcDbObjectIdArray ids;
-        const bool autoFromBimQuery = jsonBoolProperty(paramsJson, "autoBimHandlesFromLastQuery").value_or(false);
-        if (autoFromBimQuery) {
-            BrxBimSdk::Selector selector;
-            if (bimSelectorForActionValidation(
-                    state, paramsJson, result.tool, BrxBimSdk::ResolvePurpose::DrawingMutation, selector, result)) {
-                const BrxBimSdk::ResolveResult resolved = BrxBimSdk::resolve(
-                    state.database, selector, BrxBimSdk::ResolvePurpose::DrawingMutation);
-                appendBimResolveValidation(resolved, result);
-                ids = resolved.ids;
-            }
-        } else {
-            validateSelectorForAction(state, paramsJson, result.tool, true, &ids, result.errors, result.missing, debugLines);
-            for (int i = 0; i < ids.length(); ++i) {
-                appendUniqueString(result.resolvedHandles, objectHandleText(ids.at(i)));
-            }
-            appendMoveBimFingerprints(state.database, ids, result);
-        }
-        validateMoveTargetDatabaseState(ids, result);
-        validateBimUnits(state.database, paramsJson, result.tool, result);
-        validateNonZeroVector(paramsJson, result.tool, result.errors, result.missing);
+        validateMoveActionParams(state, paramsJson, result, debugLines, false);
+    } else if (result.tool == "bim.move") {
+        validateMoveActionParams(state, paramsJson, result, debugLines, true);
     } else if (result.tool == "geometry.copy") {
         AcDbObjectIdArray ids;
         validateSelectorForAction(state, paramsJson, result.tool, true, &ids, result.errors, result.missing, debugLines);
@@ -5521,6 +5246,12 @@ bool validateActionObject(
         if (!ids.isEmpty() && countRectangleProfiles(ids, debugLines) <= 0) {
             addUniqueMessage(result.errors, "rectangles.extrude Selector enthaelt keine geschlossenen Rechteck-Polylinien");
         }
+        if (result.valid()) {
+            state.plannedLastResultAvailable = true;
+            state.plannedLastResultKind = "SOLID";
+            state.plannedLastResultShape.clear();
+            state.plannedLastExtrudedSolids = true;
+        }
     } else if (result.tool == "profile.extrude") {
         AcDbObjectIdArray ids;
         validateSelectorForAction(state, paramsJson, result.tool, true, &ids, result.errors, result.missing, debugLines);
@@ -5532,6 +5263,12 @@ bool validateActionObject(
         }
         if (!ids.isEmpty() && countExtrudableProfiles(ids, debugLines) <= 0) {
             addUniqueMessage(result.errors, "profile.extrude Selector enthaelt keine extrudierbaren Profile");
+        }
+        if (result.valid()) {
+            state.plannedLastResultAvailable = true;
+            state.plannedLastResultKind = "SOLID";
+            state.plannedLastResultShape.clear();
+            state.plannedLastExtrudedSolids = true;
         }
     } else if (result.tool == "circle.extrude") {
         AcDbObjectIdArray ids;
@@ -5545,12 +5282,18 @@ bool validateActionObject(
         if (!ids.isEmpty() && countCircleProfiles(ids, debugLines) <= 0) {
             addUniqueMessage(result.errors, "circle.extrude Selector enthaelt keine Kreisprofile; fuer Rechtecke nutze rectangles.extrude, fuer sonstige geschlossene Profile profile.extrude");
         }
+        if (result.valid()) {
+            state.plannedLastResultAvailable = true;
+            state.plannedLastResultKind = "SOLID";
+            state.plannedLastResultShape.clear();
+            state.plannedLastExtrudedSolids = true;
+        }
     } else if (result.tool == "bim.classify") {
         const std::string requestedClass = jsonStringProperty(paramsJson, "classification").value_or(
             jsonStringProperty(paramsJson, "class").value_or(""));
         const std::string bimClass = normalizeBimClass(requestedClass);
         if (bimClass.empty()) {
-            addUniqueMessage(result.errors, "bim.classify.params.classification erlaubt aktuell nur BIMWall");
+            addUniqueMessage(result.errors, "bim.classify.params.classification muss BIMWall, BIMColumn, BIMSlab oder BIMBeam sein");
         }
         AcDbObjectIdArray ids;
         if (jsonObjectProperty(paramsJson, "selector").has_value()
@@ -5581,8 +5324,6 @@ bool validateActionObject(
             addUniqueMessage(result.errors, "brx.sdk.assoc.evaluate braucht eine aktive Zeichnung");
         }
         addUniqueMessage(result.hints, "brx.sdk.assoc.evaluate evaluiert AcDbAssocManager::evaluateTopLevelNetwork und ist als Repair-/Refresh-Schritt nach SDK-/BIM-Mutationen gedacht");
-    } else if (result.tool == "command.execute") {
-        validateCommandExecuteParams(paramsJson, result);
     } else if (result.tool == "pipes.createNetworkSolids") {
         AcDbObjectIdArray ids;
         validateSelectorForAction(state, paramsJson, result.tool, true, &ids, result.errors, result.missing, debugLines);
@@ -5611,7 +5352,6 @@ bool validateActionObject(
     } else if (result.tool == "capabilities.list"
         || result.tool == "actions.list"
         || result.tool == "actions.validate"
-        || result.tool == "commands.list"
         || result.tool == "layers.list"
         || result.tool == "geometry.query"
         || result.tool == "selection.describe"
@@ -5982,6 +5722,13 @@ bool isBimMoveTarget(const GeometryMoveTargetSnapshot& snapshot)
         || snapshot.fingerprint.anchored || !snapshot.fingerprint.hostedAnchoredHandles.empty();
 }
 
+bool moveNeedsAssocEvaluation(const std::vector<GeometryMoveTargetSnapshot>& snapshots)
+{
+    return std::any_of(snapshots.begin(), snapshots.end(), [](const GeometryMoveTargetSnapshot& snapshot) {
+        return isBimMoveTarget(snapshot);
+    });
+}
+
 bool sameMoveIdentity(
     const BrxBimSdk::Fingerprint& before,
     const BrxBimSdk::Fingerprint& after)
@@ -6189,44 +5936,6 @@ bool moveEntityWithBrxSdk(
     return true;
 }
 
-bool runTopLevelPreActionSave(
-    AcApDocument* document,
-    AcDbDatabase* database,
-    std::vector<std::string>& debugLines,
-    std::string& error)
-{
-    if (document == nullptr || database == nullptr || document->database() != database) {
-        error = "Pre-Action-Save hat kein gueltiges aktives Dokument";
-        return false;
-    }
-    if (document->isReadOnly()) {
-        error = "Pre-Action-Save ist fuer ein schreibgeschuetztes Dokument nicht moeglich";
-        return false;
-    }
-    const ACHAR* filename = nullptr;
-    const Acad::ErrorStatus filenameStatus = database->getFilename(filename);
-    appendDebug(debugLines, "Top-level pre-action save filename lookup: " + errorStatusText(filenameStatus));
-    if (filenameStatus != Acad::eOk || filename == nullptr || filename[0] == 0) {
-        error = "Zeichnung wurde noch nie gespeichert; bitte einmal manuell speichern, damit Auto-Speichern moeglich ist";
-        return false;
-    }
-    if (!ensureNativeCommandContext(debugLines, "QSAVE")) {
-        error = "Pre-Action-Save ist nur im privaten Top-Level Command Context erlaubt";
-        return false;
-    }
-
-    // Never call AcDbDatabase::save() from the bridge/application context.
-    // QSAVE runs on BricsCAD's main command flow and coordinates ACIS plus the
-    // graphics system before serializing the active document.
-    const int status = acedCommand(RTSTR, _T("_.QSAVE"), RTNONE);
-    appendDebug(debugLines, "acedCommand _.QSAVE status=" + std::to_string(status));
-    if (status != RTNORM) {
-        error = "Auto-Speichern vor geometry.move ist fehlgeschlagen";
-        return false;
-    }
-    return true;
-}
-
 int runUndoMark(std::vector<std::string>& debugLines)
 {
     const int status = acedCommand(
@@ -6259,7 +5968,7 @@ std::string evaluateAssocNetworkInApplicationContext(const std::string& paramsJs
         return response.str();
     };
 
-    const bool saveBefore = jsonBoolProperty(paramsJson, "saveBefore").value_or(false);
+    const bool saveBefore = jsonBoolProperty(paramsJson, "saveBefore").value_or(true);
     AcDbDatabase* database = nullptr;
     bool savedBefore = false;
     std::unique_ptr<AcAxDocLock> docLock;
@@ -6283,7 +5992,16 @@ std::string evaluateAssocNetworkInApplicationContext(const std::string& paramsJs
     return okJsonResultResponse(result.str(), debugLines);
 }
 
-std::string transformEntitiesInApplicationContext(const std::string& paramsJson, const std::string& operation)
+enum class MoveTargetMode {
+    Any,
+    PlainOnly,
+    BimOnly,
+};
+
+std::string transformEntitiesInApplicationContext(
+    const std::string& paramsJson,
+    const std::string& operation,
+    MoveTargetMode targetMode = MoveTargetMode::Any)
 {
     std::vector<std::string> debugLines;
     auto fail = [&debugLines](const std::string& message) {
@@ -6298,6 +6016,9 @@ std::string transformEntitiesInApplicationContext(const std::string& paramsJson,
     if (selectorJson.empty()) {
         return fail(operation + " braucht selector, handles, handle oder layer");
     }
+    const std::string publicTool = targetMode == MoveTargetMode::BimOnly
+        ? std::string("bim.move")
+        : std::string("geometry.") + operation;
 
     AcGeMatrix3d matrix;
     JsonPoint3d moveVector{};
@@ -6308,7 +6029,7 @@ std::string transformEntitiesInApplicationContext(const std::string& paramsJson,
     if (operation == "move") {
         moveVector = actionVectorFromParams(paramsJson);
         if (std::abs(moveVector.x) <= kRectangleTolerance && std::abs(moveVector.y) <= kRectangleTolerance && std::abs(moveVector.z) <= kRectangleTolerance) {
-            return fail("geometry.move braucht einen nicht-leeren vector/offset oder fromPoint/toPoint");
+            return fail(publicTool + " braucht einen nicht-leeren vector/offset oder fromPoint/toPoint");
         }
     } else if (operation == "rotate") {
         const JsonPoint3d base = jsonPointProperty(paramsJson, "basePoint");
@@ -6358,7 +6079,39 @@ std::string transformEntitiesInApplicationContext(const std::string& paramsJson,
         matrix = AcGeMatrix3d::translation(AcGeVector3d(moveVector.x, moveVector.y, moveVector.z));
     }
 
-    const AcDbObjectIdArray ids = selectorObjectIds(selectorJson, database, debugLines);
+    AcDbObjectIdArray ids;
+    if (operation == "move" && targetMode == MoveTargetMode::BimOnly) {
+        std::string validationArtifactsError;
+        if (!hasBimValidationArtifacts(paramsJson, validationArtifactsError)) {
+            return fail("bim.move " + validationArtifactsError);
+        }
+        const BrxBimSdk::Selector selector = bimSelectorFromParams(paramsJson);
+        if (selector.scope == BrxBimSdk::SelectorScope::CurrentSpace) {
+            return fail("bim.move blockiert scope=currentSpace fuer Mutationen; nutze exakte handles, names oder selection");
+        }
+        const BrxBimSdk::ResolveResult resolved = BrxBimSdk::resolve(
+            database, selector, BrxBimSdk::ResolvePurpose::DrawingMutation);
+        for (const std::string& line : resolved.debug) {
+            appendDebug(debugLines, line);
+        }
+        if (!resolved.success) {
+            std::ostringstream message;
+            message << "bim.move Zielvalidierung fehlgeschlagen";
+            for (const BrxBimSdk::TargetError& error : resolved.errors) {
+                message << "; " << error.code;
+                if (!error.target.empty()) {
+                    message << " [" << error.target << "]";
+                }
+                if (!error.message.empty()) {
+                    message << ": " << error.message;
+                }
+            }
+            return fail(message.str());
+        }
+        ids = resolved.ids;
+    } else {
+        ids = selectorObjectIds(selectorJson, database, debugLines);
+    }
     AcGePoint3d selectionCenter;
     if (useSelectionCenterBasePoint) {
         bool hasSelectionExtents = false;
@@ -6401,12 +6154,25 @@ std::string transformEntitiesInApplicationContext(const std::string& paramsJson,
     AcDbObjectIdArray failedIds;
     std::vector<GeometryMoveTargetSnapshot> moveBefore;
     if (operation == "move") {
-        if (ids.isEmpty()) return fail("geometry.move selector findet keine Objekte");
+        if (ids.isEmpty()) return fail(publicTool + " selector findet keine Objekte");
+        if (targetMode == MoveTargetMode::PlainOnly && BrxBimSdk::availability().available) {
+            const BrxBimSdk::ResolveResult resolved = resolveBimTargetsByObjectIds(
+                database, ids, BrxBimSdk::ResolvePurpose::Query);
+            if (!resolved.fingerprints.empty()) {
+                return fail("geometry.move Ziel enthaelt BIM-Objekte; bim.move verwenden");
+            }
+        }
+        if (targetMode == MoveTargetMode::BimOnly && !BrxBimSdk::availability().available) {
+            return fail("bim.move nicht verfuegbar: " + BrxBimSdk::availability().reason);
+        }
         moveBefore.reserve(ids.length());
         for (int i = 0; i < ids.length(); ++i) {
             GeometryMoveTargetSnapshot snapshot;
             if (!captureGeometryMoveTarget(database, ids.at(i), snapshot, errorMessage)) {
                 return fail(errorMessage);
+            }
+            if (targetMode == MoveTargetMode::BimOnly && !snapshot.hasBimFingerprint) {
+                return fail("bim.move Ziel [" + objectHandleText(ids.at(i)) + "] ist kein klassifiziertes BIM-Objekt; fuer reine Geometrie geometry.move verwenden");
             }
             moveBefore.push_back(std::move(snapshot));
         }
@@ -6464,24 +6230,28 @@ std::string transformEntitiesInApplicationContext(const std::string& paramsJson,
         for (const GeometryMoveTargetSnapshot& before : moveBefore) {
             GeometryMoveTargetSnapshot current;
             if (!validateGeometryMoveReadback(database, before, moveVector, current, errorMessage)) {
-                appendDebug(debugLines, "geometry.move readback failed: " + errorMessage);
+                appendDebug(debugLines, publicTool + " readback failed: " + errorMessage);
                 failedIds.append(before.id);
                 break;
             }
             moveAfter.push_back(std::move(current));
         }
-        const bool assocEvaluated = AcDbAssocManager::evaluateTopLevelNetwork(database);
-        appendDebug(debugLines, std::string("AcDbAssocManager::evaluateTopLevelNetwork after geometry.move=")
-            + (assocEvaluated ? "true" : "false"));
-        acedUpdateDisplay();
+        if (moveNeedsAssocEvaluation(moveBefore)) {
+            const bool assocEvaluated = AcDbAssocManager::evaluateTopLevelNetwork(database);
+            appendDebug(debugLines, std::string("AcDbAssocManager::evaluateTopLevelNetwork after ") + publicTool + "="
+                + (assocEvaluated ? "true" : "false"));
+            acedUpdateDisplay();
+        } else {
+            appendDebug(debugLines, publicTool + " skipped assoc evaluation and forced display update for non-BIM targets");
+        }
     }
 
     if (!affectedIds.isEmpty()) {
-        rememberLastResult(affectedIds, "geometry." + operation, debugLines);
+        rememberLastResult(affectedIds, publicTool, debugLines);
     }
 
-    const std::string schema = "barebone.bricscad.geometry." + operation + ".result.v1";
-    const std::string summary = "geometry." + operation + " affected=" + std::to_string(affectedIds.length())
+    const std::string schema = "barebone.bricscad." + publicTool + ".result.v1";
+    const std::string summary = publicTool + " affected=" + std::to_string(affectedIds.length())
         + " failed=" + std::to_string(failedIds.length());
     std::string resultJson = genericActionResultJson(schema, summary, affectedIds, failedIds, saveBefore, savedBefore);
     if (operation == "move" && !moveBefore.empty() && failedIds.isEmpty()) {
@@ -8120,80 +7890,6 @@ std::string createRoomDimensionsInApplicationContext(const std::string& paramsJs
     return result.str();
 }
 
-std::string postNativeCommandLineInApplicationContext(const std::string& commandLineUtf8, bool saveBefore)
-{
-    std::vector<std::string> debugLines;
-    auto fail = [&debugLines](const std::string& message) {
-        appendDebug(debugLines, "ERROR: " + message);
-        std::ostringstream response;
-        response << errorResponse(message);
-        appendDebugResponse(response, debugLines);
-        return response.str();
-    };
-
-    std::string commandLine = trim(commandLineUtf8);
-    const std::string commandName = canonicalBridgeCommandName(nativeCommandNameFromLine(commandLine));
-    appendDebug(debugLines, "POSTCOMMAND request commandLine='" + commandLine + "' saveBefore=" + (saveBefore ? "true" : "false"));
-    if (commandLine.empty()) {
-        return fail("commandLine ist leer");
-    }
-    if (commandLine.size() > 2000) {
-        return fail("commandLine ist zu lang");
-    }
-
-    if (commandName == "BIMCLASSIFY") {
-        const BrxBimSdk::Availability state = BrxBimSdk::availability();
-        if (!state.available) {
-            return fail("bim.classify nicht verfuegbar: " + state.reason);
-        }
-    }
-
-    AcDbDatabase* database = workingDatabase();
-    if (database == nullptr) {
-        return fail("Keine aktive BricsCAD Zeichnung gefunden");
-    }
-
-    bool savedBefore = false;
-    if (saveBefore) {
-        std::string saveError;
-        if (!saveWorkingDatabaseBeforeAction(database, debugLines, saveError)) {
-            return fail(saveError);
-        }
-        savedBefore = true;
-    }
-
-    if (acDocManager == nullptr) {
-        return fail("BricsCAD Document Manager ist nicht verfuegbar");
-    }
-    AcApDocument* document = acDocManager->curDocument();
-    if (document == nullptr) {
-        return fail("Kein aktives BricsCAD Dokument gefunden");
-    }
-
-    if (commandLine.back() != '\n' && commandLine.back() != '\r') {
-        commandLine.push_back('\n');
-    }
-
-    const std::basic_string<ACHAR> nativeCommandLine = utf8ToAchar(commandLine);
-    const Acad::ErrorStatus status = acDocManager->sendStringToExecute(document, nativeCommandLine.c_str(), true, false, true);
-    appendDebug(debugLines, "sendStringToExecute: " + errorStatusText(status));
-    if (status != Acad::eOk) {
-        return fail("BricsCAD Befehl konnte nicht gepostet werden: " + errorStatusText(status));
-    }
-
-    std::ostringstream response;
-    response << "OK"
-        << "\tCOMMAND\tPOSTCOMMAND"
-        << "\tCOMMAND_NAME\t" << percentEncode(commandName)
-        << "\tPOSTED\t1"
-        << "\tCOMMAND_LINE\t" << percentEncode(commandLine)
-        << "\tSAVE_BEFORE\t" << (saveBefore ? 1 : 0)
-        << "\tSAVED_BEFORE\t" << (savedBefore ? 1 : 0)
-        << "\n";
-    appendDebugResponse(response, debugLines);
-    return response.str();
-}
-
 int runNativeExtrudeCommand(const ads_name selectionSet, double heightMm, std::vector<std::string>& debugLines)
 {
     if (!ensureNativeCommandContext(debugLines, "_.EXTRUDE")) {
@@ -8361,7 +8057,7 @@ std::string classifyLastExtrudedSolidsInApplicationContext(const std::string& bi
     appendDebug(debugLines, "BIMCLASSIFY request target=lastExtruded class='" + bimClassUtf8
         + "' normalized='" + bimClass + "' saveBefore=" + (saveBefore ? "true" : "false"));
     if (bimClass.empty()) {
-        return fail("BIM-Klasse wird noch nicht unterstuetzt. Aktuell erlaubt: BIMWall");
+        return fail("BIM-Klasse wird noch nicht unterstuetzt. Aktuell erlaubt: BIMWall, BIMColumn, BIMSlab, BIMBeam");
     }
 
     AcDbDatabase* database = workingDatabase();
@@ -8473,7 +8169,7 @@ std::string classifySelectorSolidsInApplicationContext(const std::string& select
         + "' saveBefore=" + (saveBefore ? "true" : "false")
         + " selector=" + selectorJson);
     if (bimClass.empty()) {
-        return fail("BIM-Klasse wird noch nicht unterstuetzt. Aktuell erlaubt: BIMWall");
+        return fail("BIM-Klasse wird noch nicht unterstuetzt. Aktuell erlaubt: BIMWall, BIMColumn, BIMSlab, BIMBeam");
     }
 
     AcDbDatabase* database = workingDatabase();
@@ -9027,7 +8723,12 @@ std::string handlePluginRequestInApplicationContext(const std::string& request)
 
     if (command == "GEOMETRYMOVE") {
         const std::string paramsJson = parts.size() >= 2 ? percentDecode(parts[1]) : "{}";
-        return transformEntitiesInApplicationContext(paramsJson, "move");
+        return transformEntitiesInApplicationContext(paramsJson, "move", MoveTargetMode::PlainOnly);
+    }
+
+    if (command == "BIMMOVE") {
+        const std::string paramsJson = parts.size() >= 2 ? percentDecode(parts[1]) : "{}";
+        return transformEntitiesInApplicationContext(paramsJson, "move", MoveTargetMode::BimOnly);
     }
 
     if (command == "BRXASSOCEVALUATE") {
@@ -9127,16 +8828,6 @@ std::string handlePluginRequestInApplicationContext(const std::string& request)
     if (command == "ROOMDIMENSIONS") {
         const std::string paramsJson = parts.size() >= 2 ? percentDecode(parts[1]) : "{}";
         return createRoomDimensionsInApplicationContext(paramsJson);
-    }
-
-    if (command == "POSTCOMMAND") {
-        if (parts.size() < 2) {
-            return errorResponse("POSTCOMMAND erwartet commandLine");
-        }
-
-        const std::string commandLine = percentDecode(parts[1]);
-        const bool saveBefore = parts.size() >= 3 && parts[2] == "1";
-        return postNativeCommandLineInApplicationContext(commandLine, saveBefore);
     }
 
     if (command == "EXTRUDE") {
@@ -9317,11 +9008,6 @@ std::string jsonResponseForBridgeRequest(const std::string& line)
         return response;
     }
 
-    if (method == "commands.list") {
-        appendBridgeUiLog("BRX -> Qt response id=" + std::to_string(id) + " method=commands.list");
-        return jsonCommandsResponseFromDescriptors(id);
-    }
-
     if (method == "actions.list") {
         const std::string response = dispatchPluginRequest("ACTIONS\t" + std::to_string(id));
         appendBridgeUiLog("BRX -> Qt response id=" + std::to_string(id) + " method=actions.list");
@@ -9391,7 +9077,7 @@ std::string jsonResponseForBridgeRequest(const std::string& line)
         return response;
     }
 
-    auto dispatchJsonParamsMethod = [&](const std::string& nativeCommand) -> std::string {
+    auto dispatchJsonParamsMethod = [&](const std::string& bridgeRequestName) -> std::string {
         const std::optional<std::string> params = jsonObjectProperty(line, "params");
         if (!params.has_value()) {
             appendBridgeUiLog("BRX -> Qt error id=" + std::to_string(id) + " method=" + method + " missing params");
@@ -9399,7 +9085,7 @@ std::string jsonResponseForBridgeRequest(const std::string& line)
         }
         appendBridgeUiLog("Qt -> BRX " + method + " params=" + *params);
         std::ostringstream request;
-        request << nativeCommand << '\t' << percentEncode(*params);
+        request << bridgeRequestName << '\t' << percentEncode(*params);
         const std::string response = jsonResponseFromProtocol(id, method, dispatchPluginRequest(request.str()));
         appendBridgeUiLog("BRX -> Qt response id=" + std::to_string(id) + " method=" + method);
         return response;
@@ -9407,6 +9093,9 @@ std::string jsonResponseForBridgeRequest(const std::string& line)
 
     if (method == "geometry.move") {
         return dispatchJsonParamsMethod("GEOMETRYMOVE");
+    }
+    if (method == "bim.move") {
+        return dispatchJsonParamsMethod("BIMMOVE");
     }
     if (method == "brx.sdk.assoc.evaluate") {
         return dispatchJsonParamsMethod("BRXASSOCEVALUATE");
@@ -9480,31 +9169,6 @@ std::string jsonResponseForBridgeRequest(const std::string& line)
         const std::string response = jsonResponseFromProtocol(id, method, dispatchPluginRequest(request.str()));
         appendBridgeUiLog("BRX -> Qt response id=" + std::to_string(id) + " method=undo.redo");
         return response;
-    }
-
-    if (method == "command.execute") {
-        const std::optional<std::string> params = jsonObjectProperty(line, "params");
-        if (!params.has_value()) {
-            appendBridgeUiLog("BRX -> Qt error id=" + std::to_string(id) + " method=command.execute missing params");
-            return jsonErrorResponse(id, "command.execute erwartet params");
-        }
-
-        const std::string commandLine = jsonStringProperty(*params, "commandLine").value_or("");
-        const bool saveBefore = jsonBoolProperty(*params, "saveBefore").value_or(true);
-
-        appendBridgeUiLog("Qt -> BRX command.execute commandLine='" + commandLine
-            + "' saveBefore=" + (saveBefore ? "true" : "false"));
-
-        if (!commandLine.empty()) {
-            std::ostringstream request;
-            request << "POSTCOMMAND\t" << percentEncode(commandLine) << '\t' << (saveBefore ? 1 : 0);
-            const std::string response = jsonResponseFromProtocol(id, method, dispatchPluginRequest(request.str()));
-            appendBridgeUiLog("BRX -> Qt response id=" + std::to_string(id) + " method=command.execute commandLine");
-            return response;
-        }
-
-        appendBridgeUiLog("BRX -> Qt error id=" + std::to_string(id) + " method=command.execute missing commandLine");
-        return jsonErrorResponse(id, "command.execute erwartet eine native BricsCAD commandLine");
     }
 
     if (method == "undo.last") {
@@ -9607,7 +9271,7 @@ std::string jsonResponseForBridgeRequest(const std::string& line)
             + "' saveBefore=" + (saveBefore ? "true" : "false"));
         if (bimClass.empty()) {
             appendBridgeUiLog("BRX -> Qt error id=" + std::to_string(id) + " method=bim.classify invalid class");
-            return jsonErrorResponse(id, "bim.classify POST braucht classification=BIMWall");
+            return jsonErrorResponse(id, "bim.classify POST braucht classification=BIMWall|BIMColumn|BIMSlab|BIMBeam");
         }
 
         std::ostringstream request;

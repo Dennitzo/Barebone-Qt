@@ -19,6 +19,7 @@ public:
     struct Result {
         QString id;
         QString kind;
+        QString lane;
         QString dedupeKey;
         bool background = false;
         bool aborted = false;
@@ -31,6 +32,7 @@ public:
     struct Job {
         QString id;
         QString kind;
+        QString lane;
         int priority = 0;
         bool background = false;
         bool cancellable = true;

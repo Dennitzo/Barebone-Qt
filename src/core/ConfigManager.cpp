@@ -1,5 +1,6 @@
 #include "ConfigManager.h"
 
+
 namespace {
 
 constexpr const char* kDefaultAiModel = "openai/gpt-oss-20b";

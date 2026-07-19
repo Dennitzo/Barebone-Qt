@@ -89,7 +89,11 @@ bool promptTargetsBimObjects(const QString& normalized)
     return textContainsAny(normalized, {
         QStringLiteral("bim"), QStringLiteral("door"), QStringLiteral("window"),
         QStringLiteral("wall"), QStringLiteral("tuer"), QStringLiteral("tür"),
-        QStringLiteral("fenster"), QStringLiteral("wand"), QStringLiteral("component type"),
+        QStringLiteral("fenster"), QStringLiteral("wand"), QStringLiteral("waende"),
+        QStringLiteral("wände"), QStringLiteral("column"), QStringLiteral("stuetze"),
+        QStringLiteral("stütze"), QStringLiteral("saeule"), QStringLiteral("säule"),
+        QStringLiteral("slab"), QStringLiteral("decke"), QStringLiteral("beam"),
+        QStringLiteral("traeger"), QStringLiteral("träger"), QStringLiteral("component type"),
         QStringLiteral("guid")});
 }
 
@@ -105,7 +109,76 @@ bool promptAllowsBimWallClassification(const QString& normalized)
 {
     return textContainsAny(normalized, {
         QStringLiteral("klassifiz"), QStringLiteral("klassifizi"), QStringLiteral("bimwand"),
-        QStringLiteral("bim wall"), QStringLiteral("als bim"), QStringLiteral("classification")});
+        QStringLiteral("bim wall"), QStringLiteral("bim column"), QStringLiteral("bim beam"),
+        QStringLiteral("bim slab"), QStringLiteral("als bim"), QStringLiteral("classification")});
+}
+
+bool promptMentionsConcreteCadSelection(const QString& normalized)
+{
+    return textContainsAny(normalized, {
+        QStringLiteral("handle"), QStringLiteral("handles"), QStringLiteral("objekt-id"),
+        QStringLiteral("object id"), QStringLiteral("entity id"), QStringLiteral("entity"),
+        QStringLiteral("auswahl"), QStringLiteral("selekt"), QStringLiteral("selected"),
+        QStringLiteral("selection"), QStringLiteral("pickfirst")});
+}
+
+int selectorIntentScoreForTool(const QString& toolName, const QJsonObject& tool, const QString& normalizedPrompt)
+{
+    const bool concreteSelection = promptMentionsConcreteCadSelection(normalizedPrompt);
+    const bool mentionsMove = textContainsAny(normalizedPrompt, {
+        QStringLiteral("move"), QStringLiteral("verschieb"), QStringLiteral("schieb"),
+        QStringLiteral("beweg"), QStringLiteral("translation"), QStringLiteral("versatz")});
+    const bool mentionsCopy = textContainsAny(normalizedPrompt, {
+        QStringLiteral("copy"), QStringLiteral("kopier"), QStringLiteral("dupliz")});
+    const bool mentionsRotate = textContainsAny(normalizedPrompt, {
+        QStringLiteral("rotate"), QStringLiteral("rotier"), QStringLiteral("dreh")});
+    const bool mentionsScale = textContainsAny(normalizedPrompt, {
+        QStringLiteral("scale"), QStringLiteral("skalier")});
+    const bool mentionsDelete = textContainsAny(normalizedPrompt, {
+        QStringLiteral("delete"), QStringLiteral("erase"), QStringLiteral("loesch"), QStringLiteral("lÃ¶sch")});
+    const bool mentionsSelectOnly = concreteSelection && textContainsAny(normalizedPrompt, {
+        QStringLiteral("select"), QStringLiteral("selekt"), QStringLiteral("auswahl"), QStringLiteral("markier")});
+
+    int score = 0;
+    const QString bridgeMethod = tool.value(QStringLiteral("bridgeMethod")).toString(toolName);
+    const bool selectorCapable = tool.value(QStringLiteral("inputSchema")).toObject()
+        .value(QStringLiteral("properties")).toObject().contains(QStringLiteral("selector"));
+    if (concreteSelection && selectorCapable) {
+        score += 4;
+    }
+
+    auto matches = [&](std::initializer_list<QString> names) {
+        for (const QString& name : names) {
+            if (toolName == name || bridgeMethod == name) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    if (mentionsMove && matches({
+            QStringLiteral("brx.sdk.entity.transformBy"),
+            QStringLiteral("brx.sdk.blockReference.setPosition"),
+            QStringLiteral("geometry.move"),
+            QStringLiteral("bim.move")})) {
+        score += concreteSelection ? 26 : 14;
+    }
+    if (mentionsCopy && matches({QStringLiteral("brx.sdk.entity.copy"), QStringLiteral("geometry.copy")})) {
+        score += concreteSelection ? 24 : 12;
+    }
+    if (mentionsRotate && matches({QStringLiteral("brx.sdk.entity.rotateBy"), QStringLiteral("geometry.rotate")})) {
+        score += concreteSelection ? 24 : 12;
+    }
+    if (mentionsScale && matches({QStringLiteral("brx.sdk.entity.scaleBy"), QStringLiteral("geometry.scale")})) {
+        score += concreteSelection ? 24 : 12;
+    }
+    if (mentionsDelete && matches({QStringLiteral("brx.sdk.entity.erase"), QStringLiteral("geometry.delete")})) {
+        score += concreteSelection ? 24 : 12;
+    }
+    if (mentionsSelectOnly && matches({QStringLiteral("brx.sdk.selection.setPickfirst"), QStringLiteral("selection.set")})) {
+        score += 18;
+    }
+    return score;
 }
 
 void appendSdkAliases(QStringList& names, const QString& publicTool)
@@ -203,66 +276,10 @@ void enrichRuntimeTool(QJsonObject& tool)
     }
 }
 
-QJsonObject layersEnsureManyTool()
-{
-    QJsonObject tool{
-        {QStringLiteral("name"), QStringLiteral("layers.ensureMany")},
-        {QStringLiteral("title"), QStringLiteral("Mehrere Layer sicher anlegen")},
-        {QStringLiteral("description"), QStringLiteral("Qt-internes virtuelles Tool fuer kompakte Layer-Batches. Barebone-Qt expandiert layers[] vor Preflight und Ausfuehrung in einzelne layers.create-Aktionen.")},
-        {QStringLiteral("summary"), QStringLiteral("Legt mehrere Layer kompakt an, wird vor der Ausfuehrung in layers.create[] expandiert.")},
-        {QStringLiteral("bridgeMethod"), QStringLiteral("layers.create")},
-        {QStringLiteral("kind"), QStringLiteral("action")},
-        {QStringLiteral("risk"), QStringLiteral("modifiesDrawing")},
-        {QStringLiteral("category"), QStringLiteral("layer")},
-        {QStringLiteral("domain"), QStringLiteral("layer")},
-        {QStringLiteral("confirmationRequired"), true},
-        {QStringLiteral("virtual"), true},
-        {QStringLiteral("expandsTo"), QStringLiteral("layers.create[]")},
-        {QStringLiteral("agentHints"), QJsonArray{
-            QStringLiteral("Preserve explicit layer names exactly, including a one-word name such as 'Test'."),
-            QStringLiteral("Never rename 'Test' to 'Test Layer' or invent a two-word structure."),
-            QStringLiteral("Any non-empty layer name without unsupported special characters is valid."),
-        }},
-        {QStringLiteral("inputSchema"), QJsonObject{
-            {QStringLiteral("type"), QStringLiteral("object")},
-            {QStringLiteral("required"), QJsonArray{QStringLiteral("layers")}},
-            {QStringLiteral("properties"), QJsonObject{
-                {QStringLiteral("layers"), QJsonObject{
-                    {QStringLiteral("type"), QStringLiteral("array")},
-                    {QStringLiteral("items"), QJsonObject{
-                        {QStringLiteral("type"), QStringLiteral("object")},
-                        {QStringLiteral("required"), QJsonArray{QStringLiteral("name")}},
-                        {QStringLiteral("properties"), QJsonObject{
-                            {QStringLiteral("name"), QJsonObject{{QStringLiteral("type"), QStringLiteral("string")}}},
-                            {QStringLiteral("colorIndex"), QJsonObject{{QStringLiteral("type"), QStringLiteral("number")}, {QStringLiteral("minimum"), 1}}},
-                        }},
-                    }},
-                }},
-                {QStringLiteral("reason"), QJsonObject{{QStringLiteral("type"), QStringLiteral("string")}}},
-            }},
-        }},
-        {QStringLiteral("apiDoc"), QJsonObject{
-            {QStringLiteral("method"), QStringLiteral("layers.ensureMany")},
-            {QStringLiteral("virtual"), true},
-            {QStringLiteral("required"), QJsonArray{QStringLiteral("layers")}},
-            {QStringLiteral("bodySchema"), QJsonObject{
-                {QStringLiteral("type"), QStringLiteral("object")},
-                {QStringLiteral("properties"), QJsonObject{
-                    {QStringLiteral("layers"), QStringLiteral("array of {name, optional colorIndex}; max batch count applies")},
-                    {QStringLiteral("reason"), QStringLiteral("optional reason shown in proposal")},
-                }},
-            }},
-            {QStringLiteral("examples"), QJsonArray{
-                QJsonObject{{QStringLiteral("layers"), QJsonArray{
-                    QJsonObject{{QStringLiteral("name"), QStringLiteral("Heizung")}, {QStringLiteral("colorIndex"), 1}},
-                    QJsonObject{{QStringLiteral("name"), QStringLiteral("Sanitaer")}, {QStringLiteral("colorIndex"), 5}},
-                }}},
-            }},
-        }},
-    };
-    enrichRuntimeTool(tool);
-    return tool;
-}
+QJsonObject pointSchema();
+QJsonObject selectorSchema();
+
+
 
 QJsonArray firstStrings(const QJsonArray& values, int limit, int maxChars)
 {
@@ -292,10 +309,35 @@ QString toolSearchText(const QJsonObject& tool)
     for (const QJsonValue& value : tool.value(QStringLiteral("keywords")).toArray()) {
         parts << value.toString();
     }
-    for (const QJsonValue& value : tool.value(QStringLiteral("agentHints")).toArray()) {
-        parts << value.toString();
-    }
+    parts << QString::fromUtf8(QJsonDocument(tool.value(QStringLiteral("inputSchema")).toObject())
+        .toJson(QJsonDocument::Compact));
     return parts.join(QLatin1Char(' ')).toLower();
+}
+
+QStringList relevanceTerms(const QString& text)
+{
+    static const QSet<QString> stopWords{
+        QStringLiteral("aber"), QStringLiteral("alle"), QStringLiteral("eine"), QStringLiteral("einen"),
+        QStringLiteral("einer"), QStringLiteral("eines"), QStringLiteral("fuer"), QStringLiteral("für"),
+        QStringLiteral("haben"), QStringLiteral("kann"), QStringLiteral("machen"), QStringLiteral("mit"),
+        QStringLiteral("oder"), QStringLiteral("soll"), QStringLiteral("und"), QStringLiteral("von"),
+        QStringLiteral("werden"), QStringLiteral("wie"), QStringLiteral("wird"), QStringLiteral("the"),
+        QStringLiteral("this"), QStringLiteral("that"), QStringLiteral("tool"), QStringLiteral("tools"),
+        QStringLiteral("params"), QStringLiteral("param"), QStringLiteral("bricscad"), QStringLiteral("cad"),
+        QStringLiteral("action"), QStringLiteral("actions"), QStringLiteral("validate"), QStringLiteral("validation"),
+        QStringLiteral("confirmed"), QStringLiteral("profile"), QStringLiteral("route"), QStringLiteral("capability"),
+        QStringLiteral("capabilities"), QStringLiteral("schema"), QStringLiteral("input"), QStringLiteral("output")};
+    QString normalized = text;
+    normalized.replace(QRegularExpression(QStringLiteral("([a-z])([A-Z])")), QStringLiteral("\\1 \\2"));
+    normalized = normalized.toLower();
+    normalized.replace(QRegularExpression(QStringLiteral("[^\\p{L}\\p{N}]+")), QStringLiteral(" "));
+    QStringList terms;
+    for (const QString& term : normalized.split(QLatin1Char(' '), Qt::SkipEmptyParts)) {
+        if (term.size() >= 3 && !stopWords.contains(term) && !terms.contains(term)) {
+            terms << term;
+        }
+    }
+    return terms;
 }
 
 QStringList stringsFromArray(const QJsonArray& values)
@@ -366,7 +408,7 @@ QJsonObject sdkTool(
         {QStringLiteral("preconditions"), preconditions},
         {QStringLiteral("readback"), readback},
         {QStringLiteral("agentHints"), QJsonArray{
-            QStringLiteral("Use qt.brx.db.inspect or qt.brx.db.compatibility before proposing this tool for unknown targets."),
+            QStringLiteral("Use reported read-only BRX methods before proposing this tool for unknown targets."),
             QStringLiteral("Never ask the user which SDK tool to use; inspect, compare candidates and propose the best validated action."),
             QStringLiteral("Every mutation is still confirmed by the user and validated by BRX actions.validate."),
         }},
@@ -596,7 +638,7 @@ QJsonArray sdkTools()
             QStringLiteral("Classifies selected or recently created 3D solids through the BIM SDK bridge. Use only when BIM classification is the user's explicit intent or required by a workflow."),
             QStringLiteral("bim.classify"),
             bimClassifySchema,
-            QJsonArray{QStringLiteral("AcDb3dSolid"), QStringLiteral("BIMWall")},
+            QJsonArray{QStringLiteral("AcDb3dSolid"), QStringLiteral("BIMWall"), QStringLiteral("BIMColumn"), QStringLiteral("BIMSlab"), QStringLiteral("BIMBeam")},
             QJsonArray{QStringLiteral("BrxBimSdk classification bridge"), QStringLiteral("BIM object fingerprint readback")},
             QJsonArray{QStringLiteral("classification is supported"), QStringLiteral("target resolves to 3D solids"), QStringLiteral("BIM SDK is available")},
             QJsonArray{QStringLiteral("BIM class readback matches requested classification"), QStringLiteral("classified handles returned")}),
@@ -710,7 +752,6 @@ QJsonArray BrxAgent::buildToolCatalog(const QJsonObject& capabilities)
         if (name.isEmpty() || !bridgeCapabilityMethodAvailable(method)) {
             continue;
         }
-
         const QString risk = method.value(QStringLiteral("risk")).toString(QStringLiteral("modifiesDrawing"));
         QJsonObject tool{
             {QStringLiteral("name"), name},
@@ -734,208 +775,28 @@ QJsonArray BrxAgent::buildToolCatalog(const QJsonObject& capabilities)
         tools.append(tool);
     }
 
-    tools.append(layersEnsureManyTool());
     return runtimeToolsWithSdkTools(tools);
 }
 
 QJsonArray BrxAgent::runtimeToolsWithSdkTools(const QJsonArray& runtimeTools)
 {
-    return mergeTools(runtimeTools, sdkTools());
-}
-
-QJsonArray BrxAgent::selectToolsForRoute(
-    const QJsonArray& catalog,
-    const QJsonObject& route,
-    const QString& prompt,
-    const QJsonObject& workflowContext)
-{
-    if (!routeAllowsCadActions(route)) {
-        return {};
-    }
-
-    const QJsonArray allTools = runtimeToolsWithSdkTools(catalog);
-    if (allTools.isEmpty()) {
-        return {};
-    }
-
-    const QString normalized = prompt.toLower();
-    const bool chatWorkspace = workflowContext.value(QStringLiteral("chatWorkspace")).toBool(false);
-    const bool bimObjectIntent = promptTargetsBimObjects(normalized);
-    const bool circleExtrudeIntentHint = textContainsAny(normalized, {
-            QStringLiteral("kreis"), QStringLiteral("circle"),
-            QStringLiteral("zylinder"), QStringLiteral("cylinder")})
-        && textContainsAny(normalized, {
-            QStringLiteral("extrudi"), QStringLiteral("hoehe"), QStringLiteral("hÃ¶he"),
-            QStringLiteral("3d"), QStringLiteral("solid"), QStringLiteral("z=")});
-    const bool bimSelectionIntent = bimObjectIntent && textContainsAny(normalized, {
-        QStringLiteral("auswahl"), QStringLiteral("selekt"), QStringLiteral("waehle"),
-        QStringLiteral("wähle"), QStringLiteral("select")});
-
-    QStringList selectedToolNames = jsonStringArrayToList(route.value(QStringLiteral("selectedTools")).toArray());
-    if (!selectedToolNames.isEmpty()) {
-        if (circleExtrudeIntentHint) {
-            selectedToolNames.removeAll(QStringLiteral("rectangles.extrude"));
-            if (!selectedToolNames.contains(QStringLiteral("circle.extrude"))) {
-                selectedToolNames.prepend(QStringLiteral("circle.extrude"));
-            }
-            if (!selectedToolNames.contains(QStringLiteral("profile.extrude"))) {
-                selectedToolNames << QStringLiteral("profile.extrude");
-            }
-        }
-        if ((selectedToolNames.contains(QStringLiteral("rectangles.extrude"))
-                || selectedToolNames.contains(QStringLiteral("circle.extrude"))
-                || selectedToolNames.contains(QStringLiteral("profile.extrude")))
-            && !selectedToolNames.contains(QStringLiteral("entity.setLayer"))) {
-            selectedToolNames << QStringLiteral("entity.setLayer");
-        }
-        if (!chatWorkspace && promptRequestsCadDataQuery(normalized)) {
-            for (const QString& toolName : {
-                     QStringLiteral("geometry.query"),
-                     QStringLiteral("measurement.bbox"),
-                     QStringLiteral("measurement.length"),
-                     QStringLiteral("measurement.area"),
-                     QStringLiteral("entity.describe"),
-                     QStringLiteral("selection.describe")}) {
-                if (!selectedToolNames.contains(toolName)) {
-                    selectedToolNames << toolName;
-                }
-            }
-        }
-        if (bimObjectIntent) {
-            for (const QString& toolName : {
-                     QStringLiteral("bim.objects.query"),
-                     bimSelectionIntent ? QStringLiteral("bim.selection.set") : QString()}) {
-                if (!toolName.isEmpty() && !selectedToolNames.contains(toolName)) {
-                    selectedToolNames << toolName;
-                }
-            }
-        }
-        appendSdkAliasesForSelectedPublicTools(selectedToolNames);
-        const QJsonArray selectedToolDetails = toolsByNames(allTools, selectedToolNames);
-        if (!selectedToolDetails.isEmpty()) {
-            return selectedToolDetails;
-        }
-    }
-
-    if (chatWorkspace) {
-        return {};
-    }
-
-    QStringList workflowTools = jsonStringArrayToList(workflowContext.value(QStringLiteral("workflowTools")).toArray());
-    for (const QJsonValue& value : workflowContext.value(QStringLiteral("recommendedTools")).toArray()) {
-        const QString tool = value.toString().trimmed();
-        if (!tool.isEmpty() && !workflowTools.contains(tool)) {
-            workflowTools << tool;
-        }
-    }
-    appendSdkAliasesForSelectedPublicTools(workflowTools);
-
-    const bool layerIntent = textContainsAny(normalized, {
-        QStringLiteral("layer"), QStringLiteral("ebene"), QStringLiteral("tga"),
-        QStringLiteral("heizung"), QStringLiteral("sanit"), QStringLiteral("lueft"),
-        QStringLiteral("lüft"), QStringLiteral("elektro")});
-    const bool handleReferenceIntent = QRegularExpression(
-        QStringLiteral(R"(\b[a-f][0-9a-f]{1,7}\b)"),
-        QRegularExpression::CaseInsensitiveOption).match(normalized).hasMatch();
-    const bool dataQueryIntent = promptRequestsCadDataQuery(normalized);
-    const bool geometryIntent = handleReferenceIntent || dataQueryIntent || bimObjectIntent || textContainsAny(normalized, {
-        QStringLiteral("geometrie"), QStringLiteral("kreis"), QStringLiteral("rechteck"),
-        QStringLiteral("linie"), QStringLiteral("polyline"), QStringLiteral("wand"),
-        QStringLiteral("objekt"), QStringLiteral("object"), QStringLiteral("entity"),
-        QStringLiteral("handle"), QStringLiteral("solid"), QStringLiteral("bim"),
-        QStringLiteral("klassifiz"), QStringLiteral("klassifizi"), QStringLiteral("box"),
-        QStringLiteral("extrusion"), QStringLiteral("extrudi"), QStringLiteral("verschiebe"),
-        QStringLiteral("kopiere"), QStringLiteral("rotiere"), QStringLiteral("skaliere"),
-        QStringLiteral("weise"), QStringLiteral("zuweis"), QStringLiteral("zuordn"),
-        QStringLiteral("setze"), QStringLiteral("loesche"), QStringLiteral("lösche"),
-        QStringLiteral("auswahl"), QStringLiteral("selekt"), QStringLiteral("waehle"),
-        QStringLiteral("wähle"), QStringLiteral("select")});
-    const bool entityRenameIntent = promptRequestsEntityRename(normalized);
-    const bool createIntent = geometryIntent && textContainsAny(normalized, {
-        QStringLiteral("zeichne"), QStringLiteral("zeichnen"), QStringLiteral("erstelle"),
-        QStringLiteral("erzeuge"), QStringLiteral("anlegen"), QStringLiteral("neu"),
-        QStringLiteral("wand"), QStringLiteral("waende"), QStringLiteral("wände"),
-        QStringLiteral("rechteck"), QStringLiteral("linie"), QStringLiteral("kreis"),
-        QStringLiteral("box"), QStringLiteral("raum"), QStringLiteral("grundriss")});
-    const bool extrudeIntent = geometryIntent && textContainsAny(normalized, {
-        QStringLiteral("extrudi"), QStringLiteral("hoehe"), QStringLiteral("höhe"),
-        QStringLiteral("3d"), QStringLiteral("solid"), QStringLiteral("wandhoehe"),
-        QStringLiteral("wandhöhe")});
-    const bool circleExtrudeIntent = extrudeIntent && textContainsAny(normalized, {
-        QStringLiteral("kreis"), QStringLiteral("circle"),
-        QStringLiteral("zylinder"), QStringLiteral("cylinder")});
-    const bool rectangleExtrudeIntent = extrudeIntent && textContainsAny(normalized, {
-        QStringLiteral("rechteck"), QStringLiteral("rectangle"),
-        QStringLiteral("wand"), QStringLiteral("waende"), QStringLiteral("wÃ¤nde")});
-    const bool classifyIntent = geometryIntent && promptAllowsBimWallClassification(normalized);
-    const bool selectionIntent = geometryIntent && textContainsAny(normalized, {
-        QStringLiteral("auswahl"), QStringLiteral("selekt"), QStringLiteral("waehle"),
-        QStringLiteral("wähle"), QStringLiteral("select"), QStringLiteral("alle"),
-        QStringLiteral("layer")});
-    const bool entityLayerIntent = layerIntent && geometryIntent && textContainsAny(normalized, {
-        QStringLiteral("weise"), QStringLiteral("zuweis"), QStringLiteral("zuordn"),
-        QStringLiteral("setze"), QStringLiteral("assign"), QStringLiteral("auf layer"),
-        QStringLiteral("in layer"), QStringLiteral("layer zu")});
-    const bool moveIntent = geometryIntent && textContainsAny(normalized, {QStringLiteral("verschieb"), QStringLiteral("move")});
-    const bool copyIntent = geometryIntent && textContainsAny(normalized, {QStringLiteral("kopiere"), QStringLiteral("copy")});
-    const bool rotateIntent = geometryIntent && textContainsAny(normalized, {QStringLiteral("rotier"), QStringLiteral("dreh"), QStringLiteral("rotate")});
-    const bool scaleIntent = geometryIntent && textContainsAny(normalized, {QStringLiteral("skaliere"), QStringLiteral("scale")});
-    const bool deleteIntent = geometryIntent && textContainsAny(normalized, {QStringLiteral("loesche"), QStringLiteral("lösche"), QStringLiteral("delete")});
-    const bool saveIntent = textContainsAny(normalized, {QStringLiteral("speicher"), QStringLiteral("save")});
-
-    if (!layerIntent && !geometryIntent && workflowTools.isEmpty()) {
-        return {};
-    }
-
-    const bool needsReadOnlyContext = dataQueryIntent || handleReferenceIntent || selectionIntent || bimObjectIntent;
-    QJsonArray filtered;
-    for (const QJsonValue& value : allTools) {
+    QSet<QString> runtimeMethods;
+    for (const QJsonValue& value : runtimeTools) {
         const QJsonObject tool = value.toObject();
-        const QString name = tool.value(QStringLiteral("name")).toString();
-        const bool readOnlyTool = tool.value(QStringLiteral("risk")).toString() == QStringLiteral("readOnly")
-            || tool.value(QStringLiteral("kind")).toString() == QStringLiteral("query");
-        bool include = false;
-        if (layerIntent && !entityRenameIntent) {
-            include = name.startsWith(QStringLiteral("layers."))
-                || name == QStringLiteral("layers.ensureMany")
-                || name == QStringLiteral("layers.list")
-                || name == QStringLiteral("command.execute");
-        }
-        if (geometryIntent) {
-            include = include
-                || (needsReadOnlyContext && readOnlyTool)
-                || (createIntent && name == QStringLiteral("geometry.create"))
-                || (moveIntent && (name == QStringLiteral("geometry.move")
-                    || name == QStringLiteral("brx.sdk.entity.transformBy")
-                    || name == QStringLiteral("brx.sdk.blockReference.setPosition")
-                    || name == QStringLiteral("brx.sdk.assoc.evaluate")))
-                || (copyIntent && (name == QStringLiteral("geometry.copy") || name == QStringLiteral("brx.sdk.entity.copy")))
-                || (rotateIntent && (name == QStringLiteral("geometry.rotate") || name == QStringLiteral("brx.sdk.entity.rotateBy")))
-                || (scaleIntent && (name == QStringLiteral("geometry.scale") || name == QStringLiteral("brx.sdk.entity.scaleBy")))
-                || (deleteIntent && (name == QStringLiteral("geometry.delete") || name == QStringLiteral("brx.sdk.entity.erase")))
-                || (circleExtrudeIntent && (name == QStringLiteral("circle.extrude") || name == QStringLiteral("profile.extrude")))
-                || (extrudeIntent && !circleExtrudeIntent && rectangleExtrudeIntent && name == QStringLiteral("rectangles.extrude"))
-                || (extrudeIntent && !circleExtrudeIntent && name == QStringLiteral("profile.extrude"))
-                || (classifyIntent && (name == QStringLiteral("bim.classify") || name == QStringLiteral("brx.sdk.bim.classification.set")))
-                || (bimObjectIntent && name == QStringLiteral("bim.objects.query"))
-                || (bimObjectIntent && selectionIntent && name == QStringLiteral("bim.selection.set"))
-                || (entityLayerIntent && (name == QStringLiteral("entity.setLayer") || name == QStringLiteral("brx.sdk.entity.setLayer")))
-                || (entityRenameIntent && (name == QStringLiteral("entity.setName") || name == QStringLiteral("brx.sdk.entity.setName")))
-                || (selectionIntent && (name.startsWith(QStringLiteral("selection.")) || name == QStringLiteral("brx.sdk.selection.setPickfirst")))
-                || (!entityRenameIntent && name == QStringLiteral("command.execute"));
-        }
-        if (saveIntent && name == QStringLiteral("document.save")) {
-            include = true;
-        }
-        if (workflowTools.contains(name)) {
-            include = true;
-        }
-        if (include) {
-            filtered.append(tool);
+        runtimeMethods.insert(tool.value(QStringLiteral("bridgeMethod")).toString(
+            tool.value(QStringLiteral("name")).toString()));
+    }
+    QJsonArray availableSdkTools;
+    for (const QJsonValue& value : sdkTools()) {
+        const QJsonObject tool = value.toObject();
+        if (runtimeMethods.contains(tool.value(QStringLiteral("bridgeMethod")).toString())) {
+            availableSdkTools.append(tool);
         }
     }
-    return filtered;
+    return mergeTools(runtimeTools, availableSdkTools);
 }
+
+
 
 QJsonArray BrxAgent::compactToolIndex(const QJsonArray& tools)
 {
@@ -1097,6 +958,83 @@ QJsonObject BrxAgent::describeTools(const QJsonArray& tools, const QJsonObject& 
     };
 }
 
+QJsonArray BrxAgent::selectEffectiveTools(
+    const QJsonArray& tools,
+    const QJsonObject& route,
+    const QString& prompt,
+    int limit)
+{
+    const QString routeName = route.value(QStringLiteral("route")).toString();
+    if (routeName == QStringLiteral("execution_summary")
+        || routeName == QStringLiteral("general_chat")
+        || limit <= 0) {
+        return {};
+    }
+
+    const QJsonArray catalog = runtimeToolsWithSdkTools(tools);
+    const QString query = prompt;
+    const QString normalizedQuery = query.toLower();
+    const QStringList queryTerms = relevanceTerms(query);
+    if (queryTerms.isEmpty() && normalizedQuery.trimmed().isEmpty()) {
+        return {};
+    }
+    struct Candidate {
+        int score = 0;
+        QString name;
+        QJsonObject tool;
+    };
+    QList<Candidate> candidates;
+    for (const QJsonValue& value : catalog) {
+        const QJsonObject tool = value.toObject();
+        const QString name = tool.value(QStringLiteral("name")).toString().trimmed();
+        if (name.isEmpty()) {
+            continue;
+        }
+        const QString searchText = toolSearchText(tool);
+        const QStringList nameTerms = relevanceTerms(name);
+        int score = 0;
+        if (normalizedQuery.contains(name.toLower())) {
+            score += 30;
+        }
+        for (const QString& term : queryTerms) {
+            if (nameTerms.contains(term)) {
+                score += 12;
+            } else if (searchText.contains(QRegularExpression(
+                           QStringLiteral("\\b%1").arg(QRegularExpression::escape(term))))) {
+                score += 4;
+            } else if (term.size() >= 5 && searchText.contains(term.left(term.size() - 1))) {
+                score += 2;
+            }
+        }
+        score += selectorIntentScoreForTool(name, tool, normalizedQuery);
+        const QString risk = tool.value(QStringLiteral("risk")).toString();
+        if (score > 0
+            && routeName == QStringLiteral("bricscad_question")
+            && risk == QStringLiteral("readOnly")) {
+            score += 2;
+        }
+        if (score >= 4) {
+            candidates.append(Candidate{score, name, tool});
+        }
+    }
+    std::sort(candidates.begin(), candidates.end(), [](const Candidate& left, const Candidate& right) {
+        return left.score != right.score ? left.score > right.score : left.name < right.name;
+    });
+
+    QJsonArray selected;
+    QSet<QString> selectedNames;
+    const int routeCap = routeName == QStringLiteral("validation_retry") ? 8 : 6;
+    const int cappedLimit = std::clamp(limit, 1, routeCap);
+    for (const Candidate& candidate : candidates) {
+        if (selected.size() >= cappedLimit || selectedNames.contains(candidate.name)) {
+            continue;
+        }
+        selected.append(candidate.tool);
+        selectedNames.insert(candidate.name);
+    }
+    return selected;
+}
+
 QJsonObject BrxAgent::repairToolContext(const QJsonArray& tools, const QJsonObject& params)
 {
     const QJsonArray allTools = runtimeToolsWithSdkTools(tools);
@@ -1181,9 +1119,15 @@ QJsonObject BrxAgent::repairToolContext(const QJsonArray& tools, const QJsonObje
     }
 
     if (mentionsMove) {
-        addGroup(QStringLiteral("move_alternatives"),
-            QStringLiteral("Compare high-level move with SDK entity/block-reference movement and association refresh."),
-            {QStringLiteral("geometry.move"), QStringLiteral("brx.sdk.entity.transformBy"), QStringLiteral("brx.sdk.blockReference.setPosition"), QStringLiteral("brx.sdk.assoc.evaluate")});
+        if (mentionsBim) {
+            addGroup(QStringLiteral("move_alternatives"),
+                QStringLiteral("BIM move repair must prefer bim.move and keep concrete BIM handles/fingerprints."),
+                {QStringLiteral("bim.move"), QStringLiteral("bim.objects.query"), QStringLiteral("geometry.move"), QStringLiteral("brx.sdk.assoc.evaluate")});
+        } else {
+            addGroup(QStringLiteral("move_alternatives"),
+                QStringLiteral("Compare high-level move with SDK entity/block-reference movement and association refresh."),
+                {QStringLiteral("geometry.move"), QStringLiteral("brx.sdk.entity.transformBy"), QStringLiteral("brx.sdk.blockReference.setPosition"), QStringLiteral("brx.sdk.assoc.evaluate")});
+        }
     }
     if (mentionsRotate) {
         addGroup(QStringLiteral("rotate_alternatives"),
@@ -1208,71 +1152,34 @@ QJsonObject BrxAgent::repairToolContext(const QJsonArray& tools, const QJsonObje
     if (mentionsLayer) {
         addGroup(QStringLiteral("layer_alternatives"),
             QStringLiteral("Layer repair may need layer creation/listing and then entity assignment."),
-            {QStringLiteral("layers.list"), QStringLiteral("layers.create"), QStringLiteral("layers.ensureMany"), QStringLiteral("entity.setLayer"), QStringLiteral("brx.sdk.entity.setLayer")});
+            {QStringLiteral("layers.list"), QStringLiteral("layers.create"), QStringLiteral("entity.setLayer"), QStringLiteral("brx.sdk.entity.setLayer")});
     }
 
-    addGroup(QStringLiteral("native_command_fallback"),
-        QStringLiteral("Use native commands only when commands.list knows the command and typed BRX/SDK tools are not sufficient."),
-        {QStringLiteral("commands.list"), QStringLiteral("command.execute")});
+    while (candidateNames.size() > 8) {
+        candidateNames.removeLast();
+    }
 
     return QJsonObject{
         {QStringLiteral("schema"), QStringLiteral("barebone.qt.brx.repair-tool-context.v1")},
         {QStringLiteral("source"), QStringLiteral("BrxAgent")},
-        {QStringLiteral("mode"), QStringLiteral("full_tool_space")},
+        {QStringLiteral("mode"), QStringLiteral("candidate_tool_space")},
         {QStringLiteral("phase"), params.value(QStringLiteral("phase")).toString()},
         {QStringLiteral("retry"), params.value(QStringLiteral("retry")).toInt()},
         {QStringLiteral("failedTool"), failedTool},
         {QStringLiteral("failedParams"), failedParams},
         {QStringLiteral("error"), error.left(4000)},
-        {QStringLiteral("allToolCount"), allTools.size()},
-        {QStringLiteral("allToolNames"), QJsonArray::fromStringList(toolNames(allTools))},
-        {QStringLiteral("allToolIndex"), compactToolIndex(allTools)},
+        {QStringLiteral("catalogToolCount"), allTools.size()},
         {QStringLiteral("candidateToolNames"), QJsonArray::fromStringList(candidateNames)},
+        {QStringLiteral("candidateToolIndex"), compactIndexForToolNames(allTools, candidateNames)},
         {QStringLiteral("candidateGroups"), candidateGroups},
-        {QStringLiteral("describeAllTools"), QJsonObject{
-            {QStringLiteral("method"), QStringLiteral("qt.brx.tools.describe")},
-            {QStringLiteral("params"), QJsonObject{
-                {QStringLiteral("all"), true},
-                {QStringLiteral("offset"), 0},
-                {QStringLiteral("limit"), 64},
-                {QStringLiteral("includeSchemas"), true},
-            }},
-        }},
         {QStringLiteral("policy"), QStringLiteral(
-            "Repairmodus: alle Tools sind im allToolIndex sichtbar. Wiederhole den abgelehnten Tool-/Param-Pfad nicht. "
-            "Wenn candidateGroups nicht reichen, lade vollstaendige Toolkarten mit qt.brx.tools.describe all=true oder konkreten names nach; "
-            "nutze qt.brx.db.compatibility fuer unklare Zielklassen, bevor du ask_user verwendest.")},
+            "Repairmodus: Nutze nur candidateToolNames/effectiveTools, Zeichnungskontext und die BRX-Preflight-Fehler. Wiederhole den abgelehnten Tool-/Param-Pfad nicht.")},
     };
 }
 
 QJsonArray BrxAgent::localContextMethods()
 {
-    QJsonArray methods{
-        QStringLiteral("qt.tools.describe"),
-        QStringLiteral("qt.learning.describe"),
-        QStringLiteral("qt.documents.describe"),
-        QStringLiteral("qt.drawing.manifest"),
-        QStringLiteral("qt.drawing.query"),
-        QStringLiteral("qt.drawing.fullScan"),
-    };
-    for (const QString& method : {
-             QStringLiteral("qt.brx.tools.describe"),
-             QStringLiteral("qt.brx.context.manifest"),
-             QStringLiteral("qt.brx.context.fetch"),
-             QStringLiteral("qt.brx.db.schema"),
-             QStringLiteral("qt.brx.db.query"),
-             QStringLiteral("qt.brx.db.inspect"),
-             QStringLiteral("qt.brx.db.fullContext"),
-             QStringLiteral("qt.brx.db.compatibility"),
-             QStringLiteral("qt.brx.execution.history"),
-             QStringLiteral("qt.brx.sdk.catalog"),
-             QStringLiteral("qt.brx.workflow.testPlan"),
-             QStringLiteral("qt.brx.workflow.repairHints"),
-             QStringLiteral("qt.brx.workflow.repairContext"),
-         }) {
-        methods.append(method);
-    }
-    return methods;
+    return {};
 }
 
 QJsonObject BrxAgent::dbSchema()
@@ -1380,16 +1287,23 @@ QJsonObject BrxAgent::dbCompatibility(const QJsonObject& params)
     };
 
     if (moveIntent) {
+        if (intent.contains(QStringLiteral("bim"))
+            || !bimType.trimmed().isEmpty()
+            || entityClass.contains(QStringLiteral("BIM"), Qt::CaseInsensitive)) {
+            appendCandidate(QStringLiteral("bim.move"),
+                QStringLiteral("Classified BIM targets must move through bim.move with resolved handles and target fingerprints."),
+                QJsonArray{QStringLiteral("bim.objects.query"), QStringLiteral("actions.validate")});
+        }
         if (entityClass.contains(QStringLiteral("BlockReference"), Qt::CaseInsensitive)
             || bimType.contains(QStringLiteral("DOOR"), Qt::CaseInsensitive)
             || bimType.contains(QStringLiteral("WINDOW"), Qt::CaseInsensitive)) {
             appendCandidate(QStringLiteral("brx.sdk.blockReference.setPosition"),
                 QStringLiteral("Target is or may be AcDbBlockReference; inspect current insertion point and move by vector."),
-                QJsonArray{QStringLiteral("qt.brx.db.inspect"), QStringLiteral("bim.objects.query if BIM name is used")});
+                QJsonArray{QStringLiteral("entity.describe"), QStringLiteral("bim.objects.query if BIM name is used")});
         }
         appendCandidate(QStringLiteral("brx.sdk.entity.transformBy"),
             QStringLiteral("Generic whole-entity translation candidate for writable AcDbEntity targets."),
-            QJsonArray{QStringLiteral("qt.brx.db.inspect")});
+            QJsonArray{QStringLiteral("entity.describe")});
         appendCandidate(QStringLiteral("geometry.move"),
             QStringLiteral("High-level whole-entity move remains available when selector and vector are concrete."),
             QJsonArray{QStringLiteral("actions.validate")});
@@ -1401,7 +1315,7 @@ QJsonObject BrxAgent::dbCompatibility(const QJsonObject& params)
     if (copyIntent) {
         appendCandidate(QStringLiteral("brx.sdk.entity.copy"),
             QStringLiteral("Generic copy candidate for writable AcDbEntity targets when vector/offset/spacing is concrete."),
-            QJsonArray{QStringLiteral("qt.brx.db.inspect"), QStringLiteral("actions.validate")});
+            QJsonArray{QStringLiteral("entity.describe"), QStringLiteral("actions.validate")});
         appendCandidate(QStringLiteral("geometry.copy"),
             QStringLiteral("High-level copy bridge remains available when selector and offset are concrete."),
             QJsonArray{QStringLiteral("actions.validate")});
@@ -1410,7 +1324,7 @@ QJsonObject BrxAgent::dbCompatibility(const QJsonObject& params)
     if (rotateIntent) {
         appendCandidate(QStringLiteral("brx.sdk.entity.rotateBy"),
             QStringLiteral("Generic rotate candidate for complete writable entities when angle and base point are explicit."),
-            QJsonArray{QStringLiteral("qt.brx.db.inspect"), QStringLiteral("actions.validate")});
+            QJsonArray{QStringLiteral("entity.describe"), QStringLiteral("actions.validate")});
         appendCandidate(QStringLiteral("geometry.rotate"),
             QStringLiteral("High-level rotate bridge remains available when selector, base point and angle are concrete."),
             QJsonArray{QStringLiteral("actions.validate")});
@@ -1419,7 +1333,7 @@ QJsonObject BrxAgent::dbCompatibility(const QJsonObject& params)
     if (scaleIntent) {
         appendCandidate(QStringLiteral("brx.sdk.entity.scaleBy"),
             QStringLiteral("Generic uniform scale candidate for complete writable entities when factor and base point are explicit."),
-            QJsonArray{QStringLiteral("qt.brx.db.inspect"), QStringLiteral("actions.validate")});
+            QJsonArray{QStringLiteral("entity.describe"), QStringLiteral("actions.validate")});
         appendCandidate(QStringLiteral("geometry.scale"),
             QStringLiteral("High-level uniform scale bridge remains available when selector, base point and factor are concrete."),
             QJsonArray{QStringLiteral("actions.validate")});
@@ -1428,7 +1342,7 @@ QJsonObject BrxAgent::dbCompatibility(const QJsonObject& params)
     if (deleteIntent) {
         appendCandidate(QStringLiteral("brx.sdk.entity.erase"),
             QStringLiteral("Generic erase candidate for concrete writable entities after explicit delete intent and confirm=true."),
-            QJsonArray{QStringLiteral("qt.brx.db.inspect"), QStringLiteral("actions.validate")});
+            QJsonArray{QStringLiteral("entity.describe"), QStringLiteral("actions.validate")});
         appendCandidate(QStringLiteral("geometry.delete"),
             QStringLiteral("High-level delete bridge remains available when selector is concrete and confirm=true."),
             QJsonArray{QStringLiteral("actions.validate")});
@@ -1437,7 +1351,7 @@ QJsonObject BrxAgent::dbCompatibility(const QJsonObject& params)
     if (setLayerIntent) {
         appendCandidate(QStringLiteral("brx.sdk.entity.setLayer"),
             QStringLiteral("SDK layer assignment candidate for writable entities when target layer is known or createIfMissing=true."),
-            QJsonArray{QStringLiteral("qt.brx.db.inspect"), QStringLiteral("layers.list"), QStringLiteral("actions.validate")});
+            QJsonArray{QStringLiteral("entity.describe"), QStringLiteral("layers.list"), QStringLiteral("actions.validate")});
         appendCandidate(QStringLiteral("entity.setLayer"),
             QStringLiteral("High-level layer assignment bridge remains available with selector and target layer."),
             QJsonArray{QStringLiteral("actions.validate")});
@@ -1446,7 +1360,7 @@ QJsonObject BrxAgent::dbCompatibility(const QJsonObject& params)
     if (setNameIntent && !setLayerIntent) {
         appendCandidate(QStringLiteral("brx.sdk.entity.setName"),
             QStringLiteral("SDK-backed entity metadata naming candidate. Use for entities/BIM objects, not layers."),
-            QJsonArray{QStringLiteral("qt.brx.db.inspect"), QStringLiteral("actions.validate")});
+            QJsonArray{QStringLiteral("entity.describe"), QStringLiteral("actions.validate")});
         appendCandidate(QStringLiteral("entity.setName"),
             QStringLiteral("High-level entity naming bridge remains available with selector and name."),
             QJsonArray{QStringLiteral("actions.validate")});
@@ -1455,7 +1369,7 @@ QJsonObject BrxAgent::dbCompatibility(const QJsonObject& params)
     if (selectionIntent) {
         appendCandidate(QStringLiteral("brx.sdk.selection.setPickfirst"),
             QStringLiteral("SDK pickfirst selection candidate for concrete handles/selector facts before selection-dependent operations."),
-            QJsonArray{QStringLiteral("qt.brx.db.inspect"), QStringLiteral("selection.describe")});
+            QJsonArray{QStringLiteral("entity.describe"), QStringLiteral("selection.describe")});
         appendCandidate(QStringLiteral("selection.set"),
             QStringLiteral("High-level selection bridge remains available for handles/layer/current-space selectors."),
             QJsonArray{QStringLiteral("actions.validate")});
@@ -1464,15 +1378,15 @@ QJsonObject BrxAgent::dbCompatibility(const QJsonObject& params)
     if (classifyIntent) {
         appendCandidate(QStringLiteral("brx.sdk.bim.classification.set"),
             QStringLiteral("SDK-backed BIM classification candidate when BIM classification is explicitly intended and target solids are concrete."),
-            QJsonArray{QStringLiteral("qt.brx.db.inspect"), QStringLiteral("bim.objects.query"), QStringLiteral("actions.validate")});
+            QJsonArray{QStringLiteral("entity.describe"), QStringLiteral("bim.objects.query"), QStringLiteral("actions.validate")});
         appendCandidate(QStringLiteral("bim.classify"),
             QStringLiteral("High-level BIM classify bridge remains available for selected/recent 3D solids."),
             QJsonArray{QStringLiteral("actions.validate")});
     }
 
     if (candidates.isEmpty()) {
-        appendCandidate(QStringLiteral("qt.brx.tools.describe"),
-            QStringLiteral("No direct compatibility rule matched; ask BrxAgent for tool details by query before proposing actions."));
+        appendCandidate(QStringLiteral("actions.list"),
+            QStringLiteral("No direct compatibility rule matched; compare the current BRX catalog before proposing actions."));
     }
 
     QJsonArray storeFactPreview;
@@ -1481,7 +1395,7 @@ QJsonObject BrxAgent::dbCompatibility(const QJsonObject& params)
     }
 
     return QJsonObject{
-        {QStringLiteral("schema"), QStringLiteral("barebone.qt.brx.db.compatibility.v1")},
+        {QStringLiteral("schema"), QStringLiteral("barebone.brx.sdk.compatibility.v1")},
         {QStringLiteral("source"), QStringLiteral("BrxAgent")},
         {QStringLiteral("intent"), intent},
         {QStringLiteral("entityClass"), entityClass},
@@ -1494,46 +1408,8 @@ QJsonObject BrxAgent::dbCompatibility(const QJsonObject& params)
     };
 }
 
-QJsonObject BrxAgent::workflowTestPlan(const QJsonObject& params)
-{
-    return QJsonObject{
-        {QStringLiteral("schema"), QStringLiteral("barebone.qt.brx.workflow.test-plan.v1")},
-        {QStringLiteral("source"), QStringLiteral("BrxAgent")},
-        {QStringLiteral("workflowId"), params.value(QStringLiteral("workflowId")).toString()},
-        {QStringLiteral("recommendedSteps"), QJsonArray{
-            QStringLiteral("Load workflow definition and requiredRuntimeContext."),
-            QStringLiteral("Inspect current drawing/selection through qt.brx.db.inspect or BRX read-only tools."),
-            QStringLiteral("Ask qt.brx.db.compatibility for ambiguous SDK choices."),
-            QStringLiteral("Produce one confirmed action_proposal with concrete params."),
-            QStringLiteral("After execution, store testRuns/readbacks and update ai_runtime workflow if repair succeeded."),
-        }},
-        {QStringLiteral("policy"), QStringLiteral("Workflow ausfuehren is AI-guided. Do not run stale executionBatches directly when context or tools need analysis.")},
-    };
-}
 
-QJsonObject BrxAgent::workflowRepairHints(const QJsonObject& params)
-{
-    const QString error = params.value(QStringLiteral("error")).toString();
-    return QJsonObject{
-        {QStringLiteral("schema"), QStringLiteral("barebone.qt.brx.workflow.repair-hints.v1")},
-        {QStringLiteral("source"), QStringLiteral("BrxAgent")},
-        {QStringLiteral("error"), error},
-        {QStringLiteral("hints"), QJsonArray{
-            QStringLiteral("Do not repeat the same rejected tool/params."),
-            QStringLiteral("Inspect target handles and entity classes before choosing another write tool."),
-            QStringLiteral("Prefer BRX/SDK tools over command.execute when a typed tool exists."),
-            QStringLiteral("Update only source=ai_runtime/updateProtected=false workflows with successful repaired steps."),
-        }},
-    };
-}
 
-QJsonObject BrxAgent::workflowRepairHints(const QJsonObject& params, const QJsonObject& repairContext)
-{
-    QJsonObject result = workflowRepairHints(params);
-    result.insert(QStringLiteral("repairContext"), repairContext);
-    result.insert(QStringLiteral("policy"), QStringLiteral("Repair-Hints sind mit lokalem Execution-/DB-Kontext angereichert. Nutze Facts und letzte Fehler fuer einen anderen validierbaren Toolpfad."));
-    return result;
-}
 
 QJsonObject BrxAgent::dbContextFromStoreResult(const QString& method, const QJsonObject& params, const QJsonObject& storeResult)
 {

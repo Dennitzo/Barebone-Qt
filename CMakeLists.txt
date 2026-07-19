@@ -23,12 +23,26 @@ qt_add_executable(BareboneQtApp
     src/main.cpp
     src/agent/BrxAgent.cpp
     src/agent/BrxAgent.h
-    src/agent/BricsCadLearningAgent.cpp
-    src/agent/BricsCadLearningAgent.h
     src/agent/DrawingContextStore.cpp
     src/agent/DrawingContextStore.h
     src/agent/LocalAiJobScheduler.cpp
     src/agent/LocalAiJobScheduler.h
+    src/agent/bricscad/BricsCadAgentCoordinator.cpp
+    src/agent/bricscad/BricsCadAgentCoordinator.h
+    src/agent/bricscad/BricsCadAgentUtils.cpp
+    src/agent/bricscad/BricsCadAgentUtils.h
+    src/agent/bricscad/BricsCadFinalAgent.cpp
+    src/agent/bricscad/BricsCadFinalAgent.h
+    src/agent/bricscad/CalculationAgent.cpp
+    src/agent/bricscad/CalculationAgent.h
+    src/agent/bricscad/ConversationHistoryAgent.cpp
+    src/agent/bricscad/ConversationHistoryAgent.h
+    src/agent/bricscad/DrawingContextAgent.cpp
+    src/agent/bricscad/DrawingContextAgent.h
+    src/agent/bricscad/LocalAiAgentRuntime.cpp
+    src/agent/bricscad/LocalAiAgentRuntime.h
+    src/agent/bricscad/ToolWorkflowAgent.cpp
+    src/agent/bricscad/ToolWorkflowAgent.h
     src/core/ConfigManager.cpp
     src/core/ConfigManager.h
     src/ui/AiWebBridge.cpp

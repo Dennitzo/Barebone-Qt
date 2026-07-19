@@ -6,18 +6,12 @@
     "required": ["schema", "type", "message", "sessionTitle"],
     "schema": "barebone.agent.response.v2",
     "allowedTypes": ["message", "ask_user", "context_request", "action_proposal", "plan"],
-    "sessionTitlePolicy": "Set sessionTitle as a top-level field on every response, never inside proposal, draft, metadata, or learningUpdate. Derive a short, specific German session title from compactState, userPrompt and the conversation focus; max 6 words; avoid generic titles."
+    "sessionTitlePolicy": "Set sessionTitle as a top-level field on every response. Derive a short, specific German session title from the user prompt and conversation focus; max 6 words; avoid generic titles."
   },
   "sessionTitle": {
     "recommended": true,
     "maxWords": 6,
     "policy": "Kurzer Sitzungsname aus komprimiertem Kontext; keine generischen Titel wie Neuer Chat, Allgemeiner Chat, Workflow oder Frage."
-  },
-  "learningUpdate": {
-    "optional": true,
-    "bricscadOnly": true,
-    "policy": "Optionales Metadatum, kein Antworttyp. Kuratierte Workflows mit updateProtected=true oder source=canonical_building_workflow sind unveraenderlich. Die lokale AI darf nur eigene Workflows mit source=ai_runtime und updateProtected=false anlegen oder aktualisieren. Neue Workflows verwenden dieselbe kanonische Struktur wie brx-learning.json und enthalten einen fachlichen Titel mit hoechstens 6 Woertern sowie eine kurze Beschreibung der konkreten Ausfuehrung. Generische Titel wie 'Aus erfolgreicher BRX-Ausfuehrung' sind verboten.",
-    "lessonFields": ["id", "title", "description", "intent", "intentPatterns", "assumptions", "requiredSlots", "knownSlotValues", "derivedValues", "strategy", "lessonKind", "directTestEligible", "observedCommands", "commandTemplates", "postconditions", "readbacks", "executionBatches", "validationExamples", "knownFailures", "repairRules", "recommendedTools", "status", "source", "updateProtected"]
   },
   "message": {
     "required": ["type", "message"]
@@ -27,21 +21,10 @@
     "proposalRequired": ["requiresConfirmation", "actions"],
     "actionShape": {
       "required": ["tool", "params"],
-      "toolSource": "tools[].name",
-      "paramsSource": "tools[].inputSchema"
+      "toolSource": "effectiveTools[].name",
+      "paramsSource": "effectiveTools[].inputSchema"
     },
     "forbiddenTopLevelFields": ["tool", "params", "actions"]
-  },
-  "workflowRunProposal": {
-    "required": ["type", "message", "baseWorkflowId", "workflowUsage", "slotValues", "stepPlan", "actions", "requiresConfirmation"],
-    "workflowUsageDecision": ["direct", "adapted", "extended", "deviated", "no_fit"],
-    "stepPlanAction": ["use", "override", "skip", "insert"],
-    "actionShape": {
-      "required": ["tool", "params"],
-      "toolSource": "tools[].name",
-      "paramsSource": "tools[].inputSchema"
-    },
-    "policy": "Legacy schema only. BricsCAD mode uses action_proposal with brxLearningContext instead of workflow_run_proposal."
   },
   "askUser": {
     "required": ["type", "message", "missing"],
@@ -65,15 +48,15 @@
       "allowedTypes": ["message", "ask_user", "context_request"]
     },
     "bricscad_action": {
-      "allowedTypes": ["message", "ask_user", "context_request", "action_proposal", "plan"]
+      "allowedTypes": ["ask_user", "context_request", "action_proposal"]
     },
     "validation_retry": {
-      "allowedTypes": ["message", "ask_user", "context_request", "action_proposal", "plan"]
+      "allowedTypes": ["ask_user", "context_request", "action_proposal"]
     },
     "execution_summary": {
       "allowedTypes": ["message"]
     }
   },
-  "defaultsPolicy": "Ask only for mandatory unknown data. For domain-standard requests, propose sensible defaults and list them in assumptions.",
+  "defaultsPolicy": "Ask only for mandatory unknown data. For domain-standard requests, propose sensible defaults and list them in assumptions. If execution.delegatedValueChoice is true, choose plausible safe default/example values yourself and never ask the user for those delegated values.",
   "bricscadReadOnlyPolicy": "For BricsCAD table, object-data, metrics, dimensions, height/width/depth, bounds, or fetch requests, use read-only context_request or read-only action_proposal with geometry.query first and measurement.bbox as fallback. For all objects/all layers use selector.scope=currentSpace without selector.layer. Do not ask for chat-vs-file export unless the user asks for export. Do not claim dimensions are unavailable before trying the configured read-only fallback tools."
 }

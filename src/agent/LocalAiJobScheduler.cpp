@@ -2,11 +2,31 @@
 
 #include <QJsonArray>
 #include <QNetworkAccessManager>
+#include <QRegularExpression>
 #include <QTimer>
 #include <QUuid>
 
 #include <algorithm>
 #include <limits>
+
+namespace {
+
+QString normalizedLane(QString lane, const QString& kind, bool background)
+{
+    lane = lane.trimmed().toLower();
+    if (!lane.isEmpty()) {
+        return lane;
+    }
+    QString derived = kind.trimmed().toLower();
+    derived.replace(QRegularExpression(QStringLiteral("[^a-z0-9._-]+")), QStringLiteral("-"));
+    derived = derived.trimmed();
+    if (!derived.isEmpty()) {
+        return derived;
+    }
+    return background ? QStringLiteral("background") : QStringLiteral("foreground");
+}
+
+} // namespace
 
 LocalAiJobScheduler::LocalAiJobScheduler(QObject* parent)
     : QObject(parent)
@@ -70,6 +90,7 @@ QString LocalAiJobScheduler::enqueue(Job job)
     if (job.kind.trimmed().isEmpty()) {
         job.kind = job.background ? QStringLiteral("Background") : QStringLiteral("Foreground");
     }
+    job.lane = normalizedLane(job.lane, job.kind, job.background);
 
     if (!job.dedupeKey.trimmed().isEmpty()) {
         for (int i = m_queue.size() - 1; i >= 0; --i) {
@@ -111,10 +132,15 @@ void LocalAiJobScheduler::abortAll()
 QJsonObject LocalAiJobScheduler::status() const
 {
     QJsonArray activeJobs;
+    QJsonObject lanes;
     for (const ActiveJob& active : m_active) {
+        QJsonObject laneState = lanes.value(active.job.lane).toObject();
+        laneState.insert(QStringLiteral("active"), laneState.value(QStringLiteral("active")).toInt(0) + 1);
+        lanes.insert(active.job.lane, laneState);
         activeJobs.append(QJsonObject{
             {QStringLiteral("id"), active.job.id},
             {QStringLiteral("kind"), active.job.kind},
+            {QStringLiteral("lane"), active.job.lane},
             {QStringLiteral("background"), active.job.background},
             {QStringLiteral("cancellable"), active.job.cancellable},
             {QStringLiteral("dedupeKey"), active.job.dedupeKey},
@@ -123,9 +149,13 @@ QJsonObject LocalAiJobScheduler::status() const
 
     QJsonArray queuedJobs;
     for (const QueuedJob& queued : m_queue) {
+        QJsonObject laneState = lanes.value(queued.job.lane).toObject();
+        laneState.insert(QStringLiteral("queued"), laneState.value(QStringLiteral("queued")).toInt(0) + 1);
+        lanes.insert(queued.job.lane, laneState);
         queuedJobs.append(QJsonObject{
             {QStringLiteral("id"), queued.job.id},
             {QStringLiteral("kind"), queued.job.kind},
+            {QStringLiteral("lane"), queued.job.lane},
             {QStringLiteral("background"), queued.job.background},
             {QStringLiteral("priority"), queued.job.priority},
             {QStringLiteral("dedupeKey"), queued.job.dedupeKey},
@@ -141,6 +171,7 @@ QJsonObject LocalAiJobScheduler::status() const
         {QStringLiteral("queued"), m_queue.size()},
         {QStringLiteral("abortedBackgroundJobs"), m_abortedBackgroundJobs},
         {QStringLiteral("throttledBackgroundJobs"), m_throttledBackgroundJobs},
+        {QStringLiteral("lanes"), lanes},
         {QStringLiteral("activeJobs"), activeJobs},
         {QStringLiteral("queuedJobs"), queuedJobs},
     };
@@ -150,7 +181,25 @@ void LocalAiJobScheduler::drainQueue()
 {
     sortQueue();
     while (!m_queue.isEmpty() && m_active.size() < m_maxConcurrentJobs) {
-        const QueuedJob next = m_queue.takeFirst();
+        int startIndex = -1;
+        for (int i = 0; i < m_queue.size(); ++i) {
+            const QString lane = m_queue.at(i).job.lane;
+            bool laneActive = false;
+            for (const ActiveJob& active : m_active) {
+                if (!active.aborting && active.job.lane == lane) {
+                    laneActive = true;
+                    break;
+                }
+            }
+            if (!laneActive) {
+                startIndex = i;
+                break;
+            }
+        }
+        if (startIndex < 0) {
+            return;
+        }
+        const QueuedJob next = m_queue.takeAt(startIndex);
         startJob(next);
     }
 }
@@ -183,6 +232,7 @@ void LocalAiJobScheduler::finishReply(QNetworkReply* reply)
     Result result;
     result.id = active.job.id;
     result.kind = active.job.kind;
+    result.lane = active.job.lane;
     result.dedupeKey = active.job.dedupeKey;
     result.background = active.job.background;
     result.httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();

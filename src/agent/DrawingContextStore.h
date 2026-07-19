@@ -25,7 +25,6 @@ public:
     QJsonObject fullScan(const QJsonObject& params) const;
     QJsonObject fullContext(const QJsonObject& params) const;
     QJsonObject executionHistory(const QJsonObject& params) const;
-    QJsonObject repairContext(const QJsonObject& params) const;
     QJsonObject agentContext() const;
 
 private:
@@ -51,5 +50,4 @@ private:
     QJsonArray m_actionSummaries;
     QJsonArray m_validationHistory;
     QJsonArray m_executionHistory;
-    QJsonArray m_workflowRepairHistory;
 };

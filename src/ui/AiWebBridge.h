@@ -79,6 +79,7 @@ Q_SIGNALS:
     void clientStateLoaded(const QString& stateJson);
     void contextBudgetChanged(const QVariantMap& budget);
     void agentRuntimeStatusChanged(const QVariantMap& status);
+    void agentReasoningProgressChanged(const QVariantMap& progress);
     void localAiStatusChanged(const QString& message, bool connected);
     void uiThemeChanged(const QString& theme);
     void uiLanguageChanged(const QString& language);

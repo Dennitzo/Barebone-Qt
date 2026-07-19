@@ -1904,6 +1904,83 @@
       line-height: 1.2;
     }
 
+    .workflow-step-parameters {
+      display: grid;
+      gap: 12px;
+    }
+
+    .workflow-step-card {
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface);
+    }
+
+    .workflow-step-card-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      background: color-mix(in srgb, var(--surface) 82%, var(--accent) 18%);
+    }
+
+    .workflow-step-card-title {
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 750;
+    }
+
+    .workflow-step-card-tool {
+      color: var(--text-muted);
+      font-family: Consolas, "Cascadia Mono", monospace;
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+
+    .workflow-parameter-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    .workflow-parameter-table th,
+    .workflow-parameter-table td {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .workflow-parameter-table tr:last-child th,
+    .workflow-parameter-table tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .workflow-parameter-table th {
+      width: 34%;
+      color: var(--text-muted);
+      font-weight: 650;
+    }
+
+    .workflow-parameter-table td {
+      color: var(--text);
+      overflow-wrap: anywhere;
+    }
+
+    .workflow-json-value {
+      margin: 0;
+      padding: 8px 10px;
+      border-radius: 6px;
+      background: var(--bg);
+      color: var(--text);
+      font: 12px/1.45 Consolas, "Cascadia Mono", monospace;
+      white-space: pre-wrap;
+    }
+
     .workflow-footer {
       flex-shrink: 0;
       margin-top: auto;
@@ -2229,6 +2306,7 @@
               <option value="lesson">Lessons</option>
               <option value="repair_rule">Repair-Regeln</option>
               <option value="example">Beispiele</option>
+              <option value="tool_prompt_mapping">Tool Mapping</option>
             </select>
             <select class="workflow-sort" id="workflow-status-filter" aria-label="Learning-Status filtern">
               <option value="all">Alle Status</option>
@@ -2287,7 +2365,7 @@
         attachFile: "Datei hinzufügen",
         attachFileAria: "Datei als Kontext hinzufügen",
         workflows: "Workflows",
-        brxLearning: "BRX Learning",
+        brxLearning: "BricsCAD",
         showWorkflows: "Workflows anzeigen",
         tools: "Tools",
         bricscadMode: "BricsCAD Modus",
@@ -2402,7 +2480,7 @@
         attachFile: "Add file",
         attachFileAria: "Add file as context",
         workflows: "Workflows",
-        brxLearning: "BRX Learning",
+        brxLearning: "BricsCAD",
         showWorkflows: "Show workflows",
         tools: "Tools",
         bricscadMode: "BricsCAD mode",
@@ -2503,7 +2581,7 @@
     const isBricsCadWorkspace = () => activeWorkspace === "bricscad";
     const isChatWorkspace = () => activeWorkspace === "chat";
     const isGeneralWorkflowWorkspace = () => isChatWorkspace();
-    const isBrxLearningWorkspace = () => isBricsCadWorkspace();
+    const isBrxLearningWorkspace = () => false;
 
     const app = document.getElementById("app");
     const messages = document.getElementById("messages");
@@ -2705,7 +2783,8 @@
           tool: "tools",
           lesson: "lessons",
           repair_rule: "repairRules",
-          example: "examples"
+          example: "examples",
+          tool_prompt_mapping: "Tool Mapping"
         };
         Array.from(workflowKindFilter.options).forEach((option) => {
           option.textContent = t(kindLabels[option.value] || "allTypes");
@@ -2779,6 +2858,8 @@
     let pendingExecutionSummary = false;
     let batchThinkingState = { active: false, current: 0, total: 0 };
     let aiThinkingState = { requests: 0, retries: 0, workflowRetries: 0 };
+    let activeReasoningRunId = "";
+    const reasoningStageRevisions = new Map();
     let capabilitiesIndicator = null;
     let proposalInline = null;
     let workflowSavePromptInline = null;
@@ -3119,6 +3200,9 @@
 
     function workflowLearningKind(workflow) {
       const kind = String(workflow?.kind || "").trim();
+      if (kind === "tool_prompt_mapping") {
+        return "tool_prompt_mapping";
+      }
       return kind === "learning" ? "lesson" : kind;
     }
 
@@ -3132,7 +3216,7 @@
     }
 
     function isWorkflowLearningEntry(workflow) {
-      return ["tool", "lesson", "repair_rule", "example", "learning"].includes(String(workflow?.kind || "").trim());
+      return ["tool", "lesson", "repair_rule", "example", "learning", "tool_prompt_mapping"].includes(String(workflow?.kind || "").trim());
     }
 
     function workflowLearningKindLabel(kind, singular = false) {
@@ -3142,14 +3226,16 @@
           lesson: "Lesson",
           repair_rule: "Repair-Regel",
           example: t("example"),
-          learning: "Lesson"
+          learning: "Lesson",
+          tool_prompt_mapping: "Tool Mapping"
         }
         : {
           tool: t("tools"),
           lesson: t("lessons"),
           repair_rule: t("repairRules"),
           example: t("examples"),
-          learning: t("lessons")
+          learning: t("lessons"),
+          tool_prompt_mapping: "Tool Mapping"
         };
       return labels[kind] || kind || t("brxLearning");
     }
@@ -3634,6 +3720,7 @@
         workflowSelect.title = workflowSelect.textContent;
       }
       if (workflowDelete) {
+        workflowDelete.hidden = false;
         const canDelete = hasPreview
           && !workflowPreview.readOnly
           && (!isBrxLearningWorkspace() || workflowLearningKind(workflowPreview) === "lesson");
@@ -3677,7 +3764,7 @@
       }
       const executeInBricsCad = isBrxLearningWorkspace();
       const workflowToExecute = normalizeWorkflow(workflowPreview);
-      pendingWorkflowSessionOpenMode = isGeneralWorkflowWorkspace() ? "general" : "";
+      pendingWorkflowSessionOpenMode = isGeneralWorkflowWorkspace() ? "general" : "bricscad";
       if (bridge && typeof bridge.selectWorkflow === "function") {
         bridge.selectWorkflow(workflowToExecute.id);
       } else {
@@ -3685,7 +3772,7 @@
       }
       closeWorkflowOverlay();
       if (executeInBricsCad) {
-        input.value = `Führe den ausgewählten Workflow "${workflowToExecute.title}" aus. Analysiere zuerst Workflow, aktuelle Zeichnung, aktuelle Auswahl, kompatible Geometrie, commands.list, verfügbare BRX-Tools und fehlende Parameter. Erzeuge danach einen bestätigungspflichtigen BricsCAD-Aktionsvorschlag. Frage nur, wenn Zeichnung, Auswahl, Workflow und Tools die fehlende fachliche Entscheidung nicht liefern.`;
+        input.value = `Führe den ausgewählten Workflow "${workflowToExecute.title}" aus. Analysiere zuerst Workflow, aktuelle Zeichnung, aktuelle Auswahl, kompatible Geometrie, verfügbare BRX-Tools und fehlende Parameter. Erzeuge danach einen bestätigungspflichtigen BricsCAD-Aktionsvorschlag. Frage nur, wenn Zeichnung, Auswahl, Workflow und Tools die fehlende fachliche Entscheidung nicht liefern.`;
         requestAnimationFrame(() => submitPrompt());
         return;
       }
@@ -3787,6 +3874,11 @@
         Array.isArray(workflow.triggerExamples) ? workflow.triggerExamples.join(" ") : "",
         Array.isArray(workflow.preferredTools) ? workflow.preferredTools.join(" ") : "",
         Array.isArray(workflow.recommendedTools) ? workflow.recommendedTools.join(" ") : "",
+        workflow.primaryTool,
+        workflow.tool,
+        workflow.prompt,
+        workflow.normalizedPrompt,
+        Array.isArray(workflow.executedTools) ? workflow.executedTools.join(" ") : "",
         Array.isArray(workflow.keywords) ? workflow.keywords.join(" ") : ""
       ].join(" ").toLowerCase();
     }
@@ -4096,26 +4188,146 @@
       return lines;
     }
 
-    function workflowStepParameterLines(workflow) {
+    function workflowParameterLabel(key) {
+      const labels = {
+        geometry: "Geometrie",
+        layer: "Layer",
+        origin: "Ursprung",
+        position: "Position",
+        center: "Mittelpunkt",
+        start: "Startpunkt",
+        end: "Endpunkt",
+        width: "Breite",
+        widthMm: "Breite",
+        depth: "Tiefe",
+        depthMm: "Tiefe",
+        length: "Länge",
+        lengthMm: "Länge",
+        height: "Höhe",
+        heightMm: "Höhe",
+        radius: "Radius",
+        radiusMm: "Radius",
+        classification: "Klassifizierung",
+        selector: "Auswahl",
+        saveBefore: "Vorher speichern"
+      };
+      if (labels[key]) {
+        return labels[key];
+      }
+      return repairMojibakeText(String(key || ""))
+        .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+        .replace(/[_-]+/g, " ")
+        .replace(/^./, (letter) => letter.toUpperCase());
+    }
+
+    function resolvedWorkflowParameter(value, knownSlotValues) {
+      const slotName = workflowSlotReference(value);
+      if (slotName && Object.prototype.hasOwnProperty.call(knownSlotValues, slotName)) {
+        return resolvedWorkflowParameter(knownSlotValues[slotName], knownSlotValues);
+      }
+      if (Array.isArray(value)) {
+        return value.map((entry) => resolvedWorkflowParameter(entry, knownSlotValues));
+      }
+      if (value && typeof value === "object") {
+        return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, resolvedWorkflowParameter(entry, knownSlotValues)]));
+      }
+      return value;
+    }
+
+    function workflowNumberText(value) {
+      return new Intl.NumberFormat(uiLanguage === "de" ? "de-DE" : "en-US", {
+        maximumFractionDigits: 3
+      }).format(value);
+    }
+
+    function workflowParameterUsesMillimetres(key, tool) {
+      return /(?:mm|width|depth|length|height|radius|offset|distance|thickness)$/i.test(String(key || ""))
+        || (tool === "geometry.create" && /^(?:x|y|z)$/i.test(String(key || "")));
+    }
+
+    function appendWorkflowParameterValue(target, key, value, tool) {
+      if (value === null || value === undefined) {
+        target.textContent = "–";
+        return;
+      }
+      if (typeof value === "boolean") {
+        target.textContent = value ? "Ja" : "Nein";
+        return;
+      }
+      if (typeof value === "number") {
+        target.textContent = `${workflowNumberText(value)}${workflowParameterUsesMillimetres(key, tool) ? " mm" : ""}`;
+        return;
+      }
+      if (typeof value === "string") {
+        const geometryLabels = { box: "Quader", rectangle: "Rechteck", circle: "Kreis", line: "Linie", polyline: "Polylinie", point: "Punkt", arc: "Bogen" };
+        target.textContent = key === "geometry" && geometryLabels[value.toLowerCase()]
+          ? `${geometryLabels[value.toLowerCase()]} (${value})`
+          : repairMojibakeText(value);
+        return;
+      }
+      if (!Array.isArray(value) && typeof value === "object") {
+        const keys = Object.keys(value);
+        if (keys.length && keys.every((entry) => ["x", "y", "z"].includes(entry))) {
+          target.textContent = keys.map((axis) => `${axis.toUpperCase()}: ${workflowNumberText(Number(value[axis]))} mm`).join(" · ");
+          return;
+        }
+      }
+      const json = document.createElement("pre");
+      json.className = "workflow-json-value";
+      json.textContent = JSON.stringify(value, null, 2);
+      target.appendChild(json);
+    }
+
+    function createWorkflowStepParametersSection(workflow) {
       const knownSlotValues = workflow?.knownSlotValues && typeof workflow.knownSlotValues === "object"
         ? workflow.knownSlotValues
         : {};
-      const lines = [];
+      const section = document.createElement("section");
+      section.className = "workflow-section";
+      const heading = document.createElement("div");
+      heading.className = "workflow-section-title";
+      heading.textContent = "Schrittparameter";
+      section.appendChild(heading);
+      const cards = document.createElement("div");
+      cards.className = "workflow-step-parameters";
+
       workflowOrderedSteps(workflow).forEach((step, index) => {
         const title = repairMojibakeText(step?.title || step?.id || step?.tool || `Schritt ${index + 1}`);
-        const tool = step?.tool ? ` - ${step.tool}` : "";
-        lines.push(`${index + 1}. ${title}${tool}`);
+        const tool = repairMojibakeText(String(step?.tool || ""));
+        const card = document.createElement("article");
+        card.className = "workflow-step-card";
+        const header = document.createElement("div");
+        header.className = "workflow-step-card-header";
+        const cardTitle = document.createElement("div");
+        cardTitle.className = "workflow-step-card-title";
+        cardTitle.textContent = `${index + 1}. ${title}`;
+        header.appendChild(cardTitle);
+        if (tool) {
+          const toolName = document.createElement("div");
+          toolName.className = "workflow-step-card-tool";
+          toolName.textContent = tool;
+          header.appendChild(toolName);
+        }
+        card.appendChild(header);
+
         const params = step?.paramsTemplate && typeof step.paramsTemplate === "object" ? step.paramsTemplate : {};
+        const table = document.createElement("table");
+        table.className = "workflow-parameter-table";
         Object.entries(params).forEach(([key, value]) => {
-          const slotName = workflowSlotReference(value);
-          if (slotName && Object.prototype.hasOwnProperty.call(knownSlotValues, slotName)) {
-            lines.push(...workflowExpandedValueLines(`${key} (${slotName})`, knownSlotValues[slotName], "   "));
-            return;
-          }
-          lines.push(...workflowExpandedValueLines(key, value, "   "));
+          const row = document.createElement("tr");
+          const label = document.createElement("th");
+          label.scope = "row";
+          label.textContent = workflowParameterLabel(key);
+          const valueCell = document.createElement("td");
+          appendWorkflowParameterValue(valueCell, key, resolvedWorkflowParameter(value, knownSlotValues), tool);
+          row.append(label, valueCell);
+          table.appendChild(row);
         });
+        card.appendChild(table);
+        cards.appendChild(card);
       });
-      return lines;
+      section.appendChild(cards);
+      return section;
     }
 
     function renderWorkflowDetail(workflow) {
@@ -4179,6 +4391,25 @@
         if (weightLines.length) {
           workflowDetail.appendChild(createWorkflowSection("Gewichtung", weightLines));
         }
+        if (workflowLearningKind(workflow) === "tool_prompt_mapping") {
+          const mappingLines = [];
+          if (workflow.prompt) {
+            mappingLines.push(`Prompt: ${repairMojibakeText(String(workflow.prompt))}`);
+          }
+          const primaryTool = repairMojibakeText(String(workflow.primaryTool || workflow.tool || ""));
+          if (primaryTool) {
+            mappingLines.push(`Tool: ${primaryTool}`);
+          }
+          if (Array.isArray(workflow.executedTools) && workflow.executedTools.length) {
+            mappingLines.push(`Ausgefuehrt: ${workflow.executedTools.map((tool) => repairMojibakeText(String(tool))).join(", ")}`);
+          }
+          if (workflow.lastUsedAt) {
+            mappingLines.push(`Letzte Ausfuehrung: ${repairMojibakeText(String(workflow.lastUsedAt))}`);
+          }
+          if (mappingLines.length) {
+            workflowDetail.appendChild(createWorkflowSection("Tool Mapping", mappingLines));
+          }
+        }
         if (workflow.description || workflow.intent) {
           workflowDetail.appendChild(createWorkflowSection(workflowLearningKind(workflow) === "lesson" ? "Intent" : "Beschreibung", repairMojibakeText(workflow.description || workflow.intent)));
         }
@@ -4232,6 +4463,12 @@
           workflowDetail.appendChild(createWorkflowSection("Erfolgsbeispiele", examples.map((example) => {
             if (typeof example === "string") {
               return repairMojibakeText(example);
+            }
+            if (workflowLearningKind(workflow) === "tool_prompt_mapping") {
+              const prompt = repairMojibakeText(example?.prompt || "");
+              const tool = repairMojibakeText(example?.tool || workflow.primaryTool || workflow.tool || "");
+              const summary = repairMojibakeText(example?.summary || "");
+              return [prompt, tool ? `Tool: ${tool}` : "", summary].filter(Boolean).join(" | ");
             }
             const title = repairMojibakeText(example?.title || "Beispiel");
             const actions = Array.isArray(example?.actions) ? ` (${example.actions.length} Aktionen)` : "";
@@ -4353,9 +4590,8 @@
       if (knownSlotLines.length) {
         workflowDetail.appendChild(createWorkflowSection("Bekannte Werte", knownSlotLines));
       }
-      const parameterLines = workflowStepParameterLines(workflow);
-      if (parameterLines.length) {
-        workflowDetail.appendChild(createWorkflowSection("Schrittparameter", parameterLines));
+      if (workflowOrderedSteps(workflow).length) {
+        workflowDetail.appendChild(createWorkflowStepParametersSection(workflow));
       }
       if (Array.isArray(workflow.executionBatches) && workflow.executionBatches.length) {
         workflowDetail.appendChild(createWorkflowSection(t("batches"), workflow.executionBatches.map((batch) => {
@@ -4516,6 +4752,8 @@
         pendingWorkflowSessionOpenMode = "";
         if (mode === "general") {
           openGeneralWorkflowSession(selectedWorkflow);
+        } else if (mode === "bricscad") {
+          openBricsCadWorkflowSession(selectedWorkflow);
         } else if (mode === "training") {
           openTrainingWorkflowSession(selectedWorkflow);
         }
@@ -5798,7 +6036,9 @@
           || (selectedWorkflow && selectedWorkflow.id === workflowId ? selectedWorkflow : null);
       };
       return session.messages
-        .filter((message) => (message.speaker === "Du" || message.speaker === "AI") && message.kind !== "thinking")
+        .filter((message) => (message.speaker === "Du" || message.speaker === "AI")
+          && message.kind !== "thinking"
+          && !(isBricsCadWorkspace() && message.kind === "workflow_context"))
         .map((message) => {
           const workflow = message.kind === "workflow_context" ? workflowForHistory() : null;
           return {
@@ -5999,9 +6239,12 @@
         input.focus();
         return;
       }
-      if (isGeneralWorkflowWorkspace() && (normalizedCommand === "workflow speichern" || normalizedCommand === "save workflow")) {
+      if ((isGeneralWorkflowWorkspace() || isBricsCadWorkspace())
+          && (normalizedCommand === "workflow speichern" || normalizedCommand === "save workflow")) {
         showThinkingIndicator();
-        addThinkingDetail(t("workflowSaveThinking"), { key: "general-workflow-save" });
+        addThinkingDetail(isBricsCadWorkspace()
+          ? "Ich konsolidiere den vollständigen Sitzungsverlauf zu einem geprüften BricsCAD-Batch-Workflow."
+          : t("workflowSaveThinking"), { key: "workflow-save" });
         const messageText = messageTextById(messageId);
         if (typeof bridge.saveMessageAsWorkflow === "function") {
           bridge.saveMessageAsWorkflow(String(messageId || ""), messageText, activeSession().title || "");
@@ -6052,7 +6295,7 @@
     }
 
     function shouldShowWorkflowFooterForMessage(message, role) {
-      if (!isGeneralWorkflowWorkspace() || role !== "assistant") {
+      if ((!isGeneralWorkflowWorkspace() && !isBricsCadWorkspace()) || role !== "assistant") {
         return false;
       }
       if (isInitialAssistantGreeting(message)) {
@@ -6066,9 +6309,6 @@
       document.querySelectorAll(".message-footer.has-workflow-actions").forEach((footer) => {
         footer.classList.remove("has-workflow-actions");
       });
-      if (!isGeneralWorkflowWorkspace()) {
-        return;
-      }
       const candidates = Array.from(messages.querySelectorAll(".message.assistant[data-workflow-footer-eligible=\"true\"]:not(.thinking-indicator)"));
       const lastAssistant = candidates[candidates.length - 1];
       if (!lastAssistant) {
@@ -7471,7 +7711,9 @@
       item.textContent = detail;
       thinkingDetailsList.appendChild(item);
       while (thinkingDetailsList.children.length > 10) {
-        thinkingDetailsList.removeChild(thinkingDetailsList.firstElementChild);
+        const removable = Array.from(thinkingDetailsList.children)
+          .find((child) => !String(child.dataset?.thinkingKey || "").startsWith("reasoning:"));
+        thinkingDetailsList.removeChild(removable || thinkingDetailsList.firstElementChild);
       }
       thinkingDetailCount = thinkingDetailsList.children.length;
       messages.scrollTop = messages.scrollHeight;
@@ -8177,6 +8419,52 @@
       input.focus();
     }
 
+    function openBricsCadWorkflowSession(workflow) {
+      if (isBusy || !workflow || !workflow.id) {
+        input.focus();
+        return;
+      }
+      if (!isBricsCadWorkspace()) {
+        switchWorkspace("bricscad");
+      }
+      chatMode = "bricscad";
+      trainingMode = false;
+      selectedWorkflow = normalizeWorkflow(workflow);
+      if (!workflowHasLoadedContent(selectedWorkflow)) {
+        pendingWorkflowSessionOpenMode = "bricscad";
+        if (bridge && typeof bridge.selectWorkflow === "function") {
+          bridge.selectWorkflow(selectedWorkflow.id);
+        }
+        input.focus();
+        return;
+      }
+      const session = createSession(selectedWorkflow.title, "bricscad", {
+        includeGreeting: false,
+        kind: "bricscad_workflow",
+        workflowId: selectedWorkflow.id
+      });
+      session.userNamed = true;
+      const messageId = nextMessageId("ai");
+      session.messages = [{
+        speaker: "AI",
+        messageId,
+        message: workflowMarkdownForChat(selectedWorkflow),
+        time: nowTime(),
+        kind: "workflow_context"
+      }];
+      session.latestAiMessageId = messageId;
+      sessions.unshift(session);
+      activeSessionId = session.id;
+      prepareSessionOpenScroll();
+      renderModeSelection();
+      renderSessionList();
+      renderActiveSession();
+      persistSessions({ rememberScroll: false });
+      syncActiveSessionToQt();
+      syncTrainingModeToQt();
+      input.focus();
+    }
+
     function openTrainingWorkflowSession(workflow) {
       if (isBusy || !workflow || !workflow.id) {
         input.focus();
@@ -8254,9 +8542,9 @@
       persistSessions({ rememberScroll: false });
       renderSessionList();
       renderActiveSession();
-      if (isGeneralWorkflowWorkspace() && session.workflowId && bridge && typeof bridge.selectWorkflow === "function") {
+      if (session.workflowId && bridge && typeof bridge.selectWorkflow === "function") {
         const workflow = workflows.find((item) => item.id === session.workflowId);
-        selectedWorkflow = workflow || selectedWorkflow;
+        selectedWorkflow = workflow || null;
         renderActiveWorkflow();
         bridge.selectWorkflow(session.workflowId);
       } else {
@@ -8335,7 +8623,7 @@
         const documentPromptContext = promptContextForSubmit(text);
         input.value = "";
         removeWorkflowSavePrompt();
-        const useContextPrompt = documentPromptContext.hasDocuments;
+        const useContextPrompt = documentPromptContext.hasDocuments || isBricsCadWorkspace();
         try {
           if (useContextPrompt && typeof bridge.sendPromptWithContext === "function") {
             bridge.sendPromptWithContext(text, documentPromptContext);
@@ -8447,6 +8735,36 @@
       addThinkingDetail(text, { key });
     }
 
+    function applyAgentReasoningProgress(progress) {
+      const runId = String(progress?.runId || "").trim();
+      const stageId = String(progress?.stageId || "").trim();
+      if (!runId || !stageId) {
+        return;
+      }
+      if (stageId.startsWith("parallel-") && activeReasoningRunId !== runId) {
+        activeReasoningRunId = runId;
+        reasoningStageRevisions.clear();
+      }
+      if (activeReasoningRunId && activeReasoningRunId !== runId) {
+        return;
+      }
+      const key = `reasoning:${runId}:${stageId}`;
+      const revision = Number(progress?.revision || 0);
+      if (revision <= Number(reasoningStageRevisions.get(key) || -1)) {
+        return;
+      }
+      reasoningStageRevisions.set(key, revision);
+      const state = String(progress?.state || "queued");
+      const icon = ({ queued: "○", running: "◌", succeeded: "✓", failed: "!", cancelled: "—" })[state] || "○";
+      const stateLabel = ({ queued: "wartet", running: "läuft", succeeded: "abgeschlossen", failed: "mit Fallback abgeschlossen", cancelled: "abgebrochen" })[state] || state;
+      const label = String(progress?.label || stageId);
+      const message = compactLogText(String(progress?.message || ""), 105);
+      updateAiThinkingDetail(`${icon} ${label} · ${stateLabel}${message ? ` — ${message}` : ""}`, key);
+      if (stageId === "final-run" && ["succeeded", "failed", "cancelled"].includes(state)) {
+        activeReasoningRunId = "";
+      }
+    }
+
     function aiRequestLabel(label) {
       const value = String(label || "");
       if (value.startsWith("agent_loop_")) {
@@ -8457,9 +8775,6 @@
       }
       if (value === "tool_result") {
         return "Ich werte die BRX-Rückmeldung aus.";
-      }
-      if (value === "session_history_context") {
-        return "Ich werte den nachgeladenen Sitzungsverlauf aus.";
       }
       if (value === "drawing_context_result" || value === "prompt+drawing-context") {
         return "Ich werte den Zeichnungskontext aus.";
@@ -8477,6 +8792,61 @@
       const text = stripLogTimestamp(line);
       let match = text.match(/^Qt -> AI Router: .*mode=([^\s]+).*model=([^\s]+).*timeoutMs=(\d+)/);
       if (match) {
+        return true;
+      }
+
+      match = text.match(/^AI Pipeline: Nachrichtenverlauf fokussieren messages=(\d+)/);
+      if (match) {
+        updateAiThinkingDetail(`Ich komprimiere ${match[1]} vorherige Nachricht${match[1] === "1" ? "" : "en"} für diesen Prompt.`, "conversation-history");
+        return true;
+      }
+
+      match = text.match(/^AI Pipeline: Nachrichtenverlauf kompakt bereit messages=(\d+)/);
+      if (match) {
+        updateAiThinkingDetail(match[1] === "0"
+          ? "Es gibt noch keinen relevanten vorherigen Nachrichtenverlauf."
+          : `Ich nutze ${match[1]} Nachricht${match[1] === "1" ? "" : "en"} als kompakten Verlaufskontext.`,
+          "conversation-history");
+        return true;
+      }
+
+      match = text.match(/^AI Kontext-Fokus: topic=(.*?) confidence=([0-9.]+) relevant=(\d+)/);
+      if (match) {
+        updateAiThinkingDetail(`Ich nutze komprimierten Nachrichtenverlauf zum Thema „${compactLogText(match[1], 70)}“ (${match[3]} relevante Nachricht${match[3] === "1" ? "" : "en"}).`, "conversation-history");
+        return true;
+      }
+
+      match = text.match(/^AI Pipeline: effectiveTools tools=([^\s]+)\s+history=(yes|no)/);
+      if (match) {
+        const tools = match[1] && match[1] !== "-"
+          ? match[1].split(",").filter(Boolean)
+          : [];
+        const historyText = match[2] === "yes" ? "mit Verlaufskontext" : "ohne Verlaufskontext";
+        updateAiThinkingDetail(`Ich wähle ${tools.length} effektive BRX/SDK-Tool${tools.length === 1 ? "" : "s"} ${historyText}.`, "tool-selector");
+        return true;
+      }
+
+      match = text.match(/^AI Pipeline: Workflow-Kontext\s+(.+)/);
+      if (match) {
+        updateAiThinkingDetail(`Ich nutze den passenden Workflow „${compactLogText(match[1], 90)}“ als fachlichen Kontext.`, "workflow-context");
+        return true;
+      }
+
+      if (text.includes("AI Pipeline: Zeichnungskontext abrufen")) {
+        updateAiThinkingDetail("Ich rufe aktuellen Zeichnungskontext aus BricsCAD ab.", "drawing-context");
+        return true;
+      }
+
+      if (text.includes("AI Pipeline: Berechnungen vorbereiten")) {
+        updateAiThinkingDetail("Ich führe notwendige Berechnungen mit dem vorbereiteten Kontext durch.", "ai-reasoning");
+        return true;
+      }
+
+      if (text.includes("AI Pipeline: AI Reasoning startet")) {
+        if (activeReasoningRunId) {
+          return true;
+        }
+        updateAiThinkingDetail("Ich starte die finale AI-Auswertung mit Verlauf, Tools und Zeichnungskontext.", "ai-reasoning");
         return true;
       }
 
@@ -8542,8 +8912,7 @@
       match = text.match(/^AI Tool Selector: tools=([^\s]+)(?:\s+reason=(.*))?/);
       if (match) {
         const tools = match[1].split(",").filter(Boolean);
-        const suffix = match[2] ? ` ${compactLogText(match[2], 100)}` : "";
-        updateAiThinkingDetail(`Ich nutze ${tools.length} passende Werkzeug${tools.length === 1 ? "" : "e"}: ${tools.join(", ")}.${suffix}`, "tool-selector");
+        updateAiThinkingDetail(`Ich nutze ${tools.length} passende Werkzeug${tools.length === 1 ? "" : "e"}: ${tools.join(", ")}.`, "tool-selector");
         return true;
       }
 
@@ -8782,7 +9151,6 @@
     function toolDisplayName(tool) {
       const names = {
         "actions.validate": "Vorschlag prüfen",
-        "command.execute": "nativen Befehl senden",
         "layers.ensureMany": "mehrere Layer anlegen",
         "layers.create": "Layer anlegen",
         "layers.rename": "Layer umbenennen",
@@ -8795,6 +9163,8 @@
         "geometry.delete": "Geometrie löschen",
         "rectangles.extrude": "Rechtecke extrudieren",
         "profile.extrude": "Profil extrudieren",
+        "bim.create": "BIM-Element erstellen",
+        "bim.move": "BIM-Element verschieben",
         "bim.classify": "BIM klassifizieren",
         "selection.set": "Auswahl setzen",
         "document.save": "Zeichnung speichern",
@@ -8886,6 +9256,12 @@
         const saveHint = match[4] === "true" ? " mit Sicherung" : "";
         batchThinkingState = { active: true, current: Number(match[1] || "0"), total: Number(match[2] || "0") };
         updateBatchThinking(`Ich führe Aktion ${match[1]}/${match[2]} in BricsCAD aus: ${toolDisplayName(match[3])}${saveHint}.`);
+        return true;
+      }
+
+      match = text.match(/^Qt -> BRX: actions\.validate (\d+)\/(\d+) direkt pruefbare Aktion\(en\)/);
+      if (match) {
+        addThinkingDetail(`Ich lasse ${match[1]} von ${match[2]} geplanten Aktionen direkt von BRX prÃ¼fen; runtime-gebundene Messungen werden bei der AusfÃ¼hrung geprÃ¼ft.`);
         return true;
       }
 
@@ -9158,6 +9534,9 @@
           bridge.contextBudgetChanged.connect(applyContextBudget);
           if (bridge.agentRuntimeStatusChanged) {
             bridge.agentRuntimeStatusChanged.connect(applyAgentRuntimeStatus);
+          }
+          if (bridge.agentReasoningProgressChanged) {
+            bridge.agentReasoningProgressChanged.connect(applyAgentReasoningProgress);
           }
           if (bridge.uiThemeChanged) {
             bridge.uiThemeChanged.connect(applyUiTheme);

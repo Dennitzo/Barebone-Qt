@@ -227,7 +227,6 @@ void DrawingContextStore::clear()
     m_actionSummaries = {};
     m_validationHistory = {};
     m_executionHistory = {};
-    m_workflowRepairHistory = {};
 }
 
 void DrawingContextStore::markDirty(const QString& reason)
@@ -246,8 +245,7 @@ void DrawingContextStore::markDirty(const QString& reason)
 void DrawingContextStore::updateFromContextResponse(const QString& method, const QJsonObject& params, const QJsonObject& response)
 {
     if (method == QStringLiteral("capabilities.list")
-        || method == QStringLiteral("actions.list")
-        || method == QStringLiteral("commands.list")) {
+        || method == QStringLiteral("actions.list")) {
         ingestCapabilityResponse(method, response);
         return;
     }
@@ -399,7 +397,6 @@ QJsonObject DrawingContextStore::contextManifest() const
             {QStringLiteral("rawBlocks"), m_rawBlocks.size()},
             {QStringLiteral("validations"), m_validationHistory.size()},
             {QStringLiteral("executions"), m_executionHistory.size()},
-            {QStringLiteral("workflowRepair"), m_workflowRepairHistory.size()},
         }},
         {QStringLiteral("fetchDomains"), QJsonArray{
             QStringLiteral("document"),
@@ -412,7 +409,6 @@ QJsonObject DrawingContextStore::contextManifest() const
             QStringLiteral("raw"),
             QStringLiteral("validation"),
             QStringLiteral("execution"),
-            QStringLiteral("workflowRepair"),
         }},
         {QStringLiteral("policy"), QStringLiteral("Voller BRX-Kontext liegt lokal vor und wird seitenweise per qt.brx.context.fetch oder qt.brx.db.fullContext abgerufen; nicht ungefiltert in den Initialprompt senden.")},
     };
@@ -433,7 +429,6 @@ QJsonObject DrawingContextStore::fetch(const QJsonObject& params) const
     else if (domain == QStringLiteral("raw")) source = m_rawBlocks;
     else if (domain == QStringLiteral("validation")) source = m_validationHistory;
     else if (domain == QStringLiteral("execution")) source = m_executionHistory;
-    else if (domain == QStringLiteral("workflowRepair")) source = m_workflowRepairHistory;
     else source = m_normalizedFacts;
 
     QJsonObject page;
@@ -527,21 +522,6 @@ QJsonObject DrawingContextStore::executionHistory(const QJsonObject& params) con
     };
 }
 
-QJsonObject DrawingContextStore::repairContext(const QJsonObject& params) const
-{
-    const int limit = std::clamp(params.value(QStringLiteral("limit")).toInt(50), 1, 200);
-    const QJsonObject filters = params.value(QStringLiteral("filters")).toObject(params);
-    return QJsonObject{
-        {QStringLiteral("schema"), QStringLiteral("barebone.qt.brx.workflow.repair-context.v1")},
-        {QStringLiteral("params"), params},
-        {QStringLiteral("manifest"), contextManifest()},
-        {QStringLiteral("facts"), factsMatching(filters, limit)},
-        {QStringLiteral("recentValidations"), limitedArray(m_validationHistory, 12)},
-        {QStringLiteral("recentExecutions"), limitedArray(m_executionHistory, 12)},
-        {QStringLiteral("recentRepair"), limitedArray(m_workflowRepairHistory, 12)},
-        {QStringLiteral("policy"), QStringLiteral("Nutze diesen Kontext, um einen anderen validierbaren Toolpfad vorzuschlagen; geschuetzte Workflows nicht ueberschreiben.")},
-    };
-}
 
 QJsonObject DrawingContextStore::agentContext() const
 {
@@ -556,7 +536,6 @@ QJsonObject DrawingContextStore::agentContext() const
             QStringLiteral("qt.brx.db.inspect"),
             QStringLiteral("qt.brx.db.fullContext"),
             QStringLiteral("qt.brx.execution.history"),
-            QStringLiteral("qt.brx.workflow.repairContext"),
         }},
     };
 }
@@ -619,8 +598,7 @@ void DrawingContextStore::ingestResult(const QString& method, const QJsonObject&
     }
 
     if (method == QStringLiteral("capabilities.list")
-        || method == QStringLiteral("actions.list")
-        || method == QStringLiteral("commands.list")) {
+        || method == QStringLiteral("actions.list")) {
         m_capabilityBlocks.append(block);
         while (m_capabilityBlocks.size() > 30) {
             m_capabilityBlocks.removeFirst();
