@@ -1,10 +1,10 @@
 #pragma once
 
 #include "../core/ConfigManager.h"
-#include "ChatPage.h"
 
 #include <QByteArray>
 #include <QJsonObject>
+#include <QPlainTextEdit>
 #include <QString>
 #include <QTcpServer>
 #include <QTcpSocket>
@@ -27,7 +27,7 @@ private:
     void writeBridgeToken() const;
     QString bridgeTokenPath() const;
 
-    ChatPage* m_chatPage = nullptr;
+    QPlainTextEdit* m_bridgeLog = nullptr;
     QTcpServer* m_bridgeServer = nullptr;
     QTcpSocket* m_brxSocket = nullptr;
     QByteArray m_brxReadBuffer;

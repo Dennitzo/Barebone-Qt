@@ -7,6 +7,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
+#include <QPlainTextEdit>
 #include <QTextStream>
 #include <QVBoxLayout>
 
@@ -37,13 +38,17 @@ QString compactJson(const QJsonObject& value)
 
 BricsCadPage::BricsCadPage(ConfigManager& config, QWidget* parent)
     : QWidget(parent)
-    , m_chatPage(new ChatPage(config, ChatPage::Workspace::BricsCad, this))
     , m_bridgeToken(generateBridgeToken())
 {
+    Q_UNUSED(config)
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
-    layout->addWidget(m_chatPage, 1);
+
+    m_bridgeLog = new QPlainTextEdit(this);
+    m_bridgeLog->setObjectName(QStringLiteral("logView"));
+    m_bridgeLog->setReadOnly(true);
+    layout->addWidget(m_bridgeLog, 1);
 
     writeBridgeToken();
     startBridgeServer();
@@ -184,15 +189,24 @@ void BricsCadPage::sendBridgeError(int id, const QString& message)
 
 void BricsCadPage::setBridgeStatus(const QString& message, bool connected)
 {
-    if (m_chatPage) {
-        m_chatPage->setBridgeStatus(message, connected);
-    }
+    Q_UNUSED(message)
+    Q_UNUSED(connected)
 }
 
 void BricsCadPage::appendBridgeLog(const QString& message)
 {
-    if (m_chatPage) {
-        m_chatPage->appendBridgeLog(QStringLiteral("[%1] %2").arg(logTime(), message));
+    const QString line = message.startsWith(QLatin1Char('['))
+        ? message
+        : QStringLiteral("[%1] %2").arg(logTime(), message);
+
+    QFile logFile(QDir::temp().filePath(QStringLiteral("BareboneQtApp.log")));
+    if (logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+        logFile.write(line.toUtf8());
+        logFile.write("\n");
+    }
+
+    if (m_bridgeLog) {
+        m_bridgeLog->appendPlainText(line);
     }
 }
 

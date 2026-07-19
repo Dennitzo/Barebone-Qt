@@ -118,7 +118,7 @@ void MainWindow::buildUi()
     m_templateButton = new QPushButton("Vorlage", m_dropdownContent);
     m_templateButton->setObjectName("sidebarChildNavButton");
     m_templateButton->setCheckable(true);
-    m_bricsCadButton = new QPushButton("BricsCAD", m_dropdownContent);
+    m_bricsCadButton = new QPushButton("Logs", m_dropdownContent);
     m_bricsCadButton->setObjectName("sidebarChildNavButton");
     m_bricsCadButton->setCheckable(true);
     dropdownLayout->addWidget(m_templateButton);
@@ -212,7 +212,7 @@ void MainWindow::retranslateUi()
         m_templateButton->setText(en ? QStringLiteral("Template") : QStringLiteral("Vorlage"));
     }
     if (m_bricsCadButton) {
-        m_bricsCadButton->setText(QStringLiteral("BricsCAD"));
+        m_bricsCadButton->setText(QStringLiteral("Logs"));
     }
     if (m_settingsButton) {
         m_settingsButton->setText(en ? QStringLiteral("Settings") : QStringLiteral("Einstellungen"));
