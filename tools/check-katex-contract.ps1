@@ -4,8 +4,8 @@ $root = Split-Path -Parent $PSScriptRoot
 $index = Get-Content -LiteralPath (Join-Path $root "index.html") -Raw
 $cpp = Get-Content -LiteralPath (Join-Path $root "src/ui/ChatPage.cpp") -Raw
 $pageHeader = Get-Content -LiteralPath (Join-Path $root "src/ui/ChatPage.h") -Raw
-$bricsCpp = Get-Content -LiteralPath (Join-Path $root "src/ui/BricsCadPage.cpp") -Raw
-$bricsHeader = Get-Content -LiteralPath (Join-Path $root "src/ui/BricsCadPage.h") -Raw
+$revitCpp = Get-Content -LiteralPath (Join-Path $root "src/ui/RevitPage.cpp") -Raw
+$revitHeader = Get-Content -LiteralPath (Join-Path $root "src/ui/RevitPage.h") -Raw
 $bridgeCpp = Get-Content -LiteralPath (Join-Path $root "src/ui/AiWebBridge.cpp") -Raw
 $bridgeHeader = Get-Content -LiteralPath (Join-Path $root "src/ui/AiWebBridge.h") -Raw
 $resources = Get-Content -LiteralPath (Join-Path $root "resources/resources.qrc") -Raw
@@ -128,8 +128,8 @@ $runtimeSources = @(
     @{ Name = "index.html"; Text = $index },
     @{ Name = "ChatPage.cpp"; Text = $cpp },
     @{ Name = "ChatPage.h"; Text = $pageHeader },
-    @{ Name = "BricsCadPage.cpp"; Text = $bricsCpp },
-    @{ Name = "BricsCadPage.h"; Text = $bricsHeader },
+    @{ Name = "RevitPage.cpp"; Text = $revitCpp },
+    @{ Name = "RevitPage.h"; Text = $revitHeader },
     @{ Name = "AiWebBridge.cpp"; Text = $bridgeCpp },
     @{ Name = "AiWebBridge.h"; Text = $bridgeHeader }
 )
@@ -165,13 +165,13 @@ foreach ($fragment in $forbiddenCppPromptFragments) {
     Assert-NotContains $cpp $fragment "KaTeX model-prompt contract"
 }
 
-# Inspect only the plain ChatPage system prompt. BricsCAD now uses the same
+# Inspect only the plain ChatPage system prompt. Revit now uses the same
 # chat shell and no longer has a CAD/tool envelope.
 $generalPromptStart = $cpp.IndexOf("QString systemPrompt", [System.StringComparison]::Ordinal)
 if ($generalPromptStart -lt 0) {
     throw "ChatPage system prompt declaration is missing."
 }
-$generalPromptEnd = $cpp.IndexOf("if (m_workspace == Workspace::BricsCad)", $generalPromptStart, [System.StringComparison]::Ordinal)
+$generalPromptEnd = $cpp.IndexOf("if (m_workspace == Workspace::Revit)", $generalPromptStart, [System.StringComparison]::Ordinal)
 if ($generalPromptEnd -lt 0) {
     throw "Could not determine the end of the ChatPage general prompt."
 }

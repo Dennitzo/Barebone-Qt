@@ -118,11 +118,11 @@ void MainWindow::buildUi()
     m_templateButton = new QPushButton("Vorlage", m_dropdownContent);
     m_templateButton->setObjectName("sidebarChildNavButton");
     m_templateButton->setCheckable(true);
-    m_bricsCadButton = new QPushButton("Logs", m_dropdownContent);
-    m_bricsCadButton->setObjectName("sidebarChildNavButton");
-    m_bricsCadButton->setCheckable(true);
+    m_revitButton = new QPushButton("Logs", m_dropdownContent);
+    m_revitButton->setObjectName("sidebarChildNavButton");
+    m_revitButton->setCheckable(true);
     dropdownLayout->addWidget(m_templateButton);
-    dropdownLayout->addWidget(m_bricsCadButton);
+    dropdownLayout->addWidget(m_revitButton);
     m_dropdownContent->setVisible(m_config.sidebarDropdownExpanded());
 
     navLayout->addWidget(m_dashboardButton);
@@ -139,13 +139,14 @@ void MainWindow::buildUi()
     sidebarLayout->addWidget(m_settingsButton);
 
     m_pages = new QStackedWidget(central);
-    m_dashboard = new ChatPage(m_config, ChatPage::Workspace::Chat, m_pages);
-    m_bricsCad = new BricsCadPage(m_config, m_pages);
+    m_revitAgent = new RevitAgent(this);
+    m_dashboard = new ChatPage(m_config, ChatPage::Workspace::Revit, m_revitAgent, m_pages);
+    m_revit = new RevitPage(m_config, *m_revitAgent, m_pages);
     m_template = new TemplatePage(TemplatePage::Mode::Vorlage, nullptr, m_pages);
     m_settings = new SettingsPage(m_config, m_pages);
     m_pages->addWidget(m_dashboard);
     m_pages->addWidget(m_template);
-    m_pages->addWidget(m_bricsCad);
+    m_pages->addWidget(m_revit);
     m_pages->addWidget(m_settings);
 
     auto* sidebarSeparator = new QWidget(central);
@@ -161,28 +162,28 @@ void MainWindow::buildUi()
         m_pages->setCurrentWidget(m_dashboard);
         m_dashboardButton->setChecked(true);
         m_templateButton->setChecked(false);
-        m_bricsCadButton->setChecked(false);
+        m_revitButton->setChecked(false);
         m_settingsButton->setChecked(false);
     };
     const auto selectTemplate = [this]() {
         m_pages->setCurrentWidget(m_template);
         m_dashboardButton->setChecked(false);
         m_templateButton->setChecked(true);
-        m_bricsCadButton->setChecked(false);
+        m_revitButton->setChecked(false);
         m_settingsButton->setChecked(false);
     };
-    const auto selectBricsCad = [this]() {
-        m_pages->setCurrentWidget(m_bricsCad);
+    const auto selectRevit = [this]() {
+        m_pages->setCurrentWidget(m_revit);
         m_dashboardButton->setChecked(false);
         m_templateButton->setChecked(false);
-        m_bricsCadButton->setChecked(true);
+        m_revitButton->setChecked(true);
         m_settingsButton->setChecked(false);
     };
     const auto selectSettings = [this]() {
         m_pages->setCurrentWidget(m_settings);
         m_dashboardButton->setChecked(false);
         m_templateButton->setChecked(false);
-        m_bricsCadButton->setChecked(false);
+        m_revitButton->setChecked(false);
         m_settingsButton->setChecked(true);
     };
 
@@ -193,7 +194,7 @@ void MainWindow::buildUi()
         m_config.setSidebarDropdownExpanded(expanded);
     });
     QObject::connect(m_templateButton, &QPushButton::clicked, this, selectTemplate);
-    QObject::connect(m_bricsCadButton, &QPushButton::clicked, this, selectBricsCad);
+    QObject::connect(m_revitButton, &QPushButton::clicked, this, selectRevit);
     QObject::connect(m_settingsButton, &QPushButton::clicked, this, selectSettings);
     selectDashboard();
 }
@@ -211,8 +212,8 @@ void MainWindow::retranslateUi()
     if (m_templateButton) {
         m_templateButton->setText(en ? QStringLiteral("Template") : QStringLiteral("Vorlage"));
     }
-    if (m_bricsCadButton) {
-        m_bricsCadButton->setText(QStringLiteral("Logs"));
+    if (m_revitButton) {
+        m_revitButton->setText(en ? QStringLiteral("Revit Logs") : QStringLiteral("Revit Logs"));
     }
     if (m_settingsButton) {
         m_settingsButton->setText(en ? QStringLiteral("Settings") : QStringLiteral("Einstellungen"));
@@ -368,7 +369,7 @@ QString MainWindow::lightStyle() const
             font-size: 12px;
             font-weight: 800;
         }
-        QLabel#agentStatusPill[state="thinking"] {
+        QLabel#agentStatusPill[state="connected"] {
             color: #4f7f1a;
             background: #edf6e4;
             border: 1px solid #73a22d;
@@ -685,7 +686,7 @@ QString MainWindow::darkStyle() const
             font-size: 12px;
             font-weight: 800;
         }
-        QLabel#agentStatusPill[state="thinking"] {
+        QLabel#agentStatusPill[state="connected"] {
             color: #f4f3f3;
             background: #1f1f1f;
             border: 1px solid #8fbd45;

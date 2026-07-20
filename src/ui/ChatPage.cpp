@@ -10,6 +10,7 @@
 #include <QNetworkRequest>
 #include <QPalette>
 #include <QPointer>
+#include <QSharedPointer>
 #include <QSizePolicy>
 #include <QTimer>
 #include <QUrl>
@@ -89,19 +90,255 @@ QUrl modelsUrl(QString baseUrl)
     return QUrl(baseUrl + QStringLiteral("/models"));
 }
 
-QString chatContentFromResponse(const QJsonObject& response)
+QJsonObject chatMessageFromResponse(const QJsonObject& response)
 {
     const QJsonArray choices = response.value(QStringLiteral("choices")).toArray();
     if (choices.isEmpty()) {
         return {};
     }
     const QJsonObject first = choices.first().toObject();
-    const QJsonObject message = first.value(QStringLiteral("message")).toObject();
+    return first.value(QStringLiteral("message")).toObject();
+}
+
+QString chatContentFromResponse(const QJsonObject& response)
+{
+    const QJsonObject message = chatMessageFromResponse(response);
+    if (message.isEmpty()) {
+        return {};
+    }
     QString content = message.value(QStringLiteral("content")).toString().trimmed();
     if (content.isEmpty()) {
-        content = first.value(QStringLiteral("text")).toString().trimmed();
+        const QJsonArray choices = response.value(QStringLiteral("choices")).toArray();
+        if (!choices.isEmpty()) {
+            content = choices.first().toObject().value(QStringLiteral("text")).toString().trimmed();
+        }
     }
     return content;
+}
+
+QString compactJsonValue(const QJsonValue& value)
+{
+    if (value.isObject()) {
+        return QString::fromUtf8(QJsonDocument(value.toObject()).toJson(QJsonDocument::Compact));
+    }
+    if (value.isArray()) {
+        return QString::fromUtf8(QJsonDocument(value.toArray()).toJson(QJsonDocument::Compact));
+    }
+    return value.toVariant().toString();
+}
+
+QString toolCallName(const QJsonObject& toolCall)
+{
+    return toolCall.value(QStringLiteral("function")).toObject().value(QStringLiteral("name")).toString().trimmed();
+}
+
+QString toolCallArgumentsText(const QJsonObject& toolCall)
+{
+    const QJsonValue arguments = toolCall.value(QStringLiteral("function")).toObject().value(QStringLiteral("arguments"));
+    if (arguments.isString()) {
+        return arguments.toString().trimmed();
+    }
+    return compactJsonValue(arguments);
+}
+
+QString revitToolDescription(const QString& name)
+{
+    if (name == QStringLiteral("revit_status")) {
+        return QStringLiteral("Revit-Version, aktives Dokument und aktive Ansicht lesen");
+    }
+    if (name == QStringLiteral("revit_document_summary")) {
+        return QStringLiteral("Dokumentzusammenfassung und Elementzaehler lesen");
+    }
+    if (name == QStringLiteral("revit_selection_describe")) {
+        return QStringLiteral("Aktuelle Auswahl in Revit lesen");
+    }
+    if (name == QStringLiteral("revit_levels_list")) {
+        return QStringLiteral("Ebenen des aktiven Dokuments lesen");
+    }
+    if (name == QStringLiteral("revit_views_list")) {
+        return QStringLiteral("Ansichten des aktiven Dokuments lesen");
+    }
+    if (name == QStringLiteral("revit_categories_summary")) {
+        return QStringLiteral("Elemente nach Kategorie zaehlen");
+    }
+    if (name == QStringLiteral("revit_elements_list")) {
+        return QStringLiteral("Revit-Elemente mit ID, Kategorie, Klasse, Name, Familie, Typ, Ebene und Ansicht lesen");
+    }
+    return QStringLiteral("Revit-Read-only-Tool ausfuehren");
+}
+
+QJsonObject toolCallArgumentsObject(const QJsonObject& toolCall, QString* errorMessage)
+{
+    const QJsonValue arguments = toolCall.value(QStringLiteral("function")).toObject().value(QStringLiteral("arguments"));
+    if (arguments.isUndefined() || arguments.isNull()) {
+        return {};
+    }
+    if (arguments.isObject()) {
+        return arguments.toObject();
+    }
+    if (!arguments.isString()) {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("Tool-Argumente sind weder JSON-Objekt noch JSON-String.");
+        }
+        return {};
+    }
+
+    const QString text = arguments.toString().trimmed();
+    if (text.isEmpty()) {
+        return {};
+    }
+
+    QJsonParseError parseError;
+    const QJsonDocument document = QJsonDocument::fromJson(text.toUtf8(), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+        if (errorMessage) {
+            *errorMessage = QStringLiteral("Tool-Argumente sind kein gueltiges JSON-Objekt: %1").arg(parseError.errorString());
+        }
+        return {};
+    }
+    return document.object();
+}
+
+QJsonObject toolResponseError(const QString& message)
+{
+    return QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("response")},
+        {QStringLiteral("ok"), false},
+        {QStringLiteral("error"), message},
+    };
+}
+
+QString markdownCell(const QJsonValue& value)
+{
+    QString text;
+    if (value.isBool()) {
+        text = value.toBool() ? QStringLiteral("ja") : QStringLiteral("nein");
+    } else {
+        text = value.toVariant().toString();
+    }
+    text.replace(QLatin1Char('\r'), QLatin1Char(' '));
+    text.replace(QLatin1Char('\n'), QLatin1Char(' '));
+    text.replace(QLatin1Char('|'), QStringLiteral("\\|"));
+    text = text.simplified();
+    if (text.size() > 90) {
+        text = text.left(87).trimmed() + QStringLiteral("...");
+    }
+    return text.isEmpty() ? QStringLiteral("-") : text;
+}
+
+QString jsonString(const QJsonObject& object, const QString& key, const QString& fallback = {})
+{
+    const QString value = object.value(key).toVariant().toString().trimmed();
+    return value.isEmpty() ? fallback : value;
+}
+
+QString formatRevitElementsTable(const QJsonObject& response)
+{
+    if (!response.value(QStringLiteral("ok")).toBool()) {
+        return {};
+    }
+
+    const QJsonObject result = response.value(QStringLiteral("result")).toObject();
+    const QJsonObject document = result.value(QStringLiteral("document")).toObject();
+    const QJsonArray elements = result.value(QStringLiteral("elements")).toArray();
+    if (elements.isEmpty()) {
+        return QStringLiteral("Revit-Elemente: keine Elemente gefunden.");
+    }
+
+    const QString documentTitle = jsonString(document, QStringLiteral("title"), QStringLiteral("aktives Dokument"));
+    const int totalCount = result.value(QStringLiteral("totalCount")).toInt();
+    const int returnedCount = result.value(QStringLiteral("returnedCount")).toInt(elements.size());
+    const bool truncated = result.value(QStringLiteral("truncated")).toBool();
+    const QString scope = result.value(QStringLiteral("scope")).toString() == QStringLiteral("activeView")
+        ? QStringLiteral("aktuelle Ansicht")
+        : QStringLiteral("gesamtes Dokument");
+
+    QStringList lines;
+    lines << QStringLiteral("Revit-Elemente (%1) in `%2`: %3 gefunden, %4 ausgegeben%5.")
+            .arg(scope)
+            .arg(documentTitle)
+            .arg(totalCount)
+            .arg(returnedCount)
+            .arg(truncated ? QStringLiteral(" (Ausgabe gekuerzt)") : QString());
+    lines << QString();
+    lines << QStringLiteral("| ID | Kategorie | Klasse | Name | Familie | Typ | Ebene | Ansicht |");
+    lines << QStringLiteral("|---:|---|---|---|---|---|---|---|");
+    for (const QJsonValue& value : elements) {
+        const QJsonObject element = value.toObject();
+        lines << QStringLiteral("| %1 | %2 | %3 | %4 | %5 | %6 | %7 | %8 |")
+                .arg(markdownCell(element.value(QStringLiteral("id"))))
+                .arg(markdownCell(element.value(QStringLiteral("category"))))
+                .arg(markdownCell(element.value(QStringLiteral("className"))))
+                .arg(markdownCell(element.value(QStringLiteral("name"))))
+                .arg(markdownCell(element.value(QStringLiteral("familyName"))))
+                .arg(markdownCell(element.value(QStringLiteral("typeName"))))
+                .arg(markdownCell(element.value(QStringLiteral("levelName"))))
+                .arg(markdownCell(element.value(QStringLiteral("ownerViewName"))));
+    }
+    return lines.join(QLatin1Char('\n'));
+}
+
+QJsonObject compactElementForModel(const QJsonObject& element)
+{
+    return QJsonObject{
+        {QStringLiteral("id"), element.value(QStringLiteral("id"))},
+        {QStringLiteral("category"), element.value(QStringLiteral("category"))},
+        {QStringLiteral("className"), element.value(QStringLiteral("className"))},
+        {QStringLiteral("name"), element.value(QStringLiteral("name"))},
+        {QStringLiteral("familyName"), element.value(QStringLiteral("familyName"))},
+        {QStringLiteral("typeName"), element.value(QStringLiteral("typeName"))},
+        {QStringLiteral("levelName"), element.value(QStringLiteral("levelName"))},
+        {QStringLiteral("ownerViewName"), element.value(QStringLiteral("ownerViewName"))},
+    };
+}
+
+QJsonArray elementPreviewForModel(const QJsonArray& elements)
+{
+    QJsonArray preview;
+    const qsizetype count = std::min<qsizetype>(elements.size(), 80);
+    for (qsizetype i = 0; i < count; ++i) {
+        preview.append(compactElementForModel(elements.at(i).toObject()));
+    }
+    return preview;
+}
+
+QJsonObject modelSafeToolResponse(const QString& toolName, const QJsonObject& response)
+{
+    if (toolName == QStringLiteral("revit_elements_list") && response.value(QStringLiteral("ok")).toBool()) {
+        const QJsonObject result = response.value(QStringLiteral("result")).toObject();
+        const QJsonArray elements = result.value(QStringLiteral("elements")).toArray();
+        const QJsonArray previewElements = elementPreviewForModel(elements);
+        return QJsonObject{
+            {QStringLiteral("type"), QStringLiteral("response")},
+            {QStringLiteral("ok"), true},
+            {QStringLiteral("result"), QJsonObject{
+                {QStringLiteral("document"), result.value(QStringLiteral("document"))},
+                {QStringLiteral("scope"), result.value(QStringLiteral("scope"))},
+                {QStringLiteral("includeElementTypes"), result.value(QStringLiteral("includeElementTypes"))},
+                {QStringLiteral("totalCount"), result.value(QStringLiteral("totalCount"))},
+                {QStringLiteral("returnedCount"), result.value(QStringLiteral("returnedCount"))},
+                {QStringLiteral("truncated"), result.value(QStringLiteral("truncated"))},
+                {QStringLiteral("displayedFullTableInChat"), true},
+                {QStringLiteral("modelPreviewCount"), previewElements.size()},
+                {QStringLiteral("previewElements"), previewElements},
+                {QStringLiteral("instruction"), QStringLiteral("Die vollstaendige Tabelle wurde bereits direkt im Barebone-Qt Chat angezeigt. Fasse nur kurz zusammen und wiederhole nicht alle Zeilen.")},
+            }},
+        };
+    }
+
+    const QByteArray compact = QJsonDocument(response).toJson(QJsonDocument::Compact);
+    constexpr qsizetype kMaxToolContentBytes = 60000;
+    if (compact.size() <= kMaxToolContentBytes) {
+        return response;
+    }
+
+    return QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("response")},
+        {QStringLiteral("ok"), response.value(QStringLiteral("ok")).toBool()},
+        {QStringLiteral("truncatedForModel"), true},
+        {QStringLiteral("originalBytes"), compact.size()},
+        {QStringLiteral("previewJson"), QString::fromUtf8(compact.left(kMaxToolContentBytes))},
+    };
 }
 
 QStringList generalWorkflowResourcePaths()
@@ -141,22 +378,55 @@ QString compactWorkflowSummary(const QVariantMap& workflow)
     return parts.join(QStringLiteral("\n"));
 }
 
+ChatPage::Workspace workspaceFromName(const QString& value)
+{
+    return value.trimmed().compare(QStringLiteral("revit"), Qt::CaseInsensitive) == 0
+        ? ChatPage::Workspace::Revit
+        : ChatPage::Workspace::Chat;
+}
+
+QString revitActionInstruction()
+{
+    return QStringLiteral(
+        "\nRevit-Modus ist aktiv. Nutze den bereitgestellten Revit-Kontext fuer Antworten."
+        "\nFuer Read-only-Revit-Daten nutze die bereitgestellten Tools statt zu raten. Bei Anfragen wie 'Liste alle Objekte als Tabelle auf' verwende revit_elements_list mit scope=document, includeElementTypes=false und limit=10000."
+        "\nToolaufrufe und Modellaktionen werden in Barebone-Qt immer zuerst dem Nutzer zur Bestaetigung angezeigt. Behaupte nicht, dass ein Revit-Zugriff bereits ausgefuehrt wurde, solange nur ein Toolaufruf angefordert ist."
+        "\nDu darfst Revit nicht direkt veraendern. Wenn eine Modellaktion sinnvoll ist, beschreibe sie kurz und fuege am Ende genau einen JSON-Codeblock mit Sprache barebone_revit_action an."
+        "\nErlaubtes Schema:"
+        "\n```barebone_revit_action"
+        "\n{\"type\":\"revit.proposal\",\"title\":\"Kurzer Titel\",\"summary\":\"Was wird geaendert\",\"details\":\"Risiken/Voraussetzungen\",\"method\":\"revit.textNote.create\",\"params\":{\"text\":\"Notiztext\"}}"
+        "\n```"
+        "\nErlaubte method-Werte: revit.selection.set, revit.textNote.create, revit.parameter.setStringOnSelection."
+        "\nNutze eine Aktion nur, wenn der Nutzer eine Revit-Aenderung verlangt; sonst antworte normal.");
+}
+
 } // namespace
 
-ChatPage::ChatPage(ConfigManager& config, Workspace workspace, QWidget* parent)
+ChatPage::ChatPage(ConfigManager& config, Workspace workspace, RevitAgent* revitAgent, QWidget* parent)
     : QWidget(parent)
     , m_config(config)
     , m_workspace(workspace)
+    , m_revitAgent(revitAgent)
     , m_network(new QNetworkAccessManager(this))
 {
-    if (m_workspace == Workspace::BricsCad) {
-        m_bridgeStatusMessage = QStringLiteral("BRX Plugin nicht verbunden");
-    } else {
-        m_workflows = loadWorkflowList();
+    m_workflows = loadWorkflowList();
+    if (m_revitAgent) {
+        m_bridgeStatusMessage = m_revitAgent->statusMessage();
+        m_bridgeConnected = m_revitAgent->isConnected();
+        for (const QString& line : m_revitAgent->recentLogLines()) {
+            m_bridgeLogLines << line;
+        }
+    } else if (m_workspace == Workspace::Revit) {
+        m_bridgeStatusMessage = QStringLiteral("Revit Agent nicht initialisiert");
     }
 
     buildUi();
     checkLocalAiStatus();
+
+    if (m_revitAgent) {
+        QObject::connect(m_revitAgent, &RevitAgent::bridgeStatusChanged, this, &ChatPage::setBridgeStatus);
+        QObject::connect(m_revitAgent, &RevitAgent::bridgeLogAdded, this, &ChatPage::appendBridgeLog);
+    }
 
     QObject::connect(&m_config, &ConfigManager::changed, this, [this]() {
         emitThemeAndLanguage();
@@ -166,7 +436,7 @@ ChatPage::ChatPage(ConfigManager& config, Workspace workspace, QWidget* parent)
 
 QString ChatPage::workspaceName() const
 {
-    return m_workspace == Workspace::BricsCad ? QStringLiteral("bricscad") : QStringLiteral("chat");
+    return m_workspace == Workspace::Revit ? QStringLiteral("revit") : QStringLiteral("chat");
 }
 
 void ChatPage::setBridgeStatus(const QString& message, bool connected)
@@ -229,7 +499,8 @@ void ChatPage::buildUi()
     QObject::connect(m_bridge, &AiWebBridge::localAiStatusCheckRequested, this, [this]() {
         checkLocalAiStatus();
     });
-    QObject::connect(m_bridge, &AiWebBridge::assistantWorkspaceChanged, this, [this](const QString&) {
+    QObject::connect(m_bridge, &AiWebBridge::assistantWorkspaceChanged, this, [this](const QString& workspace) {
+        applyWorkspace(workspace);
         emitToWebAsync(m_bridge, [workspace = workspaceName()](AiWebBridge* target) {
             Q_EMIT target->assistantWorkspaceApplied(workspace);
         });
@@ -271,7 +542,37 @@ void ChatPage::buildUi()
         appendAgentMessage(QStringLiteral("Barebone-Qt"), QStringLiteral("Workflow-Testausführung ist in dieser frischen Chat-Hülle nicht aktiv."));
     });
     QObject::connect(m_bridge, &AiWebBridge::proposalConfirmed, this, [this]() {
-        appendAgentMessage(QStringLiteral("Barebone-Qt"), QStringLiteral("Diese Chat-Hülle führt keine Aktionsvorschläge aus."));
+        if (m_workspace != Workspace::Revit || !m_revitAgent) {
+            appendAgentMessage(QStringLiteral("Barebone-Qt"), QStringLiteral("Diese Chat-Huelle fuehrt keine Aktionsvorschlaege aus."));
+            return;
+        }
+
+        if (!m_pendingRevitToolCalls.isEmpty()) {
+            executePendingRevitToolCalls();
+            return;
+        }
+
+        setAgentBusy(true);
+        m_revitAgent->executePendingProposal([this](const QJsonObject& response) {
+            const bool ok = response.value(QStringLiteral("ok")).toBool();
+            const QJsonObject result = response.value(QStringLiteral("result")).toObject();
+            const QString message = ok
+                ? result.value(QStringLiteral("message")).toString(QStringLiteral("Revit-Aktion ausgefuehrt."))
+                : response.value(QStringLiteral("error")).toString(QStringLiteral("Revit-Aktion fehlgeschlagen."));
+            appendAgentMessage(ok ? QStringLiteral("Revit") : QStringLiteral("Barebone-Qt"), message);
+            if (ok) {
+                emitToWebAsync(m_bridge, [](AiWebBridge* target) {
+                    Q_EMIT target->proposalCleared();
+                });
+            }
+            setAgentBusy(false);
+        });
+    });
+    QObject::connect(m_bridge, &AiWebBridge::proposalClearedByUser, this, [this]() {
+        clearPendingRevitToolCalls();
+        if (m_revitAgent) {
+            m_revitAgent->clearPendingProposal();
+        }
     });
     QObject::connect(m_bridge, &AiWebBridge::operationCancelledByUser, this, [this]() {
         setAgentBusy(false);
@@ -287,14 +588,41 @@ void ChatPage::sendChatPrompt(const QString& prompt, const QJsonObject& context)
 
     appendAgentMessage(QStringLiteral("Du"), cleanPrompt);
     setAgentBusy(true);
+    if (m_revitAgent) {
+        m_revitAgent->clearPendingProposal();
+    }
+    clearPendingRevitToolCalls();
+    emitToWebAsync(m_bridge, [](AiWebBridge* target) {
+        Q_EMIT target->proposalCleared();
+    });
 
+    if (m_workspace == Workspace::Revit && m_revitAgent) {
+        appendBridgeLog(QStringLiteral("Qt -> AI Chat: Revit Tool-Kontext fuer Prompt wird vorbereitet"));
+        m_revitAgent->requestPromptContext([this, cleanPrompt, context](const QJsonObject& revitContext) {
+            if (!m_busy) {
+                return;
+            }
+            postChatPrompt(cleanPrompt, context, revitContext);
+        });
+        return;
+    }
+
+    postChatPrompt(cleanPrompt, context, {});
+}
+
+void ChatPage::postChatPrompt(const QString& cleanPrompt, const QJsonObject& uiContext, const QJsonObject& revitContext)
+{
     QJsonArray messages;
     QString systemPrompt = effectiveUiLanguage(m_config.language()) == QStringLiteral("en")
         ? QStringLiteral("You are Barebone-Qt. Answer plainly and concisely.")
         : QStringLiteral("Du bist Barebone-Qt. Antworte knapp, direkt und auf Deutsch.");
 
-    if (m_workspace == Workspace::BricsCad) {
-        systemPrompt += QStringLiteral("\nBricsCAD ist aktuell eine frische Chat-Huelle. Es gibt keine CAD-Aktionsausfuehrung, keine BricsCAD-Tools, keine Workflows und keine automatische Zeichnungsbearbeitung. Die BRX-Plugin-Verbindung ist nur ein minimales Grundgeruest.");
+    if (m_workspace == Workspace::Revit) {
+        systemPrompt += revitActionInstruction();
+        if (!revitContext.isEmpty()) {
+            systemPrompt += QStringLiteral("\nAktueller Revit-Kontext: ")
+                + QString::fromUtf8(QJsonDocument(revitContext).toJson(QJsonDocument::Compact)).left(5000);
+        }
     } else if (!m_selectedWorkflow.isEmpty()) {
         const QString workflowSummary = compactWorkflowSummary(m_selectedWorkflow);
         if (!workflowSummary.isEmpty()) {
@@ -302,9 +630,9 @@ void ChatPage::sendChatPrompt(const QString& prompt, const QJsonObject& context)
         }
     }
 
-    if (!context.isEmpty()) {
+    if (!uiContext.isEmpty()) {
         systemPrompt += QStringLiteral("\nKompakter UI-Kontext: ")
-            + QString::fromUtf8(QJsonDocument(context).toJson(QJsonDocument::Compact)).left(2000);
+            + QString::fromUtf8(QJsonDocument(uiContext).toJson(QJsonDocument::Compact)).left(2000);
     }
 
     messages.append(QJsonObject{{QStringLiteral("role"), QStringLiteral("system")}, {QStringLiteral("content"), systemPrompt}});
@@ -316,6 +644,13 @@ void ChatPage::sendChatPrompt(const QString& prompt, const QJsonObject& context)
     messages.append(QJsonObject{{QStringLiteral("role"), QStringLiteral("user")}, {QStringLiteral("content"), cleanPrompt}});
 
     m_conversation.append(QJsonObject{{QStringLiteral("role"), QStringLiteral("user")}, {QStringLiteral("content"), cleanPrompt}});
+    postChatMessages(messages, m_workspace == Workspace::Revit && m_revitAgent && m_revitAgent->isConnected());
+}
+
+void ChatPage::postChatMessages(const QJsonArray& messages, bool allowRevitTools)
+{
+    m_lastChatMessages = messages;
+    m_acceptRevitToolCalls = allowRevitTools;
 
     QNetworkRequest request(chatCompletionsUrl(m_config.aiBaseUrl()));
     request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
@@ -325,12 +660,17 @@ void ChatPage::sendChatPrompt(const QString& prompt, const QJsonObject& context)
         request.setRawHeader("Authorization", QByteArray("Bearer ") + apiKey.toUtf8());
     }
 
-    const QJsonObject payload{
+    QJsonObject payload{
         {QStringLiteral("model"), m_config.aiModel()},
         {QStringLiteral("messages"), messages},
         {QStringLiteral("temperature"), 0.2},
-        {QStringLiteral("max_tokens"), 2048},
+        {QStringLiteral("max_tokens"), 4096},
     };
+
+    if (allowRevitTools && m_workspace == Workspace::Revit && m_revitAgent) {
+        payload.insert(QStringLiteral("tools"), m_revitAgent->toolDefinitions());
+        payload.insert(QStringLiteral("tool_choice"), QStringLiteral("auto"));
+    }
 
     appendBridgeLog(QStringLiteral("Qt -> AI Chat: %1 model=%2 workspace=%3")
         .arg(request.url().toString(), m_config.aiModel(), workspaceName()));
@@ -364,13 +704,181 @@ void ChatPage::sendChatPrompt(const QString& prompt, const QJsonObject& context)
 
 void ChatPage::handleChatResponse(const QJsonObject& response)
 {
-    const QString content = chatContentFromResponse(response);
+    const QJsonObject assistantMessage = chatMessageFromResponse(response);
+    if (m_acceptRevitToolCalls && preparePendingRevitToolCalls(assistantMessage)) {
+        return;
+    }
+
+    QString content = chatContentFromResponse(response);
     if (content.isEmpty()) {
         appendAgentMessage(QStringLiteral("Barebone-Qt"), QStringLiteral("AI-Antwort enthielt keinen Text."));
         return;
     }
+
+    QVariantMap proposal;
+    const bool hasRevitProposal = m_workspace == Workspace::Revit
+        && m_revitAgent
+        && m_revitAgent->extractProposal(content, &proposal);
+    if (content.isEmpty() && hasRevitProposal) {
+        content = QStringLiteral("Ich habe einen bestaetigungspflichtigen Revit-Aktionsvorschlag vorbereitet.");
+    }
+
     m_conversation.append(QJsonObject{{QStringLiteral("role"), QStringLiteral("assistant")}, {QStringLiteral("content"), content}});
     appendAgentMessage(QStringLiteral("AI"), content);
+    if (hasRevitProposal) {
+        emitToWebAsync(m_bridge, [proposal](AiWebBridge* target) {
+            Q_EMIT target->proposalChanged(proposal);
+        });
+    }
+}
+
+bool ChatPage::preparePendingRevitToolCalls(const QJsonObject& assistantMessage)
+{
+    if (m_workspace != Workspace::Revit || !m_revitAgent || assistantMessage.isEmpty()) {
+        return false;
+    }
+
+    const QJsonArray toolCalls = assistantMessage.value(QStringLiteral("tool_calls")).toArray();
+    if (toolCalls.isEmpty()) {
+        return false;
+    }
+
+    QJsonObject storedAssistantMessage{
+        {QStringLiteral("role"), QStringLiteral("assistant")},
+        {QStringLiteral("content"), assistantMessage.value(QStringLiteral("content")).toString()},
+        {QStringLiteral("tool_calls"), toolCalls},
+    };
+
+    QStringList summaryLines;
+    QStringList detailLines;
+    int index = 1;
+    for (const QJsonValue& value : toolCalls) {
+        const QJsonObject toolCall = value.toObject();
+        const QString name = toolCallName(toolCall);
+        const QString arguments = toolCallArgumentsText(toolCall);
+        summaryLines << QStringLiteral("%1. `%2`: %3").arg(index).arg(name, revitToolDescription(name));
+        detailLines << QStringLiteral("%1. Tool: `%2`\n   Zweck: %3\n   Parameter: `%4`")
+                .arg(index)
+                .arg(name, revitToolDescription(name), arguments.isEmpty() ? QStringLiteral("{}") : arguments);
+        ++index;
+    }
+
+    m_pendingRevitToolMessages = m_lastChatMessages;
+    m_pendingRevitToolMessages.append(storedAssistantMessage);
+    m_pendingRevitToolCalls = toolCalls;
+    m_acceptRevitToolCalls = false;
+
+    QVariantMap proposal{
+        {QStringLiteral("title"), QStringLiteral("Revit API Zugriff bestaetigen")},
+        {QStringLiteral("summary"), QStringLiteral("Die AI moechte folgende Revit-Daten lesen:\n%1").arg(summaryLines.join(QLatin1Char('\n')))},
+        {QStringLiteral("details"), QStringLiteral("Ausgefuehrt wird erst nach Klick auf Ausfuehren.\n\n%1").arg(detailLines.join(QStringLiteral("\n\n")))},
+        {QStringLiteral("canRun"), true},
+    };
+    emitToWebAsync(m_bridge, [proposal](AiWebBridge* target) {
+        Q_EMIT target->proposalChanged(proposal);
+    });
+    appendBridgeLog(QStringLiteral("AI -> Qt: %1 Revit Toolcall(s) warten auf Bestaetigung").arg(toolCalls.size()));
+    return true;
+}
+
+void ChatPage::executePendingRevitToolCalls()
+{
+    if (m_workspace != Workspace::Revit || !m_revitAgent) {
+        appendAgentMessage(QStringLiteral("Barebone-Qt"), QStringLiteral("Revit Tools koennen nur im Revit-Modus ausgefuehrt werden."));
+        clearPendingRevitToolCalls();
+        return;
+    }
+    if (m_pendingRevitToolCalls.isEmpty()) {
+        appendAgentMessage(QStringLiteral("Barebone-Qt"), QStringLiteral("Kein Revit Toolaufruf wartet auf Bestaetigung."));
+        return;
+    }
+
+    setAgentBusy(true);
+    emitToWebAsync(m_bridge, [](AiWebBridge* target) {
+        Q_EMIT target->proposalCleared();
+    });
+
+    auto calls = QSharedPointer<QJsonArray>::create(m_pendingRevitToolCalls);
+    auto messages = QSharedPointer<QJsonArray>::create(m_pendingRevitToolMessages);
+    auto index = QSharedPointer<int>::create(0);
+    auto runNext = QSharedPointer<std::function<void()>>::create();
+    QPointer<ChatPage> guard(this);
+
+    *runNext = [guard, calls, messages, index, runNext]() mutable {
+        if (!guard) {
+            return;
+        }
+        if (*index >= calls->size()) {
+            const QJsonArray finalMessages = *messages;
+            guard->clearPendingRevitToolCalls();
+            guard->appendBridgeLog(QStringLiteral("Qt -> AI Chat: Revit Tool-Ergebnisse werden uebergeben"));
+            guard->postChatMessages(finalMessages, false);
+            return;
+        }
+
+        const QJsonObject toolCall = calls->at(*index).toObject();
+        ++(*index);
+
+        const QString id = toolCall.value(QStringLiteral("id")).toString(QStringLiteral("barebone_revit_tool"));
+        const QString name = toolCallName(toolCall);
+        QString argumentError;
+        const QJsonObject arguments = toolCallArgumentsObject(toolCall, &argumentError);
+
+        auto appendToolResult = [guard, messages, id, name, runNext](const QJsonObject& response) mutable {
+            if (!guard) {
+                return;
+            }
+            if (name == QStringLiteral("revit_elements_list") && response.value(QStringLiteral("ok")).toBool()) {
+                const QString table = formatRevitElementsTable(response);
+                if (!table.isEmpty()) {
+                    guard->appendAgentMessage(QStringLiteral("Revit"), table);
+                }
+            }
+            const QJsonObject safeResponse = modelSafeToolResponse(name, response);
+            messages->append(QJsonObject{
+                {QStringLiteral("role"), QStringLiteral("tool")},
+                {QStringLiteral("tool_call_id"), id},
+                {QStringLiteral("content"), QString::fromUtf8(QJsonDocument(safeResponse).toJson(QJsonDocument::Compact))},
+            });
+            (*runNext)();
+        };
+
+        if (!argumentError.isEmpty()) {
+            appendToolResult(toolResponseError(argumentError));
+            return;
+        }
+
+        guard->appendBridgeLog(QStringLiteral("Qt -> Revit: bestaetigter Toolcall %1").arg(name));
+        guard->m_revitAgent->executeReadOnlyToolCall(name, arguments, appendToolResult);
+    };
+
+    (*runNext)();
+}
+
+void ChatPage::clearPendingRevitToolCalls()
+{
+    m_pendingRevitToolMessages = {};
+    m_pendingRevitToolCalls = {};
+    m_acceptRevitToolCalls = false;
+}
+
+void ChatPage::applyWorkspace(const QString& workspace)
+{
+    const Workspace nextWorkspace = workspaceFromName(workspace);
+    if (m_workspace == nextWorkspace) {
+        return;
+    }
+
+    m_workspace = nextWorkspace;
+    if (m_workspace == Workspace::Revit) {
+        if (m_revitAgent) {
+            setBridgeStatus(m_revitAgent->statusMessage(), m_revitAgent->isConnected());
+        } else {
+            setBridgeStatus(QStringLiteral("Revit Agent nicht initialisiert"), false);
+        }
+        m_selectedWorkflow = {};
+    }
+    emitWorkflowState();
 }
 
 void ChatPage::checkLocalAiStatus()
@@ -440,7 +948,7 @@ void ChatPage::emitShellState() const
         Q_EMIT target->contextBudgetChanged(QVariantMap{
             {QStringLiteral("usedTokens"), 0},
             {QStringLiteral("maxTokens"), 0},
-            {QStringLiteral("detail"), QStringLiteral("Chat-Huelle ohne BricsCAD-Aktionspipeline")},
+            {QStringLiteral("detail"), QStringLiteral("Chat-Huelle ohne Revit-Aktionspipeline")},
         });
         for (const QString& line : m_bridgeLogLines) {
             Q_EMIT target->bridgeLogAdded(line);

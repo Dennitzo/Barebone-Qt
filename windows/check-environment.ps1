@@ -26,3 +26,13 @@ if ($ninja) {
 if (!$ninja) {
     Write-Host "Ninja is optional. build-app.ps1 will use Visual Studio 17 2022 as fallback."
 }
+
+Write-Step "Revit bridge environment"
+$revitRoot = 'C:\Program Files\Autodesk\Revit 2026'
+$revitApi = Join-Path $revitRoot 'RevitAPI.dll'
+$revitApiUi = Join-Path $revitRoot 'RevitAPIUI.dll'
+Write-Host "Revit 2026: $revitRoot"
+Write-Host "RevitAPI.dll: $(if (Test-Path -LiteralPath $revitApi) { $revitApi } else { 'missing' })"
+Write-Host "RevitAPIUI.dll: $(if (Test-Path -LiteralPath $revitApiUi) { $revitApiUi } else { 'missing' })"
+Invoke-Tool dotnet '--list-sdks'
+Invoke-Tool dotnet '--list-runtimes'

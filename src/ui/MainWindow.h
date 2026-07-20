@@ -1,9 +1,10 @@
 #pragma once
 
 #include "../core/ConfigManager.h"
+#include "../revit/RevitAgent.h"
 
-#include "BricsCadPage.h"
 #include "ChatPage.h"
+#include "RevitPage.h"
 #include "SettingsPage.h"
 #include "TemplatePage.h"
 
@@ -32,12 +33,13 @@ private:
     QPushButton* m_dashboardButton = nullptr;
     QPushButton* m_dropdownButton = nullptr;
     QPushButton* m_templateButton = nullptr;
-    QPushButton* m_bricsCadButton = nullptr;
+    QPushButton* m_revitButton = nullptr;
     QPushButton* m_settingsButton = nullptr;
     QWidget* m_dropdownContent = nullptr;
     QStackedWidget* m_pages = nullptr;
+    RevitAgent* m_revitAgent = nullptr;
     ChatPage* m_dashboard = nullptr;
     TemplatePage* m_template = nullptr;
-    BricsCadPage* m_bricsCad = nullptr;
+    RevitPage* m_revit = nullptr;
     SettingsPage* m_settings = nullptr;
 };

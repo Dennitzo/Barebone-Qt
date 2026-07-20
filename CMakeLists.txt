@@ -23,10 +23,12 @@ qt_add_executable(BareboneQtApp
     src/main.cpp
     src/core/ConfigManager.cpp
     src/core/ConfigManager.h
+    src/revit/RevitAgent.cpp
+    src/revit/RevitAgent.h
     src/ui/AiWebBridge.cpp
     src/ui/AiWebBridge.h
-    src/ui/BricsCadPage.cpp
-    src/ui/BricsCadPage.h
+    src/ui/RevitPage.cpp
+    src/ui/RevitPage.h
     src/ui/ChatPage.cpp
     src/ui/ChatPage.h
     src/ui/MainWindow.cpp
@@ -121,71 +123,6 @@ if(APPLE)
         MACOSX_BUNDLE_ICON_FILE "AppLogo.icns"
         MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
         MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
-    )
-endif()
-
-set(BAREBONE_BRX_SDK_PATH "C:/Program Files/Bricsys/BRXSDK/BRX26.1.05.0" CACHE PATH "Path to the BricsCAD BRX SDK")
-option(BAREBONE_BUILD_BRX_PLUGIN "Build the optional BricsCAD BRX plugin" OFF)
-
-if(BAREBONE_BUILD_BRX_PLUGIN)
-    if(NOT MSVC)
-        message(FATAL_ERROR "The BricsCAD BRX V26 plugin must be built with MSVC / Visual Studio 2022.")
-    endif()
-
-    if(NOT EXISTS "${BAREBONE_BRX_SDK_PATH}/inc64" OR NOT EXISTS "${BAREBONE_BRX_SDK_PATH}/inc" OR NOT EXISTS "${BAREBONE_BRX_SDK_PATH}/lib64")
-        message(FATAL_ERROR "BRX SDK not found at BAREBONE_BRX_SDK_PATH='${BAREBONE_BRX_SDK_PATH}'.")
-    endif()
-
-    add_library(BareboneBrx MODULE
-        src/bricscad/BareboneBrxPlugin.cpp
-    )
-
-    if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
-        message(FATAL_ERROR "The BricsCAD BRX V26 plugin must be built for x64.")
-    endif()
-    if(MSVC_VERSION LESS 1930 OR MSVC_VERSION GREATER_EQUAL 1950)
-        message(FATAL_ERROR
-            "The BricsCAD BRX V26 plugin requires the Visual Studio 2022 v143 toolset "
-            "(MSVC_VERSION 1930..1949); active MSVC_VERSION=${MSVC_VERSION}.")
-    endif()
-    if(DEFINED CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION
-       AND CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION VERSION_LESS "10.0.19041.0")
-        message(FATAL_ERROR "The BricsCAD BRX V26 plugin requires Windows SDK 10.0.19041.0 or newer.")
-    endif()
-    if(CMAKE_SYSTEM_VERSION AND CMAKE_SYSTEM_VERSION VERSION_LESS "10.0.19041.0")
-        message(FATAL_ERROR "The BricsCAD BRX V26 plugin requires Windows SDK 10.0.19041.0 or newer.")
-    endif()
-
-    target_compile_features(BareboneBrx PRIVATE cxx_std_20)
-    target_compile_definitions(BareboneBrx PRIVATE
-        BRX_APP
-        UNICODE
-        _UNICODE
-        __BRXTARGET=26
-    )
-    target_compile_options(BareboneBrx PRIVATE /EHa)
-    target_include_directories(BareboneBrx PRIVATE
-        "${BAREBONE_BRX_SDK_PATH}/inc64"
-        "${BAREBONE_BRX_SDK_PATH}/inc"
-    )
-    target_link_directories(BareboneBrx PRIVATE
-        "${BAREBONE_BRX_SDK_PATH}/lib64"
-    )
-    target_link_libraries(BareboneBrx PRIVATE
-        "${BAREBONE_BRX_SDK_PATH}/lib64/brx26.lib"
-        "${BAREBONE_BRX_SDK_PATH}/lib64/drx_entrypoint.lib"
-        ws2_32
-    )
-    set_target_properties(BareboneBrx PROPERTIES
-        AUTOMOC OFF
-        AUTORCC OFF
-        AUTOUIC OFF
-        PREFIX ""
-        SUFFIX ".brx"
-        OUTPUT_NAME "BareboneBrx"
-        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bricscad"
-        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bricscad"
-        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bricscad"
     )
 endif()
 

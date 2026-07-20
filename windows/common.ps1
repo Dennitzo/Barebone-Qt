@@ -131,9 +131,13 @@ function Import-VisualStudioEnvironment {
         'C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat',
         'C:\Program Files\Microsoft Visual Studio\18\Professional\Common7\Tools\VsDevCmd.bat',
         'C:\Program Files\Microsoft Visual Studio\18\Enterprise\Common7\Tools\VsDevCmd.bat',
+        'C:\Program Files\Microsoft Visual Studio\18\BuildTools\Common7\Tools\VsDevCmd.bat',
+        'C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\Common7\Tools\VsDevCmd.bat',
         'C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat',
         'C:\Program Files\Microsoft Visual Studio\2022\Professional\Common7\Tools\VsDevCmd.bat',
-        'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat'
+        'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat',
+        'C:\Program Files\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\VsDevCmd.bat',
+        'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\VsDevCmd.bat'
     )
 
     $vsDevCmd = $vsDevCmdCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
@@ -169,9 +173,13 @@ function Resolve-V143ToolsetVersion {
         'C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC',
         'C:\Program Files\Microsoft Visual Studio\18\Professional\VC\Tools\MSVC',
         'C:\Program Files\Microsoft Visual Studio\18\Enterprise\VC\Tools\MSVC',
+        'C:\Program Files\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC',
+        'C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Tools\MSVC',
         'C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC',
         'C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Tools\MSVC',
-        'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC'
+        'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC',
+        'C:\Program Files\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC',
+        'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC'
     )
 
     $toolset = $toolsetRoots |

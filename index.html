@@ -2139,7 +2139,7 @@
         <div class="chat-item">
           <button class="chat-link active" type="button">
             <span class="chat-short">BA</span>
-            <span class="chat-title">BricsCAD Chat</span>
+            <span class="chat-title">Revit Chat</span>
           </button>
         </div>
       </nav>
@@ -2151,14 +2151,14 @@
         <div class="topbar-left">
           <div class="model-title">AI Assistent</div>
           <div class="workspace-switcher" id="workspace-switcher" aria-label="AI Arbeitsbereich wählen">
-            <button class="workspace-option active" type="button" data-workspace="bricscad">BricsCAD</button>
+            <button class="workspace-option active" type="button" data-workspace="revit">Revit</button>
             <button class="workspace-option" type="button" data-workspace="chat">Chat</button>
           </div>
         </div>
 
         <div class="topbar-right">
           <span class="status-pill disconnected" id="local-ai-status">Lokale AI nicht erreichbar</span>
-          <span class="status-pill disconnected" id="brx-status">BRX Plugin nicht verbunden</span>
+          <span class="status-pill disconnected" id="revit-status">Revit Bridge nicht erreichbar</span>
         </div>
       </header>
 
@@ -2212,8 +2212,8 @@
                   </svg>
                   <span>Workflows</span>
                 </button>
-                <button class="tool-btn mode-status-btn" id="training-base-mode-indicator" type="button" disabled hidden>BricsCAD Modus</button>
-                <button class="tool-btn mode-status-btn" id="mode-indicator" type="button" disabled hidden>BricsCAD Modus</button>
+                <button class="tool-btn mode-status-btn" id="training-base-mode-indicator" type="button" disabled hidden>Revit Modus</button>
+                <button class="tool-btn mode-status-btn" id="mode-indicator" type="button" disabled hidden>Revit Modus</button>
                 <div class="context-meter unknown" id="context-meter" title="Kontext wird geladen">
                   <span class="context-ring" aria-hidden="true"></span>
                   <span class="context-label" id="context-label">Kontext</span>
@@ -2237,8 +2237,8 @@
                     <span class="reasoning-check">✓</span>
                   </button>
                   <div class="tools-menu-title" id="tools-mode-title">Modus</div>
-                  <button class="reasoning-option mode-option" type="button" data-mode="bricscad">
-                    <span>BricsCAD Modus</span>
+                  <button class="reasoning-option mode-option" type="button" data-mode="revit">
+                    <span>Revit Modus</span>
                     <span class="reasoning-check">✓</span>
                   </button>
                   <button class="reasoning-option mode-option" type="button" data-mode="general">
@@ -2263,7 +2263,7 @@
             </div>
           </form>
 
-          <div class="disclaimer" id="mode-disclaimer">AI kann Fehler machen. BricsCAD ist aktuell eine Chat-Hülle ohne CAD-Ausführung.</div>
+          <div class="disclaimer" id="mode-disclaimer">AI kann Fehler machen. Revit Aktionen werden erst nach Bestätigung ausgeführt.</div>
         </div>
       </section>
     </main>
@@ -2331,9 +2331,9 @@
 
   <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
   <script>
-    let activeWorkspace = "bricscad";
+    let activeWorkspace = "revit";
     const workspaceLabels = {
-      bricscad: "BricsCAD",
+      revit: "Revit",
       chat: "Chat"
     };
     let uiLanguage = window.__bareboneInitialLanguage === "en" ? "en" : "de";
@@ -2353,8 +2353,8 @@
         localAiInvalidUrl: "Lokale AI URL ungültig",
         localAiInvalidResponse: "Lokale AI Antwort ungültig",
         localAiNotCheckable: "Lokale AI nicht prüfbar",
-        brxConnected: "BRX Plugin verbunden",
-        brxDisconnected: "BRX Plugin nicht verbunden",
+        revitConnected: "Revit Bridge erreichbar",
+        revitDisconnected: "Revit Bridge nicht erreichbar",
         qtBridgeNotReady: "Qt Bridge nicht bereit",
         proposalReady: "AI Vorschlag bereit",
         execute: "Ausführen",
@@ -2365,10 +2365,10 @@
         attachFile: "Datei hinzufügen",
         attachFileAria: "Datei als Kontext hinzufügen",
         workflows: "Workflows",
-        brxLearning: "BricsCAD",
+        revitLearning: "Revit",
         showWorkflows: "Workflows anzeigen",
         tools: "Tools",
-        bricscadMode: "BricsCAD Modus",
+        revitMode: "Revit Modus",
         chatMode: "Chat Modus",
         generalMode: "Allgemeiner Modus",
         trainingMode: "Trainingsmodus",
@@ -2379,9 +2379,9 @@
         medium: "Mittel",
         high: "Hoch",
         mode: "Modus",
-        disclaimerChat: "AI kann Fehler machen. Dies ist ein reiner Chat-Modus.",
-        disclaimerGeneral: "AI kann Fehler machen. Dies ist ein allgemeiner Chat-Modus.",
-        disclaimerBricscad: "AI kann Fehler machen. BricsCAD ist aktuell eine Chat-Hülle ohne CAD-Ausführung.",
+        disclaimerChat: "AI kann Fehler machen. Im Chat Modus können keine Revit Aktionen durchgeführt werden.",
+        disclaimerGeneral: "AI kann Fehler machen. Im Chat Modus können keine Revit Aktionen durchgeführt werden.",
+        disclaimerRevit: "AI kann Fehler machen. Revit Aktionen werden erst nach Bestätigung ausgeführt.",
         closeWorkflows: "Workflows schließen",
         searchWorkflows: "Workflows suchen",
         sortWorkflows: "Workflows sortieren",
@@ -2442,8 +2442,8 @@
         batch: "Batch",
         step: "Schritt",
         greetingChat: "Worüber möchtest du sprechen?",
-        greetingBricscad: "Worüber möchtest du im BricsCAD Chat sprechen?",
-        trainingIntro: "Trainingsmodus ist in der frischen BricsCAD-Hülle nicht aktiv.",
+        greetingRevit: "Worüber möchtest du im Revit Chat sprechen?",
+        trainingIntro: "Trainingsmodus ist in der frischen Revit-Hülle nicht aktiv.",
         thinking: "Denkt nach",
         thought: "Gedacht",
         workflowSaveThinking: "Ich bereite die ausgewählte AI-Nachricht als Workflow vor.",
@@ -2468,8 +2468,8 @@
         localAiInvalidUrl: "Local AI URL invalid",
         localAiInvalidResponse: "Local AI response invalid",
         localAiNotCheckable: "Local AI cannot be checked",
-        brxConnected: "BRX plugin connected",
-        brxDisconnected: "BRX plugin disconnected",
+        revitConnected: "Revit bridge reachable",
+        revitDisconnected: "Revit bridge not reachable",
         qtBridgeNotReady: "Qt bridge not ready",
         proposalReady: "AI proposal ready",
         execute: "Run",
@@ -2480,10 +2480,10 @@
         attachFile: "Add file",
         attachFileAria: "Add file as context",
         workflows: "Workflows",
-        brxLearning: "BricsCAD",
+        revitLearning: "Revit",
         showWorkflows: "Show workflows",
         tools: "Tools",
-        bricscadMode: "BricsCAD mode",
+        revitMode: "Revit mode",
         chatMode: "Chat mode",
         generalMode: "General mode",
         trainingMode: "Training mode",
@@ -2494,9 +2494,9 @@
         medium: "Medium",
         high: "High",
         mode: "Mode",
-        disclaimerChat: "AI can make mistakes. This is a plain chat mode.",
-        disclaimerGeneral: "AI can make mistakes. This is a general chat mode.",
-        disclaimerBricscad: "AI can make mistakes. BricsCAD is currently a chat shell without CAD execution.",
+        disclaimerChat: "AI can make mistakes. Revit actions cannot be performed in chat mode.",
+        disclaimerGeneral: "AI can make mistakes. Revit actions cannot be performed in chat mode.",
+        disclaimerRevit: "AI can make mistakes. Revit actions are executed only after confirmation.",
         closeWorkflows: "Close workflows",
         searchWorkflows: "Search workflows",
         sortWorkflows: "Sort workflows",
@@ -2557,8 +2557,8 @@
         batch: "Batch",
         step: "Step",
         greetingChat: "What would you like to talk about?",
-        greetingBricscad: "What would you like to discuss in BricsCAD chat?",
-        trainingIntro: "Training mode is not active in the fresh BricsCAD shell.",
+        greetingRevit: "What would you like to discuss in Revit chat?",
+        trainingIntro: "Training mode is not active in the fresh Revit shell.",
         thinking: "Thinking",
         thought: "Thought",
         workflowSaveThinking: "I am preparing the selected AI message as a workflow.",
@@ -2576,12 +2576,12 @@
     };
     const normalizeWorkspace = (value) => {
       const normalized = String(value || "").trim().toLowerCase();
-      return normalized === "chat" ? normalized : "bricscad";
+      return normalized === "chat" ? normalized : "revit";
     };
-    const isBricsCadWorkspace = () => activeWorkspace === "bricscad";
+    const isRevitWorkspace = () => activeWorkspace === "revit";
     const isChatWorkspace = () => activeWorkspace === "chat";
     const isGeneralWorkflowWorkspace = () => isChatWorkspace();
-    const isBrxLearningWorkspace = () => false;
+    const isRevitLearningWorkspace = () => false;
 
     const app = document.getElementById("app");
     const messages = document.getElementById("messages");
@@ -2591,7 +2591,7 @@
     const workspaceSwitcher = document.getElementById("workspace-switcher");
     const workspaceOptions = Array.from(document.querySelectorAll(".workspace-option"));
     const localAiStatus = document.getElementById("local-ai-status");
-    const brxStatus = document.getElementById("brx-status");
+    const revitStatus = document.getElementById("revit-status");
     const proposalPanel = document.getElementById("proposal-panel");
     const proposalTitle = document.getElementById("proposal-title");
     const proposalDetails = document.getElementById("proposal-details");
@@ -2654,14 +2654,14 @@
         }
         return t("localAiUnavailable");
       }
-      if (kind === "brx") {
-        if (connected || lower.includes("verbunden") && !lower.includes("nicht") || lower.includes("connected") && !lower.includes("disconnected")) {
-          return t("brxConnected");
+      if (kind === "revit") {
+        if (connected || lower.includes("erreichbar") && !lower.includes("nicht") || lower.includes("reachable") && !lower.includes("not")) {
+          return t("revitConnected");
         }
-        if (lower.includes("qt bridge") || lower.includes("bridge")) {
+        if (lower.includes("qt bridge") || lower.includes("webchannel")) {
           return t("qtBridgeNotReady");
         }
-        return t("brxDisconnected");
+        return t("revitDisconnected");
       }
       return text;
     }
@@ -2727,7 +2727,7 @@
         }
       }
       if (trainingBaseModeIndicator) {
-        trainingBaseModeIndicator.textContent = t("bricscadMode");
+        trainingBaseModeIndicator.textContent = t("revitMode");
       }
       if (contextLabel && contextMeter.classList.contains("unknown")) {
         contextLabel.textContent = t("context");
@@ -2754,7 +2754,7 @@
         const mode = option.dataset.mode;
         label.textContent = mode === "training"
           ? t("trainingMode")
-          : (mode === "general" ? t("generalMode") : t("bricscadMode"));
+          : (mode === "general" ? t("generalMode") : t("revitMode"));
       });
       if (workflowClose) {
         workflowClose.setAttribute("aria-label", t("closeWorkflows"));
@@ -2807,7 +2807,7 @@
       }
       const workflowEmpty = workflowDetail?.querySelector(".workflow-detail-empty");
       if (workflowEmpty) {
-        workflowEmpty.textContent = isBrxLearningWorkspace() ? t("learningEmpty") : t("workflowEmpty");
+        workflowEmpty.textContent = isRevitLearningWorkspace() ? t("learningEmpty") : t("workflowEmpty");
       }
       if (workflowSelect) {
         workflowSelect.textContent = t("selectWorkflow");
@@ -2815,7 +2815,7 @@
         updateWorkflowSelectButton();
       }
       setLocalAiStatus(localAiStatusText || (localAiReachable ? t("localAiReachable") : t("localAiUnavailable")), localAiReachable);
-      setBrxStatus(brxStatus?.textContent || "", brxStatus?.classList.contains("connected"));
+      setRevitStatus(revitStatus?.textContent || "", revitStatus?.classList.contains("connected"));
       if (sessions.length) {
         renderModeSelection();
         updateLastAiWorkflowFooterActions();
@@ -2866,7 +2866,7 @@
     let workflowSavePromptSignature = "";
     let pendingWorkflowDeleteId = "";
     let reasoningEffort = "high";
-    let chatMode = "bricscad";
+    let chatMode = "revit";
     let trainingMode = false;
     let workflows = [];
     let workflowSortMode = "newest";
@@ -3210,7 +3210,7 @@
       const source = String(workflow?.source || "").trim().toLowerCase();
       return workflow?.aiOwned === true
         || source === "ai_runtime"
-        || source === "brx_runtime"
+        || source === "revit_runtime"
         || source === "local_ai"
         || String(workflow?.id || "").startsWith("ai_");
     }
@@ -3237,7 +3237,7 @@
           learning: t("lessons"),
           tool_prompt_mapping: "Tool Mapping"
         };
-      return labels[kind] || kind || t("brxLearning");
+      return labels[kind] || kind || t("revitLearning");
     }
 
     function workflowStatusLabel(status) {
@@ -3302,7 +3302,7 @@
           parts.push(`${examples} Beispiel${examples === 1 ? "" : "e"}`);
         }
         parts.push(...workflowWeightParts(workflow));
-        return parts.filter(Boolean).join(" | ") || "BRX Learning";
+        return parts.filter(Boolean).join(" | ") || "Revit Learning";
       }
       if (workflow.kind === "general") {
         const parts = [];
@@ -3710,26 +3710,26 @@
       const hasPreview = !!(workflowPreview && workflowPreview.id);
       if (workflowSelect) {
         const canSelect = hasPreview
-          && (!isBrxLearningWorkspace() || workflowLearningKind(workflowPreview) === "lesson");
+          && (!isRevitLearningWorkspace() || workflowLearningKind(workflowPreview) === "lesson");
         workflowSelect.hidden = false;
         workflowSelect.disabled = !canSelect;
         workflowSelect.setAttribute("aria-disabled", canSelect ? "false" : "true");
-        workflowSelect.textContent = isBrxLearningWorkspace() && hasPreview && !canSelect
+        workflowSelect.textContent = isRevitLearningWorkspace() && hasPreview && !canSelect
           ? t("informationOnly")
-          : (isBrxLearningWorkspace() ? t("executeWorkflow") : t("selectWorkflow"));
+          : (isRevitLearningWorkspace() ? t("executeWorkflow") : t("selectWorkflow"));
         workflowSelect.title = workflowSelect.textContent;
       }
       if (workflowDelete) {
         workflowDelete.hidden = false;
         const canDelete = hasPreview
           && !workflowPreview.readOnly
-          && (!isBrxLearningWorkspace() || workflowLearningKind(workflowPreview) === "lesson");
+          && (!isRevitLearningWorkspace() || workflowLearningKind(workflowPreview) === "lesson");
         const confirming = canDelete && pendingOverlayWorkflowDeleteId === workflowPreview.id;
-        workflowDelete.classList.toggle("confirm-btn", isBrxLearningWorkspace());
-        workflowDelete.classList.toggle("cancel-btn", !isBrxLearningWorkspace());
+        workflowDelete.classList.toggle("confirm-btn", isRevitLearningWorkspace());
+        workflowDelete.classList.toggle("cancel-btn", !isRevitLearningWorkspace());
         workflowDelete.disabled = !canDelete;
         workflowDelete.setAttribute("aria-disabled", canDelete ? "false" : "true");
-        if (isBrxLearningWorkspace()) {
+        if (isRevitLearningWorkspace()) {
           workflowDelete.textContent = confirming ? t("confirmDeleteLesson") : t("deleteLesson");
         } else {
           workflowDelete.textContent = confirming ? t("confirmDeleteWorkflow") : t("deleteWorkflow");
@@ -3758,21 +3758,21 @@
         workflowSearch.focus();
         return;
       }
-      if (isBrxLearningWorkspace() && workflowLearningKind(workflowPreview) !== "lesson") {
+      if (isRevitLearningWorkspace() && workflowLearningKind(workflowPreview) !== "lesson") {
         workflowSearch.focus();
         return;
       }
-      const executeInBricsCad = isBrxLearningWorkspace();
+      const executeInRevit = isRevitLearningWorkspace();
       const workflowToExecute = normalizeWorkflow(workflowPreview);
-      pendingWorkflowSessionOpenMode = isGeneralWorkflowWorkspace() ? "general" : "bricscad";
+      pendingWorkflowSessionOpenMode = isGeneralWorkflowWorkspace() ? "general" : "revit";
       if (bridge && typeof bridge.selectWorkflow === "function") {
         bridge.selectWorkflow(workflowToExecute.id);
       } else {
         applySelectedWorkflowFromQt(workflowToExecute);
       }
       closeWorkflowOverlay();
-      if (executeInBricsCad) {
-        input.value = `Führe den ausgewählten Workflow "${workflowToExecute.title}" aus. Analysiere zuerst Workflow, aktuelle Zeichnung, aktuelle Auswahl, kompatible Geometrie, verfügbare BRX-Tools und fehlende Parameter. Erzeuge danach einen bestätigungspflichtigen BricsCAD-Aktionsvorschlag. Frage nur, wenn Zeichnung, Auswahl, Workflow und Tools die fehlende fachliche Entscheidung nicht liefern.`;
+      if (executeInRevit) {
+        input.value = `Führe den ausgewählten Workflow "${workflowToExecute.title}" aus. Analysiere zuerst Workflow, aktuelle Zeichnung, aktuelle Auswahl, kompatible Geometrie, verfügbare Revit-Tools und fehlende Parameter. Erzeuge danach einen bestätigungspflichtigen Revit-Aktionsvorschlag. Frage nur, wenn Zeichnung, Auswahl, Workflow und Tools die fehlende fachliche Entscheidung nicht liefern.`;
         requestAnimationFrame(() => submitPrompt());
         return;
       }
@@ -3828,7 +3828,7 @@
       if (bridge && typeof bridge.deleteWorkflow === "function") {
         pendingWorkflowDeleteId = workflow.id;
         bridge.deleteWorkflow(workflow.id);
-        if (isBrxLearningWorkspace()) {
+        if (isRevitLearningWorkspace()) {
           pendingOverlayWorkflowDeleteId = "";
           workflowPreview = null;
           renderWorkflowList();
@@ -3888,7 +3888,7 @@
       let visible = query
         ? workflows.filter((workflow) => workflowTextContent(workflow).includes(query))
         : workflows.slice();
-      if (isBrxLearningWorkspace()) {
+      if (isRevitLearningWorkspace()) {
         if (workflowKindFilterMode !== "all") {
           visible = visible.filter((workflow) => workflowLearningKind(workflow) === workflowKindFilterMode);
         }
@@ -3926,7 +3926,7 @@
 
     function renderWorkflowList() {
       if (workflowLearningFilters) {
-        workflowLearningFilters.hidden = !isBrxLearningWorkspace();
+        workflowLearningFilters.hidden = !isRevitLearningWorkspace();
       }
       workflowList.replaceChildren();
       const visible = filteredWorkflows();
@@ -4638,7 +4638,7 @@
           selectedWorkflow = workflow;
         }
       }
-      const canShowWorkflow = trainingMode || isBrxLearningWorkspace();
+      const canShowWorkflow = trainingMode || isRevitLearningWorkspace();
       if (!canShowWorkflow || !selectedWorkflow || !selectedWorkflow.id) {
         activeWorkflow.classList.remove("visible");
         activeWorkflowName.textContent = t("workflowActive");
@@ -4661,7 +4661,7 @@
           .map(isGeneralWorkflowWorkspace() ? normalizeWorkflowListEntry : normalizeWorkflow)
           .filter((workflow) => workflow.id)
         : [];
-      const revealNewestAiWorkflow = isBrxLearningWorkspace()
+      const revealNewestAiWorkflow = isRevitLearningWorkspace()
         && workflowSortMode === "newest"
         && !workflowSearch.value.trim()
         && workflows.some((workflow) => {
@@ -4752,8 +4752,8 @@
         pendingWorkflowSessionOpenMode = "";
         if (mode === "general") {
           openGeneralWorkflowSession(selectedWorkflow);
-        } else if (mode === "bricscad") {
-          openBricsCadWorkflowSession(selectedWorkflow);
+        } else if (mode === "revit") {
+          openRevitWorkflowSession(selectedWorkflow);
         } else if (mode === "training") {
           openTrainingWorkflowSession(selectedWorkflow);
         }
@@ -5040,10 +5040,10 @@
     }
 
     function normalizeChatMode(value) {
-      if (!isBricsCadWorkspace()) {
+      if (!isRevitWorkspace()) {
         return "general";
       }
-      return "bricscad";
+      return "revit";
     }
 
     function normalizeTrainingMode(value) {
@@ -5128,7 +5128,7 @@
       }
       modeDisclaimer.textContent = chatMode === "general" && !trainingMode
         ? t("disclaimerGeneral")
-        : t("disclaimerBricscad");
+        : t("disclaimerRevit");
     }
 
     function applyProfileChrome() {
@@ -5148,10 +5148,10 @@
         clearHistoryButton.hidden = false;
         clearHistoryButton.style.display = "";
       }
-      if (brxStatus) {
-        const showBrx = isBricsCadWorkspace();
-        brxStatus.hidden = !showBrx;
-        brxStatus.style.display = showBrx ? "" : "none";
+      if (revitStatus) {
+        const showRevit = isRevitWorkspace();
+        revitStatus.hidden = !showRevit;
+        revitStatus.style.display = showRevit ? "" : "none";
       }
       const showModeSection = false;
       if (toolsModeTitle) {
@@ -5160,7 +5160,7 @@
       }
       modeOptions.forEach((option) => {
         const mode = option.dataset.mode;
-        const visible = showModeSection && mode === "bricscad";
+        const visible = showModeSection && mode === "revit";
         option.hidden = !visible;
         option.style.display = visible ? "" : "none";
       });
@@ -5189,7 +5189,7 @@
         closeWorkflowOverlay();
       }
       renderActiveWorkflow();
-      if (!shouldShowBrxCapabilitiesInChat()) {
+      if (!shouldShowRevitCapabilitiesInChat()) {
         clearCapabilitiesIndicator();
       }
       updateModeDisclaimer();
@@ -5199,7 +5199,7 @@
       const normalizedWorkspace = normalizeWorkspace(workspace);
       const previousWorkspace = activeWorkspace;
       activeWorkspace = normalizedWorkspace;
-      const mode = normalizedWorkspace === "bricscad" ? "bricscad" : "general";
+      const mode = normalizedWorkspace === "revit" ? "revit" : "general";
       const session = createSession(modeTitle(mode), mode, { includeGreeting: true, kind: "chat" });
       activeWorkspace = previousWorkspace;
       return {
@@ -5287,7 +5287,7 @@
         : [];
       activeSessionId = typeof state.activeSessionId === "string" ? state.activeSessionId : "";
       chatCounter = Number.isFinite(state.chatCounter) ? state.chatCounter : sessions.length;
-      chatMode = activeWorkspace === "bricscad" ? "bricscad" : "general";
+      chatMode = activeWorkspace === "revit" ? "revit" : "general";
       trainingMode = false;
       workflows = Array.isArray(state.workflows)
         ? state.workflows
@@ -5393,9 +5393,10 @@
       element.classList.toggle("checking", state === "checking");
     }
 
-    function setBrxStatus(message, connected) {
-      brxStatus.textContent = localizeStatusMessage(message || "", connected, "brx");
-      setStatusPillState(brxStatus, connected ? "connected" : "disconnected");
+    function setRevitStatus(message, connected) {
+      const localizedMessage = localizeStatusMessage(message || "", connected, "revit");
+      revitStatus.textContent = localizedMessage;
+      setStatusPillState(revitStatus, connected ? "connected" : "disconnected");
     }
 
     function applyUiTheme(theme) {
@@ -5454,9 +5455,9 @@
 
     function storedChatMode() {
       try {
-        return normalizeChatMode(localStorage.getItem(chatModeStorageKey) || "bricscad");
+        return normalizeChatMode(localStorage.getItem(chatModeStorageKey) || "revit");
       } catch (_error) {
-        return "bricscad";
+        return "revit";
       }
     }
 
@@ -5543,11 +5544,11 @@
 
     function setChatModeSelection(value, { createFreshSession = false } = {}) {
       const nextTrainingMode = false;
-      const nextMode = isBricsCadWorkspace()
-        ? "bricscad"
+      const nextMode = isRevitWorkspace()
+        ? "revit"
         : "general";
       const changed = nextMode !== chatMode || nextTrainingMode !== trainingMode;
-      if (!isBricsCadWorkspace()) {
+      if (!isRevitWorkspace()) {
         createFreshSession = createFreshSession && !sessions.length;
       }
 
@@ -5581,8 +5582,8 @@
       const raw = String(stateJson || "").trim();
       if (!raw) {
         workspaceStates = {};
-        activeWorkspace = "bricscad";
-        ["bricscad", "chat"].forEach(ensureWorkspaceState);
+        activeWorkspace = "revit";
+        ["revit", "chat"].forEach(ensureWorkspaceState);
         restoreWorkspaceState(activeWorkspace);
         renderReasoningSelection();
         renderModeSelection();
@@ -5602,8 +5603,8 @@
         stored = JSON.parse(raw);
       } catch (_error) {
         workspaceStates = {};
-        activeWorkspace = "bricscad";
-        ["bricscad", "chat"].forEach(ensureWorkspaceState);
+        activeWorkspace = "revit";
+        ["revit", "chat"].forEach(ensureWorkspaceState);
         restoreWorkspaceState(activeWorkspace);
         renderReasoningSelection();
         renderModeSelection();
@@ -5619,12 +5620,12 @@
       try {
         if (stored.version === 3 && stored.workspaces && typeof stored.workspaces === "object") {
           workspaceStates = stored.workspaces;
-          activeWorkspace = normalizeWorkspace(stored.activeWorkspace || "bricscad");
+          activeWorkspace = normalizeWorkspace(stored.activeWorkspace || "revit");
         } else {
           workspaceStates = {};
-          activeWorkspace = "bricscad";
+          activeWorkspace = "revit";
         }
-        ["bricscad", "chat"].forEach(ensureWorkspaceState);
+        ["revit", "chat"].forEach(ensureWorkspaceState);
         reasoningEffort = normalizeReasoningEffort(stored.reasoningEffort || reasoningEffort);
         applySidebarCollapsed(
           typeof stored.sidebarCollapsed === "boolean" ? stored.sidebarCollapsed : storedSidebarCollapsed(),
@@ -5642,8 +5643,8 @@
       } catch (error) {
         reportClientRuntimeError(error, "Qt State laden");
         workspaceStates = {};
-        activeWorkspace = "bricscad";
-        ["bricscad", "chat"].forEach(ensureWorkspaceState);
+        activeWorkspace = "revit";
+        ["revit", "chat"].forEach(ensureWorkspaceState);
         restoreWorkspaceState(activeWorkspace);
         renderReasoningSelection();
         renderModeSelection();
@@ -5666,11 +5667,11 @@
       if (mode === "training") {
         return t("trainingMode");
       }
-      return mode === "general" ? "Chat" : "BricsCAD Chat";
+      return mode === "general" ? "Chat" : "Revit Chat";
     }
 
     function modeLabel(mode) {
-      return mode === "general" ? t("generalMode") : t("bricscadMode");
+      return mode === "general" ? t("generalMode") : t("revitMode");
     }
 
     function defaultGreeting(mode = chatMode) {
@@ -5695,7 +5696,7 @@
       return {
         speaker: "AI",
         messageId: nextMessageId("ai"),
-        message: t("greetingBricscad"),
+        message: t("greetingRevit"),
         time: nowTime(),
         kind: "greeting"
       };
@@ -5832,8 +5833,8 @@
     function ensureStartupRestoredSession() {
       if (!sessions.length) {
         sessions = [createSession(
-          modeTitle(chatMode || "bricscad"),
-          chatMode || "bricscad",
+          modeTitle(chatMode || "revit"),
+          chatMode || "revit",
           {}
         )];
       }
@@ -5845,7 +5846,7 @@
       }
 
       trainingMode = false;
-      chatMode = normalizeChatMode(session.mode || chatMode || storedChatMode() || "bricscad");
+      chatMode = normalizeChatMode(session.mode || chatMode || storedChatMode() || "revit");
       session.mode = chatMode;
       session.trainingMode = false;
       return session;
@@ -5934,7 +5935,7 @@
     }
 
     function normalizeSession(session, index) {
-      const fallback = createSession(index === 0 ? "BricsCAD Chat" : `Neuer Chat ${index + 1}`);
+      const fallback = createSession(index === 0 ? "Revit Chat" : `Neuer Chat ${index + 1}`);
       const sessionTrainingMode = false;
       const rawMessages = Array.isArray(session.messages) && session.messages.length
         ? session.messages.map(normalizeMessage)
@@ -5942,7 +5943,7 @@
       const messages = sessionTrainingMode
         ? rawMessages.filter((message) => !(
             message.speaker === "AI"
-            && message.message === "Worüber möchtest du im BricsCAD Chat sprechen?"
+            && message.message === "Worüber möchtest du im Revit Chat sprechen?"
           ))
         : rawMessages;
       if (sessionTrainingMode && !messages.length) {
@@ -5955,7 +5956,7 @@
       return {
         id: typeof session.id === "string" && session.id ? session.id : fallback.id,
         title: typeof session.title === "string" && session.title ? session.title : fallback.title,
-        mode: normalizeChatMode(session.mode || "bricscad"),
+        mode: normalizeChatMode(session.mode || "revit"),
         trainingMode: sessionTrainingMode,
         kind: typeof session.kind === "string" ? session.kind : "chat",
         workflowId: typeof session.workflowId === "string" ? session.workflowId : "",
@@ -5982,8 +5983,8 @@
       }
 
       workspaceStates = stored ? stored.workspaces : {};
-      activeWorkspace = normalizeWorkspace(stored?.activeWorkspace || "bricscad");
-      ["bricscad", "chat"].forEach(ensureWorkspaceState);
+      activeWorkspace = normalizeWorkspace(stored?.activeWorkspace || "revit");
+      ["revit", "chat"].forEach(ensureWorkspaceState);
       if (stored?.reasoningEffort) {
         reasoningEffort = normalizeReasoningEffort(stored.reasoningEffort);
       }
@@ -6012,7 +6013,7 @@
 
     function activeSession() {
       if (!sessions.length) {
-        const mode = isBricsCadWorkspace() ? "bricscad" : "general";
+        const mode = isRevitWorkspace() ? "revit" : "general";
         const session = createSession(modeTitle(mode), mode, {
           includeGreeting: true,
           kind: "chat"
@@ -6038,7 +6039,7 @@
       return session.messages
         .filter((message) => (message.speaker === "Du" || message.speaker === "AI")
           && message.kind !== "thinking"
-          && !(isBricsCadWorkspace() && message.kind === "workflow_context"))
+          && !(isRevitWorkspace() && message.kind === "workflow_context"))
         .map((message) => {
           const workflow = message.kind === "workflow_context" ? workflowForHistory() : null;
           return {
@@ -6059,15 +6060,15 @@
       if (speaker === "Du") {
         return "user";
       }
-      if (speaker === "Barebone-Qt" || speaker === "BRX") {
+      if (speaker === "Barebone-Qt" || speaker === "Revit") {
         return "system";
       }
       return "assistant";
     }
 
     function avatarForSpeaker(speaker) {
-      if (speaker === "BRX") {
-        return "BRX";
+      if (speaker === "Revit") {
+        return "Revit";
       }
       if (speaker === "Barebone-Qt") {
         return "Qt";
@@ -6242,8 +6243,8 @@
       if (isGeneralWorkflowWorkspace()
           && (normalizedCommand === "workflow speichern" || normalizedCommand === "save workflow")) {
         showThinkingIndicator();
-        addThinkingDetail(isBricsCadWorkspace()
-          ? "Ich konsolidiere den vollständigen Sitzungsverlauf zu einem geprüften BricsCAD-Batch-Workflow."
+        addThinkingDetail(isRevitWorkspace()
+          ? "Ich konsolidiere den vollständigen Sitzungsverlauf zu einem geprüften Revit-Batch-Workflow."
           : t("workflowSaveThinking"), { key: "workflow-save" });
         const messageText = messageTextById(messageId);
         if (typeof bridge.saveMessageAsWorkflow === "function") {
@@ -6284,14 +6285,14 @@
       const text = germanizeText(String(message?.message || "")).trim();
       return message?.kind === "greeting"
         || text === t("greetingChat")
-        || text === t("greetingBricscad")
+        || text === t("greetingRevit")
         || text === t("trainingIntro")
         || text === "Worüber möchtest du sprechen?"
-        || text === "Worüber möchtest du im BricsCAD Chat sprechen?"
+        || text === "Worüber möchtest du im Revit Chat sprechen?"
         || text === "What would you like to talk about?"
-        || text === "What would you like to discuss in BricsCAD chat?"
-        || text === "Training mode is not active in the fresh BricsCAD shell."
-        || text === "Trainingsmodus ist in der frischen BricsCAD-Hülle nicht aktiv.";
+        || text === "What would you like to discuss in Revit chat?"
+        || text === "Training mode is not active in the fresh Revit shell."
+        || text === "Trainingsmodus ist in der frischen Revit-Hülle nicht aktiv.";
     }
 
     function shouldShowWorkflowFooterForMessage(message, role) {
@@ -7820,8 +7821,8 @@
       messages.scrollTop = messages.scrollHeight;
     }
 
-    function shouldShowBrxCapabilitiesInChat() {
-      return trainingMode || chatMode === "bricscad";
+    function shouldShowRevitCapabilitiesInChat() {
+      return trainingMode || chatMode === "revit";
     }
 
     function clearCapabilitiesIndicator() {
@@ -7879,7 +7880,7 @@
     function isDefaultSessionTitle(title) {
       const value = String(title || "").trim();
       return !value
-        || value === "BricsCAD Chat"
+        || value === "Revit Chat"
         || value === "Allgemeiner Chat"
         || value === "Trainingsmodus"
         || /^Neue Sitzung \d+$/.test(value)
@@ -7935,8 +7936,8 @@
     function isDuplicateTrainingIntro(normalized) {
       const trainingIntros = [
         t("trainingIntro"),
-        "Trainingsmodus ist in der frischen BricsCAD-Hülle nicht aktiv.",
-        "Training mode is not active in the fresh BricsCAD shell."
+        "Trainingsmodus ist in der frischen Revit-Hülle nicht aktiv.",
+        "Training mode is not active in the fresh Revit shell."
       ];
       return normalized.speaker === "Barebone-Qt"
         && trainingIntros.includes(normalized.message)
@@ -8286,7 +8287,7 @@
       if (deletedActive || !sessions.some((session) => session.id === activeSessionId)) {
         activeSessionId = sessions[Math.min(index, sessions.length - 1)].id;
         const session = activeSession();
-        chatMode = normalizeChatMode(session.mode || "bricscad");
+        chatMode = normalizeChatMode(session.mode || "revit");
         trainingMode = false;
         session.trainingMode = false;
         renderModeSelection();
@@ -8419,28 +8420,28 @@
       input.focus();
     }
 
-    function openBricsCadWorkflowSession(workflow) {
+    function openRevitWorkflowSession(workflow) {
       if (isBusy || !workflow || !workflow.id) {
         input.focus();
         return;
       }
-      if (!isBricsCadWorkspace()) {
-        switchWorkspace("bricscad");
+      if (!isRevitWorkspace()) {
+        switchWorkspace("revit");
       }
-      chatMode = "bricscad";
+      chatMode = "revit";
       trainingMode = false;
       selectedWorkflow = normalizeWorkflow(workflow);
       if (!workflowHasLoadedContent(selectedWorkflow)) {
-        pendingWorkflowSessionOpenMode = "bricscad";
+        pendingWorkflowSessionOpenMode = "revit";
         if (bridge && typeof bridge.selectWorkflow === "function") {
           bridge.selectWorkflow(selectedWorkflow.id);
         }
         input.focus();
         return;
       }
-      const session = createSession(selectedWorkflow.title, "bricscad", {
+      const session = createSession(selectedWorkflow.title, "revit", {
         includeGreeting: false,
-        kind: "bricscad_workflow",
+        kind: "revit_workflow",
         workflowId: selectedWorkflow.id
       });
       session.userNamed = true;
@@ -8470,13 +8471,13 @@
         input.focus();
         return;
       }
-      if (!isBricsCadWorkspace()) {
-        switchWorkspace("bricscad");
+      if (!isRevitWorkspace()) {
+        switchWorkspace("revit");
       }
-      chatMode = "bricscad";
+      chatMode = "revit";
       trainingMode = false;
       selectedWorkflow = normalizeWorkflow(workflow);
-      const session = createSession(selectedWorkflow.title, "bricscad", {
+      const session = createSession(selectedWorkflow.title, "revit", {
         includeGreeting: false,
         kind: "chat",
         trainingMode: true,
@@ -8535,7 +8536,7 @@
       activeSessionId = sessionId;
       const session = sessions.find((item) => item.id === sessionId);
       prepareSessionOpenScroll();
-      chatMode = normalizeChatMode(session?.mode || "bricscad");
+      chatMode = normalizeChatMode(session?.mode || "revit");
       trainingMode = false;
       session.trainingMode = false;
       renderModeSelection();
@@ -8623,7 +8624,7 @@
         const documentPromptContext = promptContextForSubmit(text);
         input.value = "";
         removeWorkflowSavePrompt();
-        const useContextPrompt = documentPromptContext.hasDocuments || isBricsCadWorkspace();
+        const useContextPrompt = documentPromptContext.hasDocuments || isRevitWorkspace();
         try {
           if (useContextPrompt && typeof bridge.sendPromptWithContext === "function") {
             bridge.sendPromptWithContext(text, documentPromptContext);
@@ -8712,8 +8713,8 @@
       const names = {
         "general_chat": "allgemeine Antwort",
         "document_qa": "Dokumentauswertung",
-        "bricscad_question": "BricsCAD-Frage",
-        "bricscad_action": "BricsCAD-Aktion",
+        "revit_question": "Revit-Frage",
+        "revit_action": "Revit-Aktion",
         "execution_summary": "Abschlusszusammenfassung",
         "validation_retry": "Korrekturrunde"
       };
@@ -8723,7 +8724,7 @@
     function compactAiRetryReason(reason) {
       let value = String(reason || "").trim();
       value = value
-        .replace(/^BRX-Ausfuehrung fehlgeschlagen,\s*korrigiere Vorschlag:\s*/i, "BRX-Rückmeldung wird berücksichtigt: ")
+        .replace(/^Revit-Ausfuehrung fehlgeschlagen,\s*korrigiere Vorschlag:\s*/i, "Revit-Rückmeldung wird berücksichtigt: ")
         .replace(/^Antwort ist kein gueltiges Barebone-Agent-JSON\.\s*/i, "Antwortformat wird korrigiert. ")
         .replace(/^Die Trainingsantwort konnte nicht als JSON gelesen werden\.\s*/i, "Workflow-JSON wird repariert. ")
         .replace(/^Die AI hat im Trainingsmodus keine finale JSON-Antwort geliefert\.\s*/i, "Workflow-Antwort wird kompakter angefordert. ");
@@ -8788,21 +8789,21 @@
       return tool || "Aktion";
     }
 
-    function addBrxThinkingDetailFromLog(line) {
+    function addRevitThinkingDetailFromLog(line) {
       const text = stripLogTimestamp(line);
-      if (text.includes("BRX Plugin verbunden")) {
-        addThinkingDetail("BRX Plugin ist mit der minimalen Chat-Hülle verbunden.");
+      if (text.includes("Revit Bridge erreichbar")) {
+        addThinkingDetail("Revit Bridge ist erreichbar.");
         return true;
       }
-      if (text.includes("BRX Verbindung getrennt")) {
-        addThinkingDetail("BRX Plugin ist getrennt.");
+      if (text.includes("Revit Verbindung getrennt")) {
+        addThinkingDetail("Revit Bridge ist nicht erreichbar.");
         return true;
       }
       return false;
     }
     function handleBridgeLogLine(line) {
       const text = String(line || "");
-      if (addBrxThinkingDetailFromLog(text)) {
+      if (addRevitThinkingDetailFromLog(text)) {
         return;
       }
       addAiThinkingDetailFromLog(text);
@@ -8924,7 +8925,7 @@
     });
     modeOptions.forEach((option) => {
       option.addEventListener("click", () => {
-        setChatModeSelection(option.dataset.mode, { createFreshSession: isBricsCadWorkspace() });
+        setChatModeSelection(option.dataset.mode, { createFreshSession: isRevitWorkspace() });
         closeToolsMenu();
         input.focus();
       });
@@ -8957,7 +8958,7 @@
     function connectQtBridge() {
       if (!(window.qt && window.qt.webChannelTransport && window.QWebChannel)) {
         setLocalAiStatus(t("localAiNotCheckable"), false);
-        setBrxStatus(t("qtBridgeNotReady"), false);
+        setRevitStatus(t("qtBridgeNotReady"), false);
         return;
       }
       new QWebChannel(window.qt.webChannelTransport, (channel) => {
@@ -8967,7 +8968,7 @@
             throw new Error("bareboneBridge wurde nicht im Qt WebChannel registriert.");
           }
           bridgeReady = true;
-          setBrxStatus(t("brxDisconnected"), false);
+          setRevitStatus(t("revitDisconnected"), false);
           bridge.reasoningEffortApplied.connect(applyReasoningSelectionFromQt);
           if (bridge.trainingModeApplied) {
             bridge.trainingModeApplied.connect(applyTrainingModeFromQt);
@@ -9014,7 +9015,7 @@
           if (bridge.workflowTrainingFinalSavePromptCleared) {
             bridge.workflowTrainingFinalSavePromptCleared.connect(removeWorkflowSavePrompt);
           }
-          bridge.bridgeStatusChanged.connect(setBrxStatus);
+          bridge.bridgeStatusChanged.connect(setRevitStatus);
           bridge.bridgeLogAdded.connect(handleBridgeLogLine);
           if (bridge.workflowListChanged) {
             bridge.workflowListChanged.connect(applyWorkflowListFromQt);
@@ -9024,7 +9025,7 @@
           }
           if (bridge.workflowRunProgress) {
             bridge.workflowRunProgress.connect((progress) => {
-              const phaseLabels = { materializing: "Materialisiere Workflow", preflight: "BRX validiert Schritt", executing: "BRX führt Schritt aus", validating: "Prüfe Ergebnis" };
+              const phaseLabels = { materializing: "Materialisiere Workflow", preflight: "Revit validiert Schritt", executing: "Revit führt Schritt aus", validating: "Prüfe Ergebnis" };
               const current = Number(progress.current || 0);
               const total = Number(progress.total || 0);
               const suffix = current > 0 && total > 0 ? ` ${current}/${total}` : "";
@@ -9047,7 +9048,7 @@
           bridgeReady = false;
           bridge = null;
           reportClientRuntimeError(error, "Qt WebChannel");
-          setBrxStatus(t("qtBridgeNotReady"), false);
+          setRevitStatus(t("qtBridgeNotReady"), false);
         }
       });
     }

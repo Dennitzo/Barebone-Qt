@@ -25,10 +25,23 @@ if (!$exe) {
 $artifactRoot = Join-Path $root 'artifacts'
 New-Item -ItemType Directory -Force -Path $artifactRoot | Out-Null
 $zipPath = Join-Path $artifactRoot "Barebone-Qt-$Configuration.zip"
+$stageDir = Join-Path $artifactRoot "Barebone-Qt-$Configuration"
 if (Test-Path -LiteralPath $zipPath) {
     Remove-Item -LiteralPath $zipPath -Force
 }
+Remove-SafeDirectory $stageDir
+New-Item -ItemType Directory -Force -Path $stageDir | Out-Null
+
+$appStageDir = Join-Path $stageDir 'app'
+Copy-Item -LiteralPath $exe.DirectoryName -Destination $appStageDir -Recurse -Force
+
+$bridgeOutput = Join-Path $root 'build\revit-bridge'
+if (Test-Path -LiteralPath $bridgeOutput) {
+    Copy-Item -LiteralPath $bridgeOutput -Destination (Join-Path $stageDir 'revit-bridge') -Recurse -Force
+}
+
+Copy-Item -LiteralPath (Join-Path $root 'windows\install-revit-addin.ps1') -Destination $stageDir -Force
 
 Write-Step "Packaging Barebone-Qt"
-Compress-Archive -Path (Join-Path $exe.DirectoryName '*') -DestinationPath $zipPath
+Compress-Archive -Path (Join-Path $stageDir '*') -DestinationPath $zipPath
 Write-Host "Artifact: $zipPath"

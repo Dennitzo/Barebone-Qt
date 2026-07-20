@@ -1,29 +1,46 @@
 # Barebone-Qt
 
-Qt6 application shell.
+Qt6 application shell with a local Revit 2026 bridge.
 
 ## Build on Windows
 
 ```powershell
 .\windows\check-environment.ps1
 ```
+
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\windows\build-app.ps1 -Configuration Release
 ```
 
-This builds both the Windows app and the BricsCAD BRX plugin.
+This builds the Windows Qt app and the Revit C# bridge.
 
 The Windows app build output is standardized to:
 
 ```text
-build\windows-6.11.1-msvc\Barebone-Qt.exe
+build\windows-6.11.1-msvc-v143\Barebone-Qt.exe
 ```
 
-To create a zip artifact:
+The Revit bridge build output is standardized to:
+
+```text
+build\revit-bridge\Barebone.RevitBridge.dll
+```
+
+To install the Revit add-in manifest for the current user:
 
 ```powershell
-.\windows\package-artifact.ps1 -Configuration Release
+.\windows\install-revit-addin.ps1 -BuildFirst -Configuration Release
 ```
+
+The manifest is written to:
+
+```text
+%APPDATA%\Autodesk\Revit\Addins\2026\BareboneRevit.addin
+```
+
+After installing the manifest, restart Revit 2026 or load the add-in through Revit's Add-In Manager.
+
+Barebone-Qt starts the local Revit bridge server on `127.0.0.1:47627` and writes a per-run auth token to `%TEMP%\BareboneRevitBridge.token`. The Revit add-in connects to that server as a reconnecting client. Qt keeps the LMStudio/OpenAI-compatible AI call local to the app; the C# add-in only reads Revit context and executes confirmed Revit actions.
 
 ## Build on macOS
 
@@ -49,29 +66,4 @@ To build, deploy Qt with `macdeployqt`, and create a zip artifact in one step:
 ./macos/package-artifact.sh --configuration Release
 ```
 
-## Optional BricsCAD BRX plugin
-
-The BricsCAD BRX V26 SDK is expected at:
-
-```text
-C:\Program Files\Bricsys\BRXSDK\BRX26.1.05.0
-```
-
-The same `build-app.ps1` command also configures and builds the optional BRX target. To build only the BRX target manually from an x64 Visual Studio Developer Prompt:
-
-```powershell
-cmake -S . -B build\brx-msvc -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=C:\Qt\6.11.1\msvc2022_64 -DBAREBONE_BUILD_BRX_PLUGIN=ON
-cmake --build build\brx-msvc --target BareboneBrx
-```
-
-The BRX build output is standardized to:
-
-```text
-build\brx-msvc\bricscad\BareboneBrx.brx
-```
-
-Load the resulting `BareboneBrx.brx` in BricsCAD with `APPLOAD`. The diagnostic commands are `BBPING` and `BBINFO`.
-
-Barebone-Qt starts the local bridge server on `127.0.0.1:47626` and writes a per-run auth token to `%TEMP%\BareboneQtBridge.token`. The BRX plugin connects to that server as a reconnecting client and sends only the authenticated `hello` message. Incoming JSON requests are answered with a minimal “not active” error.
-
-The BricsCAD tab is currently a fresh second chat shell named “BricsCAD”. It contains no CAD action pipeline, no workflow runtime, no capability catalog, no SDK fallback tools, and no automatic drawing access. The plugin is intentionally reduced to the connection skeleton so the BricsCAD integration can be rebuilt from a clean base.
+The Revit bridge is Windows-only because Autodesk Revit 2026 is Windows-only.

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../core/ConfigManager.h"
+#include "../revit/RevitAgent.h"
 #include "AiWebBridge.h"
 
 #include <QJsonArray>
@@ -20,10 +21,10 @@ class ChatPage final : public QWidget {
 public:
     enum class Workspace {
         Chat,
-        BricsCad,
+        Revit,
     };
 
-    explicit ChatPage(ConfigManager& config, Workspace workspace, QWidget* parent = nullptr);
+    explicit ChatPage(ConfigManager& config, Workspace workspace, RevitAgent* revitAgent = nullptr, QWidget* parent = nullptr);
 
     QString workspaceName() const;
     void setBridgeStatus(const QString& message, bool connected);
@@ -32,7 +33,13 @@ public:
 private:
     void buildUi();
     void sendChatPrompt(const QString& prompt, const QJsonObject& context = {});
+    void postChatPrompt(const QString& cleanPrompt, const QJsonObject& uiContext, const QJsonObject& revitContext);
+    void postChatMessages(const QJsonArray& messages, bool allowRevitTools);
     void handleChatResponse(const QJsonObject& response);
+    bool preparePendingRevitToolCalls(const QJsonObject& assistantMessage);
+    void executePendingRevitToolCalls();
+    void clearPendingRevitToolCalls();
+    void applyWorkspace(const QString& workspace);
     void checkLocalAiStatus();
     void appendAgentMessage(const QString& speaker, const QString& message, const QVariantMap& extra = {});
     void setAgentBusy(bool busy);
@@ -46,6 +53,7 @@ private:
 
     ConfigManager& m_config;
     Workspace m_workspace = Workspace::Chat;
+    RevitAgent* m_revitAgent = nullptr;
 
     QWebEngineView* m_webView = nullptr;
     AiWebBridge* m_bridge = nullptr;
@@ -60,7 +68,12 @@ private:
     QVariantList m_workflows;
     QVariantMap m_selectedWorkflow;
 
-    QString m_bridgeStatusMessage = QStringLiteral("Keine BRX Verbindung aktiv");
+    QString m_bridgeStatusMessage = QStringLiteral("Keine Revit Verbindung aktiv");
     bool m_bridgeConnected = false;
     QStringList m_bridgeLogLines;
+
+    bool m_acceptRevitToolCalls = false;
+    QJsonArray m_lastChatMessages;
+    QJsonArray m_pendingRevitToolMessages;
+    QJsonArray m_pendingRevitToolCalls;
 };
