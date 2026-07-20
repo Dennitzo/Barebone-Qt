@@ -1,0 +1,105 @@
+﻿{
+    "authoringNotes":  {
+                           "actionsCompleted":  1,
+                           "actionsRequested":  1,
+                           "createdAt":  "2026-07-20T19:40:38.262Z",
+                           "source":  "lastBricsCadExecution"
+                       },
+    "constructionStrategy":  [
+                                 "Deterministisch aus der letzten erfolgreich von BRX ausgefuehrten Aktion erzeugt."
+                             ],
+    "derivedValues":  [
+
+                      ],
+    "description":  "Erstellt einen Kreis mit Radius 1000â€¯mm im Mittelpunkt (0,0,0).",
+    "display":  {
+                    "blocks":  [
+
+                               ]
+                },
+    "executionBatches":  [
+                             {
+                                 "id":  "batch_1",
+                                 "mode":  "sequential",
+                                 "steps":  [
+                                               {
+                                                   "id":  "step_1_geometry_create",
+                                                   "paramsTemplate":  {
+                                                                          "center":  {
+                                                                                         "x":  0,
+                                                                                         "y":  0,
+                                                                                         "z":  0
+                                                                                     },
+                                                                          "geometry":  "circle",
+                                                                          "radiusMm":  1000,
+                                                                          "saveBefore":  true
+                                                                      },
+                                                   "title":  "geometry.create",
+                                                   "tool":  "geometry.create"
+                                               }
+                                           ],
+                                 "stopOnFailure":  true,
+                                 "title":  "Letzte BricsCAD-Ausfuehrung"
+                             }
+                         ],
+    "forbidden":  [
+
+                  ],
+    "id":  "kreis_geometrie_erstellen",
+    "kind":  "bricscad",
+    "knownSlotValues":  {
+
+                        },
+    "optionalSlots":  {
+
+                      },
+    "preferredTools":  [
+                           "geometry.create"
+                       ],
+    "requiredSlots":  [
+
+                      ],
+    "schema":  "barebone.bricscad.workflow.v1",
+    "steps":  [
+                  {
+                      "id":  "step_1_geometry_create",
+                      "paramsTemplate":  {
+                                             "center":  {
+                                                            "x":  0,
+                                                            "y":  0,
+                                                            "z":  0
+                                                        },
+                                             "geometry":  "circle",
+                                             "radiusMm":  1000,
+                                             "saveBefore":  true
+                                         },
+                      "title":  "geometry.create",
+                      "tool":  "geometry.create"
+                  }
+              ],
+    "title":  "Kreis-Geometrie erstellen",
+    "triggerExamples":  [
+                            "x=0, y=0, z=0"
+                        ],
+    "validationExamples":  [
+                               {
+                                   "actions":  [
+                                                   {
+                                                       "params":  {
+                                                                      "center":  {
+                                                                                     "x":  0,
+                                                                                     "y":  0,
+                                                                                     "z":  0
+                                                                                 },
+                                                                      "geometry":  "circle",
+                                                                      "radiusMm":  1000,
+                                                                      "saveBefore":  true
+                                                                  },
+                                                       "tool":  "geometry.create"
+                                                   }
+                                               ],
+                                   "prompt":  "x=0, y=0, z=0",
+                                   "title":  "Letzte erfolgreiche Ausfuehrung"
+                               }
+                           ]
+}

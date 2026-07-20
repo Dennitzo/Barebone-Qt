@@ -19,7 +19,7 @@
   "rules": [
     "Classify only. Do not answer the user.",
     "Do not propose or execute actions.",
-    "Use bricscad_action only for explicit drawing changes, native command execution, selection changes, or CAD state changes.",
+    "Use bricscad_action for drawing changes and whenever the final agent needs current BRX tools to decide between a context request, answer, plan or action proposal.",
     "Use bricscad_question for CAD questions without execution intent.",
     "Use document_qa_with_cad_context for attached-document questions that should be interpreted with BricsCAD context.",
     "Use validation_retry only when Qt asks for a correction loop.",

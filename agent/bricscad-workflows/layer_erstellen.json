@@ -1,0 +1,79 @@
+{
+    "authoringNotes": {
+        "actionsCompleted": 1,
+        "actionsRequested": 1,
+        "createdAt": "2026-07-20T17:14:42.018Z",
+        "source": "lastBricsCadExecution"
+    },
+    "constructionStrategy": [
+        "Deterministisch aus der letzten erfolgreich von BRX ausgefuehrten Aktion erzeugt."
+    ],
+    "derivedValues": [
+    ],
+    "description": "Legt den Layer \"Sanit\u00e4r\" ueber layers.create an und nutzt die erfolgreiche BRX-Ausfuehrung als Validierungsbeispiel.",
+    "display": {
+        "blocks": [
+        ]
+    },
+    "executionBatches": [
+        {
+            "id": "batch_1",
+            "mode": "sequential",
+            "steps": [
+                {
+                    "id": "step_1_layers_create",
+                    "paramsTemplate": {
+                        "name": "Sanit\u00e4r"
+                    },
+                    "title": "Layer anlegen",
+                    "tool": "layers.create"
+                }
+            ],
+            "stopOnFailure": true,
+            "title": "Layer anlegen"
+        }
+    ],
+    "forbidden": [
+    ],
+    "id": "layer_erstellen",
+    "kind": "bricscad",
+    "knownSlotValues": {
+    },
+    "optionalSlots": {
+    },
+    "preferredTools": [
+        "layers.create"
+    ],
+    "requiredSlots": [
+    ],
+    "schema": "barebone.bricscad.workflow.v1",
+    "steps": [
+        {
+            "id": "step_1_layers_create",
+            "paramsTemplate": {
+                "name": "Sanit\u00e4r"
+            },
+            "title": "Layer anlegen",
+            "tool": "layers.create"
+        }
+    ],
+    "title": "Layer erstellen",
+    "triggerExamples": [
+        "Erstelle einen neuen Layer namens \"Sanit\u00e4r\". Nutze layers.create dafuer."
+    ],
+    "validationExamples": [
+        {
+            "actions": [
+                {
+                    "params": {
+                        "name": "Sanit\u00e4r",
+                        "saveBefore": true
+                    },
+                    "tool": "layers.create"
+                }
+            ],
+            "prompt": "Erstelle einen neuen Layer namens \"Sanit\u00e4r\". Nutze layers.create dafuer.",
+            "title": "Letzte erfolgreiche Ausfuehrung"
+        }
+    ]
+}

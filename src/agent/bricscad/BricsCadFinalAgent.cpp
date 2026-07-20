@@ -22,18 +22,60 @@ QJsonObject minimalResponseContract()
             QStringLiteral("type"),
         }},
         {QStringLiteral("allowedTypes"), QJsonArray{
+            QStringLiteral("message"),
             QStringLiteral("ask_user"),
             QStringLiteral("context_request"),
             QStringLiteral("action_proposal"),
+            QStringLiteral("plan"),
         }},
         {QStringLiteral("actionProposal"), QJsonObject{
             {QStringLiteral("required"), QJsonArray{
                 QStringLiteral("requiresConfirmation"),
                 QStringLiteral("actions"),
+                QStringLiteral("summary"),
             }},
             {QStringLiteral("toolSource"), QStringLiteral("effectiveTools[].name")},
             {QStringLiteral("paramsSource"), QStringLiteral("effectiveTools[].inputSchema")},
             {QStringLiteral("batch"), QStringLiteral("Use proposal.actions[] for known multi-step CAD work.")},
+            {QStringLiteral("planningMetadata"), QJsonObject{
+                {QStringLiteral("required"), QJsonArray{
+                    QStringLiteral("proposalId"),
+                    QStringLiteral("intentSummary"),
+                    QStringLiteral("contextEvidence"),
+                    QStringLiteral("workflowUsage"),
+                    QStringLiteral("assumptions"),
+                }},
+                {QStringLiteral("policy"), QStringLiteral("Provide concise decision evidence, never hidden chain-of-thought.")},
+            }},
+            {QStringLiteral("userFacingDescription"), QStringLiteral(
+                "Top-level message and proposal.summary must describe the planned execution in concrete user-facing German text. "
+                "Mention target objects/names, tool intent and important parameters. "
+                "Use proposal.details for the step list when more than one action is planned. "
+                "Never use generic text such as 'Der Agent hat eine BricsCAD-Aktion vorbereitet'.")},
+        }},
+        {QStringLiteral("askUser"), QJsonObject{
+            {QStringLiteral("required"), QJsonArray{
+                QStringLiteral("message"),
+                QStringLiteral("missing"),
+            }},
+            {QStringLiteral("messagePolicy"), QStringLiteral(
+                "Write a short, natural German question that names every missing datum and explains the expected format. "
+                "The message is shown directly in the chat card, so never omit it and never use generic waiting text.")},
+        }},
+        {QStringLiteral("contextRequest"), QJsonObject{
+            {QStringLiteral("required"), QJsonArray{
+                QStringLiteral("method"),
+                QStringLiteral("params"),
+            }},
+            {QStringLiteral("methodSource"), QStringLiteral("readOnlyMethods[].name")},
+            {QStringLiteral("example"), QJsonObject{
+                {QStringLiteral("type"), QStringLiteral("context_request")},
+                {QStringLiteral("method"), QStringLiteral("selection.describe")},
+                {QStringLiteral("params"), QJsonObject{
+                    {QStringLiteral("include"), QJsonArray{QStringLiteral("geometry"), QStringLiteral("metrics")}},
+                    {QStringLiteral("limit"), 100},
+                }},
+            }},
         }},
     };
 }
@@ -66,6 +108,19 @@ QJsonObject compactDrawingContext(const QJsonObject& preparedContext, const QJso
     const QJsonArray objects = source.value(QStringLiteral("relevantObjects")).toArray();
     if (!objects.isEmpty()) {
         compact.insert(QStringLiteral("relevantObjects"), limitedArray(objects, 12));
+    }
+    const QJsonObject selection = source.value(QStringLiteral("selection")).toObject();
+    if (!selection.isEmpty()) {
+        QJsonObject compactSelection{
+            {QStringLiteral("queried"), selection.value(QStringLiteral("queried"))},
+            {QStringLiteral("available"), selection.value(QStringLiteral("available"))},
+            {QStringLiteral("count"), selection.value(QStringLiteral("count"))},
+            {QStringLiteral("objects"), limitedArray(selection.value(QStringLiteral("objects")).toArray(), 20)},
+        };
+        if (selection.contains(QStringLiteral("error"))) {
+            compactSelection.insert(QStringLiteral("error"), selection.value(QStringLiteral("error")));
+        }
+        compact.insert(QStringLiteral("selection"), compactSelection);
     }
     const QJsonArray layers = source.value(QStringLiteral("relevantLayers")).toArray();
     if (!layers.isEmpty()) {
@@ -134,6 +189,13 @@ QJsonObject BricsCadFinalAgent::buildEnvelope(const BuildInput& input)
             workflowCapsules.append(capsule);
         }
     }
+    QJsonArray workflowHintCapsules;
+    for (int i = 0; i < input.workflowHints.size() && i < 3; ++i) {
+        const QJsonObject capsule = compactWorkflowCapsule(input.workflowHints.at(i).toObject());
+        if (!capsule.isEmpty()) {
+            workflowHintCapsules.append(capsule);
+        }
+    }
 
     QJsonObject compactRoute = input.route;
     compactRoute.remove(QStringLiteral("effectiveTools"));
@@ -151,10 +213,19 @@ QJsonObject BricsCadFinalAgent::buildEnvelope(const BuildInput& input)
         {QStringLiteral("schema"), QStringLiteral("barebone.agent.bricscad.request.v2")},
         {QStringLiteral("profile"), QStringLiteral("bricscad-final-minimal-v1")},
         {QStringLiteral("userPrompt"), input.prompt},
+        {QStringLiteral("originalUserPrompt"), input.prompt},
+        {QStringLiteral("promptPriority"), QStringLiteral("highest")},
         {QStringLiteral("route"), compactRoute},
         {QStringLiteral("drawingContext"), compactDrawingContext(preparedDrawingContext, input.drawingContext)},
         {QStringLiteral("effectiveTools"), input.effectiveTools},
         {QStringLiteral("workflowCapsules"), workflowCapsules},
+        {QStringLiteral("activeWorkflow"), workflowCapsules.isEmpty()
+            ? QJsonObject{}
+            : workflowCapsules.first().toObject()},
+        {QStringLiteral("workflowHints"), workflowHintCapsules},
+        {QStringLiteral("workflowHintPolicy"), QStringLiteral(
+            "workflowHints sind unverbindliche Strategiebausteine. Pruefe aktiv, welche Teile zum aktuellen Prompt und Verlauf passen. "
+            "Du darfst passende Teile verwenden, anpassen oder verwerfen; kopiere keinen Workflow blind.")},
         {QStringLiteral("pipeline"), QJsonObject{
             {QStringLiteral("order"), QJsonArray{
                 QStringLiteral("parallel:compressedConversationHistory"),
@@ -169,7 +240,15 @@ QJsonObject BricsCadFinalAgent::buildEnvelope(const BuildInput& input)
             {QStringLiteral("calculationAttempted"), input.route.value(QStringLiteral("calculationAttempted")).toBool(false)},
             {QStringLiteral("policy"), QStringLiteral(
                 "Finaler Minimal-Run: pruefe Nutzerabsicht, kompakte Zeichnungslage, Berechnung und kleine Toolauswahl. "
-                "Beruecksichtige erkennbare Geometriekonflikte/Ueberlappungen. Keine nativen Commands, keine langen Workflows, keine lokalen Tool-Fallbacks.")},
+                "Beruecksichtige erkennbare Geometriekonflikte/Ueberlappungen. Keine nativen Commands und keine lokalen Tool-Fallbacks. "
+                "Der aktuelle userPrompt/originalUserPrompt ist die primaere Aufgabe. Workflow- und Toolkontext darf den Prompt nicht ersetzen. "
+                "Waehle und kombiniere effectiveTools selbst. Pruefe vor Ausgabe, ob jede Aktion fuer Prompt und relevanten Verlauf notwendig ist. "
+                "Wenn der Nutzer Auswahl, Selektion, selektiert oder scope=selection sagt, ist dies bereits ein gueltiger Selector und keine Rueckfrage wert. "
+                "Nutze drawingContext.selection als harte BRX-Tatsache. Bei verfuegbaren selection.objects bevorzuge deren stabile Handles im Action-Selector; "
+                "wenn die Auswahl noch nicht abgefragt wurde, fordere method=selection.describe als context_request an. "
+                "Bei action_proposal immer eine konkrete sichtbare Ausfuehrungsbeschreibung in message und proposal.summary mitschicken; "
+                "proposal.details enthaelt bei Batches die geplante Schrittfolge. Liefere ausserdem proposalId, intentSummary, "
+                "contextEvidence, workflowUsage und assumptions als knappe pruefbare Entscheidungsdaten.")},
         }},
         {QStringLiteral("reasoning"), QJsonObject{{QStringLiteral("effort"), QStringLiteral("low")}}},
         {QStringLiteral("responseContract"), minimalResponseContract()},
@@ -181,38 +260,14 @@ QJsonObject BricsCadFinalAgent::buildEnvelope(const BuildInput& input)
                 "Wenn delegatedValueChoice=true, plausible sichere Default-/Beispielwerte selbst einsetzen und nicht danach fragen. "
                 "Eine ausfuehrbare CAD-Anweisung muss als action_proposal enden; blosse Beschreibung oder Ausfuehrungsbehauptung ist ungueltig.")},
             {QStringLiteral("workflowExecutionPolicy"), workflowCapsules.isEmpty()
-                ? QStringLiteral("Kein Workflow-Kontext aktiv.")
+                ? QStringLiteral("Kein verbindlicher Workflow. Nutze Workflow-Hints nur, soweit sie Prompt und Verlauf nach eigener Pruefung sinnvoll unterstuetzen.")
                 : QStringLiteral(
-                    "Der erste Workflow in workflowCapsules ist die ausfuehrbare Vorlage. "
-                    "Explizite Nutzerwerte ersetzen passende Workflowwerte; abhaengige Koordinaten und Abmessungen neu berechnen. "
-                    "Fehlen Nutzerwerte, konkrete paramsTemplate- und knownSlotValues-Beispielwerte verwenden und nicht danach fragen. "
-                    "Bei ausfuehrbarer Workflow-Anfrage bekannte Schrittfolgen direkt als proposal.actions[] Batch liefern; niemals mit message beenden.")},
+                    "Der erste Workflow in workflowCapsules ist manuell ausgewaehlt und verbindlich. Erhalte seine fachlichen Schritte und Reihenfolge. "
+                    "Explizite Nutzerwerte duerfen passende Workflowwerte ersetzen und abhaengige Werte muessen neu berechnet werden. "
+                    "Wenn aktueller Prompt, Verlauf oder Zeichnungslage dem Workflow widersprechen, liefere ask_user statt Schritte still zu entfernen, "
+                    "eine andere Aufgabe auszufuehren oder den Workflow blind zu kopieren.")},
         }},
     };
-
-    const QJsonObject deterministicBatchDraft = deterministicBatchDraftFromCalculation(calculation);
-    if (!deterministicBatchDraft.isEmpty()) {
-        envelope.insert(QStringLiteral("deterministicBatchDraft"), deterministicBatchDraft);
-    }
-
-    if (!workflowCapsules.isEmpty()
-        && workflowCapsules.first().toObject().value(QStringLiteral("id")).toString()
-            == QStringLiteral("grundriss_und_aussenwaende_einzeichnen")) {
-        QJsonObject execution = envelope.value(QStringLiteral("execution")).toObject();
-        execution.insert(QStringLiteral("workflowExecutionPolicy"), QStringLiteral(
-            "Fuehre den Workflow als direkten Batch aus: "
-            "proposal.actions enthaelt genau diese Reihenfolge: "
-            "(1) geometry.create rectangle fuer die Innenkontur, "
-            "(2) geometry.query fuer selector.scope=lastResult, "
-            "(3) measurement.area mit autoRoomHandlesFromLastQuery, "
-            "(4) measurement.bbox mit autoRoomHandlesFromLastQuery, "
-            "(5-8) vier geometry.create box Aktionen fuer die Aussenwaende, "
-            "(9) geometry.query mit autoCreatedGeometryHandlesFromBatch fuer alle erzeugten Handles. "
-            "Setze proposal.continueAfterSuccess=false. Qt stoppt den Batch nach der Pruefung deterministisch, falls Flaeche oder Innenmasse abweichen. "
-            "Nutze calculationResult.contour und calculationResult.wallBoxes; explizite Nutzerwerte sind dort bereits eingerechnet. "
-            "Beende nicht nach der Kontur oder Pruefung, solange die vier Waende und die finale Geometriepruefung im Batch fehlen."));
-        envelope.insert(QStringLiteral("execution"), execution);
-    }
 
     if (input.route.contains(QStringLiteral("calculationResult"))) {
         envelope.insert(QStringLiteral("calculationResult"), calculation);

@@ -18,7 +18,8 @@
   },
   "actionProposal": {
     "required": ["type", "message", "proposal"],
-    "proposalRequired": ["requiresConfirmation", "actions"],
+    "proposalRequired": ["requiresConfirmation", "actions", "summary", "proposalId", "intentSummary", "contextEvidence", "workflowUsage", "assumptions"],
+    "userFacingDescriptionPolicy": "For every action_proposal, top-level message and proposal.summary must be a concrete user-facing German description of the planned execution. Mention target objects/names, tool intent and important parameters. Use proposal.details for a step list or extra execution notes. Never send generic text such as 'Der Agent hat eine BricsCAD-Aktion vorbereitet'.",
     "actionShape": {
       "required": ["tool", "params"],
       "toolSource": "effectiveTools[].name",
@@ -28,6 +29,7 @@
   },
   "askUser": {
     "required": ["type", "message", "missing"],
+    "messagePolicy": "Formuliere eine kurze natürliche Rückfrage, die alle fehlenden Angaben direkt benennt und das erwartete Format erklärt. Der Text wird ohne aufgeklappte Details im Chat angezeigt. Verwende niemals einen generischen Wartetext.",
     "draftPolicy": "If a draft is included, use draft.proposal with the same proposal shape as action_proposal."
   },
   "contextRequest": {

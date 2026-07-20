@@ -1,0 +1,103 @@
+{
+    "authoringNotes": {
+        "actionsCompleted": 1,
+        "actionsRequested": 1,
+        "createdAt": "2026-07-20T18:59:41.904Z",
+        "source": "lastBricsCadExecution"
+    },
+    "constructionStrategy": [
+        "Deterministisch aus der letzten erfolgreich von BRX ausgefuehrten Aktion erzeugt."
+    ],
+    "derivedValues": [
+    ],
+    "description": "Erstellt ein neues Rechteck mit 1000 mm Breite und 1000 mm Tiefe, Ursprung bei (0 mm, 0 mm",
+    "display": {
+        "blocks": [
+        ]
+    },
+    "executionBatches": [
+        {
+            "id": "batch_1",
+            "mode": "sequential",
+            "steps": [
+                {
+                    "id": "step_1_geometry_create",
+                    "paramsTemplate": {
+                        "depth": 1000,
+                        "geometry": "rectangle",
+                        "origin": {
+                            "x": 0,
+                            "y": 0,
+                            "z": 0
+                        },
+                        "saveBefore": true,
+                        "width": 1000
+                    },
+                    "title": "geometry.create",
+                    "tool": "geometry.create"
+                }
+            ],
+            "stopOnFailure": true,
+            "title": "Letzte BricsCAD-Ausfuehrung"
+        }
+    ],
+    "forbidden": [
+    ],
+"id": "rechteck_geometrie_erstellen",
+    "kind": "bricscad",
+    "knownSlotValues": {
+    },
+    "optionalSlots": {
+    },
+    "preferredTools": [
+        "geometry.create"
+    ],
+    "requiredSlots": [
+    ],
+    "schema": "barebone.bricscad.workflow.v1",
+    "steps": [
+        {
+            "id": "step_1_geometry_create",
+            "paramsTemplate": {
+                "depth": 1000,
+                "geometry": "rectangle",
+                "origin": {
+                    "x": 0,
+                    "y": 0,
+                    "z": 0
+                },
+                "saveBefore": true,
+                "width": 1000
+            },
+            "title": "geometry.create",
+            "tool": "geometry.create"
+        }
+    ],
+"title": "Rechteck-Geometrie erstellen",
+    "triggerExamples": [
+        "Zeichne ein neues Rechteck mit den Maßen x=1000mm, y=1000mm mit den Koordinaten als origin x=0, y=0, z=0."
+    ],
+    "validationExamples": [
+        {
+            "actions": [
+                {
+                    "params": {
+                        "depth": 1000,
+                        "geometry": "rectangle",
+                        "origin": {
+                            "x": 0,
+                            "y": 0,
+                            "z": 0
+                        },
+                        "saveBefore": true,
+                        "width": 1000
+                    },
+                    "tool": "geometry.create"
+                }
+            ],
+            "prompt": "Zeichne ein neues Rechteck mit den Maßen x=1000mm, y=1000mm mit den Koordinaten als origin x=0, y=0, z=0.",
+            "title": "Letzte erfolgreiche Ausfuehrung"
+        }
+    ]
+}
+

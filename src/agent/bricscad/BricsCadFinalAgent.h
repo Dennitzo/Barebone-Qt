@@ -12,6 +12,7 @@ public:
         QJsonObject drawingContext;
         QJsonArray effectiveTools;
         QJsonArray selectedWorkflows;
+        QJsonArray workflowHints;
         QJsonObject pendingProposal;
         QJsonObject pendingDraft;
         QJsonObject lastToolResult;

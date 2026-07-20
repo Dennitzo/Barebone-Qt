@@ -48,6 +48,20 @@ QJsonArray workflowObjectsForIds(
     return workflows;
 }
 
+bool workflowIdListContains(const QStringList& ids, const QString& candidate)
+{
+    const QString candidateSlug = BricsCadAgentUtils::workflowSlug(candidate);
+    if (candidateSlug.isEmpty()) {
+        return false;
+    }
+    for (const QString& id : ids) {
+        if (BricsCadAgentUtils::workflowSlug(id) == candidateSlug) {
+            return true;
+        }
+    }
+    return false;
+}
+
 QString workflowRankingText(const QJsonArray& workflows)
 {
     QString text;
@@ -80,7 +94,7 @@ QJsonArray ToolWorkflowAgent::effectiveTools(
         return preselectedTools;
     }
 
-    const int cap = route.value(QStringLiteral("route")).toString() == QStringLiteral("validation_retry") ? 8 : 6;
+    const int cap = route.value(QStringLiteral("route")).toString() == QStringLiteral("validation_retry") ? 16 : 12;
     QSet<QString> workflowToolNames;
     if (route.value(QStringLiteral("route")).toString() != QStringLiteral("validation_retry")) {
         for (const QJsonValue& workflowValue : selectedWorkflowObjects) {
@@ -135,7 +149,10 @@ void ToolWorkflowAgent::run(
         {QStringLiteral("availableTools"), BrxAgent::compactToolIndex(request.catalog)},
         {QStringLiteral("availableWorkflows"), request.workflowIndex},
         {QStringLiteral("manuallySelectedWorkflowId"), request.manualWorkflowId},
-        {QStringLiteral("limits"), QJsonObject{{QStringLiteral("tools"), 6}, {QStringLiteral("workflows"), 3}}},
+        {QStringLiteral("workflowAuthorityPolicy"), QStringLiteral(
+            "Workflows from availableWorkflows are hints only. Return workflowIds only when the user explicitly asks to execute/apply/start a workflow, "
+            "or when manuallySelectedWorkflowId is present. For ordinary CAD prompts, choose toolNames from userPrompt and leave workflowIds empty.")},
+        {QStringLiteral("limits"), QJsonObject{{QStringLiteral("tools"), 12}, {QStringLiteral("workflows"), 3}}},
         {QStringLiteral("outputShape"), QJsonObject{
             {QStringLiteral("schema"), QStringLiteral("barebone.agent.tool-workflow-selection.v1")},
             {QStringLiteral("toolNames"), QJsonArray{}},
@@ -150,38 +167,67 @@ void ToolWorkflowAgent::run(
         callback = std::move(callback),
         workflowLoader = std::move(workflowLoader)
     ](QJsonObject selection, bool aiSelectionReady) mutable {
-        QStringList workflowIds;
-        if (!request.manualWorkflowId.trimmed().isEmpty()) {
-            workflowIds << request.manualWorkflowId.trimmed();
-        }
+        auto appendUnique = [](QStringList& target, const QString& id) {
+            const QString clean = id.trimmed();
+            if (!clean.isEmpty() && !target.contains(clean)) {
+                target << clean;
+            }
+        };
 
+        QStringList activeWorkflowIds;
+        QStringList workflowHints;
+        const QStringList routeWorkflowIds = BricsCadAgentUtils::routeWorkflowIds(request.route, 3);
+        QStringList aiWorkflowIds;
         for (const QString& id : BricsCadAgentUtils::stringsFromJsonArray(selection.value(QStringLiteral("workflowIds")).toArray())) {
-            if (workflowIds.size() >= 3) {
+            if (aiWorkflowIds.size() >= 3) {
                 break;
             }
             if (workflowFromIndex(request.workflowIndex, id).isEmpty()) {
                 continue;
             }
-            if (!workflowIds.contains(id)) {
-                workflowIds << id;
-            }
+            appendUnique(aiWorkflowIds, id);
         }
-        if (workflowIds.isEmpty()) {
-            workflowIds = BricsCadAgentUtils::localWorkflowSelection(request.workflowIndex, request.prompt, 3);
+
+        const QString manualWorkflowId = request.manualWorkflowId.trimmed();
+        QString workflowSource = QStringLiteral("none");
+        if (!manualWorkflowId.isEmpty()) {
+            appendUnique(activeWorkflowIds, manualWorkflowId);
+            workflowSource = QStringLiteral("manual");
         }
-        if (workflowIds.isEmpty()) {
-            workflowIds = BricsCadAgentUtils::routeWorkflowIds(request.route, 3);
+
+        for (const QString& id : routeWorkflowIds) {
+            appendUnique(workflowHints, id);
+        }
+        for (const QString& id : aiWorkflowIds) {
+            appendUnique(workflowHints, id);
+        }
+        for (const QString& id : activeWorkflowIds) {
+            workflowHints.removeAll(id);
+        }
+        while (workflowHints.size() > 3) {
+            workflowHints.removeLast();
+        }
+        if (workflowSource == QStringLiteral("none") && !workflowHints.isEmpty()) {
+            workflowSource = QStringLiteral("hintOnly");
         }
 
         const QJsonArray workflows = workflowObjectsForIds(
-            workflowIds,
+            activeWorkflowIds,
             request.selectedWorkflow,
             workflowLoader);
         QJsonObject scopedRoute = request.route;
-        if (!workflowIds.isEmpty()) {
+        scopedRoute.remove(QStringLiteral("selectedWorkflows"));
+        if (!activeWorkflowIds.isEmpty()) {
             scopedRoute.insert(QStringLiteral("selectedWorkflows"),
-                QJsonArray::fromStringList(workflowIds));
+                QJsonArray::fromStringList(activeWorkflowIds));
         }
+        if (!workflowHints.isEmpty()) {
+            scopedRoute.insert(QStringLiteral("workflowHints"), QJsonArray::fromStringList(workflowHints));
+        }
+        scopedRoute.insert(QStringLiteral("workflowSource"), workflowSource);
+        scopedRoute.insert(QStringLiteral("activeWorkflowId"), activeWorkflowIds.isEmpty()
+            ? QString()
+            : activeWorkflowIds.first());
 
         QJsonArray effective = BrxAgent::toolsByNames(
             request.catalog,
@@ -190,29 +236,48 @@ void ToolWorkflowAgent::run(
         for (const QJsonValue& value : effective) {
             selectedNames.insert(value.toObject().value(QStringLiteral("name")).toString());
         }
-        const QJsonArray workflowEffective = effectiveTools(request.catalog, scopedRoute, request.prompt, workflows);
-        for (const QJsonValue& value : workflowEffective) {
-            const QString name = value.toObject().value(QStringLiteral("name")).toString();
-            if (!name.isEmpty() && !selectedNames.contains(name) && effective.size() < 6) {
-                effective.append(value);
-                selectedNames.insert(name);
+        QString toolSelectionSource = aiSelectionReady
+            ? QStringLiteral("ai")
+            : QStringLiteral("fullCapabilityFallback");
+        if (!activeWorkflowIds.isEmpty()) {
+            const QJsonArray workflowEffective = effectiveTools(request.catalog, scopedRoute, request.prompt, workflows);
+            for (const QJsonValue& value : workflowEffective) {
+                const QString name = value.toObject().value(QStringLiteral("name")).toString();
+                if (!name.isEmpty() && !selectedNames.contains(name) && effective.size() < 12) {
+                    effective.append(value);
+                    selectedNames.insert(name);
+                }
             }
         }
-        if (effective.isEmpty()) {
-            effective = workflowEffective;
+        if (!aiSelectionReady || effective.isEmpty()) {
+            effective = request.catalog;
+            toolSelectionSource = QStringLiteral("fullCapabilityFallback");
         }
-        while (effective.size() > 6) {
+        while (effective.size() > 16) {
             effective.removeAt(effective.size() - 1);
         }
 
         selection.insert(QStringLiteral("schema"), QStringLiteral("barebone.agent.tool-workflow-selection.v1"));
         selection.insert(QStringLiteral("toolNames"),
-            QJsonArray::fromStringList(BricsCadAgentUtils::toolNamesForLog(effective, 6)));
-        selection.insert(QStringLiteral("workflowIds"), QJsonArray::fromStringList(workflowIds));
+            QJsonArray::fromStringList(BricsCadAgentUtils::toolNamesForLog(effective, 16)));
+        selection.insert(QStringLiteral("workflowIds"), QJsonArray::fromStringList(activeWorkflowIds));
+        selection.insert(QStringLiteral("activeWorkflowId"), activeWorkflowIds.isEmpty()
+            ? QString()
+            : activeWorkflowIds.first());
+        selection.insert(QStringLiteral("workflowHints"), QJsonArray::fromStringList(workflowHints));
+        selection.insert(QStringLiteral("workflowSource"), workflowSource);
+        selection.insert(QStringLiteral("toolSelectionSource"), toolSelectionSource);
+        selection.insert(QStringLiteral("selectedToolNames"),
+            QJsonArray::fromStringList(BricsCadAgentUtils::toolNamesForLog(effective, 16)));
+        selection.insert(QStringLiteral("workflowCandidates"), QJsonArray::fromStringList(workflowHints));
+        selection.insert(QStringLiteral("workflowAuthority"), workflowSource == QStringLiteral("manual")
+            ? QStringLiteral("manualRequired")
+            : (workflowHints.isEmpty() ? QStringLiteral("none") : QStringLiteral("hint")));
+        selection.insert(QStringLiteral("selectionRationale"), selection.value(QStringLiteral("summary")).toString());
         selection.insert(QStringLiteral("effectiveTools"), effective);
         selection.insert(QStringLiteral("selectionSource"),
-            aiSelectionReady ? QStringLiteral("ai") : QStringLiteral("deterministic-catalog-logic"));
-        selection.insert(QStringLiteral("ready"), !effective.isEmpty() || !workflowIds.isEmpty());
+            aiSelectionReady ? QStringLiteral("ai") : QStringLiteral("full-capability-fallback"));
+        selection.insert(QStringLiteral("ready"), !effective.isEmpty() || !activeWorkflowIds.isEmpty() || !workflowHints.isEmpty());
         callback(selection);
     };
 
@@ -221,8 +286,10 @@ void ToolWorkflowAgent::run(
     jsonRequest.kind = QStringLiteral("BricsCadPreparation-tools-workflows");
     jsonRequest.systemInstruction = QStringLiteral(
         "Du bist der Tool-und-Workflow-Agent fuer BricsCAD. "
-        "Waehle nur Namen aus den gelieferten Listen. Eine manuelle Workflow-Auswahl hat Vorrang. "
-        "Hoestens sechs Tools und drei Workflows. Keine CAD-Aktion, keine Erklaerung ausser summary.");
+        "Waehle nur Namen aus den gelieferten Listen. Der Nutzerprompt ist primaer. Eine manuelle Workflow-Auswahl hat Vorrang. "
+        "Automatische Workflow-Treffer sind nur Hinweise und duerfen den Prompt nicht ersetzen. Ein manuell gewaehlter Workflow ist verbindlich. "
+        "Waehle frei die fuer Prompt und relevanten Verlauf sinnvollen Tools; Qt ersetzt deine Auswahl nicht durch Keywordregeln. "
+        "Hoestens zwoelf Tools und drei Workflow-Kandidaten. Keine CAD-Aktion, keine Erklaerung ausser summary.");
     jsonRequest.input = input;
     jsonRequest.requiredFields = {
         QStringLiteral("schema"),

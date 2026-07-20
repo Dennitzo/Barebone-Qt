@@ -39,16 +39,6 @@ QJsonObject findFloorPlanWorkflow(
             return workflow;
         }
     }
-    const QStringList localIds = BricsCadAgentUtils::localWorkflowSelection(request.workflowIndex, request.prompt, 1);
-    for (const QString& id : localIds) {
-        if (!loader) {
-            continue;
-        }
-        const QJsonObject workflow = loader(id);
-        if (isFloorPlanWorkflow(workflow)) {
-            return workflow;
-        }
-    }
     return {};
 }
 
@@ -592,14 +582,20 @@ void CalculationAgent::run(
         workflows.append(compactWorkflowCapsule(value.toObject()));
     }
     if (workflows.isEmpty()) {
-        for (const QString& id : BricsCadAgentUtils::localWorkflowSelection(request.workflowIndex, request.prompt, 2)) {
-            if (workflowLoader) {
-                const QJsonObject workflow = workflowLoader(id);
-                if (!workflow.isEmpty()) {
-                    workflows.append(compactWorkflowCapsule(workflow));
-                }
-            }
-        }
+        callback(QJsonObject{
+            {QStringLiteral("schema"), QStringLiteral("barebone.agent.calculation.v1")},
+            {QStringLiteral("ready"), true},
+            {QStringLiteral("readyForExecution"), false},
+            {QStringLiteral("workflowIdUsed"), QString()},
+            {QStringLiteral("values"), QJsonArray{}},
+            {QStringLiteral("steps"), QJsonArray{
+                QStringLiteral("Keine autoritative Workflow-Berechnung erforderlich.")
+            }},
+            {QStringLiteral("missing"), QJsonArray{}},
+            {QStringLiteral("uncertainties"), QJsonArray{}},
+            {QStringLiteral("source"), QStringLiteral("no-authoritative-workflow")},
+        });
+        return;
     }
 
     LocalAiAgentRuntime::JsonRequest jsonRequest;

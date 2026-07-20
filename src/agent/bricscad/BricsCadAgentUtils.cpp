@@ -6,16 +6,41 @@
 #include <QVector>
 
 #include <algorithm>
+#include <initializer_list>
 
 namespace BricsCadAgentUtils {
 
 QString normalizedSearchText(QString text)
 {
+    const auto replaceSequence = [&text](std::initializer_list<ushort> codePoints, const QString& replacement) {
+        QString sequence;
+        for (const ushort codePoint : codePoints) {
+            sequence.append(QChar(codePoint));
+        }
+        text.replace(sequence, replacement);
+    };
+    replaceSequence({0x00C3, 0x00A4}, QStringLiteral("ae"));
+    replaceSequence({0x00C3, 0x00B6}, QStringLiteral("oe"));
+    replaceSequence({0x00C3, 0x00BC}, QStringLiteral("ue"));
+    replaceSequence({0x00C3, 0x0084}, QStringLiteral("ae"));
+    replaceSequence({0x00C3, 0x0096}, QStringLiteral("oe"));
+    replaceSequence({0x00C3, 0x009C}, QStringLiteral("ue"));
+    replaceSequence({0x00C3, 0x009F}, QStringLiteral("ss"));
+    text.replace(QStringLiteral("Ã¤"), QStringLiteral("ae"));
+    text.replace(QStringLiteral("Ã¶"), QStringLiteral("oe"));
+    text.replace(QStringLiteral("Ã¼"), QStringLiteral("ue"));
+    text.replace(QStringLiteral("Ã„"), QStringLiteral("ae"));
+    text.replace(QStringLiteral("Ã–"), QStringLiteral("oe"));
+    text.replace(QStringLiteral("Ãœ"), QStringLiteral("ue"));
+    text.replace(QStringLiteral("ÃŸ"), QStringLiteral("ss"));
     text = text.toLower();
     text.replace(QStringLiteral("\r\n"), QStringLiteral("\n"));
     text.replace(QChar(0x00E4), QStringLiteral("ae"));
+    text.replace(QChar(0x00C4), QStringLiteral("ae"));
     text.replace(QChar(0x00F6), QStringLiteral("oe"));
+    text.replace(QChar(0x00D6), QStringLiteral("oe"));
     text.replace(QChar(0x00FC), QStringLiteral("ue"));
+    text.replace(QChar(0x00DC), QStringLiteral("ue"));
     text.replace(QChar(0x00DF), QStringLiteral("ss"));
     text.replace(QRegularExpression(QStringLiteral("[^a-z0-9_./:+\\-\\s]+")), QStringLiteral(" "));
     text.replace(QRegularExpression(QStringLiteral("\\s+")), QStringLiteral(" "));
@@ -41,16 +66,41 @@ bool textMentionsAny(const QString& normalizedText, const QStringList& needles)
     return false;
 }
 
-QStringList stringsFromJsonArray(const QJsonArray& values)
+QStringList stringsFromJsonArray(const QJsonArray& values, int maxCount)
 {
     QStringList strings;
     for (const QJsonValue& value : values) {
+        if (maxCount > 0 && strings.size() >= maxCount) {
+            break;
+        }
         const QString text = value.toString().trimmed();
         if (!text.isEmpty() && !strings.contains(text)) {
             strings.append(text);
         }
     }
     return strings;
+}
+
+bool isWorkflowSelectionStopWord(const QString& token)
+{
+    static const QSet<QString> stopWords{
+        QStringLiteral("und"), QStringLiteral("oder"), QStringLiteral("der"),
+        QStringLiteral("die"), QStringLiteral("das"), QStringLiteral("mit"),
+        QStringLiteral("fuer"), QStringLiteral("fuer"), QStringLiteral("eine"),
+        QStringLiteral("einen"), QStringLiteral("einem"), QStringLiteral("einer"),
+        QStringLiteral("alle"), QStringLiteral("neue"), QStringLiteral("neuen"),
+        QStringLiteral("neuer"), QStringLiteral("neu"), QStringLiteral("namens"),
+        QStringLiteral("name"), QStringLiteral("nur"), QStringLiteral("bitte"),
+        QStringLiteral("erstelle"), QStringLiteral("erstellen"), QStringLiteral("zeichne"),
+        QStringLiteral("zeichnen"), QStringLiteral("anlegen"), QStringLiteral("lege"),
+        QStringLiteral("mach"), QStringLiteral("mache"), QStringLiteral("nutze"),
+        QStringLiteral("verwende"), QStringLiteral("fuehre"), QStringLiteral("ausfuehren"),
+        QStringLiteral("ausfuehrung"), QStringLiteral("anwenden"), QStringLiteral("starte"),
+        QStringLiteral("starten"), QStringLiteral("workflow"), QStringLiteral("layer"),
+        QStringLiteral("layers"), QStringLiteral("ebene"), QStringLiteral("create"),
+        QStringLiteral("query"), QStringLiteral("measurement"), QStringLiteral("geometry"),
+    };
+    return stopWords.contains(token);
 }
 
 QJsonArray stringsToJsonArray(const QStringList& values)
@@ -92,6 +142,37 @@ QStringList routeWorkflowIds(const QJsonObject& route, int maxCount)
         }
     }
     return ids;
+}
+
+bool promptExplicitlyRequestsWorkflowExecution(const QString& prompt)
+{
+    const QString normalized = normalizedSearchText(prompt);
+    const bool mentionsWorkflow = textMentionsAny(normalized, {
+        QStringLiteral("workflow"),
+        QStringLiteral("workflows"),
+        QStringLiteral("ablauf"),
+        QStringLiteral("vorlage"),
+        QStringLiteral("template"),
+    });
+    if (!mentionsWorkflow) {
+        return false;
+    }
+    return textMentionsAny(normalized, {
+        QStringLiteral("ausfuehr"),
+        QStringLiteral("ausfuehren"),
+        QStringLiteral("anwenden"),
+        QStringLiteral("wende an"),
+        QStringLiteral("starten"),
+        QStringLiteral("starte"),
+        QStringLiteral("durchfuehr"),
+        QStringLiteral("umsetzen"),
+        QStringLiteral("setze um"),
+        QStringLiteral("nutze"),
+        QStringLiteral("verwende"),
+        QStringLiteral("run"),
+        QStringLiteral("execute"),
+        QStringLiteral("apply"),
+    });
 }
 
 bool capabilityMethodAvailable(const QJsonObject& method)
@@ -276,7 +357,7 @@ QStringList localWorkflowSelection(const QJsonArray& compactWorkflows, const QSt
         const QString haystack = workflowSearchText(workflow);
         int score = 0;
         for (const QString& token : normalizedPrompt.split(QLatin1Char(' '), Qt::SkipEmptyParts)) {
-            if (token.size() < 3) {
+            if (token.size() < 3 || isWorkflowSelectionStopWord(token)) {
                 continue;
             }
             if (haystack.contains(token)) {
@@ -287,7 +368,7 @@ QStringList localWorkflowSelection(const QJsonArray& compactWorkflows, const QSt
         if (!title.isEmpty() && normalizedPrompt.contains(title.left(std::min<int>(18, static_cast<int>(title.size()))))) {
             score += 8;
         }
-        if (score > 0) {
+        if (score >= 3) {
             scored.append(ScoredWorkflow{id, score});
         }
     }

@@ -6,6 +6,15 @@ project(BareboneQt
     LANGUAGES CXX
 )
 
+enable_testing()
+find_program(NODE_EXECUTABLE NAMES node node.exe)
+if(NODE_EXECUTABLE)
+    add_test(
+        NAME bricscad_agent_pipeline
+        COMMAND "${NODE_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tools/check-bricscad-agent-pipeline.js"
+    )
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)

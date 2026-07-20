@@ -10,10 +10,11 @@ namespace BricsCadAgentUtils {
 QString normalizedSearchText(QString text);
 QString workflowSlug(QString text);
 bool textMentionsAny(const QString& normalizedText, const QStringList& needles);
-QStringList stringsFromJsonArray(const QJsonArray& values);
+QStringList stringsFromJsonArray(const QJsonArray& values, int maxCount = 0);
 QJsonArray stringsToJsonArray(const QStringList& values);
 QStringList toolNamesForLog(const QJsonArray& tools, int maxCount = 24);
 QStringList routeWorkflowIds(const QJsonObject& route, int maxCount = 3);
+bool promptExplicitlyRequestsWorkflowExecution(const QString& prompt);
 
 bool capabilityMethodAvailable(const QJsonObject& method);
 bool capabilitiesContainMethod(const QJsonObject& capabilities, const QString& methodName);

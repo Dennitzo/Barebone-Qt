@@ -46,6 +46,7 @@ private:
         QJsonObject pendingProposal;
         QJsonObject pendingDraft;
         QJsonObject lastToolResult;
+        QJsonObject lastBricsCadExecution;
     };
 
     struct ContextBuildResult {
@@ -92,6 +93,8 @@ private:
         const QString& sessionTitle = QString());
     void saveGeneralWorkflowFromMessage(const QString& messageId, const QString& messageText, const QString& sessionTitle);
     void saveBricsCadWorkflowFromSession(const QString& sessionTitle, int retryCount = 0, const QString& validationError = {}, const QString& rejectedContent = {});
+    void saveBricsCadWorkflowFromExecution(const QString& messageId, const QString& sessionTitle);
+    void saveBricsCadWorkflowFromLastExecution(const QString& sessionTitle);
     QJsonObject workflowSaveCompressedTitleContext(const QString& selectedMessageText, const QString& sessionTitle) const;
     bool saveGeneralWorkflowFinalDraft(QString* savedPath = nullptr, QString* errorMessage = nullptr);
     void handleWorkflowTrainingReply(const QString& content);
@@ -156,6 +159,11 @@ private:
     QJsonObject compactConversationHistoryMessage(int index, bool fullText, int maxChars = 2200) const;
     QJsonArray conversationHistoryMessagesRange(int start, int count, bool fullText) const;
     void handleAgentReply(const QString& content);
+    void processAgentProposal(
+        const QString& rejectedContent,
+        const QJsonObject& rejectedReply,
+        QJsonObject proposal,
+        const QString& sessionTitleSuggestion);
     bool retryAgentAfterValidationFailure(const QString& rejectedContent, const QJsonObject& rejectedObject, const QString& errorMessage);
     void discardLastAssistantConversation(const QString& content);
     QJsonObject normalizedAgentProposal(const QJsonObject& proposal) const;
@@ -174,6 +182,13 @@ private:
     void continueAgentAfterToolFailure(const QJsonObject& proposal, const QJsonObject& response, const QString& errorMessage);
     void executeAgentProposal();
     void executeAgentActionBatch(const QJsonObject& proposal, const QJsonArray& actions, int index, QJsonArray results);
+    void clearLastBricsCadExecution();
+    void recordLastBricsCadExecution(const QJsonObject& proposal, const QJsonArray& plannedActions, const QJsonArray& results, const QJsonObject& batchResult);
+    QJsonObject bricsCadExecutionForMessage(const QString& messageId) const;
+    QJsonObject latestBricsCadExecutionFromConversation() const;
+    QVariantMap bricsCadExecutionMessageExtra() const;
+    QJsonObject workflowFromBricsCadExecution(const QJsonObject& execution, const QString& sessionTitle, QString* errorMessage = nullptr) const;
+    QJsonObject workflowFromLastBricsCadExecution(const QString& sessionTitle, QString* errorMessage = nullptr) const;
     void requestAgentExecutionSummary(const QJsonObject& proposal, const QJsonArray& actions, const QJsonArray& results, const QJsonObject& batchResult, const QString& fallbackSummary);
     void appendAgentChat(const QString& speaker, const QString& message, const QVariantMap& extra = {});
     void clearAgentProposal();
@@ -193,6 +208,7 @@ private:
     QJsonArray availableAgentToolsForRoute(const QJsonObject& route, const QString& prompt) const;
     QJsonArray compactWorkflowSelectorList() const;
     QJsonArray selectedWorkflowObjectsForRoute(const QJsonObject& route) const;
+    QJsonArray workflowHintObjectsForRoute(const QJsonObject& route) const;
     QJsonArray readOnlyMethodsForRoute(const QJsonObject& route) const;
     QJsonObject toolDefinition(const QString& name) const;
     QString bridgeMethodForTool(const QString& name) const;
@@ -287,6 +303,7 @@ private:
     QJsonObject m_pendingAgentProposal;
     QJsonObject m_pendingAgentDraft;
     QJsonObject m_lastAgentToolResult;
+    QJsonObject m_lastBricsCadExecution;
     QStringList m_agentRejectedResponseSignatures;
     QVector<DeferredAgentPrompt> m_deferredAgentPrompts;
     QJsonArray m_trainingConversation;

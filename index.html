@@ -2875,6 +2875,7 @@
     let selectedWorkflow = null;
     let workflowPreview = null;
     let pendingWorkflowSessionOpenMode = "";
+    let pendingWorkflowSessionLoadKey = "";
     let pendingOverlayWorkflowDeleteId = "";
     let applyingClientState = false;
     let clientStateHydrated = false;
@@ -3341,6 +3342,12 @@
     }
 
     function workflowHasLoadedContent(workflow) {
+      const hasObjectKeys = (value) => !!(
+        value
+        && typeof value === "object"
+        && !Array.isArray(value)
+        && Object.keys(value).length > 0
+      );
       return !!(
         workflow
         && typeof workflow === "object"
@@ -3351,9 +3358,28 @@
           || Array.isArray(workflow.examples)
           || Array.isArray(workflow.assumptions)
           || Array.isArray(workflow.warnings)
+          || Array.isArray(workflow.steps)
+          || Array.isArray(workflow.executionBatches)
+          || Array.isArray(workflow.constructionStrategy)
+          || Array.isArray(workflow.derivedValues)
+          || Array.isArray(workflow.triggerExamples)
+          || Array.isArray(workflow.validationExamples)
+          || Array.isArray(workflow.commandTemplates)
+          || Array.isArray(workflow.readbacks)
+          || hasObjectKeys(workflow.optionalSlots)
+          || hasObjectKeys(workflow.knownSlotValues)
+          || hasObjectKeys(workflow.valueResolution)
+          || hasObjectKeys(workflow.requiredRuntimeContext)
           || String(workflow.contextSummary || "").trim()
         )
       );
+    }
+
+    function workflowSessionLoadKey(mode, workflowOrId) {
+      const id = typeof workflowOrId === "string"
+        ? workflowOrId
+        : (workflowOrId && typeof workflowOrId === "object" ? workflowOrId.id : "");
+      return `${mode}:${String(id || "").trim()}`;
     }
 
     function isGeneralWorkflowSession(session = activeSession()) {
@@ -3765,6 +3791,7 @@
       const executeInBricsCad = isBrxLearningWorkspace();
       const workflowToExecute = normalizeWorkflow(workflowPreview);
       pendingWorkflowSessionOpenMode = isGeneralWorkflowWorkspace() ? "general" : "bricscad";
+      pendingWorkflowSessionLoadKey = workflowSessionLoadKey(pendingWorkflowSessionOpenMode, workflowToExecute);
       if (bridge && typeof bridge.selectWorkflow === "function") {
         bridge.selectWorkflow(workflowToExecute.id);
       } else {
@@ -5236,21 +5263,31 @@
       };
     }
 
-    function sessionsForStorage(sourceSessions, { includeProposals = true } = {}) {
+    function proposalStorageSignature(proposal) {
+      const stored = normalizedProposalForStorage(proposal);
+      return stored ? JSON.stringify(stored) : "";
+    }
+
+    function sessionsForStorage(sourceSessions, { includeProposals = false } = {}) {
       const storedSessions = cloneJson(sourceSessions) || [];
-      if (!includeProposals) {
-        storedSessions.forEach((session) => {
-          if (session && typeof session === "object") {
-            session.proposal = null;
-          }
-        });
-      }
+      storedSessions.forEach((session) => {
+        if (!session || typeof session !== "object") {
+          return;
+        }
+        if (!includeProposals) {
+          session.proposal = null;
+          session.activeProposalMessageId = "";
+        }
+        if (Array.isArray(session.messages)) {
+          session.messages = session.messages.filter((message) => message?.kind !== "proposal_context");
+        }
+      });
       return storedSessions;
     }
 
     function snapshotCurrentWorkspace() {
       workspaceStates[activeWorkspace] = {
-        sessions: sessionsForStorage(sessions),
+        sessions: sessionsForStorage(sessions, { includeProposals: false }),
         activeSessionId,
         chatCounter,
         chatMode,
@@ -5894,16 +5931,41 @@
       if (message.kind && message.kind !== "thinking") {
         normalized.kind = String(message.kind);
       }
+      if (message.kind === "proposal_context") {
+        normalized.kind = "proposal_context";
+        normalized.proposal = normalizedProposalForStorage(message.proposal || message);
+        normalized.proposalActive = !!message.proposalActive;
+        normalized.proposalSignature = String(message.proposalSignature || proposalStorageSignature(normalized.proposal));
+      }
       if (message.kind === "thinking") {
         normalized.kind = "thinking";
         normalized.thinkingDetails = Array.isArray(message.thinkingDetails)
           ? message.thinkingDetails.map((item) => germanizeText(String(item || "")).trim()).filter(Boolean)
           : [];
-        normalized.thinkingCollapsed = !!message.thinkingCollapsed;
+        normalized.thinkingCollapsed = false;
       }
       if (message.continuationAvailable) {
         normalized.continuationAvailable = true;
         normalized.continuationReason = String(message.continuationReason || "");
+      }
+      const executionId = String(message.bricsCadExecutionId || "").trim();
+      const executionRecord = message.bricsCadExecutionRecord && typeof message.bricsCadExecutionRecord === "object"
+        ? cloneJson(message.bricsCadExecutionRecord)
+        : null;
+      if (executionId || executionRecord) {
+        normalized.bricsCadExecutionId = executionId || String(executionRecord?.executionId || "").trim();
+      }
+      if (executionRecord) {
+        normalized.bricsCadExecutionRecord = executionRecord;
+      }
+      if (message.workflowSaveEligible || executionRecord?.saveEligible) {
+        normalized.workflowSaveEligible = true;
+      }
+      if (message.workflowSavedId) {
+        normalized.workflowSavedId = String(message.workflowSavedId);
+      }
+      if (message.workflowSavedPath) {
+        normalized.workflowSavedPath = String(message.workflowSavedPath);
       }
       const sessionTitleSuggestion = compactSessionTitleText(message.sessionTitleSuggestion || message.sessionTitle || "");
       if (sessionTitleSuggestion) {
@@ -5937,7 +5999,7 @@
       const fallback = createSession(index === 0 ? "BricsCAD AI Assistent" : `Neuer Chat ${index + 1}`);
       const sessionTrainingMode = false;
       const rawMessages = Array.isArray(session.messages) && session.messages.length
-        ? session.messages.map(normalizeMessage)
+        ? session.messages.filter((message) => message?.kind !== "proposal_context").map(normalizeMessage)
         : fallback.messages;
       const messages = sessionTrainingMode
         ? rawMessages.filter((message) => !(
@@ -5962,7 +6024,8 @@
         userNamed: !!session.userNamed,
         latestAiMessageId,
         messages,
-        proposal: session.proposal || null
+        proposal: null,
+        activeProposalMessageId: ""
       };
     }
 
@@ -6029,6 +6092,27 @@
       return session;
     }
 
+    function proposalContextText(message) {
+      const proposal = normalizedProposalForStorage(message?.proposal || message) || {};
+      const lines = [];
+      const title = germanizeText(proposal.title || "");
+      const summary = germanizeText(proposal.summary || "");
+      const details = germanizeText(proposal.details || "");
+      if (title) {
+        lines.push(`[BricsCAD Vorschlag] ${title}`);
+      } else {
+        lines.push("[BricsCAD Vorschlag]");
+      }
+      if (summary) {
+        lines.push(summary);
+      }
+      if (details) {
+        lines.push(details);
+      }
+      lines.push(proposal.canRun !== false ? "Status: ausfuehrbarer Vorschlag angezeigt." : "Status: Rueckfrage angezeigt.");
+      return lines.join("\n").trim();
+    }
+
     function backendHistory(session) {
       const workflowForHistory = () => {
         const workflowId = String(session?.workflowId || "").trim();
@@ -6038,13 +6122,30 @@
       return session.messages
         .filter((message) => (message.speaker === "Du" || message.speaker === "AI")
           && message.kind !== "thinking"
+          && message.kind !== "proposal_context"
           && !(isBricsCadWorkspace() && message.kind === "workflow_context"))
         .map((message) => {
           const workflow = message.kind === "workflow_context" ? workflowForHistory() : null;
-          return {
-            speaker: message.speaker,
-            message: workflow ? workflowCompactMarkdownForChat(workflow) : message.message
+          const proposalContext = message.kind === "proposal_context";
+          const item = {
+            speaker: proposalContext ? "AI" : message.speaker,
+            message: proposalContext
+              ? proposalContextText(message)
+              : (workflow ? workflowCompactMarkdownForChat(workflow) : message.message)
           };
+          if (message.messageId) {
+            item.messageId = message.messageId;
+          }
+          if (message.bricsCadExecutionId) {
+            item.bricsCadExecutionId = message.bricsCadExecutionId;
+          }
+          if (message.workflowSaveEligible) {
+            item.workflowSaveEligible = true;
+          }
+          if (message.bricsCadExecutionRecord && typeof message.bricsCadExecutionRecord === "object") {
+            item.bricsCadExecutionRecord = cloneJson(message.bricsCadExecutionRecord);
+          }
+          return item;
         });
     }
 
@@ -6243,7 +6344,7 @@
           && (normalizedCommand === "workflow speichern" || normalizedCommand === "save workflow")) {
         showThinkingIndicator();
         addThinkingDetail(isBricsCadWorkspace()
-          ? "Ich konsolidiere den vollständigen Sitzungsverlauf zu einem geprüften BricsCAD-Batch-Workflow."
+          ? "Ich speichere die markierte BricsCAD-Ausführung als geprüften Batch-Workflow."
           : t("workflowSaveThinking"), { key: "workflow-save" });
         const messageText = messageTextById(messageId);
         if (typeof bridge.saveMessageAsWorkflow === "function") {
@@ -6301,6 +6402,9 @@
       if (isInitialAssistantGreeting(message)) {
         return false;
       }
+      if (isBricsCadWorkspace()) {
+        return !!(message?.workflowSaveEligible && (message?.bricsCadExecutionId || message?.bricsCadExecutionRecord));
+      }
       return germanizeText(String(message?.message || "")).trim().length > 0;
     }
 
@@ -6310,18 +6414,20 @@
         footer.classList.remove("has-workflow-actions");
       });
       const candidates = Array.from(messages.querySelectorAll(".message.assistant[data-workflow-footer-eligible=\"true\"]:not(.thinking-indicator)"));
-      const lastAssistant = candidates[candidates.length - 1];
-      if (!lastAssistant) {
+      const footerTargets = isBricsCadWorkspace() ? candidates : candidates.slice(-1);
+      if (!footerTargets.length) {
         return;
       }
-      const footer = lastAssistant.querySelector(".message-footer");
-      if (!footer) {
-        return;
-      }
-      footer.classList.add("has-workflow-actions");
-      const messageId = lastAssistant.dataset.messageId || "";
-      footer.appendChild(createWorkflowFooterLink(t("saveWorkflow"), "Workflow speichern", messageId));
-      footer.appendChild(createWorkflowFooterLink(t("jumpToStart"), "Zum Anfang springen", messageId));
+      footerTargets.forEach((messageElement) => {
+        const footer = messageElement.querySelector(".message-footer");
+        if (!footer) {
+          return;
+        }
+        footer.classList.add("has-workflow-actions");
+        const messageId = messageElement.dataset.messageId || "";
+        footer.appendChild(createWorkflowFooterLink(t("saveWorkflow"), "Workflow speichern", messageId));
+        footer.appendChild(createWorkflowFooterLink(t("jumpToStart"), "Zum Anfang springen", messageId));
+      });
     }
 
     function splitMarkdownTableRow(line) {
@@ -7536,6 +7642,10 @@
         renderThinkingMessage(message, options);
         return;
       }
+      if (message.kind === "proposal_context") {
+        renderProposalMessage(message, options);
+        return;
+      }
 
       const speaker = message.speaker;
       const text = message.message;
@@ -7760,6 +7870,7 @@
           spinner.removeAttribute("aria-hidden");
         }
 
+        const keepDetailsOpen = true;
         const toggle = indicator.querySelector(".thinking-toggle");
         if (toggle) {
           const label = toggle.querySelector("span");
@@ -7767,12 +7878,12 @@
             label.textContent = t("thought");
           }
           toggle.setAttribute("aria-label", t("thought"));
-          toggle.setAttribute("aria-expanded", collapseDetails ? "false" : "true");
+          toggle.setAttribute("aria-expanded", keepDetailsOpen ? "true" : "false");
         }
 
         const details = indicator.querySelector(".thinking-details");
-        if (details && collapseDetails) {
-          details.classList.remove("open");
+        if (details) {
+          details.classList.toggle("open", keepDetailsOpen);
         }
 
         indicator.classList.remove("thinking-indicator");
@@ -7783,7 +7894,7 @@
             time: nowTime(),
             kind: "thinking",
             thinkingDetails: persistedDetails,
-            thinkingCollapsed: !!collapseDetails
+            thinkingCollapsed: false
           });
           persistSessions();
         }
@@ -7951,9 +8062,9 @@
       if (isDuplicateTrainingIntro(normalized)) {
         return;
       }
-      const collapseThinking = pendingExecutionSummary && normalized.speaker === "AI";
-      completeThinkingIndicator({ collapseDetails: collapseThinking });
-      if (collapseThinking) {
+      const completesExecutionThinking = pendingExecutionSummary && normalized.speaker === "AI";
+      completeThinkingIndicator();
+      if (completesExecutionThinking) {
         pendingExecutionSummary = false;
       }
       const record = options.record !== false;
@@ -7977,7 +8088,9 @@
         removeInlineProposal();
       }
       renderMessage(normalized);
-      if (currentProposal && (!proposalInline || !proposalInline.isConnected)) {
+      if (currentProposal
+          && !activeSession().activeProposalMessageId
+          && (!proposalInline || !proposalInline.isConnected)) {
         renderProposal(currentProposal);
       }
     }
@@ -7990,23 +8103,20 @@
       if (isBusy) {
         showThinkingIndicator();
       } else {
+        // Terminal Qt signals can arrive after a proposal/message was rendered.
+        // Finalize or remove any transient indicator left by that signal order.
+        completeThinkingIndicator();
         requestAnimationFrame(() => input.focus());
       }
     }
 
-    function renderProposal(proposal) {
-      proposalPanel.classList.remove("visible");
-      proposalDetails.textContent = "";
-      removeInlineProposal();
-
-      if (!proposal) {
-        return;
-      }
-
-      completeThinkingIndicator();
-
+    function renderProposalCard(proposal, options = {}) {
+      const parent = options.parent || messages;
       const article = document.createElement("article");
       article.className = "message system inline-proposal";
+      if (options.messageId) {
+        article.dataset.messageId = options.messageId;
+      }
 
       const avatar = document.createElement("div");
       avatar.className = "assistant-avatar";
@@ -8076,19 +8186,58 @@
         confirm.className = "confirm-btn";
         confirm.type = "button";
         confirm.textContent = t("execute");
-        confirm.addEventListener("click", () => {
-          if (bridge) {
-            bridge.confirmProposal();
-          }
-        });
+        if (options.interactive) {
+          confirm.addEventListener("click", () => {
+            if (bridge) {
+              bridge.confirmProposal();
+            }
+          });
+        } else {
+          confirm.disabled = true;
+          confirm.setAttribute("aria-disabled", "true");
+          confirm.title = uiLanguage === "en" ? "Historical context" : "Historischer Kontext";
+        }
         actions.appendChild(confirm);
       }
       card.appendChild(actions);
       bubble.appendChild(card);
       article.appendChild(bubble);
-      proposalInline = article;
-      messages.appendChild(article);
-      messages.scrollTop = messages.scrollHeight;
+      parent.appendChild(article);
+      if (!options.deferScroll) {
+        messages.scrollTop = messages.scrollHeight;
+      }
+      return article;
+    }
+
+    function renderProposalMessage(message, options = {}) {
+      const proposal = normalizedProposalForStorage(message.proposal || message);
+      if (!proposal) {
+        return;
+      }
+      const session = activeSession();
+      const interactive = !!(message.proposalActive
+        && session.proposal
+        && session.activeProposalMessageId
+        && session.activeProposalMessageId === message.messageId);
+      renderProposalCard(proposal, {
+        parent: options.parent || messages,
+        messageId: message.messageId || "",
+        interactive,
+        deferScroll: options.deferScroll
+      });
+    }
+
+    function renderProposal(proposal) {
+      proposalPanel.classList.remove("visible");
+      proposalDetails.textContent = "";
+      removeInlineProposal();
+
+      if (!proposal) {
+        return;
+      }
+
+      completeThinkingIndicator();
+      proposalInline = renderProposalCard(proposal, { interactive: true });
     }
 
     function removeInlineProposal() {
@@ -8096,6 +8245,14 @@
         proposalInline.remove();
       }
       proposalInline = null;
+    }
+
+    function disableProposalContextButtons() {
+      messages.querySelectorAll(".message.inline-proposal .confirm-btn").forEach((button) => {
+        button.disabled = true;
+        button.setAttribute("aria-disabled", "true");
+        button.title = uiLanguage === "en" ? "Historical context" : "Historischer Kontext";
+      });
     }
 
     function removeWorkflowSavePrompt() {
@@ -8204,23 +8361,32 @@
       if (proposal && proposal.sessionTitleSuggestion) {
         applySessionTitleSuggestion(activeSessionId, String(proposal.sessionTitleSuggestion || ""), { persist: false, render: false });
       }
-      if (options.record !== false) {
-        activeSession().proposal = storedProposal;
-        persistSessions();
-      }
+      completeThinkingIndicator();
+      activeSession().proposal = storedProposal;
+      activeSession().activeProposalMessageId = "";
       renderProposal(storedProposal);
     }
 
     function clearProposal(options = {}) {
-      if (options.record !== false) {
-        activeSession().proposal = null;
-        persistSessions();
-      }
+      activeSession().proposal = null;
+      activeSession().activeProposalMessageId = "";
       renderProposal(null);
     }
 
-    function renderActiveSession() {
-      clearThinkingIndicator();
+    function renderActiveSession({ showBusyIndicator = true } = {}) {
+      const liveThinkingIndicator = isBusy
+        && thinkingIndicator
+        && thinkingIndicator.isConnected
+        ? thinkingIndicator
+        : null;
+      if (liveThinkingIndicator) {
+        // Keep the exact node (spinner, details and keyed slot rows) alive across
+        // unavoidable session renders. Removing it from the DOM does not reset
+        // the in-memory references used by asynchronous progress updates.
+        liveThinkingIndicator.remove();
+      } else {
+        clearThinkingIndicator();
+      }
       resetMathVisibilityObserver();
       workflowSavePromptInline = null;
       workflowSavePromptSignature = "";
@@ -8238,8 +8404,12 @@
       messages.querySelectorAll(".message[data-math-pending=\"true\"]").forEach((element) => {
         typesetMath(element, { defer: true });
       });
-      renderProposal(session.proposal);
-      if (isBusy) {
+      if (!isBusy) {
+        renderProposal(session.proposal && !session.activeProposalMessageId ? session.proposal : null);
+      }
+      if (liveThinkingIndicator) {
+        messages.appendChild(liveThinkingIndicator);
+      } else if (isBusy && showBusyIndicator) {
         showThinkingIndicator();
       }
       updateLastAiWorkflowFooterActions();
@@ -8374,21 +8544,16 @@
       trainingMode = false;
       selectedWorkflow = normalizeWorkflow(workflow);
       if (!workflowHasLoadedContent(selectedWorkflow)) {
-        pendingWorkflowSessionOpenMode = "general";
-        if (bridge && typeof bridge.selectWorkflow === "function") {
+        const loadKey = workflowSessionLoadKey("general", selectedWorkflow);
+        if (pendingWorkflowSessionLoadKey !== loadKey && bridge && typeof bridge.selectWorkflow === "function") {
+          pendingWorkflowSessionOpenMode = "general";
+          pendingWorkflowSessionLoadKey = loadKey;
           bridge.selectWorkflow(selectedWorkflow.id);
-        } else {
-          addMessage({
-            speaker: "Barebone-Qt",
-            message: uiLanguage === "en"
-              ? "Workflow cannot be loaded because the Qt bridge is not ready."
-              : "Workflow kann nicht geladen werden, weil die Qt Bridge nicht bereit ist.",
-            time: nowTime()
-          }, { record: false });
+          input.focus();
+          return;
         }
-        input.focus();
-        return;
       }
+      pendingWorkflowSessionLoadKey = "";
       const session = createSession(selectedWorkflow.title, "general", {
         includeGreeting: false,
         kind: "general_workflow",
@@ -8431,13 +8596,16 @@
       trainingMode = false;
       selectedWorkflow = normalizeWorkflow(workflow);
       if (!workflowHasLoadedContent(selectedWorkflow)) {
-        pendingWorkflowSessionOpenMode = "bricscad";
-        if (bridge && typeof bridge.selectWorkflow === "function") {
+        const loadKey = workflowSessionLoadKey("bricscad", selectedWorkflow);
+        if (pendingWorkflowSessionLoadKey !== loadKey && bridge && typeof bridge.selectWorkflow === "function") {
+          pendingWorkflowSessionOpenMode = "bricscad";
+          pendingWorkflowSessionLoadKey = loadKey;
           bridge.selectWorkflow(selectedWorkflow.id);
+          input.focus();
+          return;
         }
-        input.focus();
-        return;
       }
+      pendingWorkflowSessionLoadKey = "";
       const session = createSession(selectedWorkflow.title, "bricscad", {
         includeGreeting: false,
         kind: "bricscad_workflow",
@@ -8666,6 +8834,7 @@
       selectedWorkflow = null;
       workflowPreview = null;
       pendingWorkflowSessionOpenMode = "";
+      pendingWorkflowSessionLoadKey = "";
       if (bridge && typeof bridge.clearSelectedWorkflow === "function") {
         bridge.clearSelectedWorkflow();
       }

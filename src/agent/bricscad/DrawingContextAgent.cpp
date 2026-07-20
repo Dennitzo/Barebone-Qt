@@ -69,9 +69,34 @@ void DrawingContextAgent::run(
     const QJsonArray requests = plannedReadOnlyRequests(request.prompt, request.capabilities);
 
     auto summarize = [&runtime, callback = std::move(callback), request](const QJsonArray& results) mutable {
+        QJsonObject selectionFacts{
+            {QStringLiteral("queried"), false},
+            {QStringLiteral("available"), false},
+            {QStringLiteral("count"), 0},
+            {QStringLiteral("objects"), QJsonArray{}},
+        };
+        for (const QJsonValue& value : results) {
+            const QJsonObject entry = value.toObject();
+            if (entry.value(QStringLiteral("method")).toString() != QStringLiteral("selection.describe")) {
+                continue;
+            }
+            const QJsonObject result = entry.value(QStringLiteral("result")).toObject();
+            const QJsonArray objects = result.value(QStringLiteral("objects")).toArray();
+            selectionFacts = QJsonObject{
+                {QStringLiteral("queried"), true},
+                {QStringLiteral("available"), entry.value(QStringLiteral("ok")).toBool(false) && !objects.isEmpty()},
+                {QStringLiteral("count"), result.value(QStringLiteral("count")).toInt(objects.size())},
+                {QStringLiteral("objects"), objects},
+            };
+            if (entry.contains(QStringLiteral("error"))) {
+                selectionFacts.insert(QStringLiteral("error"), entry.value(QStringLiteral("error")));
+            }
+            break;
+        }
         const QJsonObject snapshot{
             {QStringLiteral("schema"), QStringLiteral("barebone.brx.parallel-drawing-snapshot.v1")},
             {QStringLiteral("requests"), results},
+            {QStringLiteral("selection"), selectionFacts},
         };
 
         if (results.isEmpty()) {
@@ -126,7 +151,7 @@ void DrawingContextAgent::run(
         jsonRequest.operationGeneration = request.operationGeneration;
         jsonRequest.bricsCadMode = request.bricsCadMode;
 
-        runtime.submitJson(jsonRequest, [callback = std::move(callback), results](const LocalAiAgentRuntime::JsonResult& result) mutable {
+        runtime.submitJson(jsonRequest, [callback = std::move(callback), results, selectionFacts](const LocalAiAgentRuntime::JsonResult& result) mutable {
             QJsonObject object;
             if (result.ok) {
                 object = result.object;
@@ -149,6 +174,9 @@ void DrawingContextAgent::run(
             if (object.value(QStringLiteral("summary")).toString().trimmed().isEmpty()) {
                 object.insert(QStringLiteral("summary"), QStringLiteral("Zeichnungskontext kompakt erfasst."));
             }
+            // Selection is authoritative BRX data and must never depend on the
+            // LLM summary preserving it.
+            object.insert(QStringLiteral("selection"), selectionFacts);
             callback(object);
         });
     };

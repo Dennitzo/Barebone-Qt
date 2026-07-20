@@ -179,14 +179,15 @@ QJsonArray BricsCadAgentCoordinator::selectedWorkflowObjectsForRequest(const Run
     if (!request.selectedWorkflow.isEmpty()) {
         appendWorkflow(request.selectedWorkflow);
     }
-    QStringList ids = BricsCadAgentUtils::routeWorkflowIds(request.route, 3);
-    ids.append(BricsCadAgentUtils::localWorkflowSelection(request.workflowIndex, request.prompt, 3));
-    for (const QString& id : ids) {
-        if (m_workflowLoader) {
-            appendWorkflow(m_workflowLoader(id));
-        }
-        if (workflows.size() >= 3) {
-            break;
+    if (!request.manualWorkflowId.trimmed().isEmpty()) {
+        const QStringList ids = BricsCadAgentUtils::routeWorkflowIds(request.route, 3);
+        for (const QString& id : ids) {
+            if (m_workflowLoader) {
+                appendWorkflow(m_workflowLoader(id));
+            }
+            if (workflows.size() >= 3) {
+                break;
+            }
         }
     }
     return workflows;
@@ -331,9 +332,31 @@ void BricsCadAgentCoordinator::finishSlot(
     finalRoute.insert(QStringLiteral("effectiveToolsSelected"), true);
     finalRoute.insert(QStringLiteral("effectiveTools"), toolSelection.value(QStringLiteral("effectiveTools")).toArray());
     finalRoute.insert(QStringLiteral("effectiveToolNames"), toolSelection.value(QStringLiteral("toolNames")));
-    if (!toolSelection.value(QStringLiteral("workflowIds")).toArray().isEmpty()
-        && finalRoute.value(QStringLiteral("selectedWorkflows")).toArray().isEmpty()) {
-        finalRoute.insert(QStringLiteral("selectedWorkflows"), toolSelection.value(QStringLiteral("workflowIds")));
+    finalRoute.insert(QStringLiteral("workflowHints"), toolSelection.value(QStringLiteral("workflowHints")).toArray());
+    finalRoute.insert(QStringLiteral("workflowSource"), toolSelection.value(QStringLiteral("workflowSource")).toString());
+    finalRoute.insert(QStringLiteral("activeWorkflowId"), toolSelection.value(QStringLiteral("activeWorkflowId")).toString());
+    finalRoute.insert(QStringLiteral("toolSelectionSource"), toolSelection.value(QStringLiteral("toolSelectionSource")).toString());
+    finalRoute.insert(QStringLiteral("selectedToolNames"), toolSelection.value(QStringLiteral("selectedToolNames")).toArray());
+    finalRoute.insert(QStringLiteral("workflowCandidates"), toolSelection.value(QStringLiteral("workflowCandidates")).toArray());
+    finalRoute.insert(QStringLiteral("workflowAuthority"), toolSelection.value(QStringLiteral("workflowAuthority")).toString());
+    finalRoute.insert(QStringLiteral("selectionRationale"), toolSelection.value(QStringLiteral("selectionRationale")).toString());
+    finalRoute.insert(QStringLiteral("selectionConfidence"), toolSelection.value(QStringLiteral("confidence")));
+    const QJsonArray activeWorkflowIds = toolSelection.value(QStringLiteral("workflowIds")).toArray();
+    if (activeWorkflowIds.isEmpty()) {
+        finalRoute.remove(QStringLiteral("selectedWorkflows"));
+    } else {
+        finalRoute.insert(QStringLiteral("selectedWorkflows"), activeWorkflowIds);
+    }
+    appendLog(QStringLiteral("AI Tool/Workflow Auswahl: activeWorkflow=%1 workflowSource=%2 workflowHints=%3 tools=%4 toolSource=%5")
+        .arg(finalRoute.value(QStringLiteral("activeWorkflowId")).toString().trimmed().isEmpty()
+                ? QStringLiteral("none")
+                : finalRoute.value(QStringLiteral("activeWorkflowId")).toString(),
+            finalRoute.value(QStringLiteral("workflowSource")).toString(QStringLiteral("none")),
+            BricsCadAgentUtils::stringsFromJsonArray(finalRoute.value(QStringLiteral("workflowHints")).toArray(), 6).join(QStringLiteral(",")),
+            BricsCadAgentUtils::stringsFromJsonArray(finalRoute.value(QStringLiteral("effectiveToolNames")).toArray(), 8).join(QStringLiteral(",")),
+            finalRoute.value(QStringLiteral("toolSelectionSource")).toString(QStringLiteral("unknown"))));
+    if (finalRoute.value(QStringLiteral("workflowSource")).toString() == QStringLiteral("hintOnly")) {
+        appendLog(QStringLiteral("AI Tool/Workflow Auswahl: Workflow nur Hint, nicht autoritativ"));
     }
 
     finalRoute.insert(QStringLiteral("preparedDrawingContext"), state->results.value(QStringLiteral("drawing")));

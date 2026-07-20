@@ -105,6 +105,16 @@ bool promptRequestsEntityRename(const QString& normalized)
         && !textContainsAny(normalized, {QStringLiteral("layer"), QStringLiteral("ebene")});
 }
 
+bool promptRequestsLayerCreation(const QString& normalized)
+{
+    return textContainsAny(normalized, {
+        QStringLiteral("layer"), QStringLiteral("layers"), QStringLiteral("ebene")})
+        && textContainsAny(normalized, {
+            QStringLiteral("layers.create"), QStringLiteral("erstelle"), QStringLiteral("erstellen"),
+            QStringLiteral("anlegen"), QStringLiteral("lege"), QStringLiteral("neue"),
+            QStringLiteral("neuen"), QStringLiteral("neuer"), QStringLiteral("create")});
+}
+
 bool promptAllowsBimWallClassification(const QString& normalized)
 {
     return textContainsAny(normalized, {
@@ -271,6 +281,28 @@ void enrichRuntimeTool(QJsonObject& tool)
         QStringLiteral("Erfinde keine zusaetzlichen Parameter ausserhalb des Schemas."),
         QStringLiteral("Mutierende BricsCAD-Datenbankzugriffe laufen nur ueber validierte BrxAgent/BRX-Tools."),
     });
+    if (name == QStringLiteral("geometry.create")) {
+        mergeStringArray(tool, QStringLiteral("agentHints"), QJsonArray{
+            QStringLiteral("Massangaben x/y/z bedeuten Breite/Laenge/Hoehe und sind als width/depth/height zu senden; x/y/z innerhalb von origin, point, position oder coordinates bleiben Koordinaten."),
+            QStringLiteral("Ein 2D-Rechteck verwendet origin, width und depth (alternativ length laut Vertrag), nicht widthMm/heightMm."),
+        });
+        tool.insert(QStringLiteral("dimensionSemantics"), QJsonObject{
+            {QStringLiteral("axes"), QJsonObject{
+                {QStringLiteral("x"), QStringLiteral("width")},
+                {QStringLiteral("y"), QStringLiteral("depth")},
+                {QStringLiteral("z"), QStringLiteral("height")},
+            }},
+            {QStringLiteral("coordinateContainers"), QJsonArray{
+                QStringLiteral("origin"), QStringLiteral("point"), QStringLiteral("position"),
+                QStringLiteral("coordinates"), QStringLiteral("center"), QStringLiteral("vector")}},
+            {QStringLiteral("rectangleExample"), QJsonObject{
+                {QStringLiteral("geometry"), QStringLiteral("rectangle")},
+                {QStringLiteral("origin"), QJsonObject{{QStringLiteral("x"), 0}, {QStringLiteral("y"), 0}, {QStringLiteral("z"), 0}}},
+                {QStringLiteral("width"), 1000},
+                {QStringLiteral("depth"), 1000},
+            }},
+        });
+    }
     if (!tool.contains(QStringLiteral("unsupportedOperations"))) {
         tool.insert(QStringLiteral("unsupportedOperations"), QJsonArray{});
     }
@@ -829,7 +861,11 @@ QJsonArray BrxAgent::compactToolIndex(const QJsonArray& tools)
 
         const QJsonArray hints = tool.value(QStringLiteral("agentHints")).toArray();
         if (!hints.isEmpty()) {
-            compact.insert(QStringLiteral("hints"), firstStrings(hints, 2, 120));
+            compact.insert(QStringLiteral("hints"), firstStrings(hints, 4, 240));
+        }
+        const QJsonObject dimensionSemantics = tool.value(QStringLiteral("dimensionSemantics")).toObject();
+        if (!dimensionSemantics.isEmpty()) {
+            compact.insert(QStringLiteral("dimensionSemantics"), dimensionSemantics);
         }
         QJsonValue compatibleGeometry = tool.value(QStringLiteral("inputSchema")).toObject()
             .value(QStringLiteral("compatibleGeometry"));
@@ -1007,6 +1043,16 @@ QJsonArray BrxAgent::selectEffectiveTools(
             }
         }
         score += selectorIntentScoreForTool(name, tool, normalizedQuery);
+        if (promptRequestsLayerCreation(normalizedQuery)) {
+            if (name == QStringLiteral("layers.create")) {
+                score += 32;
+            } else if (name == QStringLiteral("layers.ensureMany")) {
+                score += 12;
+            } else if (name == QStringLiteral("entity.setLayer")
+                || name == QStringLiteral("brx.sdk.entity.setLayer")) {
+                score += 4;
+            }
+        }
         const QString risk = tool.value(QStringLiteral("risk")).toString();
         if (score > 0
             && routeName == QStringLiteral("bricscad_question")
