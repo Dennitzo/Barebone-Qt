@@ -1,0 +1,119 @@
+{
+    "authoringNotes": {
+        "actionsCompleted": 1,
+        "actionsRequested": 1,
+        "createdAt": "2026-07-21T18:32:22.359Z",
+        "source": "lastBricsCadExecution"
+    },
+    "constructionStrategy": [
+        "Deterministisch aus der letzten erfolgreich von BRX ausgefuehrten Aktion erzeugt."
+    ],
+    "derivedValues": [
+    ],
+    "description": "Eine neue gerade Polyline mit der Länge 1000 mm wird in die Zeichnung eingefügt.",
+    "display": {
+        "blocks": [
+        ]
+    },
+    "executionBatches": [
+        {
+            "id": "batch_1",
+            "mode": "sequential",
+            "steps": [
+                {
+                    "id": "step_1_geometry_create",
+                    "paramsTemplate": {
+                        "closed": false,
+                        "geometry": "polyline",
+                        "points": [
+                            {
+                                "x": 0,
+                                "y": 0,
+                                "z": 0
+                            },
+                            {
+                                "x": 1000,
+                                "y": 0,
+                                "z": 0
+                            }
+                        ]
+                    },
+                    "title": "geometry.create",
+                    "tool": "geometry.create"
+                }
+            ],
+            "stopOnFailure": true,
+            "title": "Letzte BricsCAD-Ausfuehrung"
+        }
+    ],
+    "forbidden": [
+    ],
+    "id": "polylinien_geometrie_erstellen",
+    "kind": "bricscad",
+    "knownSlotValues": {
+    },
+    "optionalSlots": {
+    },
+    "preferredTools": [
+        "geometry.create"
+    ],
+    "requiredSlots": [
+    ],
+    "schema": "barebone.bricscad.workflow.v1",
+    "steps": [
+        {
+            "id": "step_1_geometry_create",
+            "paramsTemplate": {
+                "closed": false,
+                "geometry": "polyline",
+                "points": [
+                    {
+                        "x": 0,
+                        "y": 0,
+                        "z": 0
+                    },
+                    {
+                        "x": 1000,
+                        "y": 0,
+                        "z": 0
+                    }
+                ]
+            },
+            "title": "geometry.create",
+            "tool": "geometry.create"
+        }
+    ],
+    "title": "Polylinien-Geometrie erstellen",
+    "triggerExamples": [
+        "Zeichne eine gerade Polyline mit Länge=1000mm"
+    ],
+    "validationExamples": [
+        {
+            "actions": [
+                {
+                    "params": {
+                        "closed": false,
+                        "geometry": "polyline",
+                        "points": [
+                            {
+                                "x": 0,
+                                "y": 0,
+                                "z": 0
+                            },
+                            {
+                                "x": 1000,
+                                "y": 0,
+                                "z": 0
+                            }
+                        ],
+                        "saveBefore": true
+                    },
+                    "tool": "geometry.create"
+                }
+            ],
+            "prompt": "Zeichne eine gerade Polyline mit Länge=1000mm",
+            "title": "Letzte erfolgreiche Ausfuehrung"
+        }
+    ]
+}
+

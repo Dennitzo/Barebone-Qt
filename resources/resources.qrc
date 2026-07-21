@@ -41,5 +41,9 @@
         <file alias="contracts/router-bricscad-v1.json">../agent/contracts/router-bricscad-v1.json</file>
         <file alias="general-workflows/bemessung_der_trinkwasserinstallation_nach_din_1988_300.json">../agent/general-workflows/bemessung_der_trinkwasserinstallation_nach_din_1988_300.json</file>
         <file alias="general-workflows/heizlastberechnung_nach_din_en_12831.json">../agent/general-workflows/heizlastberechnung_nach_din_en_12831.json</file>
+        <file alias="bricscad-workflows/grundriss_und_aussenwaende_einzeichnen.json">../agent/bricscad-workflows/grundriss_und_aussenwaende_einzeichnen.json</file>
+        <file alias="bricscad-workflows/kreis_geometrie_erstellen.json">../agent/bricscad-workflows/kreis_geometrie_erstellen.json</file>
+        <file alias="bricscad-workflows/layer_erstellen.json">../agent/bricscad-workflows/layer_erstellen.json</file>
+        <file alias="bricscad-workflows/rechteck_geometrie_erstellen.json">../agent/bricscad-workflows/rechteck_geometrie_erstellen.json</file>
     </qresource>
 </RCC>

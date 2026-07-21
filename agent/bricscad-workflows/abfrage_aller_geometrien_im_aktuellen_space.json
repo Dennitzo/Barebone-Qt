@@ -1,0 +1,100 @@
+{
+    "authoringNotes": {
+        "actionsCompleted": 1,
+        "actionsRequested": 1,
+        "createdAt": "2026-07-21T17:07:36.643Z",
+        "source": "lastBricsCadExecution"
+    },
+    "constructionStrategy": [
+        "Deterministisch aus der letzten erfolgreich von BRX ausgefuehrten Aktion erzeugt."
+    ],
+    "derivedValues": [
+    ],
+    "description": "Ich werde die Geometrie aller Objekte in der aktuellen Zeichnung abfragen und dir eine Tab",
+    "display": {
+        "blocks": [
+        ]
+    },
+    "executionBatches": [
+        {
+            "id": "batch_1",
+            "mode": "sequential",
+            "steps": [
+                {
+                    "id": "step_1_geometry_query",
+                    "paramsTemplate": {
+                        "include": [
+                            "bounds",
+                            "dimensions"
+                        ],
+                        "limit": 1000,
+                        "selector": {
+                            "scope": "currentSpace"
+                        }
+                    },
+                    "title": "geometry.query",
+                    "tool": "geometry.query"
+                }
+            ],
+            "stopOnFailure": true,
+            "title": "Letzte BricsCAD-Ausfuehrung"
+        }
+    ],
+    "forbidden": [
+    ],
+    "id": "abfrage_aller_geometrien_im_aktuellen_space",
+    "kind": "bricscad",
+    "knownSlotValues": {
+    },
+    "optionalSlots": {
+    },
+    "preferredTools": [
+        "geometry.query"
+    ],
+    "requiredSlots": [
+    ],
+    "schema": "barebone.bricscad.workflow.v1",
+    "steps": [
+        {
+            "id": "step_1_geometry_query",
+            "paramsTemplate": {
+                "include": [
+                    "bounds",
+                    "dimensions"
+                ],
+                "limit": 1000,
+                "selector": {
+                    "scope": "currentSpace"
+                }
+            },
+            "title": "geometry.query",
+            "tool": "geometry.query"
+        }
+    ],
+    "title": "Abfrage aller Geometrien im aktuellen Space",
+    "triggerExamples": [
+        "Liste alle Objekte der Zeichnung als Tabelle auf mit all ihren Objektdaten"
+    ],
+    "validationExamples": [
+        {
+            "actions": [
+                {
+                    "params": {
+                        "include": [
+                            "bounds",
+                            "dimensions"
+                        ],
+                        "limit": 1000,
+                        "selector": {
+                            "scope": "currentSpace"
+                        }
+                    },
+                    "tool": "geometry.query"
+                }
+            ],
+            "prompt": "Liste alle Objekte der Zeichnung als Tabelle auf mit all ihren Objektdaten",
+            "title": "Letzte erfolgreiche Ausfuehrung"
+        }
+    ]
+}
+

@@ -133,9 +133,22 @@ QString BricsCadAgentCoordinator::slotDetail(const QString& slot, const QJsonObj
             .arg(result.value(QStringLiteral("toolNames")).toArray().size())
             .arg(result.value(QStringLiteral("workflowIds")).toArray().size());
     }
-    return result.value(QStringLiteral("readyForExecution")).toBool(false)
-        ? QStringLiteral("Berechnungen bereit")
-        : QStringLiteral("Keine oder unvollstaendige Berechnung");
+    const bool ready = result.value(QStringLiteral("readyForExecution")).toBool(false);
+    const bool hasFacts = !result.value(QStringLiteral("numericFacts")).toObject().isEmpty()
+        || !result.value(QStringLiteral("values")).toArray().isEmpty()
+        || !result.value(QStringLiteral("displacementVector")).toObject().isEmpty();
+    if (ready || hasFacts) {
+        const int valueCount = result.value(QStringLiteral("values")).toArray().size();
+        const QJsonObject vector = result.value(QStringLiteral("displacementVector")).toObject();
+        if (!vector.isEmpty()) {
+            return QStringLiteral("Zahlen erfasst, Verschiebungsvektor berechnet (%1 Werte)").arg(valueCount);
+        }
+        if (valueCount > 0) {
+            return QStringLiteral("Zahlen erfasst und aufbereitet (%1 Werte)").arg(valueCount);
+        }
+        return QStringLiteral("Berechnungen bereit");
+    }
+    return QStringLiteral("Keine oder unvollstaendige Berechnung");
 }
 
 void BricsCadAgentCoordinator::emitSlotStatus(
@@ -223,7 +236,11 @@ void BricsCadAgentCoordinator::start(const RunRequest& request)
              QStringLiteral("calculation"),
          }) {
         appendLog(QStringLiteral("AI Parallel Slot: slot=%1 status=running detail=Vorbereitung gestartet").arg(slot));
-        emitSlotStatus(state->runId, slot, QStringLiteral("running"), 1, QStringLiteral("laeuft parallel"));
+        emitSlotStatus(state->runId, slot,
+            slot == QStringLiteral("calculation") ? QStringLiteral("queued") : QStringLiteral("running"),
+            1, slot == QStringLiteral("calculation")
+                ? QStringLiteral("wartet auf Nachrichtenverlauf")
+                : QStringLiteral("laeuft parallel"));
     }
     emitSlotStatus(state->runId, QStringLiteral("final-run"), QStringLiteral("queued"), 1, QStringLiteral("wartet auf vier Slots"));
 
@@ -232,8 +249,12 @@ void BricsCadAgentCoordinator::start(const RunRequest& request)
     historyRequest.conversation = request.conversation;
     historyRequest.sessionId = request.sessionId;
     historyRequest.operationGeneration = request.generation;
-    m_historyAgent.run(historyRequest, m_runtime, [this, state](QJsonObject result) mutable {
+    m_historyAgent.run(historyRequest, m_runtime, [this, state, request](QJsonObject result) mutable {
+        result.insert(QStringLiteral("runId"), state->runId);
+        result.insert(QStringLiteral("sessionId"), request.sessionId);
+        result.insert(QStringLiteral("operationGeneration"), request.generation);
         finishSlot(state, QStringLiteral("history"), result);
+        startCalculation(state, request, result);
     });
 
     DrawingContextAgent::Request drawingRequest;
@@ -269,7 +290,8 @@ void BricsCadAgentCoordinator::start(const RunRequest& request)
             finishSlot(state, QStringLiteral("tools-workflows"), result);
         });
 
-    CalculationAgent::Request calculationRequest;
+    /* CalculationAgent starts after the authoritative history result. */
+    /* CalculationAgent::Request calculationRequest;
     calculationRequest.prompt = request.prompt;
     calculationRequest.sessionId = request.sessionId;
     calculationRequest.route = request.route;
@@ -283,6 +305,37 @@ void BricsCadAgentCoordinator::start(const RunRequest& request)
         m_runtime,
         m_workflowLoader,
         [this, state](QJsonObject result) mutable {
+            finishSlot(state, QStringLiteral("calculation"), result);
+        }); */
+}
+
+void BricsCadAgentCoordinator::startCalculation(
+    const QSharedPointer<PreparationState>& state,
+    const RunRequest& request,
+    const QJsonObject& history)
+{
+    if (!currentGenerationMatches(state->generation) || state->completed.contains(QStringLiteral("calculation"))) {
+        return;
+    }
+    state->historyContext = history;
+    appendLog(QStringLiteral("AI Calculation: starte nach autoritativem ConversationHistoryAgent-Ergebnis"));
+    emitSlotStatus(state->runId, QStringLiteral("calculation"), QStringLiteral("running"), 2,
+        QStringLiteral("AI-Berechnung laeuft mit Sitzungsverlauf"));
+
+    CalculationAgent::Request calculationRequest;
+    calculationRequest.prompt = request.prompt;
+    calculationRequest.sessionId = request.sessionId;
+    calculationRequest.route = request.route;
+    calculationRequest.conversation = history.value(QStringLiteral("conversation")).toArray();
+    calculationRequest.conversationContext = history;
+    calculationRequest.selectedWorkflows = selectedWorkflowObjectsForRequest(request);
+    calculationRequest.workflowIndex = request.workflowIndex;
+    calculationRequest.selectedWorkflowSlotValues = request.selectedWorkflowSlotValues;
+    calculationRequest.operationGeneration = request.generation;
+    m_calculationAgent.run(calculationRequest, m_runtime, m_workflowLoader,
+        [this, state, history](QJsonObject result) mutable {
+            result.insert(QStringLiteral("sourceHistoryRunId"), history.value(QStringLiteral("runId")));
+            result.insert(QStringLiteral("historyMessageCount"), history.value(QStringLiteral("relevantMessageCount")));
             finishSlot(state, QStringLiteral("calculation"), result);
         });
 }

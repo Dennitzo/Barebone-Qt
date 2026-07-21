@@ -15,6 +15,7 @@ public:
         QString sessionId;
         QJsonObject route;
         QJsonArray conversation;
+        QJsonObject conversationContext;
         QJsonArray selectedWorkflows;
         QJsonArray workflowIndex;
         QJsonObject selectedWorkflowSlotValues;

@@ -250,8 +250,15 @@ void ToolWorkflowAgent::run(
             }
         }
         if (!aiSelectionReady || effective.isEmpty()) {
-            effective = request.catalog;
-            toolSelectionSource = QStringLiteral("fullCapabilityFallback");
+            // A failed/empty selector response must not silently expose every
+            // capability. Keep the local deterministic relevance selector as
+            // the safe fallback and reserve the full catalog for diagnostics.
+            effective = BrxAgent::selectEffectiveTools(request.catalog, scopedRoute, request.prompt, 12);
+            toolSelectionSource = QStringLiteral("deterministicPromptFallback");
+            if (effective.isEmpty() && !request.catalog.isEmpty()) {
+                effective = request.catalog;
+                toolSelectionSource = QStringLiteral("fullCapabilityFallback");
+            }
         }
         while (effective.size() > 16) {
             effective.removeAt(effective.size() - 1);

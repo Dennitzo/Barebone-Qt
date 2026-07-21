@@ -1,0 +1,102 @@
+{
+    "authoringNotes": {
+        "actionsCompleted": 1,
+        "actionsRequested": 1,
+        "createdAt": "2026-07-21T18:22:58.162Z",
+        "source": "lastBricsCadExecution"
+    },
+    "constructionStrategy": [
+        "Deterministisch aus der letzten erfolgreich von BRX ausgefuehrten Aktion erzeugt."
+    ],
+    "derivedValues": [
+    ],
+    "description": "Die Polyline mit dem Handle B4 wird um 90° gedreht. Die Drehung erfolgt relativ zum Mittel",
+    "display": {
+        "blocks": [
+        ]
+    },
+    "executionBatches": [
+        {
+            "id": "batch_1",
+            "mode": "sequential",
+            "steps": [
+                {
+                    "id": "step_1_geometry_rotate",
+                    "paramsTemplate": {
+                        "angleDeg": 90,
+                        "basePointMode": "entityCenter",
+                        "selector": {
+                            "handles": [
+                                "B4"
+                            ],
+                            "kind": "polyline"
+                        }
+                    },
+                    "title": "geometry.rotate",
+                    "tool": "geometry.rotate"
+                }
+            ],
+            "stopOnFailure": true,
+            "title": "Letzte BricsCAD-Ausfuehrung"
+        }
+    ],
+    "forbidden": [
+    ],
+    "id": "geometrie_drehen",
+    "kind": "bricscad",
+    "knownSlotValues": {
+    },
+    "optionalSlots": {
+    },
+    "preferredTools": [
+        "geometry.rotate"
+    ],
+    "requiredSlots": [
+    ],
+    "schema": "barebone.bricscad.workflow.v1",
+    "steps": [
+        {
+            "id": "step_1_geometry_rotate",
+            "paramsTemplate": {
+                "angleDeg": 90,
+                "basePointMode": "entityCenter",
+                "selector": {
+                    "handles": [
+                        "B4"
+                    ],
+                    "kind": "polyline"
+                }
+            },
+            "title": "geometry.rotate",
+            "tool": "geometry.rotate"
+        }
+    ],
+    "title": "Geometrie drehen",
+    "triggerExamples": [
+        "Rotiere Polyline Handle=B4 relativ mit Winkel=90 Grad"
+    ],
+    "validationExamples": [
+        {
+            "actions": [
+                {
+                    "params": {
+                        "angleDeg": 90,
+                        "basePointMode": "entityCenter",
+                        "saveBefore": true,
+                        "selector": {
+                            "handles": [
+                                "B4"
+                            ],
+                            "kind": "polyline",
+                            "scope": "handles"
+                        }
+                    },
+                    "tool": "geometry.rotate"
+                }
+            ],
+            "prompt": "Rotiere Polyline Handle=B4 relativ mit Winkel=90 Grad",
+            "title": "Letzte erfolgreiche Ausfuehrung"
+        }
+    ]
+}
+

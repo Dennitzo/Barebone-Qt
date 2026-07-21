@@ -54,8 +54,8 @@ assert(page.includes('{QStringLiteral("circle"), QStringLiteral("Kreis-Geometrie
   "workflow identity must use a reusable geometry topic instead of concrete dimensions");
 assert(page.includes('ask_user.message fehlt. Formuliere eine kurze direkte deutsche Rueckfrage'),
   "ask_user replies without a user-facing question must be repaired by the AI");
-assert(page.includes('appendAgentChat(QStringLiteral("AI"), question, sessionTitleExtra);\n        m_agentValidationRetries = 0;\n        setAgentBusy(false);'),
-  "ask_user must become a normal AI chat message and end the foreground busy/thinking state");
+assert(page.includes('setAgentWaitingForUser(QJsonObject{{QStringLiteral("message"), question}'),
+  "ask_user must render the legacy green question card");
 assert(page.includes('discardLastAssistantConversation(content);\n        m_agentConversation.append(QJsonObject{'),
   "ask_user must replace raw response JSON with the visible question in conversation context");
 assert(!page.includes('setAgentWaitingForUser(reply);'),
@@ -78,8 +78,8 @@ assert(webUi.includes('const liveThinkingIndicator = isBusy'),
   "session rendering must preserve the live thinking DOM node");
 assert(webUi.includes('messages.appendChild(liveThinkingIndicator);'),
   "preserved thinking state must be reattached after an unavoidable render");
-assert(webUi.includes('completeThinkingIndicator();\n      activeSession().proposal = storedProposal;'),
-  "terminal proposal rendering must complete thinking before showing the transient card");
+assert(webUi.includes('activeSession().proposal = storedProposal;\n      activeSession().activeProposalMessageId = "";\n      renderProposal(storedProposal);'),
+  "terminal proposal rendering must preserve the shared thinking run before showing the transient card");
 assert(webUi.includes('// Terminal Qt signals can arrive after a proposal/message was rendered.'),
   "idle must finalize an orphaned transient thinking indicator");
 console.log("BricsCAD AI-planning pipeline checks OK");

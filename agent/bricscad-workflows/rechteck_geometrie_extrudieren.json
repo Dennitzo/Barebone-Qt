@@ -1,0 +1,103 @@
+{
+    "authoringNotes": {
+        "actionsCompleted": 1,
+        "actionsRequested": 1,
+        "createdAt": "2026-07-21T16:54:48.629Z",
+        "source": "lastBricsCadExecution"
+    },
+    "constructionStrategy": [
+        "Deterministisch aus der letzten erfolgreich von BRX ausgefuehrten Aktion erzeugt."
+    ],
+    "derivedValues": [
+    ],
+    "description": "Extrudiere die Rechteck-Polyline mit Handle B2 um 1000 mm nach oben. Das Tool rectangles.e",
+    "display": {
+        "blocks": [
+        ]
+    },
+    "executionBatches": [
+        {
+            "id": "batch_1",
+            "mode": "sequential",
+            "steps": [
+                {
+                    "id": "step_1_rectangles_extrude",
+                    "paramsTemplate": {
+                        "heightMm": 1000,
+                        "saveBefore": true,
+                        "selector": {
+                            "handles": [
+                                "B2"
+                            ],
+                            "kind": "rectangle",
+                            "scope": "handles"
+                        }
+                    },
+                    "title": "rectangles.extrude",
+                    "tool": "rectangles.extrude"
+                }
+            ],
+            "stopOnFailure": true,
+            "title": "Letzte BricsCAD-Ausfuehrung"
+        }
+    ],
+    "forbidden": [
+    ],
+    "id": "rechteck_geometrie_extrudieren",
+    "kind": "bricscad",
+    "knownSlotValues": {
+    },
+    "optionalSlots": {
+    },
+    "preferredTools": [
+        "rectangles.extrude"
+    ],
+    "requiredSlots": [
+    ],
+    "schema": "barebone.bricscad.workflow.v1",
+    "steps": [
+        {
+            "id": "step_1_rectangles_extrude",
+            "paramsTemplate": {
+                "heightMm": 1000,
+                "saveBefore": true,
+                "selector": {
+                    "handles": [
+                        "B2"
+                    ],
+                    "kind": "rectangle",
+                    "scope": "handles"
+                }
+            },
+            "title": "rectangles.extrude",
+            "tool": "rectangles.extrude"
+        }
+    ],
+    "title": "Rechteck-Geometrie extrudieren",
+    "triggerExamples": [
+        "Extrudiere Polyline Handle=B2 mit z=1000mm. Nutze rectangles.extrude dafür."
+    ],
+    "validationExamples": [
+        {
+            "actions": [
+                {
+                    "params": {
+                        "heightMm": 1000,
+                        "saveBefore": true,
+                        "selector": {
+                            "handles": [
+                                "B2"
+                            ],
+                            "kind": "rectangle",
+                            "scope": "handles"
+                        }
+                    },
+                    "tool": "rectangles.extrude"
+                }
+            ],
+            "prompt": "Extrudiere Polyline Handle=B2 mit z=1000mm. Nutze rectangles.extrude dafür.",
+            "title": "Letzte erfolgreiche Ausfuehrung"
+        }
+    ]
+}
+

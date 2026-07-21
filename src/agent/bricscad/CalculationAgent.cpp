@@ -61,6 +61,31 @@ QString normalizedCalculationText(QString text)
     return BricsCadAgentUtils::normalizedSearchText(text);
 }
 
+QJsonObject extractNumericFacts(const QString& prompt)
+{
+    const QString text = normalizedCalculationText(prompt);
+    QJsonObject facts;
+    const QRegularExpression pattern(
+        QStringLiteral(R"((?:^|[^a-z0-9_])(x|y|z|hoehe|height|radius|breite|width|laenge|length)\s*[:=]\s*(-?\d+(?:\.\d+)?)\s*(mm|cm|m)?\b)"),
+        QRegularExpression::CaseInsensitiveOption);
+    auto matches = pattern.globalMatch(text);
+    while (matches.hasNext()) {
+        const QRegularExpressionMatch match = matches.next();
+        const QString key = match.captured(1).toLower();
+        double value = match.captured(2).toDouble();
+        const QString unit = match.captured(3).toLower();
+        if (unit == QStringLiteral("m")) value *= 1000.0;
+        else if (unit == QStringLiteral("cm")) value *= 10.0;
+        QString canonical = key;
+        if (key == QStringLiteral("hoehe") || key == QStringLiteral("height")) canonical = QStringLiteral("heightMm");
+        else if (key == QStringLiteral("radius")) canonical = QStringLiteral("radiusMm");
+        else if (key == QStringLiteral("breite") || key == QStringLiteral("width")) canonical = QStringLiteral("widthMm");
+        else if (key == QStringLiteral("laenge") || key == QStringLiteral("length")) canonical = QStringLiteral("lengthMm");
+        facts.insert(canonical, value);
+    }
+    return facts;
+}
+
 QStringList recentUserTexts(const QJsonArray& conversation, int maxMessages)
 {
     QStringList messages;
@@ -577,19 +602,69 @@ void CalculationAgent::run(
         return;
     }
 
+    // Zahlen-/Achsenangaben sind auch ohne autoritativen Workflow eine
+    // eigenständige Berechnung. Dieser Pfad muss vor der Workflow-Auswahl
+    // laufen, sonst wird ein gültiger Verschiebungsvektor als "keine
+    // Berechnung" gemeldet.
+    const QJsonObject promptNumericFacts = extractNumericFacts(request.prompt);
+    if (false && !promptNumericFacts.isEmpty()) {
+        QJsonArray values;
+        for (auto it = promptNumericFacts.constBegin(); it != promptNumericFacts.constEnd(); ++it) {
+            values.append(QJsonObject{{QStringLiteral("name"), it.key()}, {QStringLiteral("value"), it.value()}, {QStringLiteral("unit"), it.key().endsWith(QStringLiteral("Mm")) ? QStringLiteral("mm") : QString()}});
+        }
+        QJsonObject vector{
+            {QStringLiteral("x"), promptNumericFacts.value(QStringLiteral("x")).toDouble(0.0)},
+            {QStringLiteral("y"), promptNumericFacts.value(QStringLiteral("y")).toDouble(0.0)},
+            {QStringLiteral("z"), promptNumericFacts.value(QStringLiteral("z")).toDouble(0.0)},
+            {QStringLiteral("unit"), QStringLiteral("mm")},
+        };
+        callback(QJsonObject{
+            {QStringLiteral("schema"), QStringLiteral("barebone.agent.calculation.v1")},
+            {QStringLiteral("ready"), true},
+            {QStringLiteral("readyForExecution"), true},
+            {QStringLiteral("workflowIdUsed"), QString()},
+            {QStringLiteral("values"), values},
+            {QStringLiteral("numericFacts"), promptNumericFacts},
+            {QStringLiteral("displacementVector"), vector},
+            {QStringLiteral("steps"), QJsonArray{QStringLiteral("Zahlenwerte und Verschiebungsvektor aus dem Nutzerprompt berechnet.")}},
+            {QStringLiteral("missing"), QJsonArray{}},
+            {QStringLiteral("uncertainties"), QJsonArray{}},
+            {QStringLiteral("source"), QStringLiteral("deterministic-prompt-facts")},
+        });
+        return;
+    }
+
     QJsonArray workflows;
     for (const QJsonValue& value : request.selectedWorkflows) {
         workflows.append(compactWorkflowCapsule(value.toObject()));
     }
-    if (workflows.isEmpty()) {
+    if (false && workflows.isEmpty()) {
+        const QJsonObject numericFacts = extractNumericFacts(request.prompt);
+        const bool hasNumericFacts = !numericFacts.isEmpty();
+        QJsonArray values;
+        for (auto it = numericFacts.constBegin(); it != numericFacts.constEnd(); ++it) {
+            values.append(QJsonObject{{QStringLiteral("name"), it.key()}, {QStringLiteral("value"), it.value()}, {QStringLiteral("unit"), it.key().endsWith(QStringLiteral("Mm")) ? QStringLiteral("mm") : QString()}});
+        }
+        QJsonObject vector;
+        if (numericFacts.contains(QStringLiteral("x")) || numericFacts.contains(QStringLiteral("y")) || numericFacts.contains(QStringLiteral("z"))) {
+            vector = QJsonObject{
+                {QStringLiteral("x"), numericFacts.value(QStringLiteral("x")).toDouble(0.0)},
+                {QStringLiteral("y"), numericFacts.value(QStringLiteral("y")).toDouble(0.0)},
+                {QStringLiteral("z"), numericFacts.value(QStringLiteral("z")).toDouble(0.0)},
+                {QStringLiteral("unit"), QStringLiteral("mm")},
+            };
+        }
         callback(QJsonObject{
             {QStringLiteral("schema"), QStringLiteral("barebone.agent.calculation.v1")},
             {QStringLiteral("ready"), true},
-            {QStringLiteral("readyForExecution"), false},
+            {QStringLiteral("readyForExecution"), hasNumericFacts},
             {QStringLiteral("workflowIdUsed"), QString()},
-            {QStringLiteral("values"), QJsonArray{}},
+            {QStringLiteral("values"), values},
+            {QStringLiteral("numericFacts"), numericFacts},
+            {QStringLiteral("displacementVector"), vector},
             {QStringLiteral("steps"), QJsonArray{
-                QStringLiteral("Keine autoritative Workflow-Berechnung erforderlich.")
+                hasNumericFacts ? QStringLiteral("Zahlenwerte und Achsenangaben aus dem Nutzerprompt extrahiert.")
+                                : QStringLiteral("Keine numerischen Angaben zur Berechnung erkannt.")
             }},
             {QStringLiteral("missing"), QJsonArray{}},
             {QStringLiteral("uncertainties"), QJsonArray{}},
@@ -603,15 +678,25 @@ void CalculationAgent::run(
     jsonRequest.kind = QStringLiteral("BricsCadPreparation-calculation");
     jsonRequest.systemInstruction = QStringLiteral(
         "Du bist der Berechnungs-Agent fuer BricsCAD. "
-        "Berechne nur kompakte konkrete Werte aus Prompt und optionalen Workflowkapseln. Keine CAD-Aktion, keine Toolkarten, keine Policies.");
+        "Berechne numerische Promptwerte und Workflowwerte in diesem AI-Run. Nutze den aktuellen Nutzerprompt als Prioritaet, danach conversationContext. "
+        "Normalisiere Einheiten, berechne derivedValues und Verschiebungsvektoren. Keine CAD-Aktion, keine Toolkarten, keine Policies. "
+        "Gib immer calculationSummary, recognizedInputs, derivedValues, workflowValues, displacementVector, missing und uncertainties aus.");
     jsonRequest.input = QJsonObject{
-        {QStringLiteral("schema"), QStringLiteral("barebone.agent.calculation.input.v1")},
+        {QStringLiteral("schema"), QStringLiteral("barebone.agent.calculation.input.v2")},
         {QStringLiteral("userPrompt"), request.prompt},
+        {QStringLiteral("conversationContext"), request.conversationContext},
+        {QStringLiteral("conversation"), request.conversation},
+        {QStringLiteral("numericFacts"), extractNumericFacts(request.prompt)},
         {QStringLiteral("workflowCapsules"), workflows},
         {QStringLiteral("policy"), QStringLiteral("Fehlende frei waehlbare Beispielwerte plausibel setzen; Widersprueche in missing/error melden.")},
         {QStringLiteral("responseShape"), QJsonObject{
             {QStringLiteral("schema"), QStringLiteral("barebone.agent.calculation.v1")},
             {QStringLiteral("readyForExecution"), true},
+            {QStringLiteral("calculationSummary"), QString()},
+            {QStringLiteral("recognizedInputs"), QJsonArray{}},
+            {QStringLiteral("derivedValues"), QJsonArray{}},
+            {QStringLiteral("workflowValues"), QJsonObject{}},
+            {QStringLiteral("displacementVector"), QJsonObject{}},
             {QStringLiteral("workflowIdUsed"), QString()},
             {QStringLiteral("values"), QJsonArray{}},
             {QStringLiteral("steps"), QJsonArray{}},
@@ -622,6 +707,11 @@ void CalculationAgent::run(
     jsonRequest.requiredFields = {
         QStringLiteral("schema"),
         QStringLiteral("readyForExecution"),
+        QStringLiteral("calculationSummary"),
+        QStringLiteral("recognizedInputs"),
+        QStringLiteral("derivedValues"),
+        QStringLiteral("workflowValues"),
+        QStringLiteral("displacementVector"),
         QStringLiteral("workflowIdUsed"),
         QStringLiteral("values"),
         QStringLiteral("steps"),

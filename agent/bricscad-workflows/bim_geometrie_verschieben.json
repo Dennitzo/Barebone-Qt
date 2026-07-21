@@ -1,0 +1,170 @@
+{
+    "authoringNotes": {
+        "actionsCompleted": 1,
+        "actionsRequested": 1,
+        "createdAt": "2026-07-21T18:27:16.447Z",
+        "source": "lastBricsCadExecution"
+    },
+    "constructionStrategy": [
+        "Deterministisch aus der letzten erfolgreich von BRX ausgefuehrten Aktion erzeugt."
+    ],
+    "derivedValues": [
+    ],
+    "description": "Verschiebt die BIM‑Wand mit Handle B6 um 1 m entlang der X‑Achse.",
+    "display": {
+        "blocks": [
+        ]
+    },
+    "executionBatches": [
+        {
+            "id": "batch_1",
+            "mode": "sequential",
+            "steps": [
+                {
+                    "id": "step_1_bim_move",
+                    "paramsTemplate": {
+                        "resolvedHandles": [
+                            "B6"
+                        ],
+                        "selector": {
+                            "handles": [
+                                "B6"
+                            ],
+                            "scope": "handles"
+                        },
+                        "targetFingerprints": [
+                            {
+                                "anchorHostHandle": null,
+                                "anchorStateKnown": true,
+                                "anchored": false,
+                                "bimType": "BIM_WALL",
+                                "classification": "BIM_WALL",
+                                "entityType": "AcDb3dSolid",
+                                "guid": "21LuYr3sH6XhdMoYfh9geW",
+                                "handle": "B6",
+                                "hostedAnchoredHandles": [
+                                ],
+                                "layer": "0",
+                                "name": null
+                            }
+                        ],
+                        "units": "mm",
+                        "vector": {
+                            "x": 1000,
+                            "y": 0,
+                            "z": 0
+                        }
+                    },
+                    "title": "bim.move",
+                    "tool": "bim.move"
+                }
+            ],
+            "stopOnFailure": true,
+            "title": "Letzte BricsCAD-Ausfuehrung"
+        }
+    ],
+    "forbidden": [
+    ],
+    "id": "bim_geometrie_verschieben",
+    "kind": "bricscad",
+    "knownSlotValues": {
+    },
+    "optionalSlots": {
+    },
+    "preferredTools": [
+        "bim.move"
+    ],
+    "requiredSlots": [
+    ],
+    "schema": "barebone.bricscad.workflow.v1",
+    "steps": [
+        {
+            "id": "step_1_bim_move",
+            "paramsTemplate": {
+                "resolvedHandles": [
+                    "B6"
+                ],
+                "selector": {
+                    "handles": [
+                        "B6"
+                    ],
+                    "scope": "handles"
+                },
+                "targetFingerprints": [
+                    {
+                        "anchorHostHandle": null,
+                        "anchorStateKnown": true,
+                        "anchored": false,
+                        "bimType": "BIM_WALL",
+                        "classification": "BIM_WALL",
+                        "entityType": "AcDb3dSolid",
+                        "guid": "21LuYr3sH6XhdMoYfh9geW",
+                        "handle": "B6",
+                        "hostedAnchoredHandles": [
+                        ],
+                        "layer": "0",
+                        "name": null
+                    }
+                ],
+                "units": "mm",
+                "vector": {
+                    "x": 1000,
+                    "y": 0,
+                    "z": 0
+                }
+            },
+            "title": "bim.move",
+            "tool": "bim.move"
+        }
+    ],
+    "title": "BIM-Geometrie verschieben",
+    "triggerExamples": [
+        "Verschiebe BIMWand Handle=B6 relativ um x=1000mm"
+    ],
+    "validationExamples": [
+        {
+            "actions": [
+                {
+                    "params": {
+                        "resolvedHandles": [
+                            "B6"
+                        ],
+                        "saveBefore": true,
+                        "selector": {
+                            "handles": [
+                                "B6"
+                            ],
+                            "scope": "handles"
+                        },
+                        "targetFingerprints": [
+                            {
+                                "anchorHostHandle": null,
+                                "anchorStateKnown": true,
+                                "anchored": false,
+                                "bimType": "BIM_WALL",
+                                "classification": "BIM_WALL",
+                                "entityType": "AcDb3dSolid",
+                                "guid": "21LuYr3sH6XhdMoYfh9geW",
+                                "handle": "B6",
+                                "hostedAnchoredHandles": [
+                                ],
+                                "layer": "0",
+                                "name": null
+                            }
+                        ],
+                        "units": "mm",
+                        "vector": {
+                            "x": 1000,
+                            "y": 0,
+                            "z": 0
+                        }
+                    },
+                    "tool": "bim.move"
+                }
+            ],
+            "prompt": "Verschiebe BIMWand Handle=B6 relativ um x=1000mm",
+            "title": "Letzte erfolgreiche Ausfuehrung"
+        }
+    ]
+}
+

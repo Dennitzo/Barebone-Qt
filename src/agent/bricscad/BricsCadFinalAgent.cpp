@@ -151,6 +151,9 @@ QJsonObject compactFocusedConversation(const QJsonObject& focusedConversation)
     };
     const QJsonArray indexes = focusedConversation.value(QStringLiteral("relevantMessageIndexes")).toArray();
     compact.insert(QStringLiteral("relevantMessageCount"), indexes.size());
+    if (focusedConversation.value(QStringLiteral("conversation")).isArray()) {
+        compact.insert(QStringLiteral("conversation"), focusedConversation.value(QStringLiteral("conversation")));
+    }
     return compact;
 }
 
@@ -246,6 +249,7 @@ QJsonObject BricsCadFinalAgent::buildEnvelope(const BuildInput& input)
                 "Wenn der Nutzer Auswahl, Selektion, selektiert oder scope=selection sagt, ist dies bereits ein gueltiger Selector und keine Rueckfrage wert. "
                 "Nutze drawingContext.selection als harte BRX-Tatsache. Bei verfuegbaren selection.objects bevorzuge deren stabile Handles im Action-Selector; "
                 "wenn die Auswahl noch nicht abgefragt wurde, fordere method=selection.describe als context_request an. "
+                "Frage niemals, welches BRX-Tool oder welche Extrusionsmethode verwendet werden soll. Ermittle dies selbst aus effectiveTools, BRX-Capabilities, SDK-Beschreibungen und Workflows. "
                 "Bei action_proposal immer eine konkrete sichtbare Ausfuehrungsbeschreibung in message und proposal.summary mitschicken; "
                 "proposal.details enthaelt bei Batches die geplante Schrittfolge. Liefere ausserdem proposalId, intentSummary, "
                 "contextEvidence, workflowUsage und assumptions als knappe pruefbare Entscheidungsdaten.")},

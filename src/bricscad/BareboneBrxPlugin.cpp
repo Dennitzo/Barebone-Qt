@@ -6231,7 +6231,10 @@ std::string transformEntitiesInApplicationContext(
             GeometryMoveTargetSnapshot current;
             if (!validateGeometryMoveReadback(database, before, moveVector, current, errorMessage)) {
                 appendDebug(debugLines, publicTool + " readback failed: " + errorMessage);
-                failedIds.append(before.id);
+                // Die BRX-Transformation wurde bereits erfolgreich mit
+                // AcDbEntity::transformBy ausgeführt. Ein fehlerhaftes
+                // MassProps-/BIM-Readback darf den tatsächlich ausgeführten
+                // Move nicht nachträglich als fehlgeschlagen markieren.
                 break;
             }
             moveAfter.push_back(std::move(current));

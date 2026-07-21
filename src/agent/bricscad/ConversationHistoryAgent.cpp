@@ -25,13 +25,14 @@ QString compactText(QString text, int maxChars)
 
 QJsonArray ConversationHistoryAgent::compactConversation(const QJsonArray& conversation, int maxMessages, int maxChars)
 {
+    Q_UNUSED(maxMessages);
+    Q_UNUSED(maxChars);
     QJsonArray history;
     const int conversationSize = static_cast<int>(conversation.size());
-    const int start = std::max(0, conversationSize - maxMessages);
-    for (int i = start; i < conversationSize; ++i) {
+    for (int i = 0; i < conversationSize; ++i) {
         const QJsonObject message = conversation.at(i).toObject();
         const QString role = message.value(QStringLiteral("role")).toString();
-        const QString content = compactText(message.value(QStringLiteral("content")).toString(), maxChars);
+        const QString content = message.value(QStringLiteral("content")).toString().trimmed();
         if (role.trimmed().isEmpty() || content.trimmed().isEmpty()) {
             continue;
         }
@@ -116,12 +117,21 @@ QJsonObject ConversationHistoryAgent::normalize(QJsonObject object, const QStrin
 void ConversationHistoryAgent::run(const Request& request, LocalAiAgentRuntime& runtime, Callback callback) const
 {
     const QJsonArray history = compactConversation(request.conversation);
-    if (history.size() <= 1) {
-        QJsonObject result = fallback(request.prompt);
-        result.insert(QStringLiteral("ready"), true);
-        callback(result);
-        return;
+    // Keep the complete session history as the authoritative context. The
+    // history agent does not spend an AI run on lossy summarization; token
+    // budgeting is handled by the final envelope/model context window.
+    QJsonObject result = fallback(request.prompt);
+    result.insert(QStringLiteral("ready"), true);
+    result.insert(QStringLiteral("conversation"), history);
+    QJsonArray indexes;
+    for (const QJsonValue& value : history) {
+        indexes.append(value.toObject().value(QStringLiteral("index")));
     }
+    result.insert(QStringLiteral("relevantMessageIndexes"), indexes);
+    result.insert(QStringLiteral("relevantMessageCount"), history.size());
+    result.insert(QStringLiteral("relevantSummary"), QStringLiteral("Vollstaendiger Sitzungsverlauf unveraendert verfuegbar."));
+    callback(result);
+    return;
 
     QJsonObject input{
         {QStringLiteral("schema"), QStringLiteral("barebone.agent.history-slot.request.v1")},

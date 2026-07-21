@@ -1,0 +1,101 @@
+{
+    "authoringNotes": {
+        "actionsCompleted": 1,
+        "actionsRequested": 1,
+        "createdAt": "2026-07-21T16:52:35.626Z",
+        "source": "lastBricsCadExecution"
+    },
+    "constructionStrategy": [
+        "Deterministisch aus der letzten erfolgreich von BRX ausgefuehrten Aktion erzeugt."
+    ],
+    "derivedValues": [
+    ],
+    "description": "Extrudiere den Kreis mit Handle B0 um 1000 mm nach Z.",
+    "display": {
+        "blocks": [
+        ]
+    },
+    "executionBatches": [
+        {
+            "id": "batch_1",
+            "mode": "sequential",
+            "steps": [
+                {
+                    "id": "step_1_circle_extrude",
+                    "paramsTemplate": {
+                        "heightMm": 1000,
+                        "selector": {
+                            "handles": [
+                                "B0"
+                            ],
+                            "kind": "circle",
+                            "scope": "handles"
+                        }
+                    },
+                    "title": "circle.extrude",
+                    "tool": "circle.extrude"
+                }
+            ],
+            "stopOnFailure": true,
+            "title": "Letzte BricsCAD-Ausfuehrung"
+        }
+    ],
+    "forbidden": [
+    ],
+    "id": "kreis_geometrie_extrudieren",
+    "kind": "bricscad",
+    "knownSlotValues": {
+    },
+    "optionalSlots": {
+    },
+    "preferredTools": [
+        "circle.extrude"
+    ],
+    "requiredSlots": [
+    ],
+    "schema": "barebone.bricscad.workflow.v1",
+    "steps": [
+        {
+            "id": "step_1_circle_extrude",
+            "paramsTemplate": {
+                "heightMm": 1000,
+                "selector": {
+                    "handles": [
+                        "B0"
+                    ],
+                    "kind": "circle",
+                    "scope": "handles"
+                }
+            },
+            "title": "circle.extrude",
+            "tool": "circle.extrude"
+        }
+    ],
+    "title": "Kreis-Geometrie extrudieren",
+    "triggerExamples": [
+        "Extrudiere den Kreis Handle=B0 mit z=1000mm"
+    ],
+    "validationExamples": [
+        {
+            "actions": [
+                {
+                    "params": {
+                        "heightMm": 1000,
+                        "saveBefore": true,
+                        "selector": {
+                            "handles": [
+                                "B0"
+                            ],
+                            "kind": "circle",
+                            "scope": "handles"
+                        }
+                    },
+                    "tool": "circle.extrude"
+                }
+            ],
+            "prompt": "Extrudiere den Kreis Handle=B0 mit z=1000mm",
+            "title": "Letzte erfolgreiche Ausfuehrung"
+        }
+    ]
+}
+

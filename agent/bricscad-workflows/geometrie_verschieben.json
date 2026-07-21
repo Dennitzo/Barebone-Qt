@@ -1,0 +1,113 @@
+{
+    "authoringNotes": {
+        "actionsCompleted": 1,
+        "actionsRequested": 1,
+        "createdAt": "2026-07-21T18:00:29.224Z",
+        "source": "lastBricsCadExecution"
+    },
+    "constructionStrategy": [
+        "Deterministisch aus der letzten erfolgreich von BRX ausgefuehrten Aktion erzeugt."
+    ],
+    "derivedValues": [
+    ],
+    "description": "Verschiebt das 3D‑Solid mit Handle B3 um +1000 mm entlang der Y‑Achse.",
+    "display": {
+        "blocks": [
+        ]
+    },
+    "executionBatches": [
+        {
+            "id": "batch_1",
+            "mode": "sequential",
+            "steps": [
+                {
+                    "id": "step_1_geometry_move",
+                    "paramsTemplate": {
+                        "selector": {
+                            "handles": [
+                                "B3"
+                            ],
+                            "scope": "handles"
+                        },
+                        "units": "mm",
+                        "vector": {
+                            "x": 0,
+                            "y": 1000,
+                            "z": 0
+                        }
+                    },
+                    "title": "geometry.move",
+                    "tool": "geometry.move"
+                }
+            ],
+            "stopOnFailure": true,
+            "title": "Letzte BricsCAD-Ausfuehrung"
+        }
+    ],
+    "forbidden": [
+    ],
+    "id": "geometrie_verschieben",
+    "kind": "bricscad",
+    "knownSlotValues": {
+    },
+    "optionalSlots": {
+    },
+    "preferredTools": [
+        "geometry.move"
+    ],
+    "requiredSlots": [
+    ],
+    "schema": "barebone.bricscad.workflow.v1",
+    "steps": [
+        {
+            "id": "step_1_geometry_move",
+            "paramsTemplate": {
+                "selector": {
+                    "handles": [
+                        "B3"
+                    ],
+                    "scope": "handles"
+                },
+                "units": "mm",
+                "vector": {
+                    "x": 0,
+                    "y": 1000,
+                    "z": 0
+                }
+            },
+            "title": "geometry.move",
+            "tool": "geometry.move"
+        }
+    ],
+    "title": "Geometrie verschieben",
+    "triggerExamples": [
+        "Verschiebe das 3D Solid Handle=B3 relativ um y=1000mm"
+    ],
+    "validationExamples": [
+        {
+            "actions": [
+                {
+                    "params": {
+                        "saveBefore": true,
+                        "selector": {
+                            "handles": [
+                                "B3"
+                            ],
+                            "scope": "handles"
+                        },
+                        "units": "mm",
+                        "vector": {
+                            "x": 0,
+                            "y": 1000,
+                            "z": 0
+                        }
+                    },
+                    "tool": "geometry.move"
+                }
+            ],
+            "prompt": "Verschiebe das 3D Solid Handle=B3 relativ um y=1000mm",
+            "title": "Letzte erfolgreiche Ausfuehrung"
+        }
+    ]
+}
+

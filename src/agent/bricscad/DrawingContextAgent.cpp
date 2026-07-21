@@ -3,6 +3,7 @@
 #include "BricsCadAgentUtils.h"
 
 #include <QJsonDocument>
+#include <QRegularExpression>
 #include <QSharedPointer>
 
 QJsonArray DrawingContextAgent::plannedReadOnlyRequests(const QString& prompt, const QJsonObject& capabilities)
@@ -29,6 +30,27 @@ QJsonArray DrawingContextAgent::plannedReadOnlyRequests(const QString& prompt, c
     });
 
     const QString normalizedPrompt = BricsCadAgentUtils::normalizedSearchText(prompt);
+    QStringList explicitHandles;
+    const QRegularExpression handlePattern(
+        QStringLiteral(R"((?:handle|object\s*id)\s*[=:]?\s*([0-9a-f]+))"),
+        QRegularExpression::CaseInsensitiveOption);
+    auto handleMatches = handlePattern.globalMatch(prompt);
+    while (handleMatches.hasNext()) {
+        const QString handle = handleMatches.next().captured(1).trimmed().toUpper();
+        if (!handle.isEmpty() && !explicitHandles.contains(handle)) {
+            explicitHandles.append(handle);
+        }
+    }
+    if (!explicitHandles.isEmpty()) {
+        QJsonArray handles;
+        for (const QString& handle : explicitHandles) handles.append(handle);
+        addRequest(QStringLiteral("entity.describe"), QJsonObject{
+            {QStringLiteral("handles"), handles},
+            {QStringLiteral("include"), QJsonArray{
+                QStringLiteral("core"), QStringLiteral("geometry"), QStringLiteral("metrics"), QStringLiteral("properties")}},
+            {QStringLiteral("limit"), explicitHandles.size()},
+        });
+    }
     if (BricsCadAgentUtils::textMentionsAny(normalizedPrompt, {
             QStringLiteral("bim"),
             QStringLiteral("klassifiz"),
@@ -44,7 +66,7 @@ QJsonArray DrawingContextAgent::plannedReadOnlyRequests(const QString& prompt, c
         });
     }
 
-    if (BricsCadAgentUtils::shouldPrefetchSelectionDescription(prompt)) {
+    if (explicitHandles.isEmpty() && BricsCadAgentUtils::shouldPrefetchSelectionDescription(prompt)) {
         addRequest(QStringLiteral("selection.describe"), QJsonObject{
             {QStringLiteral("include"), QJsonArray{
                 QStringLiteral("geometry"),

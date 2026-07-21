@@ -26,6 +26,7 @@ public:
         QString prompt;
         QJsonObject documentContext;
         QJsonObject route;
+        QJsonObject historyContext;
         QJsonArray conversation;
         QJsonObject capabilities;
         QJsonArray catalog;
@@ -66,6 +67,7 @@ private:
         QString prompt;
         QJsonObject documentContext;
         QJsonObject route;
+        QJsonObject historyContext;
         QJsonObject results;
         QSet<QString> completed;
         bool finalStarted = false;
@@ -77,6 +79,7 @@ private:
     QString slotLabel(const QString& slot) const;
     QString slotDetail(const QString& slot, const QJsonObject& result) const;
     void finishSlot(const QSharedPointer<PreparationState>& state, const QString& slot, QJsonObject result);
+    void startCalculation(const QSharedPointer<PreparationState>& state, const RunRequest& request, const QJsonObject& history);
     QJsonArray selectedWorkflowObjectsForRequest(const RunRequest& request) const;
 
     LocalAiAgentRuntime& m_runtime;

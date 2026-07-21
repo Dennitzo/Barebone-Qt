@@ -1,0 +1,103 @@
+{
+    "authoringNotes": {
+        "actionsCompleted": 1,
+        "actionsRequested": 1,
+        "createdAt": "2026-07-21T18:25:18.026Z",
+        "source": "lastBricsCadExecution"
+    },
+    "constructionStrategy": [
+        "Deterministisch aus der letzten erfolgreich von BRX ausgefuehrten Aktion erzeugt."
+    ],
+    "derivedValues": [
+    ],
+    "description": "Klassifiziert das 3D‑Solid mit Handle B6 als BIM-Wand. Das Tool speichert die aktuelle Zei",
+    "display": {
+        "blocks": [
+        ]
+    },
+    "executionBatches": [
+        {
+            "id": "batch_1",
+            "mode": "sequential",
+            "steps": [
+                {
+                    "id": "step_1_bim_classify",
+                    "paramsTemplate": {
+                        "classification": "BIMWall",
+                        "saveBefore": true,
+                        "selector": {
+                            "handles": [
+                                "B6"
+                            ],
+                            "kind": "solid",
+                            "scope": "handles"
+                        }
+                    },
+                    "title": "bim.classify",
+                    "tool": "bim.classify"
+                }
+            ],
+            "stopOnFailure": true,
+            "title": "Letzte BricsCAD-Ausfuehrung"
+        }
+    ],
+    "forbidden": [
+    ],
+    "id": "bim_wandklassifikation_des_solids_b6",
+    "kind": "bricscad",
+    "knownSlotValues": {
+    },
+    "optionalSlots": {
+    },
+    "preferredTools": [
+        "bim.classify"
+    ],
+    "requiredSlots": [
+    ],
+    "schema": "barebone.bricscad.workflow.v1",
+    "steps": [
+        {
+            "id": "step_1_bim_classify",
+            "paramsTemplate": {
+                "classification": "BIMWall",
+                "saveBefore": true,
+                "selector": {
+                    "handles": [
+                        "B6"
+                    ],
+                    "kind": "solid",
+                    "scope": "handles"
+                }
+            },
+            "title": "bim.classify",
+            "tool": "bim.classify"
+        }
+    ],
+    "title": "BIM-Wandklassifikation des Solids B6",
+    "triggerExamples": [
+        "Klassifiziere 3DSolid Handle=B6 als BIM Wand. Nutze dafür das bim.classify Tool."
+    ],
+    "validationExamples": [
+        {
+            "actions": [
+                {
+                    "params": {
+                        "classification": "BIMWall",
+                        "saveBefore": true,
+                        "selector": {
+                            "handles": [
+                                "B6"
+                            ],
+                            "kind": "solid",
+                            "scope": "handles"
+                        }
+                    },
+                    "tool": "bim.classify"
+                }
+            ],
+            "prompt": "Klassifiziere 3DSolid Handle=B6 als BIM Wand. Nutze dafür das bim.classify Tool.",
+            "title": "Letzte erfolgreiche Ausfuehrung"
+        }
+    ]
+}
+

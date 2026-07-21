@@ -1,0 +1,113 @@
+{
+    "authoringNotes": {
+        "actionsCompleted": 1,
+        "actionsRequested": 1,
+        "createdAt": "2026-07-21T17:03:13.668Z",
+        "source": "lastBricsCadExecution"
+    },
+    "constructionStrategy": [
+        "Deterministisch aus der letzten erfolgreich von BRX ausgefuehrten Aktion erzeugt."
+    ],
+    "derivedValues": [
+    ],
+    "description": "Verschiebt die Polyline mit Handle B2 um 1 000 mm entlang der X‑Achse.",
+    "display": {
+        "blocks": [
+        ]
+    },
+    "executionBatches": [
+        {
+            "id": "batch_1",
+            "mode": "sequential",
+            "steps": [
+                {
+                    "id": "step_1_geometry_move",
+                    "paramsTemplate": {
+                        "selector": {
+                            "handles": [
+                                "B2"
+                            ],
+                            "scope": "handles"
+                        },
+                        "units": "mm",
+                        "vector": {
+                            "x": 1000,
+                            "y": 0,
+                            "z": 0
+                        }
+                    },
+                    "title": "geometry.move",
+                    "tool": "geometry.move"
+                }
+            ],
+            "stopOnFailure": true,
+            "title": "Letzte BricsCAD-Ausfuehrung"
+        }
+    ],
+    "forbidden": [
+    ],
+    "id": "polyline_verschieben",
+    "kind": "bricscad",
+    "knownSlotValues": {
+    },
+    "optionalSlots": {
+    },
+    "preferredTools": [
+        "geometry.move"
+    ],
+    "requiredSlots": [
+    ],
+    "schema": "barebone.bricscad.workflow.v1",
+    "steps": [
+        {
+            "id": "step_1_geometry_move",
+            "paramsTemplate": {
+                "selector": {
+                    "handles": [
+                        "B2"
+                    ],
+                    "scope": "handles"
+                },
+                "units": "mm",
+                "vector": {
+                    "x": 1000,
+                    "y": 0,
+                    "z": 0
+                }
+            },
+            "title": "geometry.move",
+            "tool": "geometry.move"
+        }
+    ],
+    "title": "Polyline verschieben",
+    "triggerExamples": [
+        "Verschiebe Polyline Handle=B2 relativ um x=1000mm"
+    ],
+    "validationExamples": [
+        {
+            "actions": [
+                {
+                    "params": {
+                        "saveBefore": true,
+                        "selector": {
+                            "handles": [
+                                "B2"
+                            ],
+                            "scope": "handles"
+                        },
+                        "units": "mm",
+                        "vector": {
+                            "x": 1000,
+                            "y": 0,
+                            "z": 0
+                        }
+                    },
+                    "tool": "geometry.move"
+                }
+            ],
+            "prompt": "Verschiebe Polyline Handle=B2 relativ um x=1000mm",
+            "title": "Letzte erfolgreiche Ausfuehrung"
+        }
+    ]
+}
+

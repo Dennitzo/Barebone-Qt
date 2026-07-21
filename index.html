@@ -3321,9 +3321,6 @@
         if (formulaCount > 0) {
           parts.push(`${formulaCount} Formel${formulaCount === 1 ? "" : "n"}`);
         }
-        if (workflow.fileName) {
-          parts.push(workflow.fileName);
-        }
         return parts.join(" | ") || "Workflow";
       }
       const stepCount = Number(workflow.stepCount || (Array.isArray(workflow.steps) ? workflow.steps.length : 0)) || 0;
@@ -3334,9 +3331,6 @@
       }
       if (batchCount > 0) {
         parts.push(`${batchCount} Batch${batchCount === 1 ? "" : "es"}`);
-      }
-      if (workflow.fileName) {
-        parts.push(workflow.fileName);
       }
       return parts.join(" | ") || "Workflow";
     }
@@ -4401,9 +4395,6 @@
         }
         if (metadata.updatedAt) {
           statusLines.push(`Stand: ${metadata.updatedAt}`);
-        }
-        if (metadata.sourcePath) {
-          statusLines.push(`Pfad: ${metadata.sourcePath}`);
         }
         if (statusLines.length) {
           workflowDetail.appendChild(createWorkflowSection("Learning Status", statusLines));
@@ -7793,6 +7784,17 @@
     }
 
     function addThinkingDetail(text, options = {}) {
+      // Alle Phasen eines laufenden BricsCAD-Prompts bleiben in einem
+      // Thinking-Run. Vorbereitung und BRX-Ausführung aktualisieren ihre
+      // vorhandene Zeile, statt einen zweiten Denkblock zu erzeugen.
+      if (!options.key) {
+        const value = String(text || "");
+        if (/^(BestÃ¤tigt|Ich lasse|BRX |Ich denke erneut|Ich starte die finale AI-Auswertung)/.test(value)) {
+          options = { ...options, key: "execution" };
+        } else if (/^Ich bereite den Kontext vor:/.test(value)) {
+          options = { ...options, key: "preparation" };
+        }
+      }
       if (!isBusy && !thinkingIndicator) {
         return;
       }
@@ -8063,6 +8065,9 @@
         return;
       }
       const completesExecutionThinking = pendingExecutionSummary && normalized.speaker === "AI";
+      // Der Denkblock bleibt bis zur abschließenden AI-/BRX-Antwort offen.
+      // Dadurch werden Vorbereitung, Repair, Preflight und Ausführung in
+      // einem stabilen Run weitergeführt.
       completeThinkingIndicator();
       if (completesExecutionThinking) {
         pendingExecutionSummary = false;
@@ -8361,7 +8366,9 @@
       if (proposal && proposal.sessionTitleSuggestion) {
         applySessionTitleSuggestion(activeSessionId, String(proposal.sessionTitleSuggestion || ""), { persist: false, render: false });
       }
-      completeThinkingIndicator();
+      if (!storedProposal || options.finishThinking === true) {
+        completeThinkingIndicator();
+      }
       activeSession().proposal = storedProposal;
       activeSession().activeProposalMessageId = "";
       renderProposal(storedProposal);

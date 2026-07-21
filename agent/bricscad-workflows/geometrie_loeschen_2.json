@@ -1,0 +1,98 @@
+{
+    "authoringNotes": {
+        "actionsCompleted": 1,
+        "actionsRequested": 1,
+        "createdAt": "2026-07-21T18:30:24.457Z",
+        "source": "lastBricsCadExecution"
+    },
+    "constructionStrategy": [
+        "Deterministisch aus der letzten erfolgreich von BRX ausgefuehrten Aktion erzeugt."
+    ],
+    "derivedValues": [
+    ],
+    "description": "Die BIM-Wand mit Handle B6 wird aus der Zeichnung entfernt.",
+    "display": {
+        "blocks": [
+        ]
+    },
+    "executionBatches": [
+        {
+            "id": "batch_1",
+            "mode": "sequential",
+            "steps": [
+                {
+                    "id": "step_1_geometry_delete",
+                    "paramsTemplate": {
+                        "confirm": true,
+                        "selector": {
+                            "handles": [
+                                "B6"
+                            ],
+                            "scope": "handles"
+                        }
+                    },
+                    "title": "geometry.delete",
+                    "tool": "geometry.delete"
+                }
+            ],
+            "stopOnFailure": true,
+            "title": "Letzte BricsCAD-Ausfuehrung"
+        }
+    ],
+    "forbidden": [
+    ],
+    "id": "geometrie_loeschen_2",
+    "kind": "bricscad",
+    "knownSlotValues": {
+    },
+    "optionalSlots": {
+    },
+    "preferredTools": [
+        "geometry.delete"
+    ],
+    "requiredSlots": [
+    ],
+    "schema": "barebone.bricscad.workflow.v1",
+    "steps": [
+        {
+            "id": "step_1_geometry_delete",
+            "paramsTemplate": {
+                "confirm": true,
+                "selector": {
+                    "handles": [
+                        "B6"
+                    ],
+                    "scope": "handles"
+                }
+            },
+            "title": "geometry.delete",
+            "tool": "geometry.delete"
+        }
+    ],
+    "title": "Geometrie löschen",
+    "triggerExamples": [
+        "Lösche die BIM Wand Handle=B6"
+    ],
+    "validationExamples": [
+        {
+            "actions": [
+                {
+                    "params": {
+                        "confirm": true,
+                        "saveBefore": true,
+                        "selector": {
+                            "handles": [
+                                "B6"
+                            ],
+                            "scope": "handles"
+                        }
+                    },
+                    "tool": "geometry.delete"
+                }
+            ],
+            "prompt": "Lösche die BIM Wand Handle=B6",
+            "title": "Letzte erfolgreiche Ausfuehrung"
+        }
+    ]
+}
+

@@ -9614,7 +9614,7 @@ QJsonArray BricsCadPage::generalWorkflowIndex() const
         }
 
         workflows.append(QJsonObject{
-            {"fileName", source.fileName},
+            {"fileName", source.bundled ? source.fileName : source.path},
             {"id", id},
             {"title", title},
             {"description", description},
@@ -9649,7 +9649,7 @@ QJsonArray BricsCadPage::bricsCadWorkflowIndex() const
         }
         seen.insert(slug);
         workflow.insert(QStringLiteral("id"), id);
-        workflow.insert(QStringLiteral("fileName"), source.fileName);
+        workflow.insert(QStringLiteral("fileName"), source.bundled ? source.fileName : source.path);
         workflow.insert(QStringLiteral("kind"), QStringLiteral("bricscad"));
         workflow.insert(QStringLiteral("readOnly"), source.bundled);
         workflow.insert(QStringLiteral("createdAt"), workflowTimestampIso(source, workflow, QStringLiteral("createdAt")));
@@ -9750,10 +9750,10 @@ QJsonObject BricsCadPage::loadBricsCadWorkflowById(const QString& workflowId, QS
             continue;
         }
         if (fileName) {
-            *fileName = source.fileName;
+            *fileName = source.bundled ? source.fileName : source.path;
         }
         workflow.insert(QStringLiteral("id"), id);
-        workflow.insert(QStringLiteral("fileName"), source.fileName);
+        workflow.insert(QStringLiteral("fileName"), source.bundled ? source.fileName : source.path);
         workflow.insert(QStringLiteral("kind"), QStringLiteral("bricscad"));
         workflow.insert(QStringLiteral("readOnly"), source.bundled);
         return workflow;
@@ -9935,10 +9935,20 @@ bool BricsCadPage::deleteBricsCadWorkflowById(const QString& workflowId, QString
         return false;
     }
     const QDir directory(bricsCadWorkflowsDirectoryPath());
-    const QString directoryPath = QFileInfo(directory.absolutePath()).canonicalFilePath();
-    const QString targetPath = QFileInfo(directory.filePath(fileName)).canonicalFilePath();
+    const QString directoryPath = QDir::cleanPath(QFileInfo(directory.absolutePath()).absoluteFilePath());
+    const QFileInfo sourceInfo(fileName);
+    const QString targetPath = QDir::cleanPath(sourceInfo.isAbsolute()
+        ? sourceInfo.absoluteFilePath()
+        : QFileInfo(directory.filePath(fileName)).absoluteFilePath());
+    const QString relativeTarget = directoryPath.isEmpty()
+        ? QString()
+        : QDir(directoryPath).relativeFilePath(targetPath);
     if (directoryPath.isEmpty() || targetPath.isEmpty()
-        || !targetPath.startsWith(directoryPath + QDir::separator(), Qt::CaseInsensitive)) {
+        || relativeTarget.isEmpty()
+        || relativeTarget == QStringLiteral("..")
+        || relativeTarget.startsWith(QStringLiteral("..%1").arg(QDir::separator()))
+        || QDir::isAbsolutePath(relativeTarget)
+        || !QFileInfo::exists(targetPath)) {
         if (errorMessage) {
             *errorMessage = QStringLiteral("Ungueltiger BricsCAD-Workflow-Pfad.");
         }
@@ -12062,6 +12072,7 @@ void BricsCadPage::saveBricsCadWorkflowFromSession(const QString& sessionTitle, 
     QJsonArray conversation;
     for (const QJsonValue& message : m_agentConversation) conversation.append(message);
     const QJsonObject context{{"schema", "barebone.bricscad.workflow.save.request.v1"},
+        {"uiLanguage", effectiveUiLanguage(m_config.language())},
         {"sessionTitle", repairMojibakeText(sessionTitle).trimmed()}, {"conversation", conversation},
         {"drawingContext", currentAgentContext()}, {"lastToolResult", m_lastAgentToolResult},
         {"selectedWorkflow", m_selectedWorkflow}, {"availableTools", tools}};
@@ -12069,6 +12080,7 @@ void BricsCadPage::saveBricsCadWorkflowFromSession(const QString& sessionTitle, 
         QJsonObject{{"role", "system"}, {"content", QStringLiteral(
             "Erstelle aus dem vollstaendigen BricsCAD-Sitzungsverlauf genau einen bereinigten, direkt ausfuehrbaren Batch-Workflow. Antworte nur mit einem JSON-Objekt. "
             "schema muss barebone.agent.workflow.v1 sein. Pflichtfelder: schema, id, title, description, triggerExamples, requiredSlots, optionalSlots, derivedValues, preferredTools, steps, executionBatches, constructionStrategy, forbidden, validationExamples. "
+            "Antworte in der aktuell in Qt gewaehlten Sprache; das Feld uiLanguage im Kontext ist verbindlich. "
             "id und title duerfen niemals leer sein. Benenne das wiederverwendbare Thema, nicht die konkrete Ausfuehrung: "
             "keine Masse, Koordinaten, Anzahlen oder konkreten Objekt-/Layernamen in id/title. "
             "Beispiele: title='Layer erstellen', id='layer_erstellen'; title='Kreis-Geometrie erstellen', id='kreis_geometrie_erstellen'. "
@@ -12824,6 +12836,57 @@ void BricsCadPage::handleAgentReply(const QString& content)
     }
     if (type == "ask_user") {
         const QJsonArray missing = reply.value("missing").toArray();
+        // Die AI darf niemals nach dem Namen eines BRX-Werkzeugs fragen. Solche
+        // Antworten werden automatisch als Planner-Fehler behandelt und in
+        // einen Repair-Run mit dem vollständigen Capability-Katalog überführt.
+        bool asksForToolChoice = false;
+        bool asksForKnownHandle = false;
+        for (const QJsonValue& value : missing) {
+            const QString field = value.toString().trimmed().toLower();
+            if (field.contains(QStringLiteral("tool"))
+                || field.contains(QStringLiteral("extrusion"))
+                || field == QStringLiteral("method")
+                || field == QStringLiteral("operation")) {
+                asksForToolChoice = true;
+                break;
+            }
+            if (field.contains(QStringLiteral("handle"))
+                || field.contains(QStringLiteral("existence"))
+                || field.contains(QStringLiteral("uniqueness"))) {
+                asksForKnownHandle = true;
+            }
+        }
+        const QString lowerQuestion = message.toLower();
+        asksForToolChoice = asksForToolChoice
+            || lowerQuestion.contains(QStringLiteral("extrusionsmethode"))
+            || lowerQuestion.contains(QStringLiteral("extrusionswerkzeug"))
+            || lowerQuestion.contains(QStringLiteral("toolwerkzeug"))
+            || lowerQuestion.contains(QStringLiteral("welches werkzeug"));
+        asksForKnownHandle = asksForKnownHandle
+            || lowerQuestion.contains(QStringLiteral("handle"))
+            && (lowerQuestion.contains(QStringLiteral("vorhanden"))
+                || lowerQuestion.contains(QStringLiteral("eindeutig"))
+                || lowerQuestion.contains(QStringLiteral("exist")));
+        const QRegularExpression explicitHandlePattern(
+            QStringLiteral(R"((?:handle|object\s*id)\s*[=:]?\s*([0-9A-F]+))"),
+            QRegularExpression::CaseInsensitiveOption);
+        const bool promptHasExplicitHandle = explicitHandlePattern.match(m_lastAgentUserPrompt).hasMatch();
+        if (asksForKnownHandle && promptHasExplicitHandle
+            && retryAgentAfterValidationFailure(
+                content,
+                reply,
+                QStringLiteral(
+                    "Der Nutzer hat einen konkreten Handle im Prompt genannt. Frage nicht nach Existenz oder Eindeutigkeit. Loese den Handle deterministisch mit einem read-only BRX-Aufruf (entity.describe, geometry.query oder selection.describe) auf und plane danach die angeforderte Aktion. Wenn BRX den Handle nicht findet, melde den konkreten BRX-Fehler; erfrage nicht erneut denselben Handle."))) {
+            return;
+        }
+        if (asksForToolChoice
+            && retryAgentAfterValidationFailure(
+                content,
+                reply,
+                QStringLiteral(
+                    "Die Rueckfrage nach einem BRX-Tool oder einer Extrusionsmethode ist verboten. Starte einen Repair-Run: waehle selbst das passendste verfuegbare BRX-Tool anhand des unveraenderten Nutzerprompts, der Zeichnungsdaten und des vollstaendigen Capability-Katalogs. Frage den Nutzer nicht nach einem Toolnamen. Wenn kein passendes Tool existiert, melde stattdessen eine technische Capability-Luecke."))) {
+            return;
+        }
         if (message.trimmed().isEmpty()
             && retryAgentAfterValidationFailure(
                 content,
@@ -12894,14 +12957,15 @@ void BricsCadPage::handleAgentReply(const QString& content)
         if (!sessionTitleSuggestion.isEmpty()) {
             emitSessionTitleSuggestion(sessionTitleSuggestion);
         }
-        // Rueckfragen sind normale, persistente AI-Nachrichten. Die rohe
-        // ask_user-JSON-Antwort darf nicht zusaetzlich im Sitzungskontext bleiben.
+        // Die sichtbare Rueckfrage bleibt als Kontext erhalten, wird aber wieder
+        // als gruene Rueckfragebox dargestellt.
         discardLastAssistantConversation(content);
         m_agentConversation.append(QJsonObject{
             {QStringLiteral("role"), QStringLiteral("assistant")},
             {QStringLiteral("content"), question},
         });
-        appendAgentChat(QStringLiteral("AI"), question, sessionTitleExtra);
+        saveCurrentAgentSession();
+        setAgentWaitingForUser(QJsonObject{{QStringLiteral("message"), question}, {QStringLiteral("missing"), missing}});
         m_agentValidationRetries = 0;
         setAgentBusy(false);
         if (m_pendingAgentDraft.isEmpty()) {
@@ -13114,6 +13178,11 @@ bool BricsCadPage::retryAgentAfterValidationFailure(
         boundedTools.removeAt(boundedTools.size() - 1);
     }
     envelope.insert(QStringLiteral("effectiveTools"), boundedTools);
+    // Repair-Runs erhalten zusaetzlich den vollstaendigen BRX-Katalog. Die
+    // vorherige Auswahl kann ein geeignetes Werkzeug uebersehen haben.
+    envelope.insert(QStringLiteral("brxCapabilities"), m_brxCapabilities);
+    envelope.insert(QStringLiteral("capabilityRepairPolicy"), QStringLiteral(
+        "Waehle das Werkzeug selbst aus brxCapabilities. Frage niemals nach einem Toolnamen oder einer Extrusionsmethode."));
 
     QString retryInstruction =
         QStringLiteral("Korrigiere deine letzte Antwort. Antworte ausschliesslich mit einem gueltigen JSON-Objekt. "
@@ -13122,10 +13191,10 @@ bool BricsCadPage::retryAgentAfterValidationFailure(
         "Nutze keinen freien Plan und keine Pseudo-Actions. Wenn die Aufgabe ausfuehrbar ist und die Parameter bekannt sind, liefere genau einen action_proposal mit einem direkt ausfuehrbaren proposal.actions[] Batch. "
         "Korrigiere intern und plane die Aufgabe aus originalUserPrompt, relevantem Verlauf, effectiveTools und aktuellem Zeichnungskontext neu. "
         "Der Validatorfehler ist Diagnose, keine fachliche Qt-Vorgabe. Wiederhole nicht denselben abgelehnten Tool-/Param-Pfad. "
-        "Direkte BricsCAD-DB-Schreibvorgaenge, AcDb-/LayerTable-/EntityTable-Mutationen und Pseudo-Tools fuer DB-Writes sind verboten; nutze ausschliesslich effectiveTools[].name. "
+        "Direkte BricsCAD-DB-Schreibvorgaenge, AcDb-/LayerTable-/EntityTable-Mutationen und Pseudo-Tools fuer DB-Writes sind verboten; nutze effectiveTools[].name oder ein nach Pruefung aus brxCapabilities uebernommenes Tool. Wenn das passende Tool bisher nicht in effectiveTools enthalten ist, waehle es aus brxCapabilities und verwende exakt dessen Methodennamen. "
         "Wenn mehrere Aktionen mit bekannten Parametern erforderlich sind, liefere ein action_proposal mit proposal.actions:[{\"tool\":\"...\",\"params\":{...}},...] und proposal.continueAfterSuccess=false. "
         "Nutze continueAfterSuccess nicht, um Batch-Aufgaben wie mehrere Layer oder mehrere gleichartige Objekte einzeln nachzufordern. "
-        "tool muss exakt einem effectiveTools[].name entsprechen. params muessen inputSchema/apiDoc.post erfuellen. "
+        "tool muss exakt einem effectiveTools[].name oder einem geprueften brxCapabilities.methods[].name entsprechen. params muessen inputSchema/apiDoc.post erfuellen. "
         "Interpretiere Massangaben x/y/z als Breite/Laenge/Hoehe und mappe sie auf die exakten Schemafelder width/depth/height. "
         "x/y/z innerhalb von origin, point, position, coordinates, center oder vector sind dagegen Koordinaten und duerfen nicht als Abmessungen umgedeutet werden. "
         "Bevor du ask_user verwendest, pruefe, ob ein angeblich fehlender Wert bereits im originalUserPrompt oder unter einem abgelehnten Alias vorhanden ist; mappe ihn dann auf das Schemafeld, statt erneut danach zu fragen. "
@@ -13622,6 +13691,23 @@ QJsonObject BricsCadPage::normalizedAgentAction(const QJsonObject& action) const
     } else {
         moveDimensionAlias(QStringLiteral("heightMm"), QStringLiteral("height"));
         moveDimensionAlias(QStringLiteral("z"), QStringLiteral("height"));
+    }
+
+    // All extrusion tools use one canonical height field. Both prompt-derived
+    // aliases (height/Höhe) and top-level z values are accepted; nested
+    // coordinates such as origin/center remain untouched.
+    if (tool == QStringLiteral("rectangles.extrude")
+        || tool == QStringLiteral("circle.extrude")
+        || tool == QStringLiteral("profile.extrude")) {
+        if (!params.contains(QStringLiteral("heightMm"))) {
+            if (params.contains(QStringLiteral("height"))) {
+                params.insert(QStringLiteral("heightMm"), params.value(QStringLiteral("height")));
+            } else if (params.contains(QStringLiteral("z"))) {
+                params.insert(QStringLiteral("heightMm"), params.value(QStringLiteral("z")));
+            }
+        }
+        params.remove(QStringLiteral("height"));
+        params.remove(QStringLiteral("z"));
     }
 
     normalized.insert(QStringLiteral("tool"), tool);
@@ -14646,6 +14732,24 @@ QJsonObject BricsCadPage::workflowFromBricsCadExecution(const QJsonObject& execu
             title = QStringLiteral("Kreis-Geometrie extrudieren");
         } else if (tool == QStringLiteral("profile.extrude")) {
             title = QStringLiteral("Profil-Geometrie extrudieren");
+        } else if (tool == QStringLiteral("geometry.move")) {
+            title = effectiveUiLanguage(m_config.language()) == QStringLiteral("en")
+                ? QStringLiteral("Move geometry") : QStringLiteral("Geometrie verschieben");
+        } else if (tool == QStringLiteral("bim.move")) {
+            title = effectiveUiLanguage(m_config.language()) == QStringLiteral("en")
+                ? QStringLiteral("Move BIM geometry") : QStringLiteral("BIM-Geometrie verschieben");
+        } else if (tool == QStringLiteral("geometry.delete")) {
+            title = effectiveUiLanguage(m_config.language()) == QStringLiteral("en")
+                ? QStringLiteral("Delete geometry") : QStringLiteral("Geometrie löschen");
+        } else if (tool == QStringLiteral("geometry.copy")) {
+            title = effectiveUiLanguage(m_config.language()) == QStringLiteral("en")
+                ? QStringLiteral("Copy geometry") : QStringLiteral("Geometrie kopieren");
+        } else if (tool == QStringLiteral("geometry.rotate")) {
+            title = effectiveUiLanguage(m_config.language()) == QStringLiteral("en")
+                ? QStringLiteral("Rotate geometry") : QStringLiteral("Geometrie drehen");
+        } else if (tool == QStringLiteral("geometry.scale")) {
+            title = effectiveUiLanguage(m_config.language()) == QStringLiteral("en")
+                ? QStringLiteral("Scale geometry") : QStringLiteral("Geometrie skalieren");
         }
     }
     if (title.isEmpty()) {
@@ -14670,6 +14774,21 @@ QJsonObject BricsCadPage::workflowFromBricsCadExecution(const QJsonObject& execu
     if (title.isEmpty()) {
         title = QStringLiteral("BricsCAD Ausfuehrung %1")
             .arg(QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd_HHmmss")));
+    }
+    // Workflow-Identitäten bleiben thematisch und wiederverwendbar. Niemals
+    // Handles, Maße oder Koordinaten aus einem einzelnen Lauf in title/id
+    // übernehmen, auch wenn die AI einen zu konkreten Titel geliefert hat.
+    const QRegularExpression runSpecificTitlePattern(
+        QStringLiteral(R"((?:handle\s*[=:]?\s*[0-9a-f]+|\b[xyz]\s*[=:]\s*-?\d|\b\d+(?:\.\d+)?\s*(?:mm|cm|m)\b))"),
+        QRegularExpression::CaseInsensitiveOption);
+    if (runSpecificTitlePattern.match(title).hasMatch() && !plannedActions.isEmpty()) {
+        const QString firstTool = plannedActions.first().toObject().value(QStringLiteral("tool")).toString();
+        const bool english = effectiveUiLanguage(m_config.language()) == QStringLiteral("en");
+        if (firstTool == QStringLiteral("geometry.delete")) title = english ? QStringLiteral("Delete geometry") : QStringLiteral("Geometrie löschen");
+        else if (firstTool == QStringLiteral("geometry.move")) title = english ? QStringLiteral("Move geometry") : QStringLiteral("Geometrie verschieben");
+        else if (firstTool == QStringLiteral("bim.move")) title = english ? QStringLiteral("Move BIM geometry") : QStringLiteral("BIM-Geometrie verschieben");
+        else if (firstTool == QStringLiteral("geometry.create")) title = english ? QStringLiteral("Create geometry") : QStringLiteral("Geometrie erstellen");
+        else if (firstTool == QStringLiteral("entity.setLayer")) title = english ? QStringLiteral("Assign layer") : QStringLiteral("Layer zuweisen");
     }
     workflow.insert(QStringLiteral("title"), title);
     workflow.insert(QStringLiteral("id"), workflowSlug(title));
@@ -14756,7 +14875,15 @@ void BricsCadPage::saveBricsCadWorkflowFromExecution(const QString& messageId, c
         }
     }
     emitWorkflowListToWeb();
-    appendAgentChat(QStringLiteral("Barebone-Qt"), QStringLiteral("Letzte BricsCAD-Ausfuehrung wurde als Workflow gespeichert: %1").arg(savedPath));
+    if (m_agentBridge) {
+        emitWebProposal(m_agentBridge, QVariantMap{
+            {QStringLiteral("title"), QStringLiteral("Workflow gespeichert")},
+            {QStringLiteral("summary"), QStringLiteral("Letzte BricsCAD-Ausfuehrung wurde als Workflow gespeichert.")},
+            {QStringLiteral("details"), savedPath},
+            {QStringLiteral("canRun"), false},
+            {QStringLiteral("state"), QStringLiteral("completed")},
+        });
+    }
     appendBridgeLog(QStringLiteral("BricsCAD Workflow Save: aus letzter Ausfuehrung gespeichert %1").arg(savedPath));
 }
 
