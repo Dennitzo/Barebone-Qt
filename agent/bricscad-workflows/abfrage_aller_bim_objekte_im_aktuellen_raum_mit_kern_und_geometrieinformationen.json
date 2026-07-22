@@ -1,0 +1,100 @@
+{
+    "authoringNotes": {
+        "actionsCompleted": 1,
+        "actionsRequested": 1,
+        "createdAt": "2026-07-22T15:16:00.562Z",
+        "source": "lastBricsCadExecution"
+    },
+    "constructionStrategy": [
+        "Deterministisch aus der letzten erfolgreich von BRX ausgefuehrten Aktion erzeugt."
+    ],
+    "derivedValues": [
+    ],
+    "description": "Alle BIM-Objekte des aktuellen Raums werden abgefragt und in Tabellenform ausgegeben.",
+    "display": {
+        "blocks": [
+        ]
+    },
+    "executionBatches": [
+        {
+            "id": "batch_1",
+            "mode": "sequential",
+            "steps": [
+                {
+                    "id": "step_1_bim_objects_query",
+                    "paramsTemplate": {
+                        "include": [
+                            "core",
+                            "geometry"
+                        ],
+                        "limit": 500,
+                        "selector": {
+                            "scope": "currentSpace"
+                        }
+                    },
+                    "title": "bim.objects.query",
+                    "tool": "bim.objects.query"
+                }
+            ],
+            "stopOnFailure": true,
+            "title": "Letzte BricsCAD-Ausfuehrung"
+        }
+    ],
+    "forbidden": [
+    ],
+    "id": "abfrage_aller_bim_objekte_im_aktuellen_raum_mit_kern_und_geometrieinformationen",
+    "kind": "bricscad",
+    "knownSlotValues": {
+    },
+    "optionalSlots": {
+    },
+    "preferredTools": [
+        "bim.objects.query"
+    ],
+    "requiredSlots": [
+    ],
+    "schema": "barebone.bricscad.workflow.v1",
+    "steps": [
+        {
+            "id": "step_1_bim_objects_query",
+            "paramsTemplate": {
+                "include": [
+                    "core",
+                    "geometry"
+                ],
+                "limit": 500,
+                "selector": {
+                    "scope": "currentSpace"
+                }
+            },
+            "title": "bim.objects.query",
+            "tool": "bim.objects.query"
+        }
+    ],
+    "title": "Abfrage aller BIM-Objekte im aktuellen Raum mit Kern- und Geometrieinformationen, limit 50",
+    "triggerExamples": [
+        "Liste alle BIM Objekte als Tabelle auf"
+    ],
+    "validationExamples": [
+        {
+            "actions": [
+                {
+                    "params": {
+                        "include": [
+                            "core",
+                            "geometry"
+                        ],
+                        "limit": 500,
+                        "selector": {
+                            "scope": "currentSpace"
+                        }
+                    },
+                    "tool": "bim.objects.query"
+                }
+            ],
+            "prompt": "Liste alle BIM Objekte als Tabelle auf",
+            "title": "Letzte erfolgreiche Ausfuehrung"
+        }
+    ]
+}
+

@@ -1459,6 +1459,13 @@ bool requiresCommandContext(const std::string& request)
     }
     const std::string command = toUpperAscii(parts.front());
     static constexpr const char* kCommandContextRequests[] = {
+        // Database queries are also marshalled through the document command
+        // context. Application-context reads can race an active BricsCAD
+        // command and incorrectly report a non-quiescent document.
+        "BIMOBJECTSQUERY",
+        "GEOMETRYQUERY",
+        "SELECTIONDESCRIBE",
+        "ENTITYDESCRIBE",
         "GEOMETRYCREATE",
         "GEOMETRYMOVE",
         "GEOMETRYCOPY",

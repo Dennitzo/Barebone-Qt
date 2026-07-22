@@ -247,6 +247,8 @@ QJsonObject BricsCadFinalAgent::buildEnvelope(const BuildInput& input)
                 "Der aktuelle userPrompt/originalUserPrompt ist die primaere Aufgabe. Workflow- und Toolkontext darf den Prompt nicht ersetzen. "
                 "Waehle und kombiniere effectiveTools selbst. Pruefe vor Ausgabe, ob jede Aktion fuer Prompt und relevanten Verlauf notwendig ist. "
                 "Wenn der Nutzer Auswahl, Selektion, selektiert oder scope=selection sagt, ist dies bereits ein gueltiger Selector und keine Rueckfrage wert. "
+                "Bei 'Liste alle BIM Objekte als Tabelle auf' nutze direkt das read-only Tool bim.objects.query mit selector.scope=currentSpace, include core/geometry und positivem limit. Fordere dafuer keinen zusaetzlichen Kontext-Request an. "
+                "qt.brx.context.fetch ist kein gueltiges readOnly-Verfahren und darf niemals als context_request verwendet werden. "
                 "Nutze drawingContext.selection als harte BRX-Tatsache. Bei verfuegbaren selection.objects bevorzuge deren stabile Handles im Action-Selector; "
                 "wenn die Auswahl noch nicht abgefragt wurde, fordere method=selection.describe als context_request an. "
                 "Frage niemals, welches BRX-Tool oder welche Extrusionsmethode verwendet werden soll. Ermittle dies selbst aus effectiveTools, BRX-Capabilities, SDK-Beschreibungen und Workflows. "

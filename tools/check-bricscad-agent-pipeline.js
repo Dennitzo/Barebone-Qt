@@ -8,6 +8,7 @@ const brxAgent = read("src/agent/BrxAgent.cpp");
 const toolWorkflow = read("src/agent/bricscad/ToolWorkflowAgent.cpp");
 const finalAgent = read("src/agent/bricscad/BricsCadFinalAgent.cpp");
 const drawingAgent = read("src/agent/bricscad/DrawingContextAgent.cpp");
+const coordinator = read("src/agent/bricscad/BricsCadAgentCoordinator.cpp");
 const webUi = read("index.html");
 
 function assert(condition, message) {
@@ -46,6 +47,10 @@ assert(page.includes('moveDimensionAlias(QStringLiteral("x"), QStringLiteral("wi
   "top-level x dimensions must map to width");
 assert(page.includes('x/y/z innerhalb von origin, point, position, coordinates, center oder vector'),
   "repair policy must preserve coordinate semantics");
+assert(coordinator.includes('QStringLiteral("AI-Berechnung wird erfasst und aufbereitet")'),
+  "calculation slot must use the user-facing preparation status text");
+assert(coordinator.includes('const int completionRevision = slot == QStringLiteral("calculation") ? 3 : 2;'),
+  "calculation completion must advance its reasoning revision so the UI can render the checkmark");
 const executionWorkflowStart = page.indexOf('QJsonObject BricsCadPage::workflowFromBricsCadExecution');
 assert(page.indexOf('proposal.value(QStringLiteral("intentSummary"))', executionWorkflowStart)
     < page.indexOf('title = workflowTitleSeed(sourcePrompt);', executionWorkflowStart),

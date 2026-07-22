@@ -320,7 +320,7 @@ void BricsCadAgentCoordinator::startCalculation(
     state->historyContext = history;
     appendLog(QStringLiteral("AI Calculation: starte nach autoritativem ConversationHistoryAgent-Ergebnis"));
     emitSlotStatus(state->runId, QStringLiteral("calculation"), QStringLiteral("running"), 2,
-        QStringLiteral("AI-Berechnung laeuft mit Sitzungsverlauf"));
+        QStringLiteral("AI-Berechnung wird erfasst und aufbereitet"));
 
     CalculationAgent::Request calculationRequest;
     calculationRequest.prompt = request.prompt;
@@ -355,11 +355,15 @@ void BricsCadAgentCoordinator::finishSlot(
     const QString detail = slotDetail(slot, result);
     appendLog(QStringLiteral("AI Parallel Slot: slot=%1 status=%2 detail=%3")
         .arg(slot, ready ? QStringLiteral("ready") : QStringLiteral("fallback"), detail));
+    // The calculation slot already emitted revision 2 when its AI run started.
+    // Use a strictly newer revision for the terminal update so the frontend's
+    // per-slot revision guard accepts it and replaces the running indicator.
+    const int completionRevision = slot == QStringLiteral("calculation") ? 3 : 2;
     emitSlotStatus(
         state->runId,
         slot,
         ready ? QStringLiteral("succeeded") : QStringLiteral("failed"),
-        2,
+        completionRevision,
         detail);
 
     if (state->completed.size() != 4 || state->finalStarted) {

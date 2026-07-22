@@ -13204,7 +13204,8 @@ bool BricsCadPage::retryAgentAfterValidationFailure(
     }
     retryInstruction += QStringLiteral(
         "Wenn du Sitzungsverlauf brauchst, nutze context_request mit einer Methode aus conversationAccess.allowedMethods. "
-        "Wenn du Zeichnungskontext brauchst, nutze context_request mit exakt einer readOnlyMethods[].name Methode. ");
+        "Wenn du Zeichnungskontext brauchst, nutze context_request mit exakt einer readOnlyMethods[].name Methode. "
+        "qt.brx.context.fetch ist verboten und darf niemals als Methode ausgegeben werden; fuer BIM-Tabellen nutze direkt bim.objects.query. ");
     if (routeAllowsCadActions(m_lastAgentRoute)) {
         retryInstruction += QStringLiteral(
             "Wenn nach Workflow- und Nutzerwerten echte ungebundene Pflichtinformationen fehlen, nutze ask_user mit missing und einem draft. "
