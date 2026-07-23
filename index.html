@@ -8203,6 +8203,25 @@
           confirm.title = uiLanguage === "en" ? "Historical context" : "Historischer Kontext";
         }
         actions.appendChild(confirm);
+      } else {
+        const discard = document.createElement("button");
+        discard.className = "cancel-btn";
+        discard.type = "button";
+        discard.textContent = uiLanguage === "en" ? "Discard" : "Verwerfen";
+        if (options.interactive) {
+          discard.addEventListener("click", () => {
+            if (bridge && typeof bridge.clearProposal === "function") {
+              bridge.clearProposal();
+            }
+            clearProposal();
+            input.focus();
+          });
+        } else {
+          discard.disabled = true;
+          discard.setAttribute("aria-disabled", "true");
+          discard.title = uiLanguage === "en" ? "Historical context" : "Historischer Kontext";
+        }
+        actions.appendChild(discard);
       }
       card.appendChild(actions);
       bubble.appendChild(card);

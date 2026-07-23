@@ -133,10 +133,29 @@ QString BricsCadAgentCoordinator::slotDetail(const QString& slot, const QJsonObj
             .arg(result.value(QStringLiteral("toolNames")).toArray().size())
             .arg(result.value(QStringLiteral("workflowIds")).toArray().size());
     }
+    const QJsonObject numericFacts = result.value(QStringLiteral("numericFacts")).toObject();
+    const QJsonArray recognizedInputs = result.value(QStringLiteral("recognizedInputs")).toArray();
+    const QJsonArray derivedValues = result.value(QStringLiteral("derivedValues")).toArray();
+    const QString calculationSummary =
+        result.value(QStringLiteral("calculationSummary")).toString().trimmed();
+    if (!numericFacts.isEmpty()) {
+        QStringList values;
+        for (auto it = numericFacts.constBegin(); it != numericFacts.constEnd(); ++it) {
+            values << QStringLiteral("%1=%2 mm")
+                .arg(it.key(), QString::number(it.value().toDouble(), 'g', 12));
+        }
+        return QStringLiteral("%1 erkannt und aufbereitet").arg(values.join(QStringLiteral(", "))).left(120);
+    }
+    if (!calculationSummary.isEmpty()) {
+        return calculationSummary.left(120);
+    }
+
     const bool ready = result.value(QStringLiteral("readyForExecution")).toBool(false);
     const bool hasFacts = !result.value(QStringLiteral("numericFacts")).toObject().isEmpty()
         || !result.value(QStringLiteral("values")).toArray().isEmpty()
-        || !result.value(QStringLiteral("displacementVector")).toObject().isEmpty();
+        || !result.value(QStringLiteral("displacementVector")).toObject().isEmpty()
+        || !recognizedInputs.isEmpty()
+        || !derivedValues.isEmpty();
     if (ready || hasFacts) {
         const int valueCount = result.value(QStringLiteral("values")).toArray().size();
         const QJsonObject vector = result.value(QStringLiteral("displacementVector")).toObject();

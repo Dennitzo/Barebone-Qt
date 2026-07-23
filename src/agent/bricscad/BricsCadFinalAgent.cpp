@@ -28,6 +28,12 @@ QJsonObject minimalResponseContract()
             QStringLiteral("action_proposal"),
             QStringLiteral("plan"),
         }},
+        {QStringLiteral("message"), QJsonObject{
+            {QStringLiteral("required"), QJsonArray{QStringLiteral("message")}},
+            {QStringLiteral("messagePolicy"), QStringLiteral(
+                "For type=message, message must contain the complete visible answer. "
+                "Never return an empty message when drawingContext already contains the requested fact.")},
+        }},
         {QStringLiteral("actionProposal"), QJsonObject{
             {QStringLiteral("required"), QJsonArray{
                 QStringLiteral("requiresConfirmation"),
@@ -245,6 +251,7 @@ QJsonObject BricsCadFinalAgent::buildEnvelope(const BuildInput& input)
                 "Finaler Minimal-Run: pruefe Nutzerabsicht, kompakte Zeichnungslage, Berechnung und kleine Toolauswahl. "
                 "Beruecksichtige erkennbare Geometriekonflikte/Ueberlappungen. Keine nativen Commands und keine lokalen Tool-Fallbacks. "
                 "Der aktuelle userPrompt/originalUserPrompt ist die primaere Aufgabe. Workflow- und Toolkontext darf den Prompt nicht ersetzen. "
+                "Bei einer reinen Zeichnungsfrage, die drawingContext bereits beantwortet, antworte mit type=message und einer nicht leeren sichtbaren Antwort. "
                 "Waehle und kombiniere effectiveTools selbst. Pruefe vor Ausgabe, ob jede Aktion fuer Prompt und relevanten Verlauf notwendig ist. "
                 "Wenn der Nutzer Auswahl, Selektion, selektiert oder scope=selection sagt, ist dies bereits ein gueltiger Selector und keine Rueckfrage wert. "
                 "Bei 'Liste alle BIM Objekte als Tabelle auf' nutze direkt das read-only Tool bim.objects.query mit selector.scope=currentSpace, include core/geometry und positivem limit. Fordere dafuer keinen zusaetzlichen Kontext-Request an. "

@@ -7466,8 +7466,26 @@ BricsCadPage::BricsCadPage(ConfigManager& config, QWidget* parent)
         executeAgentProposal();
     });
     QObject::connect(m_agentBridge, &AiWebBridge::proposalClearedByUser, this, [this]() {
+        const QString discardedQuestion =
+            m_pendingAgentDraft.value(QStringLiteral("_questionMessage")).toString().trimmed();
+        if (!discardedQuestion.isEmpty()) {
+            for (int i = m_agentConversation.size() - 1; i >= 0; --i) {
+                const QJsonObject item = m_agentConversation.at(i).toObject();
+                if (item.value(QStringLiteral("role")).toString() == QStringLiteral("assistant")
+                    && item.value(QStringLiteral("content")).toString().trimmed() == discardedQuestion) {
+                    m_agentConversation.removeAt(i);
+                    break;
+                }
+            }
+            appendBridgeLog(QStringLiteral("AI Agent: offene Rueckfrage vom Nutzer verworfen"));
+        }
         clearAgentProposal();
         m_pendingAgentDraft = {};
+        m_agentValidationRetries = 0;
+        m_repeatedAgentContextRequestCount = 0;
+        m_lastAgentContextRequestSignature.clear();
+        m_agentContextLoopBlocked = false;
+        saveCurrentAgentSession();
     });
     QObject::connect(m_agentBridge, &AiWebBridge::operationCancelledByUser, this, [this]() {
         cancelCurrentOperation();
@@ -9540,25 +9558,33 @@ void BricsCadPage::sendAgentEnvelope(const QJsonObject& envelope, const QString&
             bool parsedAgentObject = false;
             const QJsonObject agentObject = jsonObjectFromAiContent(content, &parsedAgentObject);
             const QString agentType = agentObject.value(QStringLiteral("type")).toString();
+            const bool visibleReplyNeedsRepair = parsedAgentObject
+                && (agentType == QStringLiteral("message")
+                    || agentType == QStringLiteral("plan")
+                    || agentType == QStringLiteral("ask_user"))
+                && agentObject.value(QStringLiteral("message")).toString().trimmed().isEmpty();
             const bool proposalNeedsValidation = parsedAgentObject
                 && (agentType == QStringLiteral("action_proposal")
                     || agentType == QStringLiteral("tool_proposal")
                     || agentType == QStringLiteral("workflow_proposal")
                     || agentType == QStringLiteral("workflow_run")
                     || agentType == QStringLiteral("workflow_run_proposal"));
+            const bool finalReplyStillRunning = proposalNeedsValidation || visibleReplyNeedsRepair;
             if (!m_activeReasoningRunId.isEmpty()) {
                 emitWebReasoningProgress(m_agentBridge, QVariantMap{
                     {QStringLiteral("schema"), QStringLiteral("barebone.agent.reasoning-progress.v1")},
                     {QStringLiteral("runId"), m_activeReasoningRunId},
                     {QStringLiteral("stageId"), QStringLiteral("final-run")},
-                    {QStringLiteral("state"), proposalNeedsValidation ? QStringLiteral("running") : QStringLiteral("succeeded")},
-                    {QStringLiteral("revision"), 3},
+                    {QStringLiteral("state"), finalReplyStillRunning ? QStringLiteral("running") : QStringLiteral("succeeded")},
+                    {QStringLiteral("revision"), 3 + m_agentValidationRetries},
                     {QStringLiteral("label"), QStringLiteral("Finale Auswertung")},
                     {QStringLiteral("message"), proposalNeedsValidation
                         ? QStringLiteral("Vorschlag wird technisch geprueft")
-                        : QStringLiteral("Ausfuehrung oder Auswertung vorbereitet")},
+                        : (visibleReplyNeedsRepair
+                            ? QStringLiteral("sichtbare Antwort wird vervollstaendigt")
+                            : QStringLiteral("Ausfuehrung oder Auswertung vorbereitet"))},
                 });
-                if (!proposalNeedsValidation) {
+                if (!finalReplyStillRunning) {
                     m_activeReasoningRunId.clear();
                 }
             }
@@ -12953,6 +12979,9 @@ void BricsCadPage::handleAgentReply(const QString& content)
         if (!m_pendingAgentDraft.isEmpty() && !m_lastAgentUserPrompt.isEmpty()) {
             m_pendingAgentDraft.insert("_sourcePrompt", m_lastAgentUserPrompt);
         }
+        if (!m_pendingAgentDraft.isEmpty()) {
+            m_pendingAgentDraft.insert(QStringLiteral("_questionMessage"), question);
+        }
         clearAgentProposal();
         if (!sessionTitleSuggestion.isEmpty()) {
             emitSessionTitleSuggestion(sessionTitleSuggestion);
@@ -12977,7 +13006,23 @@ void BricsCadPage::handleAgentReply(const QString& content)
     }
 
     if (type == "message") {
-        if (!message.isEmpty()) {
+        if (message.trimmed().isEmpty()) {
+            if (retryAgentAfterValidationFailure(
+                    content,
+                    reply,
+                    QStringLiteral(
+                        "type=message enthaelt keine sichtbare message. Beantworte den unveraenderten Nutzerprompt jetzt direkt. "
+                        "Wenn drawingContext die angefragte Position, den Handle oder andere Zeichnungsfakten bereits enthaelt, nutze diese Daten und liefere eine nicht leere deutsche message."))) {
+                return;
+            }
+            const QString drawingSummary = repairMojibakeText(
+                m_lastAgentRoute.value(QStringLiteral("preparedDrawingContext")).toObject()
+                    .value(QStringLiteral("summary")).toString()).trimmed();
+            appendAgentChat(QStringLiteral("AI"), drawingSummary.isEmpty()
+                ? QStringLiteral("Die lokale AI hat keine sichtbare Antwort erzeugt. Bitte wiederhole die Anfrage.")
+                : drawingSummary,
+                sessionTitleExtra);
+        } else {
             if (!sessionTitleSuggestion.isEmpty()) {
                 emitSessionTitleSuggestion(sessionTitleSuggestion);
             }
@@ -13000,6 +13045,26 @@ void BricsCadPage::handleAgentReply(const QString& content)
     }
 
     if (type == "plan") {
+        if (message.trimmed().isEmpty()) {
+            if (retryAgentAfterValidationFailure(
+                    content,
+                    reply,
+                    QStringLiteral(
+                        "type=plan enthaelt keine sichtbare message. Eine reine Zeichnungsfrage braucht keinen leeren Plan. "
+                        "Beantworte den Nutzerprompt mit type=message und nutze bereits vorhandene Fakten aus drawingContext."))) {
+                return;
+            }
+            const QString drawingSummary = repairMojibakeText(
+                m_lastAgentRoute.value(QStringLiteral("preparedDrawingContext")).toObject()
+                    .value(QStringLiteral("summary")).toString()).trimmed();
+            appendAgentChat(QStringLiteral("AI"), drawingSummary.isEmpty()
+                ? QStringLiteral("Die lokale AI hat keine sichtbare Antwort erzeugt. Bitte wiederhole die Anfrage.")
+                : drawingSummary,
+                sessionTitleExtra);
+            m_pendingAgentDraft = {};
+            m_agentValidationRetries = 0;
+            return;
+        }
         m_pendingAgentDraft = reply;
         clearAgentProposal();
         appendBridgeLog(QString("AI Agent: Plan missing=%1")
@@ -13061,7 +13126,7 @@ void BricsCadPage::processAgentProposal(
             {QStringLiteral("runId"), m_activeReasoningRunId},
             {QStringLiteral("stageId"), QStringLiteral("final-run")},
             {QStringLiteral("state"), QStringLiteral("succeeded")},
-            {QStringLiteral("revision"), 4},
+            {QStringLiteral("revision"), 4 + m_agentValidationRetries},
             {QStringLiteral("label"), QStringLiteral("Finale Auswertung")},
             {QStringLiteral("message"), QStringLiteral("Vorschlag technisch vorbereitet")},
         });

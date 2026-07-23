@@ -43,7 +43,7 @@
     ],
     "forbidden": [
     ],
-    "id": "bim_wandklassifikation_des_solids_b6",
+    "id": "bim_wandklassifikation_eines_solids",
     "kind": "bricscad",
     "knownSlotValues": {
     },
@@ -73,7 +73,7 @@
             "tool": "bim.classify"
         }
     ],
-    "title": "BIM-Wandklassifikation des Solids B6",
+    "title": "BIM-Wandklassifikation eines Solids",
     "triggerExamples": [
         "Klassifiziere 3DSolid Handle=B6 als BIM Wand. Nutze dafür das bim.classify Tool."
     ],

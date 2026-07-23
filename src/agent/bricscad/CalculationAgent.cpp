@@ -4,6 +4,7 @@
 
 #include <QJsonDocument>
 #include <QRegularExpression>
+#include <QSet>
 
 #include <cmath>
 #include <algorithm>
@@ -84,6 +85,56 @@ QJsonObject extractNumericFacts(const QString& prompt)
         facts.insert(canonical, value);
     }
     return facts;
+}
+
+QJsonArray numericFactValues(const QJsonObject& facts)
+{
+    QJsonArray values;
+    const QStringList preferredOrder{
+        QStringLiteral("x"),
+        QStringLiteral("y"),
+        QStringLiteral("z"),
+        QStringLiteral("widthMm"),
+        QStringLiteral("lengthMm"),
+        QStringLiteral("heightMm"),
+        QStringLiteral("radiusMm"),
+    };
+    QSet<QString> appended;
+    const auto appendFact = [&values, &appended, &facts](const QString& key) {
+        if (!facts.contains(key) || appended.contains(key)) {
+            return;
+        }
+        values.append(QJsonObject{
+            {QStringLiteral("name"), key},
+            {QStringLiteral("value"), facts.value(key)},
+            {QStringLiteral("unit"), QStringLiteral("mm")},
+            {QStringLiteral("source"), QStringLiteral("userPrompt")},
+        });
+        appended.insert(key);
+    };
+    for (const QString& key : preferredOrder) {
+        appendFact(key);
+    }
+    for (auto it = facts.constBegin(); it != facts.constEnd(); ++it) {
+        appendFact(it.key());
+    }
+    return values;
+}
+
+QString numericFactsSummary(const QJsonObject& facts)
+{
+    if (facts.isEmpty()) {
+        return {};
+    }
+    QStringList values;
+    for (const QJsonValue& value : numericFactValues(facts)) {
+        const QJsonObject fact = value.toObject();
+        values << QStringLiteral("%1=%2 %3")
+            .arg(fact.value(QStringLiteral("name")).toString(),
+                QString::number(fact.value(QStringLiteral("value")).toDouble(), 'g', 12),
+                fact.value(QStringLiteral("unit")).toString());
+    }
+    return QStringLiteral("%1 erkannt und aufbereitet.").arg(values.join(QStringLiteral(", ")));
 }
 
 QStringList recentUserTexts(const QJsonArray& conversation, int maxMessages)
@@ -686,7 +737,7 @@ void CalculationAgent::run(
         {QStringLiteral("userPrompt"), request.prompt},
         {QStringLiteral("conversationContext"), request.conversationContext},
         {QStringLiteral("conversation"), request.conversation},
-        {QStringLiteral("numericFacts"), extractNumericFacts(request.prompt)},
+        {QStringLiteral("numericFacts"), promptNumericFacts},
         {QStringLiteral("workflowCapsules"), workflows},
         {QStringLiteral("policy"), QStringLiteral("Fehlende frei waehlbare Beispielwerte plausibel setzen; Widersprueche in missing/error melden.")},
         {QStringLiteral("responseShape"), QJsonObject{
@@ -727,11 +778,24 @@ void CalculationAgent::run(
     jsonRequest.operationGeneration = request.operationGeneration;
     jsonRequest.bricsCadMode = request.bricsCadMode;
 
-    runtime.submitJson(jsonRequest, [callback = std::move(callback)](const LocalAiAgentRuntime::JsonResult& result) mutable {
+    runtime.submitJson(jsonRequest, [callback = std::move(callback), promptNumericFacts](const LocalAiAgentRuntime::JsonResult& result) mutable {
         QJsonObject object;
         if (result.ok) {
             object = result.object;
             object.insert(QStringLiteral("ready"), !object.contains(QStringLiteral("error")));
+            if (!promptNumericFacts.isEmpty()) {
+                const QJsonArray promptValues = numericFactValues(promptNumericFacts);
+                object.insert(QStringLiteral("numericFacts"), promptNumericFacts);
+                if (object.value(QStringLiteral("recognizedInputs")).toArray().isEmpty()) {
+                    object.insert(QStringLiteral("recognizedInputs"), promptValues);
+                }
+                if (object.value(QStringLiteral("values")).toArray().isEmpty()) {
+                    object.insert(QStringLiteral("values"), promptValues);
+                }
+                if (object.value(QStringLiteral("calculationSummary")).toString().trimmed().isEmpty()) {
+                    object.insert(QStringLiteral("calculationSummary"), numericFactsSummary(promptNumericFacts));
+                }
+            }
         } else {
             object = QJsonObject{
                 {QStringLiteral("schema"), QStringLiteral("barebone.agent.calculation.v1")},

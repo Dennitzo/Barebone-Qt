@@ -8,6 +8,7 @@ const brxAgent = read("src/agent/BrxAgent.cpp");
 const toolWorkflow = read("src/agent/bricscad/ToolWorkflowAgent.cpp");
 const finalAgent = read("src/agent/bricscad/BricsCadFinalAgent.cpp");
 const drawingAgent = read("src/agent/bricscad/DrawingContextAgent.cpp");
+const calculationAgent = read("src/agent/bricscad/CalculationAgent.cpp");
 const coordinator = read("src/agent/bricscad/BricsCadAgentCoordinator.cpp");
 const webUi = read("index.html");
 
@@ -51,6 +52,26 @@ assert(coordinator.includes('QStringLiteral("AI-Berechnung wird erfasst und aufb
   "calculation slot must use the user-facing preparation status text");
 assert(coordinator.includes('const int completionRevision = slot == QStringLiteral("calculation") ? 3 : 2;'),
   "calculation completion must advance its reasoning revision so the UI can render the checkmark");
+assert(calculationAgent.includes('object.insert(QStringLiteral("numericFacts"), promptNumericFacts);'),
+  "calculation results must preserve numeric facts recognized before the AI run");
+assert(coordinator.includes('QStringLiteral("%1 erkannt und aufbereitet")'),
+  "calculation thinking status must expose recognized numeric values");
+assert(finalAgent.includes('For type=message, message must contain the complete visible answer.'),
+  "final BricsCAD messages must not be allowed to complete without visible content");
+assert(page.includes('type=message enthaelt keine sichtbare message.'),
+  "empty final messages must enter the repair path instead of silently completing");
+assert(page.includes('type=plan enthaelt keine sichtbare message.'),
+  "empty plans must be repaired into a visible answer for drawing questions");
+assert(page.includes('{QStringLiteral("revision"), 3 + m_agentValidationRetries}'),
+  "final-answer repair updates must advance the shared thinking revision");
+assert(page.includes('{QStringLiteral("revision"), 4 + m_agentValidationRetries}'),
+  "proposal completion after a repair must advance beyond its running revision");
+assert(page.includes('m_pendingAgentDraft.value(QStringLiteral("_questionMessage"))'),
+  "discarding a question must remove its pending conversation context");
+assert(webUi.includes('discard.textContent = uiLanguage === "en" ? "Discard" : "Verwerfen";'),
+  "non-runnable question cards must provide a discard button");
+assert(webUi.includes('typeof bridge.clearProposal === "function"'),
+  "discarding a question must notify Qt to reset the pending draft");
 const executionWorkflowStart = page.indexOf('QJsonObject BricsCadPage::workflowFromBricsCadExecution');
 assert(page.indexOf('proposal.value(QStringLiteral("intentSummary"))', executionWorkflowStart)
     < page.indexOf('title = workflowTitleSeed(sourcePrompt);', executionWorkflowStart),
